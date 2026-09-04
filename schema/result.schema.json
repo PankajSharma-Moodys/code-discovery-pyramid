@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://code-scanner/schema/result.schema.json",
+  "title": "code-scanner result",
+  "type": "object",
+  "required": ["schema_version", "tool", "scan", "score", "modules", "languages", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "required": [
+        "root", "started_at", "duration_ms", "discovery", "grouping", "detail",
+        "files_scanned", "files_excluded", "files_skipped", "files_degraded", "files_unparsed",
+        "by_role", "packs_active", "config", "config_source", "config_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string" },
+        "started_at": { "type": "string" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "discovery": { "type": "string", "enum": ["git-ls-files", "pathspec-walk"] },
+        "grouping": { "type": "string", "enum": ["manifest", "directory"] },
+        "detail": { "type": "string", "enum": ["threshold", "full", "summary"] },
+        "files_scanned": { "type": "integer", "minimum": 0 },
+        "files_excluded": { "type": "integer", "minimum": 0 },
+        "files_skipped": { "type": "integer", "minimum": 0 },
+        "files_degraded": { "type": "integer", "minimum": 0 },
+        "files_unparsed": { "type": "integer", "minimum": 0 },
+        "by_role": {
+          "type": "object",
+          "required": ["production", "test", "generated", "vendored"],
+          "additionalProperties": false,
+          "properties": {
+            "production": { "type": "integer", "minimum": 0 },
+            "test": { "type": "integer", "minimum": 0 },
+            "generated": { "type": "integer", "minimum": 0 },
+            "vendored": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "packs_active": { "type": "array", "items": { "type": "string" } },
+        "config": { "type": "object" },
+        "config_source": { "type": ["string", "null"] },
+        "config_digest": { "type": "string" }
+      }
+    },
+    "score": { "$ref": "#/$defs/score" },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "manifest", "ecosystem", "score", "totals", "by_role"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "path": { "type": "string" },
+          "manifest": { "type": ["string", "null"] },
+          "ecosystem": { "type": ["string", "null"] },
+          "score": { "$ref": "#/$defs/score" },
+          "totals": { "$ref": "#/$defs/totals" },
+          "by_role": { "$ref": "#/$defs/by_role_counts" }
+        }
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name", "files", "code", "comment", "blank", "functions", "types",
+          "mean_complexity", "p95_complexity", "doc_coverage", "doc_coverage_approximate", "scope"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "files": { "type": "integer", "minimum": 0 },
+          "code": { "type": "integer", "minimum": 0 },
+          "comment": { "type": "integer", "minimum": 0 },
+          "blank": { "type": "integer", "minimum": 0 },
+          "functions": { "type": "integer", "minimum": 0 },
+          "types": { "type": "integer", "minimum": 0 },
+          "mean_complexity": { "type": ["number", "null"] },
+          "p95_complexity": { "type": ["number", "null"] },
+          "doc_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "doc_coverage_approximate": { "type": "boolean" },
+          "scope": { "$ref": "#/$defs/scope" }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/file_report" }
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "files": { "type": "integer", "minimum": 0 },
+        "population": { "type": ["string", "null"] },
+        "n": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": ["files", "code", "comment", "blank", "functions", "types", "doc_coverage"],
+      "additionalProperties": false,
+      "properties": {
+        "files": { "type": "integer", "minimum": 0 },
+        "code": { "type": "integer", "minimum": 0 },
+        "comment": { "type": "integer", "minimum": 0 },
+        "blank": { "type": "integer", "minimum": 0 },
+        "functions": { "type": "integer", "minimum": 0 },
+        "types": { "type": "integer", "minimum": 0 },
+        "doc_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "by_role_counts": {
+      "type": "object",
+      "required": ["production", "test", "generated", "vendored"],
+      "additionalProperties": false,
+      "properties": {
+        "production": { "type": "integer", "minimum": 0 },
+        "test": { "type": "integer", "minimum": 0 },
+        "generated": { "type": "integer", "minimum": 0 },
+        "vendored": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "score": {
+      "type": "object",
+      "required": ["value", "grade"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "grade": { "type": ["string", "null"], "enum": ["A", "B", "C", "D", "F", null] },
+        "scope": { "$ref": "#/$defs/scope" },
+        "penalties": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "function_report": {
+      "type": "object",
+      "required": [
+        "name", "line", "end_line", "body_line", "body_end_line", "length",
+        "complexity", "params", "max_nesting", "public", "documented"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "body_line": { "type": "integer", "minimum": 1 },
+        "body_end_line": { "type": "integer", "minimum": 1 },
+        "length": { "type": "integer", "minimum": 0 },
+        "complexity": { "type": "integer", "minimum": 1 },
+        "params": { "type": "integer", "minimum": 0 },
+        "max_nesting": { "type": "integer", "minimum": 0 },
+        "public": { "type": "boolean" },
+        "documented": { "type": "boolean" }
+      }
+    },
+    "type_report": {
+      "type": "object",
+      "required": ["name", "kind", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "smell": {
+      "type": "object",
+      "required": ["kind", "line", "value", "threshold", "scored"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "value": { "type": "number" },
+        "threshold": { "type": "number" },
+        "scored": { "type": "boolean" },
+        "attribution": { "type": ["string", "null"], "enum": ["dictated", "authored", null] },
+        "suppressed_by": { "type": ["string", "null"] }
+      }
+    },
+    "outlier": {
+      "type": "object",
+      "required": ["kind", "line", "value", "baseline_p95", "population"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "value": { "type": "number" },
+        "baseline_p95": { "type": "number" },
+        "population": { "type": "string" }
+      }
+    },
+    "security_finding": {
+      "type": "object",
+      "required": ["kind", "line", "severity", "confidence", "detector", "message", "scored"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "detector": { "type": "string" },
+        "message": { "type": "string" },
+        "scored": { "type": "boolean" },
+        "suppressed_by": { "type": ["string", "null"] }
+      }
+    },
+    "file_report": {
+      "type": "object",
+      "required": [
+        "path", "module", "language", "role", "parse_status", "detection", "lines", "counts", "doc_coverage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "module": { "type": ["string", "null"] },
+        "language": { "type": ["string", "null"] },
+        "role": { "type": "string", "enum": ["production", "test", "generated", "vendored"] },
+        "parse_status": { "type": "string", "enum": ["ok", "degraded", "unparsed"] },
+        "detection": { "type": "string", "enum": ["extension", "sniff"] },
+        "lines": {
+          "type": "object",
+          "required": ["total", "code", "comment", "blank", "approximate"],
+          "additionalProperties": false,
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "code": { "type": "integer", "minimum": 0 },
+            "comment": { "type": "integer", "minimum": 0 },
+            "blank": { "type": "integer", "minimum": 0 },
+            "approximate": { "type": "boolean" }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "required": ["functions", "types", "public", "documented"],
+          "additionalProperties": false,
+          "properties": {
+            "functions": { "type": "integer", "minimum": 0 },
+            "types": { "type": "integer", "minimum": 0 },
+            "public": { "type": "integer", "minimum": 0 },
+            "documented": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "doc_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "functions": { "type": "array", "items": { "$ref": "#/$defs/function_report" } },
+        "types": { "type": "array", "items": { "$ref": "#/$defs/type_report" } },
+        "smells": { "type": "array", "items": { "$ref": "#/$defs/smell" } },
+        "outliers": { "type": "array", "items": { "$ref": "#/$defs/outlier" } },
+        "security": { "type": "array", "items": { "$ref": "#/$defs/security_finding" } }
+      }
+    }
+  }
+}
