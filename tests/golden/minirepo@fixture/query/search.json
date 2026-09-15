@@ -1,0 +1,27 @@
+{
+  "claims": [
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+          "file": "Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_mini_db_url",
+      "kind": "config",
+      "source_nodes": [
+        "root"
+      ],
+      "statement": "Configuration key 'MINI_DB_URL' is read at 1 site(s) in (root).",
+      "subject": "config:MINI_DB_URL"
+    }
+  ],
+  "files": [],
+  "query": "search",
+  "symbols": [],
+  "text": "config",
+  "unknowns": []
+}

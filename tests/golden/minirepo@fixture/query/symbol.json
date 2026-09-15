@@ -1,0 +1,75 @@
+{
+  "found": [
+    {
+      "claims": [
+        {
+          "channel": "persist",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+              "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+              "line": 7
+            }
+          ],
+          "id": "data_model.repository.com_example_mini_core_widgetrepository.com_example_mini_core_widgetentity",
+          "kind": "data_model",
+          "source_nodes": [
+            "root/core"
+          ],
+          "statement": "WidgetRepository reads and writes WidgetEntity; no table name is stated in source, so the binding is left to the persistence framework's default.",
+          "subject": "entity:com.example.mini.core.WidgetEntity"
+        },
+        {
+          "confidence": "high",
+          "evidence": [
+            {
+              "anchor": "rootProject.name = 'mini-svc'",
+              "file": "settings.gradle",
+              "line": 1
+            }
+          ],
+          "id": "naming.root_project.mini_svc",
+          "kind": "naming",
+          "source_nodes": [
+            "root"
+          ],
+          "statement": "The build's root project is named 'mini-svc', which appears in no directory name; every module directory is '?...'. Build logs, metrics and the OpenAPI title use 'mini-svc'.",
+          "subject": "build:rootProject.name"
+        },
+        {
+          "confidence": "high",
+          "evidence": [
+            {
+              "anchor": "public class Widget {",
+              "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+              "line": 6
+            }
+          ],
+          "id": "naming.package_path.case",
+          "kind": "naming",
+          "source_nodes": [
+            "root/core"
+          ],
+          "statement": "1 source files declare a package whose text and directory path differ only in case (e.g. directory 'COM/Example/mini/core' declares 'package com.example.mini.core'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
+          "subject": "package-path-divergence"
+        }
+      ],
+      "collision": false,
+      "defined_at": [
+        "settings.gradle:1"
+      ],
+      "fqn": "build:rootProject.name",
+      "kind": "config_key",
+      "modules": [
+        "(root)"
+      ],
+      "used_by": [],
+      "used_by_count": 0,
+      "value": "mini-svc",
+      "visibility": "public"
+    }
+  ],
+  "name": "build:rootProject.name",
+  "query": "symbol"
+}

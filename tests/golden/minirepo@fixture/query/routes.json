@@ -1,0 +1,30 @@
+{
+  "count": 2,
+  "query": "routes",
+  "routes": [
+    {
+      "declared_via": "${ApiPaths.WIDGETS}",
+      "evidence": [
+        "web/src/main/java/com/example/mini/web/WidgetResource.java:19",
+        "web/src/main/java/com/example/mini/web/ApiPaths.java:5"
+      ],
+      "handler": "com.example.mini.web.WidgetResource#list",
+      "module": "web",
+      "route": "/v1/widgets",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiPaths.WIDGETS}/{id}",
+      "evidence": [
+        "web/src/main/java/com/example/mini/web/WidgetResource.java:24",
+        "web/src/main/java/com/example/mini/web/ApiPaths.java:5"
+      ],
+      "handler": "com.example.mini.web.WidgetResource#get",
+      "module": "web",
+      "route": "/v1/widgets/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    }
+  ]
+}

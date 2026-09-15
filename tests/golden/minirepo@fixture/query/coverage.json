@@ -1,0 +1,17 @@
+{
+  "coverage": {
+    "files_complete": 3,
+    "files_total": 13,
+    "fraction": 0.2308,
+    "incomplete_nodes": [
+      "root/core",
+      "root/web"
+    ]
+  },
+  "node_errors": {},
+  "nodes": {
+    "root": "complete"
+  },
+  "query": "coverage",
+  "warning": "This run covers 23.1% of tracked files. Treat every absent fact as unexamined, not as absent from the codebase."
+}

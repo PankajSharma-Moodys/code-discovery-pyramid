@@ -1,0 +1,28 @@
+{
+  "by_node": {
+    "root": [
+      {
+        "question": "What contract does automation actually publish?",
+        "source_node": "root",
+        "why_unresolved": "42 of its 44 files are untracked and generated at build time, so its public surface cannot be read from the repository."
+      },
+      {
+        "question": "What contract does client-java actually publish?",
+        "source_node": "root",
+        "why_unresolved": "417 of its 420 files are untracked and generated at build time, so its public surface cannot be read from the repository."
+      },
+      {
+        "question": "What contract does exposure-snapshot/snapshot-legacy actually publish?",
+        "source_node": "root",
+        "why_unresolved": "57 of its 58 files are untracked and generated at build time, so its public surface cannot be read from the repository."
+      },
+      {
+        "question": "What contract does sql-pool actually publish?",
+        "source_node": "root",
+        "why_unresolved": "457 of its 477 files are untracked and generated at build time, so its public surface cannot be read from the repository."
+      }
+    ]
+  },
+  "count": 4,
+  "query": "unknowns"
+}

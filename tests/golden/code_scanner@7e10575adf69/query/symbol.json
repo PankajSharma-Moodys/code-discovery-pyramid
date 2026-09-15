@@ -1,0 +1,41 @@
+{
+  "found": [
+    {
+      "claims": [
+        {
+          "channel": "process_boundary",
+          "confidence": "high",
+          "evidence": [
+            {
+              "anchor": "public static void main(String[] args) {",
+              "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+              "line": 143
+            }
+          ],
+          "id": "entrypoint.main.generateexposureschemafromparquetfiles",
+          "kind": "entrypoint",
+          "source_nodes": [
+            "root/exposure-snapshot/snapshot-developer-utils"
+          ],
+          "statement": "GenerateExposureSchemaFromParquetFiles declares a process entry point in exposure-snapshot/snapshot-developer-utils; it is one of the repository's separately-startable units.",
+          "subject": "GenerateExposureSchemaFromParquetFiles"
+        }
+      ],
+      "collision": false,
+      "defined_at": [
+        "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java:21"
+      ],
+      "fqn": "GenerateExposureSchemaFromParquetFiles",
+      "kind": "class",
+      "modules": [
+        "exposure-snapshot/snapshot-developer-utils"
+      ],
+      "used_by": [],
+      "used_by_count": 0,
+      "value": null,
+      "visibility": "public"
+    }
+  ],
+  "name": "GenerateExposureSchemaFromParquetFiles",
+  "query": "symbol"
+}

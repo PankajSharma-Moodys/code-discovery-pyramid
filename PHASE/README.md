@@ -75,7 +75,31 @@ rather than inventing a number for it.
 
 ## Validation target
 
-`$TARGET_REPO` — a private repository, to be named and pinned to a commit at
-Phase 0 M0.3. Until then it is a placeholder. The determinism baseline, the
-module-detection fix (1.1), the benchmark question set (Phase 6) and every
-"exercise on real input" acceptance criterion resolve against it.
+**Pinned at Phase 0 M0.3 — see [TARGET.md](TARGET.md).**
+
+`$TARGET_REPO` = `/Users/sharmp49/git/code_scanner` @
+`7e10575adf69a193da7f547aed088f7409f1f7c4` — a private polyglot monorepo:
+4,728 tracked files, 1,424,015 LOC, 63 modules, C#/Java/SQL/Scala. The
+determinism baseline, the module-detection fix (1.1), the benchmark question
+set (Phase 6) and every "exercise on real input" acceptance criterion resolve
+against it.
+
+Two findings from pinning it change later phases, both recorded in TARGET.md:
+
+- **48% of the target is invisible to CDP.** 2,262 `.cs` files and 73 `.scala`
+  files yield zero defines, imports and io_edges; there is no C# or Scala
+  extractor. This is the "add languages on demand, driven by what real target
+  repos contain" decision (`RESEARCH_GRAPHIFY.md §9` item 4) arriving with its
+  evidence. It should be settled **before** Phase 6, because recall measured
+  over a corpus where half the code is unreadable measures the extractor set,
+  not the repository.
+- **Scope item 1.1 is not observable at this target's root.** Its root holds
+  `Directory.Build.props`/`global.json`, none of which is in `MANIFEST_NAMES`.
+  Phase 1 needs a constructed fixture, a second target, or to widen
+  `MANIFEST_NAMES` as part of the fix.
+
+## Findings log
+
+[FINDINGS.md](FINDINGS.md) records defects found while building the Phase 0
+baseline. Phase 0 fixes nothing by design, so F1 (a real non-determinism in
+`cdp/graph.py:180`) is recorded against Phase 1 rather than patched.

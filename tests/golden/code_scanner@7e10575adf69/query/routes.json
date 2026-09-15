@@ -1,0 +1,501 @@
+{
+  "count": 43,
+  "query": "routes",
+  "routes": [
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:570"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#getExposureBundleTableSets",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:458"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#getExposureBundles",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureVariationsResource.java:70"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureVariationsResource#getExposureVariations",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java:199"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.VariationJobsResource#getExposureVariationJobs",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:103"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#createExposureBundle",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java:103"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.VariationJobsResource#postEntityVariation",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_HEALTH_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/SqlPoolHealthCheckResource.java:43",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:6"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.SqlPoolHealthCheckResource#health",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/health",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_HEALTH_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/resources/SqlPoolQuartzHealthCheckResource.java:38",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:6"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.manager.resources.SqlPoolQuartzHealthCheckResource#health",
+      "module": "sql-pool/sql-pool-manager",
+      "route": "/health",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/swagger-resource/src/main/java/com/rms/utils/swagger/SwaggerResource.java:20"
+      ],
+      "handler": "com.rms.utils.swagger.SwaggerResource#get",
+      "module": "exposure-snapshot/swagger-resource",
+      "route": "/openapi",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/TenantProvisioningResource.java:140"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.TenantProvisioningResource#deleteProvisionsForTenant",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/TenantProvisioningResource.java:54"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.TenantProvisioningResource#getProvisionStatusForTenant",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/TenantProvisioningResource.java:101"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.TenantProvisioningResource#provisionForTenant",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:187"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#prepareUploadExposureBundle",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/upload",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_CONFIG_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java:73",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:11"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.PoolConfigResource#getPoolConfigurations",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/pools",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java:119",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:11"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.PoolConfigResource#getPoolConfig",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/pools/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java:174",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:11"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.PoolConfigResource#updatePoolConfig",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/pools/{id}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_RESERVATION_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java:71",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ReservationResource#getReservations",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/reservations",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_RESERVATION_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java:180",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ReservationResource#makeReservations",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/reservations",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_RESERVATION_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java:139",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ReservationResource#findReservation",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/reservations/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_RESERVATION_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java:224",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ReservationResource#updateReservation",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/reservations/{id}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_RESERVATION_PATH}/{reservation_id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java:269",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ReservationResource#deleteReservation",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/reservations/{reservation_id}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_SERVER_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java:71",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:10"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ServerResource#getAvailableServers",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/servers",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_SERVER_PATH}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java:173",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:10"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ServerResource#register",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/servers",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_SERVER_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java:263",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:10"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ServerResource#unRegister",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/servers/{id}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_SERVER_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java:127",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:10"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ServerResource#getServer",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/servers/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_SERVER_PATH}/{id}",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java:217",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:10"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ServerResource#updateServer",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/servers/{id}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": "${ApiConstants.SQL_POOL_SERVER_PATH}/{id}/logs",
+      "evidence": [
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java:295",
+        "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:10"
+      ],
+      "handler": "rms.unifiedstore.sqlpool.api.resources.ServerResource#getServerStatusLogs",
+      "module": "sql-pool/sql-pool-api",
+      "route": "/v1/servers/{id}/logs",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:685"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#getExposureBundle",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{bundleId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:847"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#getExposureBundleMetrics",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{bundleId}/metrics",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:255"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#createExposureBundleTableSet",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{bundleId}/tableset",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:763"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#getExposureBundleTableSets",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{bundleId}/tablesets",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java:263"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.VariationJobsResource#getJob",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{jobId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java:313"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.VariationJobsResource#updateJob",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{jobId}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureVariationsResource.java:218"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureVariationsResource#deleteExposureVariationByVariationId",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{variationId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureVariationsResource.java:166"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureVariationsResource#getExposureVariation",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "/{variationId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/InternalVariationResource.java:196"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.InternalVariationResource#getExposureVariations",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "internal/variation/v1/exposurevariations",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/InternalVariationResource.java:281"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.InternalVariationResource#getExposureVariationsAsAdmin",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "internal/variation/v1/exposurevariations/admin",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/InternalVariationResource.java:55"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.InternalVariationResource#getExposureVariation",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "internal/variation/v1/exposurevariations/{variationId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/InternalVariationResource.java:129"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.InternalVariationResource#getExposureVariationAsAdmin",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "internal/variation/v1/exposurevariations/{variationId}/admin",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SNAPSHOT_PATH}",
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java:521",
+        "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:29"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.EntityVariationResource#getEntityVariations",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "v1/{tenantId}/exposures",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": "${ApiConstants.SNAPSHOT_PATH}",
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java:157",
+        "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:29"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.EntityVariationResource#postEntityVariation",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "v1/{tenantId}/exposures",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": "${ApiConstants.SNAPSHOT_PATH}/${ApiConstants.LIVE_VARIATION_PATH}",
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java:816",
+        "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:29",
+        "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:48"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.EntityVariationResource#postLiveEntityVariations",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "v1/{tenantId}/exposures//live-variations",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": "${ApiConstants.SNAPSHOT_PATH}/${ApiConstants.VARIATION_JOBS_PATH}",
+      "evidence": [
+        "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java:405",
+        "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:29",
+        "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:35"
+      ],
+      "handler": "com.rms.unifiedstore.snapshot.api.resources.EntityVariationResource#getEntityVariationJob",
+      "module": "exposure-snapshot/snapshot-api",
+      "route": "v1/{tenantId}/exposures//{entityName}/variationjobs/{variationJobId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    }
+  ]
+}

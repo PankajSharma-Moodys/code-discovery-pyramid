@@ -42,13 +42,20 @@ def make_repo(tmp: Path) -> Path:
     shutil.copytree(FIXTURE, repo)
     if not have_git():
         return repo
+    # Author and committer dates are pinned alongside the identities so that the
+    # fixture commits to the *same SHA* on every run. Without this the fixture
+    # has a fresh SHA per run, which leaks into `state.json`'s `fold_hash` (a
+    # digest over patch content that carries the commit) and makes a golden
+    # baseline for the fixture unusable: blessed once, different immediately.
     env = {
         "GIT_AUTHOR_NAME": "cdp", "GIT_AUTHOR_EMAIL": "cdp@example.invalid",
         "GIT_COMMITTER_NAME": "cdp", "GIT_COMMITTER_EMAIL": "cdp@example.invalid",
+        "GIT_AUTHOR_DATE": "2025-01-01T00:00:00+00:00",
+        "GIT_COMMITTER_DATE": "2025-01-01T00:00:00+00:00",
         "PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(tmp),
     }
     for args in (
-        ["init", "-q"],
+        ["init", "-q", "-b", "main"],
         ["add", "-A"],
         ["-c", "commit.gpgsign=false", "commit", "-q", "-m", "fixture"],
     ):

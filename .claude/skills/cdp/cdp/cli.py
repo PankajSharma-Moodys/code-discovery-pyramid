@@ -24,11 +24,13 @@ import datetime
 import re
 import shutil
 import sys
+from contextlib import contextmanager as contextlib_contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import dataflow as dataflow_mod
 from . import docs as docs_mod
+from . import golden as golden_mod
 from . import graph as graph_mod
 from . import inventory as inventory_mod
 from . import partition as partition_mod
@@ -55,7 +57,7 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent
 #: Floor on the bundled suite's size. `selftest` fails below it rather than
 # reporting a green run over nothing. Raise it deliberately when tests are
 # added; never lower it to make a red build green.
-MIN_TESTS = 75
+MIN_TESTS = 100
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -148,6 +150,16 @@ def _parser() -> argparse.ArgumentParser:
     stest = add("selftest", "run the bundled tests")
     stest.add_argument("--min-tests", type=int, default=MIN_TESTS,
                        help="fail if fewer than this many tests ran (default: %d)" % MIN_TESTS)
+    stest.add_argument("--determinism", metavar="REPO",
+                       help="instead of the suite, run the reproducibility gate "
+                            "against an arbitrary repository")
+    stest.add_argument("--golden", metavar="REPO",
+                       help="instead of the suite, diff output against the stored "
+                            "baseline for this repository")
+    stest.add_argument("--bless", action="store_true",
+                       help="with --golden: overwrite the baseline with current output")
+    stest.add_argument("--golden-name", metavar="SLUG",
+                       help="with --golden: baseline directory name, overriding <repo>@<sha>")
     stest.set_defaults(func=cmd_selftest)
     return p
 
@@ -582,7 +594,12 @@ def cmd_validate(args) -> int:
 # decides it should be.
 DIST_MEMBERS = ("cdp", "tests", "schema", "agents", "run.py", "SKILL.md")
 
-_DIST_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".cdp", "runs", ".DS_Store")
+# `golden` is excluded deliberately: baselines are development artifacts of
+# *this* repository, they are large, and `cdp selftest` inside a target repo has
+# no use for another repository's blessed output.
+_DIST_IGNORE = shutil.ignore_patterns(
+    "__pycache__", "*.pyc", ".cdp", "runs", ".DS_Store", "golden",
+)
 
 
 def copy_distribution(dest: Path) -> None:
@@ -641,6 +658,321 @@ def cmd_install(args) -> int:
     return 0
 
 
+# ------------------------------------------------------- reproducibility gate
+
+
+#: The one state file allowed to differ between two scans of one commit, and
+# the one field in it allowed to do so. `cmd_scan` states this contract in
+# `manifest.json`'s own `note`; until now nothing enforced it.
+VOLATILE_FILE = "manifest.json"
+VOLATILE_FIELDS = ("generated_at",)
+
+
+def _state_files(root: Path) -> Dict[str, Path]:
+    return {
+        str(p.relative_to(root)): p
+        for p in sorted(root.rglob("*"))
+        if p.is_file() and "__pycache__" not in p.parts
+    }
+
+
+def check_determinism(repo: Path, scan: Optional[Callable] = None) -> List[str]:
+    """Scan `repo` twice into separate state directories and diff the results.
+
+    Returns a list of problems; empty means the gate passed.
+
+    Why this is not simply `diff -r`: an order-dependent merge is
+    *deterministic but arbitrary*, so a harness that only compares two runs of
+    the same code scores it 1.0 (`state.py:258-278` makes the same argument for
+    `check_order_independence`, which is the complementary gate). This one
+    catches non-determinism — `set()` iteration, dict ordering, clock and path
+    leakage — and is run alongside the other, not instead of it.
+    """
+    import tempfile
+
+    runner = scan or _scan_into
+    problems: List[str] = []
+    with tempfile.TemporaryDirectory(prefix="cdp-determinism-") as tmp:
+        a, b = Path(tmp) / "a", Path(tmp) / "b"
+        runner(repo, a)
+        runner(repo, b)
+
+        files_a, files_b = _state_files(a), _state_files(b)
+        for rel in sorted(set(files_a) - set(files_b)):
+            problems.append("%s: written by the first scan only" % rel)
+        for rel in sorted(set(files_b) - set(files_a)):
+            problems.append("%s: written by the second scan only" % rel)
+
+        for rel in sorted(set(files_a) & set(files_b)):
+            left, right = files_a[rel].read_bytes(), files_b[rel].read_bytes()
+            if left == right:
+                continue
+            if rel != VOLATILE_FILE:
+                problems.append(
+                    "%s: differs between two scans of one commit%s"
+                    % (rel, _first_difference(left, right))
+                )
+                continue
+            problems.extend(_volatile_diff(rel, left, right))
+    return problems
+
+
+def _volatile_diff(rel: str, left: bytes, right: bytes) -> List[str]:
+    """`manifest.json` may differ, but only in the fields declared volatile."""
+    import json
+
+    try:
+        da, db = json.loads(left), json.loads(right)
+    except ValueError as exc:
+        return ["%s: not valid JSON (%s)" % (rel, exc)]
+    changed = sorted(
+        k for k in set(da) | set(db) if da.get(k, _MISSING) != db.get(k, _MISSING)
+    )
+    unexpected = [k for k in changed if k not in VOLATILE_FIELDS]
+    if unexpected:
+        return [
+            "%s: differs in %s, which is not declared volatile (only %s may differ)"
+            % (rel, ", ".join(unexpected), ", ".join(VOLATILE_FIELDS))
+        ]
+    return []
+
+
+_MISSING = object()
+
+
+def _first_difference(left: bytes, right: bytes) -> str:
+    """Locate the first differing line, so the failure names a place.
+
+    A reproducibility gate whose message is "the files differ" hands the reader
+    a 400 KB diff to do by hand.
+    """
+    la = left.decode("utf-8", "replace").splitlines()
+    lb = right.decode("utf-8", "replace").splitlines()
+    for n, (x, y) in enumerate(zip(la, lb), 1):
+        if x != y:
+            return "\n      line %d: %.120r\n           vs: %.120r" % (n, x, y)
+    return "\n      identical for %d lines, then one file ends (%d vs %d lines)" % (
+        min(len(la), len(lb)), len(la), len(lb)
+    )
+
+
+def _scan_into(repo: Path, state: Path) -> None:
+    """Run a real `cdp scan` in a subprocess.
+
+    A subprocess rather than an in-process call on purpose: module-level caches
+    and interning make a second in-process scan agree with the first for
+    reasons that will not hold in production, which is exactly the false pass
+    this gate exists to prevent.
+    """
+    import subprocess
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "cdp.cli", "scan", "--quiet",
+         "--repo", str(repo), "--state-dir", str(state)],
+        cwd=str(SKILL_ROOT), capture_output=True, text=True,
+        env=_deterministic_env(),
+    )
+    if proc.returncode != 0:
+        raise CdpError("scan failed on %s:\n%s" % (repo, proc.stderr.strip()))
+
+
+def _deterministic_env() -> Dict[str, str]:
+    """`PYTHONHASHSEED=0` is deliberately *not* set.
+
+    Setting it would hide precisely the bug this gate hunts: `set()` iteration
+    order over strings varies with the hash seed, so pinning the seed makes a
+    non-deterministic pipeline reproduce perfectly. Randomising it instead
+    means two runs disagree whenever ordering leaked into the output.
+    """
+    import os
+    import random
+
+    env = dict(os.environ)
+    env["PYTHONHASHSEED"] = str(random.randint(1, 4294967295))
+    env["PYTHONPATH"] = str(SKILL_ROOT)
+    return env
+
+
+# --------------------------------------------------------------- golden set
+
+
+GOLDEN_ROOT = SKILL_ROOT / "tests" / "golden"
+
+
+def _golden_terms(store) -> Dict[str, Optional[str]]:
+    """Pick the arguments for the four queries that need one.
+
+    Derived from the scanned state rather than hard-coded, so the baseline
+    works against any target repository; recorded as an artifact of its own, so
+    a reader of a diff can see what was actually asked. Deterministic by
+    construction: first in sort order, never "most interesting".
+    """
+    def first(rows, key):
+        names = sorted({r[key] for r in rows if r.get(key)})
+        return names[0] if names else None
+
+    symbols = getattr(store, "state", {}).get("claims", [])
+    xref = getattr(store, "xref", {}) or {}
+    return {
+        "symbol": first(xref.get("symbols", {}).values() if isinstance(
+            xref.get("symbols"), dict) else xref.get("symbols", []), "fqn"),
+        "file": first(xref.get("resolution", {}).get("files", []), "path")
+        if isinstance(xref.get("resolution"), dict) else None,
+        "module": first(symbols, "module"),
+        "search": "config",
+    }
+
+
+def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
+    """Run `scan`, `docs` and every query; return `{name: text}` plus the head.
+
+    In-process rather than by subprocess: unlike the determinism gate, which
+    must not share a interpreter with the run it is checking, this one only
+    needs the output, and thirteen subprocess scans are thirteen redundant
+    scans.
+    """
+    import tempfile
+
+    artifacts: Dict[str, str] = {}
+    with tempfile.TemporaryDirectory(prefix="cdp-golden-") as tmp:
+        state = Path(tmp) / "state"
+        _scan_into(repo, state)
+
+        for path in sorted(state.rglob("*")):
+            if path.is_file() and "__pycache__" not in path.parts:
+                rel = path.relative_to(state)
+                artifacts["scan/%s" % rel.as_posix()] = path.read_text(
+                    encoding="utf-8", errors="replace"
+                )
+
+        head = read_json(state / "inventory.json").get("head")
+
+        # `docs` is driven through the CLI so the golden set covers the command
+        # a user runs, not an internal function it happens to call today.
+        docs_dir = Path(tmp) / "docs"
+        _run_cli(["docs", "--repo", str(repo), "--state-dir", str(state),
+                  "--out", str(docs_dir)])
+        for path in sorted(docs_dir.rglob("*")):
+            if path.is_file():
+                artifacts["docs/%s" % path.relative_to(docs_dir).as_posix()] = (
+                    path.read_text(encoding="utf-8", errors="replace")
+                )
+
+        store = query_mod.Store(state)
+        terms = _golden_terms(store)
+        artifacts["query/_terms.json"] = golden_mod.canonical(terms)
+        for kind in sorted(query_mod.QUERIES):
+            argv = ["query", kind, "--json", "--repo", str(repo),
+                    "--state-dir", str(state)]
+            term = terms.get(kind)
+            if kind in ("symbol", "file", "module", "search"):
+                if not term:
+                    artifacts["query/%s.json" % kind] = (
+                        '"no term available in this repository; query not run"\n'
+                    )
+                    continue
+                argv.append(term)
+            artifacts["query/%s.json" % kind] = _run_cli(argv)
+    return artifacts, head
+
+
+def _run_cli(argv: List[str]) -> str:
+    """Invoke a CDP command and capture its stdout."""
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = main(argv)
+    if code:
+        raise CdpError("`cdp %s` exited %d" % (" ".join(argv[:2]), code))
+    return buf.getvalue()
+
+
+def _git(repo: Path, *args: str) -> Optional[str]:
+    import subprocess
+
+    try:
+        proc = subprocess.run(["git", "-C", str(repo)] + list(args),
+                              capture_output=True, text=True)
+    except OSError:
+        return None
+    return proc.stdout.strip() if proc.returncode == 0 else None
+
+
+@contextlib_contextmanager
+def pristine_checkout(repo: Path):
+    """Yield a clean checkout of `repo`'s HEAD, or `repo` itself if not git.
+
+    A golden baseline is pinned to a commit, so it must be a function of that
+    commit. Scanning the working tree instead makes it a function of the
+    working tree: `inventory["counts"]["on_disk"]` counts untracked files, so
+    `.venv/`, `__pycache__/` and — self-referentially — the golden directory
+    being written all move the numbers. Blessing a baseline from a dirty tree
+    produces one that fails on its next run, in this repository by construction.
+
+    A detached worktree at HEAD has none of that: tracked files only, no venv,
+    no build output. It also settles the "two developers on different
+    filesystems" case, since neither developer's untracked clutter is present.
+    """
+    import subprocess
+    import tempfile
+
+    if not (repo / ".git").exists() or _git(repo, "rev-parse", "HEAD") is None:
+        yield repo, False
+        return
+    with tempfile.TemporaryDirectory(prefix="cdp-pristine-") as tmp:
+        work = Path(tmp) / "tree"
+        proc = subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "--detach", "-q",
+             str(work), "HEAD"],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0:
+            # Degrade honestly rather than silently baselining the dirty tree.
+            raise CdpError(
+                "could not create a clean checkout of %s for the golden baseline:\n%s\n"
+                "A baseline captured from a dirty working tree is not reproducible."
+                % (repo, proc.stderr.strip())
+            )
+        try:
+            yield work, True
+        finally:
+            subprocess.run(["git", "-C", str(repo), "worktree", "remove",
+                            "--force", str(work)], capture_output=True)
+
+
+def run_golden(repo: Path, bless: bool = False, name: Optional[str] = None) -> Tuple[int, str]:
+    """Compare `repo`'s output against its baseline. Returns (exit code, report).
+
+    `name` overrides the baseline directory. The fixture needs it: `make_repo`
+    commits a fresh repository per run, so its SHA — and therefore its default
+    slug — is different every time, and a baseline keyed on it would be written
+    once and never read again.
+    """
+    with pristine_checkout(repo) as (target, pinned):
+        artifacts, head = collect_artifacts(target)
+        captured = golden_mod.capture(artifacts, target, head)
+    golden_dir = GOLDEN_ROOT / (name or golden_mod.slug(repo.name, head))
+    note = "" if pinned else (
+        "\nnote  %s is not a git repository; the baseline was captured from the "
+        "working tree and will churn with untracked files." % repo
+    )
+
+    if bless:
+        golden_mod.write(golden_dir, captured)
+        return 0, "blessed %d artifact(s) -> %s%s" % (len(captured), golden_dir, note)
+
+    expected = golden_mod.read(golden_dir)
+    if not expected:
+        return 1, (
+            "no golden baseline at %s.\n"
+            "Capture one with `cdp selftest --golden %s --bless`." % (golden_dir, repo)
+        )
+    reports = golden_mod.compare(expected, captured)
+    return (1 if reports else 0), golden_mod.summarise(reports) + note
+
+
 def cmd_selftest(args) -> int:
     """Run the bundled tests.
 
@@ -656,6 +988,37 @@ def cmd_selftest(args) -> int:
     says which number it saw, rather than reporting a green empty run.
     """
     import subprocess
+
+    target = getattr(args, "determinism", None)
+    if target:
+        repo = Path(target).expanduser().resolve()
+        if not repo.is_dir():
+            raise CdpError("not a directory: %s" % repo)
+        print("determinism  scanning %s twice" % repo)
+        problems = check_determinism(repo)
+        if problems:
+            for problem in problems:
+                print("  %s" % problem, file=sys.stderr)
+            raise CdpError(
+                "%d reproducibility problem(s) on %s: two scans of one commit "
+                "must produce byte-identical state." % (len(problems), repo)
+            )
+        print("ok    two scans of %s agree byte-for-byte (%s excepted)"
+              % (repo, VOLATILE_FILE))
+        return 0
+
+    golden_target = getattr(args, "golden", None)
+    if golden_target:
+        repo = Path(golden_target).expanduser().resolve()
+        if not repo.is_dir():
+            raise CdpError("not a directory: %s" % repo)
+        code, report = run_golden(repo, bless=getattr(args, "bless", False),
+                                  name=getattr(args, "golden_name", None))
+        print(report, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if getattr(args, "bless", False):
+        raise CdpError("--bless is only meaningful with --golden")
 
     tests = SKILL_ROOT / "tests"
     if not tests.is_dir():

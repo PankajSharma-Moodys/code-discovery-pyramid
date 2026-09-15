@@ -1,0 +1,67 @@
+{
+  "build_name": "mini-svc",
+  "census": {
+    "on_disk": 14,
+    "ratio": 1.08,
+    "tracked": 13
+  },
+  "claims": 13,
+  "claims_by_confidence": {
+    "high": 12,
+    "medium": 1
+  },
+  "claims_by_kind": {
+    "config": 1,
+    "data_model": 2,
+    "dependency": 1,
+    "deployable": 1,
+    "entrypoint": 4,
+    "naming": 2,
+    "ownership": 1,
+    "side_effect": 1
+  },
+  "conflicts": 0,
+  "coverage": {
+    "files_complete": 3,
+    "files_total": 13,
+    "fraction": 0.2308,
+    "incomplete_nodes": [
+      "root/core",
+      "root/web"
+    ]
+  },
+  "divergence": {
+    "declared": 1,
+    "declared_not_observed": [],
+    "observed": 1,
+    "observed_not_declared": []
+  },
+  "head": "<HEAD>",
+  "inventory_source": "git",
+  "languages": {
+    "docker": 1,
+    "gradle": 4,
+    "java": 7,
+    "sql": 1
+  },
+  "modules": 3,
+  "query": "stats",
+  "repo": "tree",
+  "resolution": {
+    "ambiguous": 0,
+    "local": 0,
+    "matched": 2,
+    "third_party": 11,
+    "unresolved": 0
+  },
+  "roles": {
+    "build": 5,
+    "schema": 1,
+    "source": 6,
+    "test": 1
+  },
+  "routes": 2,
+  "scopes": 3,
+  "symbols": 18,
+  "unknowns": 0
+}

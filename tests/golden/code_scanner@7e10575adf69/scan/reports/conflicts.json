@@ -1,0 +1,17 @@
+{
+  "conflicts": [],
+  "near_misses": [
+    {
+      "kind": "naming",
+      "nodes": [
+        "root/exposure-snapshot/ods-domain-data",
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statements": [
+        "1 source files declare a package whose text and directory path do not correspond (e.g. directory 'com/rms/unifiedstore/snapshot/common/constants' declares 'package com.rms.unifiedstore.constants'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
+        "75 source files declare a package whose text and directory path differ only in case (e.g. directory 'RMS/UnifiedStore/sqlpool/api/errorhandling' declares 'package rms.unifiedstore.sqlpool.api.errorhandling'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible."
+      ],
+      "subject": "package-path-divergence"
+    }
+  ]
+}

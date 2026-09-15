@@ -1,0 +1,19 @@
+{
+  "anchors_checked": 16,
+  "anchors_ok": 16,
+  "anchors_relocated": 0,
+  "by_node": {
+    "root": {
+      "demoted": 0,
+      "in": 13,
+      "kept": 13
+    }
+  },
+  "claims_demoted": 0,
+  "claims_in": 13,
+  "claims_kept": 13,
+  "demotion_rate": 0.0,
+  "mode": "strict",
+  "reasons": {},
+  "would_survive_lenient": 0
+}

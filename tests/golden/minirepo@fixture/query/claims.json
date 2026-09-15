@@ -1,0 +1,253 @@
+{
+  "claims": [
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+          "file": "Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_mini_db_url",
+      "kind": "config",
+      "source_nodes": [
+        "root"
+      ],
+      "statement": "Configuration key 'MINI_DB_URL' is read at 1 site(s) in (root).",
+      "subject": "config:MINI_DB_URL"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+          "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+          "line": 7
+        }
+      ],
+      "id": "data_model.repository.com_example_mini_core_widgetrepository.com_example_mini_core_widgetentity",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/core"
+      ],
+      "statement": "WidgetRepository reads and writes WidgetEntity; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:com.example.mini.core.WidgetEntity"
+    },
+    {
+      "channel": "persist",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "@Entity @Table(name = \"widget\")",
+          "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+          "line": 8
+        }
+      ],
+      "id": "data_model.entity.widget",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/core"
+      ],
+      "statement": "Table 'widget' is written from WidgetEntity in core.",
+      "subject": "table:widget"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.example.mini.core.Widget;",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.example.mini.core.WidgetRepository;",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.web.core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/web"
+      ],
+      "statement": "web imports core at 2 distinct sites.",
+      "subject": "web -> core"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENTRYPOINT [\"java\", \"-jar\", \"/app/web.jar\"]",
+          "file": "Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "deployable.process_root",
+      "kind": "deployable",
+      "source_nodes": [
+        "root"
+      ],
+      "statement": "(root) is packaged as its own container image; its entry command is [\"java\", \"-jar\", \"/app/web.jar\"].",
+      "subject": "process:root"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+          "line": 5
+        }
+      ],
+      "id": "entrypoint.main.com_example_mini_web_webapplication",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/web"
+      ],
+      "statement": "WebApplication declares a process entry point in web; it is one of the repository's separately-startable units.",
+      "subject": "com.example.mini.web.WebApplication"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENTRYPOINT [\"java\", \"-jar\", \"/app/web.jar\"]",
+          "file": "Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "entrypoint.main.root",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root"
+      ],
+      "statement": "root declares a process entry point in (root); it is one of the repository's separately-startable units.",
+      "subject": "root"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String WIDGETS = \"/v1/widgets\";",
+          "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+          "line": 5
+        },
+        {
+          "anchor": "@GET public List<Widget> list() {",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 19
+        }
+      ],
+      "id": "entrypoint.route.get.v1_widgets",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/web"
+      ],
+      "statement": "GET /v1/widgets is served by WidgetResource#list in web (declared via the constant ${ApiPaths.WIDGETS}).",
+      "subject": "route:GET /v1/widgets"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String WIDGETS = \"/v1/widgets\";",
+          "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+          "line": 5
+        },
+        {
+          "anchor": "@GET @Path(\"/{id}\")",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 24
+        }
+      ],
+      "id": "entrypoint.route.get.v1_widgets_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/web"
+      ],
+      "statement": "GET /v1/widgets/{id} is served by WidgetResource#get in web (declared via the constant ${ApiPaths.WIDGETS}/{id}).",
+      "subject": "route:GET /v1/widgets/{id}"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "rootProject.name = 'mini-svc'",
+          "file": "settings.gradle",
+          "line": 1
+        }
+      ],
+      "id": "naming.root_project.mini_svc",
+      "kind": "naming",
+      "source_nodes": [
+        "root"
+      ],
+      "statement": "The build's root project is named 'mini-svc', which appears in no directory name; every module directory is '?...'. Build logs, metrics and the OpenAPI title use 'mini-svc'.",
+      "subject": "build:rootProject.name"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public class Widget {",
+          "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+          "line": 6
+        }
+      ],
+      "id": "naming.package_path.case",
+      "kind": "naming",
+      "source_nodes": [
+        "root/core"
+      ],
+      "statement": "1 source files declare a package whose text and directory path differ only in case (e.g. directory 'COM/Example/mini/core' declares 'package com.example.mini.core'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
+      "subject": "package-path-divergence"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE widget (",
+          "file": "core/src/main/resources/db/V001__create_widget.sql",
+          "line": 1
+        }
+      ],
+      "id": "ownership.schema.table_widget",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/core"
+      ],
+      "statement": "The schema for 'widget' is owned by core, defined across 1 migration(s).",
+      "subject": "table:widget"
+    },
+    {
+      "channel": "read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+          "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+          "line": 7
+        }
+      ],
+      "id": "side_effect.core.read",
+      "kind": "side_effect",
+      "side_effect_type": "db_read",
+      "source_nodes": [
+        "root/core"
+      ],
+      "statement": "core reads from the database, across 1 site(s).",
+      "subject": "core:read"
+    }
+  ],
+  "count": 13,
+  "query": "claims"
+}

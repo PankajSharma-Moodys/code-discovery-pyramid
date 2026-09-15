@@ -1,0 +1,251 @@
+{
+  "edges": [
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Column;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 3
+      },
+      "channel": "persist",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetEntity",
+      "target": "library:jakarta.persistence.Column"
+    },
+    {
+      "anchor": {
+        "anchor": "@Entity @Table(name = \"widget\")",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 8
+      },
+      "channel": "persist",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetEntity",
+      "target": "table:widget"
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "channel": "persist",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "entity:com.example.mini.core.WidgetEntity"
+    },
+    {
+      "anchor": {
+        "anchor": "import org.springframework.data.jpa.repository.JpaRepository;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 3
+      },
+      "channel": "persist",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "library:org.springframework.data"
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "channel": "read",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "entity:com.example.mini.core.WidgetEntity"
+    },
+    {
+      "anchor": {
+        "anchor": "public static void main(String[] args) {",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 5
+      },
+      "channel": "process_boundary",
+      "confidence": "high",
+      "module": "web",
+      "source": "com.example.mini.web.WebApplication",
+      "target": "process:com.example.mini.web.WebApplication"
+    },
+    {
+      "anchor": {
+        "anchor": "import com.example.mini.core.Widget;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 3
+      },
+      "channel": "call",
+      "confidence": "medium",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource",
+      "target": "com.example.mini.core.Widget"
+    },
+    {
+      "anchor": {
+        "anchor": "import com.example.mini.core.WidgetRepository;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 4
+      },
+      "channel": "call",
+      "confidence": "medium",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource",
+      "target": "com.example.mini.core.WidgetRepository"
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.GET;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 6
+      },
+      "channel": "http_in",
+      "confidence": "high",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource",
+      "target": "library:javax.ws.rs"
+    },
+    {
+      "anchor": {
+        "anchor": "@GET @Path(\"/{id}\")",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 24
+      },
+      "channel": "http_in",
+      "confidence": "high",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource#get",
+      "target": "route:GET ${ApiPaths.WIDGETS}/{id}"
+    },
+    {
+      "anchor": {
+        "anchor": "@GET public List<Widget> list() {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 19
+      },
+      "channel": "http_in",
+      "confidence": "high",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource#list",
+      "target": "route:GET ${ApiPaths.WIDGETS}"
+    },
+    {
+      "anchor": {
+        "anchor": "CREATE TABLE widget (",
+        "file": "core/src/main/resources/db/V001__create_widget.sql",
+        "line": 1
+      },
+      "channel": "schema_own",
+      "confidence": "high",
+      "module": "core",
+      "source": "migration:V001__create_widget.sql",
+      "target": "table:widget"
+    },
+    {
+      "anchor": {
+        "anchor": "ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+        "file": "Dockerfile",
+        "line": 3
+      },
+      "channel": "config_read",
+      "confidence": "high",
+      "module": "(root)",
+      "source": "process:root",
+      "target": "config:MINI_DB_URL"
+    },
+    {
+      "anchor": {
+        "anchor": "EXPOSE 8080 ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+        "file": "Dockerfile",
+        "line": 2
+      },
+      "channel": "http_in",
+      "confidence": "high",
+      "module": "(root)",
+      "source": "process:root",
+      "target": "port:8080"
+    },
+    {
+      "anchor": {
+        "anchor": "ENTRYPOINT [\"java\", \"-jar\", \"/app/web.jar\"]",
+        "file": "Dockerfile",
+        "line": 4
+      },
+      "channel": "process_boundary",
+      "confidence": "high",
+      "module": "(root)",
+      "source": "root",
+      "target": "process:root"
+    }
+  ],
+  "head": "<HEAD>",
+  "paths": [],
+  "paths_truncated": false,
+  "process_boundaries": [],
+  "sources": [
+    {
+      "anchor": {
+        "anchor": "EXPOSE 8080 ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+        "file": "Dockerfile",
+        "line": 2
+      },
+      "channel": "http_in",
+      "module": "(root)",
+      "node": "process:root",
+      "trigger": "port:8080"
+    },
+    {
+      "anchor": {
+        "anchor": "@GET public List<Widget> list() {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 19
+      },
+      "channel": "http_in",
+      "module": "web",
+      "node": "com.example.mini.web.WidgetResource#list",
+      "trigger": "route:GET ${ApiPaths.WIDGETS}"
+    },
+    {
+      "anchor": {
+        "anchor": "@GET @Path(\"/{id}\")",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 24
+      },
+      "channel": "http_in",
+      "module": "web",
+      "node": "com.example.mini.web.WidgetResource#get",
+      "trigger": "route:GET ${ApiPaths.WIDGETS}/{id}"
+    },
+    {
+      "anchor": {
+        "anchor": "public static void main(String[] args) {",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 5
+      },
+      "channel": "process_boundary",
+      "module": "web",
+      "node": "com.example.mini.web.WebApplication",
+      "trigger": "process:com.example.mini.web.WebApplication"
+    },
+    {
+      "anchor": {
+        "anchor": "ENTRYPOINT [\"java\", \"-jar\", \"/app/web.jar\"]",
+        "file": "Dockerfile",
+        "line": 4
+      },
+      "channel": "process_boundary",
+      "module": "(root)",
+      "node": "root",
+      "trigger": "process:root"
+    }
+  ],
+  "totals": {
+    "edges": 15,
+    "nodes": 20,
+    "paths": 0,
+    "sources": 5
+  }
+}

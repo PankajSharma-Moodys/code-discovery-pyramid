@@ -1,0 +1,892 @@
+{
+  "declared_deps": {
+    "web": [
+      "core"
+    ]
+  },
+  "defines": [
+    {
+      "anchor": {
+        "anchor": "rootProject.name = 'mini-svc'",
+        "file": "settings.gradle",
+        "line": 1
+      },
+      "file": "settings.gradle",
+      "fqn": "build:rootProject.name",
+      "kind": "config_key",
+      "module": "(root)",
+      "value": "mini-svc",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public class Widget {",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 6
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget",
+      "kind": "class",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public class Widget {",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 4
+      },
+      "file": "core/src/test/java/com/example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget",
+      "kind": "class",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public boolean equals(Object other) {",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 19
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget#equals",
+      "kind": "method",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public String getId() {",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 14
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget#getId",
+      "kind": "method",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public static Widget stub() {",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 6
+      },
+      "file": "core/src/test/java/com/example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget#stub",
+      "kind": "method",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public class WidgetEntity {",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 10
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "com.example.mini.core.WidgetEntity",
+      "kind": "class",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public Long getId() {",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 17
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "com.example.mini.core.WidgetEntity#getId",
+      "kind": "method",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "kind": "interface",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public class ApiPaths {",
+        "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+        "line": 3
+      },
+      "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+      "fqn": "com.example.mini.web.ApiPaths",
+      "kind": "class",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public static final String HEALTH = \"/health\";",
+        "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+        "line": 7
+      },
+      "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+      "fqn": "com.example.mini.web.ApiPaths.HEALTH",
+      "kind": "constant",
+      "module": "web",
+      "value": "/health",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public static final String WIDGETS = \"/v1/widgets\";",
+        "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+        "line": 5
+      },
+      "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+      "fqn": "com.example.mini.web.ApiPaths.WIDGETS",
+      "kind": "constant",
+      "module": "web",
+      "value": "/v1/widgets",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public class WebApplication {",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 3
+      },
+      "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+      "fqn": "com.example.mini.web.WebApplication",
+      "kind": "class",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public static void main(String[] args) {",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 5
+      },
+      "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+      "fqn": "com.example.mini.web.WebApplication#main",
+      "kind": "method",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public class WidgetResource {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 11
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.web.WidgetResource",
+      "kind": "class",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public Widget get(@PathParam(\"id\") String id) {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 26
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.web.WidgetResource#get",
+      "kind": "method",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "public List<Widget> list() {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 20
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.web.WidgetResource#list",
+      "kind": "method",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "ENTRYPOINT [\"java\", \"-jar\", \"/app/web.jar\"]",
+        "file": "Dockerfile",
+        "line": 4
+      },
+      "file": "Dockerfile",
+      "fqn": "process:root",
+      "kind": "config_key",
+      "module": "(root)",
+      "value": "[\"java\", \"-jar\", \"/app/web.jar\"]",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "@Table(name = \"widget\")",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 9
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "table:widget",
+      "kind": "table",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "CREATE TABLE widget (",
+        "file": "core/src/main/resources/db/V001__create_widget.sql",
+        "line": 1
+      },
+      "file": "core/src/main/resources/db/V001__create_widget.sql",
+      "fqn": "table:widget",
+      "kind": "table",
+      "module": "core",
+      "visibility": "public"
+    }
+  ],
+  "files": {
+    "Dockerfile": {
+      "defines": 1,
+      "imports": 0,
+      "io_edges": 3,
+      "language": "docker",
+      "loc": 4,
+      "package": null,
+      "primary": null,
+      "signals": [
+        "deployable"
+      ]
+    },
+    "build.gradle": {
+      "defines": 0,
+      "imports": 0,
+      "io_edges": 0,
+      "language": "build",
+      "loc": 6,
+      "package": null,
+      "primary": null,
+      "signals": []
+    },
+    "core/build.gradle": {
+      "defines": 0,
+      "imports": 0,
+      "io_edges": 0,
+      "language": "build",
+      "loc": 3,
+      "package": null,
+      "primary": null,
+      "signals": []
+    },
+    "core/src/main/java/COM/Example/mini/core/Widget.java": {
+      "defines": 3,
+      "imports": 1,
+      "io_edges": 0,
+      "language": "java",
+      "loc": 16,
+      "package": "com.example.mini.core",
+      "primary": "com.example.mini.core.Widget",
+      "signals": []
+    },
+    "core/src/main/java/COM/Example/mini/core/WidgetEntity.java": {
+      "defines": 3,
+      "imports": 4,
+      "io_edges": 2,
+      "language": "java",
+      "loc": 15,
+      "package": "com.example.mini.core",
+      "primary": "com.example.mini.core.WidgetEntity",
+      "signals": [
+        "entity"
+      ]
+    },
+    "core/src/main/java/COM/Example/mini/core/WidgetRepository.java": {
+      "defines": 1,
+      "imports": 2,
+      "io_edges": 3,
+      "language": "java",
+      "loc": 5,
+      "package": "com.example.mini.core",
+      "primary": "com.example.mini.core.WidgetRepository",
+      "signals": [
+        "di:Repository",
+        "repository"
+      ]
+    },
+    "core/src/main/resources/db/V001__create_widget.sql": {
+      "defines": 1,
+      "imports": 0,
+      "io_edges": 1,
+      "language": "sql",
+      "loc": 5,
+      "package": null,
+      "primary": null,
+      "signals": [
+        "migration"
+      ]
+    },
+    "core/src/test/java/com/example/mini/core/Widget.java": {
+      "defines": 2,
+      "imports": 0,
+      "io_edges": 0,
+      "language": "java",
+      "loc": 7,
+      "package": "com.example.mini.core",
+      "primary": "com.example.mini.core.Widget",
+      "signals": []
+    },
+    "settings.gradle": {
+      "defines": 1,
+      "imports": 0,
+      "io_edges": 0,
+      "language": "build",
+      "loc": 3,
+      "package": null,
+      "primary": null,
+      "signals": []
+    },
+    "web/build.gradle": {
+      "defines": 0,
+      "imports": 0,
+      "io_edges": 0,
+      "language": "build",
+      "loc": 4,
+      "package": null,
+      "primary": null,
+      "signals": []
+    },
+    "web/src/main/java/com/example/mini/web/ApiPaths.java": {
+      "defines": 3,
+      "imports": 0,
+      "io_edges": 0,
+      "language": "java",
+      "loc": 5,
+      "package": "com.example.mini.web",
+      "primary": "com.example.mini.web.ApiPaths",
+      "signals": []
+    },
+    "web/src/main/java/com/example/mini/web/WebApplication.java": {
+      "defines": 2,
+      "imports": 0,
+      "io_edges": 1,
+      "language": "java",
+      "loc": 6,
+      "package": "com.example.mini.web",
+      "primary": "com.example.mini.web.WebApplication",
+      "signals": [
+        "main"
+      ]
+    },
+    "web/src/main/java/com/example/mini/web/WidgetResource.java": {
+      "defines": 3,
+      "imports": 6,
+      "io_edges": 3,
+      "language": "java",
+      "loc": 23,
+      "package": "com.example.mini.web",
+      "primary": "com.example.mini.web.WidgetResource",
+      "signals": [
+        "http_resource"
+      ]
+    }
+  },
+  "head": "<HEAD>",
+  "imports": [
+    {
+      "anchor": {
+        "anchor": "import java.util.Objects;",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 3
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "java.util.Objects",
+      "line": 3,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Column;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 3
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Column",
+      "line": 3,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Entity;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 4
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Entity",
+      "line": 4,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Id;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 5
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Id",
+      "line": 5,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Table;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 6
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Table",
+      "line": 6,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import org.springframework.data.jpa.repository.JpaRepository;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 3
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "org.springframework.data.jpa.repository.JpaRepository",
+      "line": 3,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import org.springframework.stereotype.Repository;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 4
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "org.springframework.stereotype.Repository",
+      "line": 4,
+      "module": "core"
+    },
+    {
+      "anchor": {
+        "anchor": "import com.example.mini.core.Widget;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 3
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.Widget",
+      "line": 3,
+      "module": "web"
+    },
+    {
+      "anchor": {
+        "anchor": "import com.example.mini.core.WidgetRepository;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 4
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "line": 4,
+      "module": "web"
+    },
+    {
+      "anchor": {
+        "anchor": "import java.util.List;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 5
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "java.util.List",
+      "line": 5,
+      "module": "web"
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.GET;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 6
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "javax.ws.rs.GET",
+      "line": 6,
+      "module": "web"
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.Path;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 7
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "javax.ws.rs.Path",
+      "line": 7,
+      "module": "web"
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.PathParam;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 8
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "javax.ws.rs.PathParam",
+      "line": 8,
+      "module": "web"
+    }
+  ],
+  "io_edges": [
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Column;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 3
+      },
+      "channel": "persist",
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetEntity",
+      "target": "library:jakarta.persistence.Column"
+    },
+    {
+      "anchor": {
+        "anchor": "@Entity @Table(name = \"widget\")",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 8
+      },
+      "channel": "persist",
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetEntity",
+      "target": "table:widget"
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "channel": "persist",
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "entity:com.example.mini.core.WidgetEntity"
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "channel": "read",
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "entity:com.example.mini.core.WidgetEntity"
+    },
+    {
+      "anchor": {
+        "anchor": "import org.springframework.data.jpa.repository.JpaRepository;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 3
+      },
+      "channel": "persist",
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "library:org.springframework.data"
+    },
+    {
+      "anchor": {
+        "anchor": "public static void main(String[] args) {",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 5
+      },
+      "channel": "process_boundary",
+      "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+      "module": "web",
+      "source": "com.example.mini.web.WebApplication",
+      "target": "process:com.example.mini.web.WebApplication"
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.GET;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 6
+      },
+      "channel": "http_in",
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource",
+      "target": "library:javax.ws.rs"
+    },
+    {
+      "anchor": {
+        "anchor": "@GET @Path(\"/{id}\")",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 24
+      },
+      "channel": "http_in",
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource#get",
+      "target": "route:GET ${ApiPaths.WIDGETS}/{id}"
+    },
+    {
+      "anchor": {
+        "anchor": "@GET public List<Widget> list() {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 19
+      },
+      "channel": "http_in",
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource#list",
+      "target": "route:GET ${ApiPaths.WIDGETS}"
+    },
+    {
+      "anchor": {
+        "anchor": "CREATE TABLE widget (",
+        "file": "core/src/main/resources/db/V001__create_widget.sql",
+        "line": 1
+      },
+      "channel": "schema_own",
+      "file": "core/src/main/resources/db/V001__create_widget.sql",
+      "module": "core",
+      "source": "migration:V001__create_widget.sql",
+      "target": "table:widget"
+    },
+    {
+      "anchor": {
+        "anchor": "ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+        "file": "Dockerfile",
+        "line": 3
+      },
+      "channel": "config_read",
+      "file": "Dockerfile",
+      "module": "(root)",
+      "source": "process:root",
+      "target": "config:MINI_DB_URL"
+    },
+    {
+      "anchor": {
+        "anchor": "EXPOSE 8080 ENV MINI_DB_URL=jdbc:postgresql://localhost/mini",
+        "file": "Dockerfile",
+        "line": 2
+      },
+      "channel": "http_in",
+      "file": "Dockerfile",
+      "module": "(root)",
+      "source": "process:root",
+      "target": "port:8080"
+    },
+    {
+      "anchor": {
+        "anchor": "ENTRYPOINT [\"java\", \"-jar\", \"/app/web.jar\"]",
+        "file": "Dockerfile",
+        "line": 4
+      },
+      "channel": "process_boundary",
+      "file": "Dockerfile",
+      "module": "(root)",
+      "source": "root",
+      "target": "process:root"
+    }
+  ],
+  "module_notes": {
+    "(root)": [
+      "base_image=eclipse-temurin:21-jre",
+      "declares_module=core",
+      "declares_module=web",
+      "root_project_name=mini-svc"
+    ],
+    "core": [
+      "migration_version=001",
+      "package_path_divergence:case:COM.Example.mini.core|com.example.mini.core"
+    ]
+  },
+  "totals": {
+    "defines": 20,
+    "imports": 13,
+    "io_edges": 13,
+    "parsed_files": 13,
+    "uses": 13
+  },
+  "uses": [
+    {
+      "anchor": {
+        "anchor": "import com.example.mini.core.Widget;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 3
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.Widget",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import com.example.mini.core.WidgetRepository;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 4
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Column;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 3
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Column",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Entity;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 4
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Entity",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Id;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 5
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Id",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import jakarta.persistence.Table;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 6
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "jakarta.persistence.Table",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import java.util.List;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 5
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "java.util.List",
+      "module": "web",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.web",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import java.util.Objects;",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 3
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "java.util.Objects",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.GET;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 6
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "javax.ws.rs.GET",
+      "module": "web",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.web",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.Path;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 7
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "javax.ws.rs.Path",
+      "module": "web",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.web",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import javax.ws.rs.PathParam;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 8
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "javax.ws.rs.PathParam",
+      "module": "web",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.web",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import org.springframework.data.jpa.repository.JpaRepository;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 3
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "org.springframework.data.jpa.repository.JpaRepository",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "import org.springframework.stereotype.Repository;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 4
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "org.springframework.stereotype.Repository",
+      "module": "core",
+      "resolved": "third_party",
+      "scope_package": "com.example.mini.core",
+      "via_import": true
+    }
+  ]
+}

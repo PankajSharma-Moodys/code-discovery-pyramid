@@ -1,0 +1,62 @@
+{
+  "cycles": [],
+  "declared": [
+    {
+      "from": "web",
+      "to": "core"
+    }
+  ],
+  "divergence": {
+    "declared_edges": 1,
+    "declared_not_observed": [],
+    "observed_edges": 1,
+    "observed_not_declared": []
+  },
+  "external": {
+    "third_party_packages": {
+      "jakarta.persistence.Column": 1,
+      "jakarta.persistence.Entity": 1,
+      "jakarta.persistence.Id": 1,
+      "jakarta.persistence.Table": 1,
+      "java.util.List": 1,
+      "java.util.Objects": 1,
+      "javax.ws.rs": 3,
+      "org.springframework.data": 1,
+      "org.springframework.stereotype": 1
+    },
+    "unresolved_imports": []
+  },
+  "levels": [
+    [
+      "(root)",
+      "core"
+    ],
+    [
+      "web"
+    ]
+  ],
+  "modules": [
+    "(root)",
+    "core",
+    "web"
+  ],
+  "observed": [
+    {
+      "examples": [
+        {
+          "anchor": "import com.example.mini.core.Widget;",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.example.mini.core.WidgetRepository;",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 4
+        }
+      ],
+      "from": "web",
+      "to": "core",
+      "weight": 2
+    }
+  ]
+}

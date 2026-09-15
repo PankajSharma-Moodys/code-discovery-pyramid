@@ -1,0 +1,23 @@
+{
+  "count": 1,
+  "name": null,
+  "query": "table",
+  "tables": [
+    {
+      "evidence": [
+        "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8"
+      ],
+      "migrations": [
+        "core/src/main/resources/db/V001__create_widget.sql:1"
+      ],
+      "read_by": [],
+      "schema_owned_by": [
+        "core"
+      ],
+      "table": "widget",
+      "written_by": [
+        "com.example.mini.core.WidgetEntity"
+      ]
+    }
+  ]
+}

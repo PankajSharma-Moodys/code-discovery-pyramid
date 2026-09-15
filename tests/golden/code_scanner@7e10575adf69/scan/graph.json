@@ -1,0 +1,3466 @@
+{
+  "cycles": [
+    [
+      "client-java/uds-client",
+      "exposure-snapshot/ods-domain-data",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "exposure-snapshot/snapshot-sdk"
+    ]
+  ],
+  "declared": [
+    {
+      "from": "client-java/eih-client",
+      "to": "client-java/client-core"
+    },
+    {
+      "from": "client-java/uds-client",
+      "to": "client-java/client-core"
+    },
+    {
+      "from": "client-java/uds-client-integration-tests",
+      "to": "client-java/eih-client"
+    },
+    {
+      "from": "client-java/uds-client-integration-tests",
+      "to": "client-java/uds-client"
+    },
+    {
+      "from": "exposure-snapshot",
+      "to": "client-java/uds-client"
+    },
+    {
+      "from": "exposure-snapshot/download-exposure",
+      "to": "exposure-snapshot/ods-domain-data"
+    },
+    {
+      "from": "exposure-snapshot/download-exposure",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/download-exposure",
+      "to": "exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "from": "exposure-snapshot/idempotency-filter",
+      "to": "exposure-snapshot/ods-domain-data"
+    },
+    {
+      "from": "exposure-snapshot/ods-domain-data",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "client-java/uds-client"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/idempotency-filter"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-workflow-service"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/swagger-resource"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-developer-utils",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-filter-query-service",
+      "to": "exposure-snapshot/ods-domain-data"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-filter-query-service",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "to": "exposure-snapshot/ods-domain-data"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "to": "exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/ods-domain-data"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-migration",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "client-java/uds-client"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "exposure-snapshot/snapshot-filter-query-service"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-smoketest",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-smoketest",
+      "to": "exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-task-create",
+      "to": "client-java/uds-client"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-task-create",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-task-delete",
+      "to": "exposure-snapshot/snapshot-common"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-task-delete",
+      "to": "exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "from": "exposure-snapshot/snapshot-workflow-service",
+      "to": "exposure-snapshot/snapshot-filter-query-service"
+    },
+    {
+      "from": "sql-pool/sql-pool-api",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-api",
+      "to": "sql-pool/sql-pool-service"
+    },
+    {
+      "from": "sql-pool/sql-pool-dal",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-integrationtest",
+      "to": "sql-pool/sql-pool-api-client"
+    },
+    {
+      "from": "sql-pool/sql-pool-integrationtest",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-integrationtest",
+      "to": "sql-pool/sql-pool-dal"
+    },
+    {
+      "from": "sql-pool/sql-pool-manager",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-manager",
+      "to": "sql-pool/sql-pool-provision"
+    },
+    {
+      "from": "sql-pool/sql-pool-manager",
+      "to": "sql-pool/sql-pool-service"
+    },
+    {
+      "from": "sql-pool/sql-pool-provision",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-service",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-service",
+      "to": "sql-pool/sql-pool-dal"
+    },
+    {
+      "from": "sql-pool/sql-pool-setup",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-setup",
+      "to": "sql-pool/sql-pool-provision"
+    },
+    {
+      "from": "sql-pool/sql-pool-smoketest",
+      "to": "sql-pool/sql-pool-api-client"
+    },
+    {
+      "from": "sql-pool/sql-pool-smoketest",
+      "to": "sql-pool/sql-pool-common"
+    },
+    {
+      "from": "sql-pool/sql-pool-smoketest",
+      "to": "sql-pool/sql-pool-provision"
+    }
+  ],
+  "divergence": {
+    "declared_edges": 54,
+    "declared_not_observed": [
+      {
+        "from": "exposure-snapshot",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "exposure-snapshot/ods-domain-data"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+        "to": "exposure-snapshot/ods-domain-data"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/ods-domain-data"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-migration",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-sdk",
+        "to": "exposure-snapshot/snapshot-filter-query-service"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-smoketest",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-smoketest",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "sql-pool/sql-pool-integrationtest",
+        "to": "sql-pool/sql-pool-api-client"
+      },
+      {
+        "from": "sql-pool/sql-pool-setup",
+        "to": "sql-pool/sql-pool-provision"
+      },
+      {
+        "from": "sql-pool/sql-pool-smoketest",
+        "to": "sql-pool/sql-pool-api-client"
+      }
+    ],
+    "observed_edges": 58,
+    "observed_not_declared": [
+      {
+        "from": "client-java/uds-client",
+        "to": "exposure-snapshot/ods-domain-data"
+      },
+      {
+        "from": "client-java/uds-client",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
+        "to": "client-java/client-core"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "exposure-snapshot/idempotency-filter",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/ods-domain-data",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/ods-domain-data",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-api",
+        "to": "client-java/client-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-api",
+        "to": "exposure-snapshot/ods-domain-data"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-api",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-api",
+        "to": "exposure-snapshot/snapshot-filter-query-service"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-api",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-sdk",
+        "to": "client-java/client-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-sdk",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-task-delete",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-task-delete",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-workflow-service",
+        "to": "exposure-snapshot/snapshot-common"
+      }
+    ]
+  },
+  "external": {
+    "third_party_packages": {
+      "com.fasterxml.jackson": 904,
+      "com.google.common": 83,
+      "com.google.gson": 25,
+      "com.google.inject": 27,
+      "io.dropwizard.jobs": 29,
+      "io.swagger.v3": 144,
+      "jakarta.ws.rs": 53,
+      "java.io.IOException": 61,
+      "java.nio.charset": 28,
+      "java.nio.file": 43,
+      "java.sql.Connection": 32,
+      "java.sql.SQLException": 44,
+      "java.time.Duration": 43,
+      "java.time.Instant": 37,
+      "java.time.LocalDateTime": 52,
+      "java.time.OffsetDateTime": 43,
+      "java.util.*": 77,
+      "java.util.ArrayList": 126,
+      "java.util.Arrays": 59,
+      "java.util.Collections": 50,
+      "java.util.HashMap": 75,
+      "java.util.LinkedHashMap": 28,
+      "java.util.List": 443,
+      "java.util.Map": 218,
+      "java.util.Objects": 54,
+      "java.util.Optional": 94,
+      "java.util.Set": 45,
+      "java.util.UUID": 149,
+      "java.util.concurrent": 145,
+      "java.util.function": 136,
+      "java.util.regex": 33,
+      "java.util.stream": 110,
+      "javax.inject.Inject": 33,
+      "javax.inject.Singleton": 34,
+      "javax.sql.DataSource": 31,
+      "javax.validation.constraints": 52,
+      "javax.ws.rs": 222,
+      "lombok.AllArgsConstructor": 29,
+      "lombok.Builder": 33,
+      "lombok.Getter": 48,
+      "lombok.ToString": 41,
+      "lombok.extern.slf4j": 41,
+      "okhttp3.OkHttpClient": 58,
+      "okhttp3.Request": 35,
+      "org.apache.commons": 159,
+      "org.apache.parquet": 35,
+      "org.junit.Assert": 92,
+      "org.junit.Before": 52,
+      "org.junit.Test": 88,
+      "org.junit.jupiter": 582,
+      "org.mockito.ArgumentMatchers": 39,
+      "org.mockito.Mockito": 139,
+      "org.mockito.junit": 25,
+      "org.slf4j.Logger": 252,
+      "org.slf4j.LoggerFactory": 252,
+      "org.slf4j.MDC": 37,
+      "org.springframework.beans": 40,
+      "org.springframework.stereotype": 43,
+      "org.testng.annotations": 29,
+      "software.amazon.awssdk": 136
+    },
+    "unresolved_imports": [
+      {
+        "anchor": {
+          "anchor": "import com.rms.util.config.ConfigProvider;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolSpringConfiguration.java",
+          "line": 5
+        },
+        "count": 32,
+        "fqn": "com.rms.util.config.ConfigProvider"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.framework.User;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 17
+        },
+        "count": 29,
+        "fqn": "com.rms.auth.framework.User"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.response.Response;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/apis/dataCatalog/AccessApi.java",
+          "line": 10
+        },
+        "count": 17,
+        "fqn": "io.restassured.response.Response"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.LogUtil.logInfo;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/apis/dataCatalog/AccessApi.java",
+          "line": 3
+        },
+        "count": 15,
+        "fqn": "com.rms.core.qe.common.LogUtil.logInfo"
+      },
+      {
+        "anchor": {
+          "anchor": "import net.jodah.failsafe.RetryPolicy;",
+          "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/BaseService.java",
+          "line": 37
+        },
+        "count": 15,
+        "fqn": "net.jodah.failsafe.RetryPolicy"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.JobOutput;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 18
+        },
+        "count": 13,
+        "fqn": "com.rms.workflow.api.model.JobOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import net.jodah.failsafe.Failsafe;",
+          "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/BaseService.java",
+          "line": 36
+        },
+        "count": 13,
+        "fqn": "net.jodah.failsafe.Failsafe"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.awaitility.Awaitility;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/Phase24ProvisioningChainTest.java",
+          "line": 18
+        },
+        "count": 12,
+        "fqn": "org.awaitility.Awaitility"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.integration.jwt.S2SJWTGenerator;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/bal/dataCatalog/CommonRequest.java",
+          "line": 6
+        },
+        "count": 11,
+        "fqn": "com.rms.auth.integration.jwt.S2SJWTGenerator"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.JobRequest;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotApiHelper.java",
+          "line": 21
+        },
+        "count": 11,
+        "fqn": "com.rms.workflow.api.model.JobRequest"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.util.config.ConfigProviderFactory;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolSpringConfiguration.java",
+          "line": 6
+        },
+        "count": 10,
+        "fqn": "com.rms.util.config.ConfigProviderFactory"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.mapstruct.Mapper;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 3
+        },
+        "count": 9,
+        "fqn": "org.mapstruct.Mapper"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.protostuff.Tag;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/AccountState.java",
+          "line": 3
+        },
+        "count": 8,
+        "fqn": "io.protostuff.Tag"
+      },
+      {
+        "anchor": {
+          "anchor": "import static junit.framework.TestCase.assertEquals;",
+          "file": "client-java/uds-client/src/test/java/com/rms/unifiedstore/ArchiveServiceImplTests.java",
+          "line": 5
+        },
+        "count": 8,
+        "fqn": "junit.framework.TestCase.assertEquals"
+      },
+      {
+        "anchor": {
+          "anchor": "import static junit.framework.TestCase.assertNotNull;",
+          "file": "client-java/uds-client/src/test/java/com/rms/unifiedstore/ArchiveServiceImplTests.java",
+          "line": 6
+        },
+        "count": 8,
+        "fqn": "junit.framework.TestCase.assertNotNull"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.mapstruct.Mapping;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 4
+        },
+        "count": 8,
+        "fqn": "org.mapstruct.Mapping"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.framework.ServicePrincipal;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java",
+          "line": 37
+        },
+        "count": 7,
+        "fqn": "com.rms.auth.framework.ServicePrincipal"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.framework.common.Application;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/AccountSnapshotApiImpl.java",
+          "line": 10
+        },
+        "count": 7,
+        "fqn": "com.rms.auth.framework.common.Application"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.DatabseUtils;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
+          "line": 11
+        },
+        "count": 7,
+        "fqn": "com.rms.core.qe.common.DatabseUtils"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.LogUtil.logException;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
+          "line": 3
+        },
+        "count": 7,
+        "fqn": "com.rms.core.qe.common.LogUtil.logException"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.testresult.TestResult;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 26
+        },
+        "count": 7,
+        "fqn": "com.rms.core.qe.common.testresult.TestResult"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.client.V2Api;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 15
+        },
+        "count": 7,
+        "fqn": "com.rms.workflow.api.client.V2Api"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.hashids.Hashids;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/helper/ServerHelper.java",
+          "line": 12
+        },
+        "count": 7,
+        "fqn": "org.hashids.Hashids"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.testresult.TestCase;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/objects/testcases/dataCatalog/AccessApiTestcase.java",
+          "line": 3
+        },
+        "count": 6,
+        "fqn": "com.rms.core.qe.common.testresult.TestCase"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.RmsApiConfiguration;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIConfiguration.java",
+          "line": 3
+        },
+        "count": 6,
+        "fqn": "com.rms.framework.api.dropwizard.RmsApiConfiguration"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.invoker.ApiClient;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 16
+        },
+        "count": 6,
+        "fqn": "com.rms.workflow.api.invoker.ApiClient"
+      },
+      {
+        "anchor": {
+          "anchor": "import net.jodah.failsafe.function.CheckedSupplier;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
+          "line": 33
+        },
+        "count": 6,
+        "fqn": "net.jodah.failsafe.function.CheckedSupplier"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.client.ClientConfig;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
+          "line": 36
+        },
+        "count": 6,
+        "fqn": "org.glassfish.jersey.client.ClientConfig"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.mapstruct.factory.Mappers;",
+          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ReservationMapperTest.java",
+          "line": 7
+        },
+        "count": 6,
+        "fqn": "org.mapstruct.factory.Mappers"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.api.RedissonClient;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CoreCacheManager.java",
+          "line": 5
+        },
+        "count": 6,
+        "fqn": "org.redisson.api.RedissonClient"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.STATUS_OK;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 8
+        },
+        "count": 5,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.STATUS_OK"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.invoker.ApiException;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 17
+        },
+        "count": 5,
+        "fqn": "com.rms.workflow.api.invoker.ApiException"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.JobInput;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v2/CreateExposureVariationV2JobImpl.java",
+          "line": 26
+        },
+        "count": 5,
+        "fqn": "com.rms.workflow.api.model.JobInput"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.path.json.JsonPath;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 31
+        },
+        "count": 5,
+        "fqn": "io.restassured.path.json.JsonPath"
+      },
+      {
+        "anchor": {
+          "anchor": "import junit.framework.TestCase;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/ExposureSetTests.java",
+          "line": 33
+        },
+        "count": 5,
+        "fqn": "junit.framework.TestCase"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.client.ClientProperties;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
+          "line": 37
+        },
+        "count": 5,
+        "fqn": "org.glassfish.jersey.client.ClientProperties"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.joda.time.DateTime;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/VariationsImpl.java",
+          "line": 28
+        },
+        "count": 5,
+        "fqn": "org.joda.time.DateTime"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.mapstruct.Named;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/HostAndPortMapper.java",
+          "line": 4
+        },
+        "count": 5,
+        "fqn": "org.mapstruct.Named"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.spring.cache.CacheConfig;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CacheConfigHelper.java",
+          "line": 3
+        },
+        "count": 5,
+        "fqn": "org.redisson.spring.cache.CacheConfig"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.CommonValidation;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 22
+        },
+        "count": 4,
+        "fqn": "com.rms.core.qe.common.CommonValidation"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.UserGroup;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 25
+        },
+        "count": 4,
+        "fqn": "com.rms.core.qe.common.UserGroup"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.filter.ValidateResources;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/filters/ResourceGroupRequestFilter.java",
+          "line": 4
+        },
+        "count": 4,
+        "fqn": "com.rms.framework.api.dropwizard.filter.ValidateResources"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.QuotaResource;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/AccountSnapshotApiImpl.java",
+          "line": 29
+        },
+        "count": 4,
+        "fqn": "com.rms.workflow.api.model.QuotaResource"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.mapstruct.Mappings;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
+          "line": 5
+        },
+        "count": 4,
+        "fqn": "org.mapstruct.Mappings"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.PoolConfigList;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ClientWiringTest.java",
+          "line": 9
+        },
+        "count": 4,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigList"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.framework.actions.ActionsAuthorizer;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 18
+        },
+        "count": 3,
+        "fqn": "com.rms.auth.framework.actions.ActionsAuthorizer"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.CollectionUtil;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 21
+        },
+        "count": 3,
+        "fqn": "com.rms.core.qe.common.CollectionUtil"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.RestApiHelper;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/bal/dataCatalog/CommonRequest.java",
+          "line": 7
+        },
+        "count": 3,
+        "fqn": "com.rms.core.qe.common.RestApiHelper"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.User;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 24
+        },
+        "count": 3,
+        "fqn": "com.rms.core.qe.common.User"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.UserGroup.initializeGroupsEndpoint;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 7
+        },
+        "count": 3,
+        "fqn": "com.rms.core.qe.common.UserGroup.initializeGroupsEndpoint"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.RmsApiApplication;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 20
+        },
+        "count": 3,
+        "fqn": "com.rms.framework.api.dropwizard.RmsApiApplication"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.RmsHealthCheckResult;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIConfiguration.java",
+          "line": 4
+        },
+        "count": 3,
+        "fqn": "com.rms.framework.api.dropwizard.health.RmsHealthCheckResult"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.RmsHealthChecker;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIConfiguration.java",
+          "line": 5
+        },
+        "count": 3,
+        "fqn": "com.rms.framework.api.dropwizard.health.RmsHealthChecker"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.HealthCheckResponse;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/filter/IdempotentResponseFilter.java",
+          "line": 8
+        },
+        "count": 3,
+        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.HealthCheckResponse"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.WorkflowOutput;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 20
+        },
+        "count": 3,
+        "fqn": "com.rms.workflow.api.model.WorkflowOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.http.Method;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/apis/managedSql/UdsApi.java",
+          "line": 4
+        },
+        "count": 3,
+        "fqn": "io.restassured.http.Method"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.antlr.v4.runtime.tree.TerminalNode;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/visitors/MatchingConditionVisitor.java",
+          "line": 7
+        },
+        "count": 3,
+        "fqn": "org.antlr.v4.runtime.tree.TerminalNode"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.core.mapper.RowMapper;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTableMapper.java",
+          "line": 9
+        },
+        "count": 3,
+        "fqn": "org.jdbi.v3.core.mapper.RowMapper"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.core.statement.StatementContext;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTableMapper.java",
+          "line": 10
+        },
+        "count": 3,
+        "fqn": "org.jdbi.v3.core.statement.StatementContext"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.sqlobject.config.RegisterRowMapper;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTablesDao.java",
+          "line": 5
+        },
+        "count": 3,
+        "fqn": "org.jdbi.v3.sqlobject.config.RegisterRowMapper"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.sqlobject.customizer.Bind;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTablesDao.java",
+          "line": 6
+        },
+        "count": 3,
+        "fqn": "org.jdbi.v3.sqlobject.customizer.Bind"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.sqlobject.statement.SqlQuery;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTablesDao.java",
+          "line": 7
+        },
+        "count": 3,
+        "fqn": "org.jdbi.v3.sqlobject.statement.SqlQuery"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jetbrains.annotations.NotNull;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/parquet/DomainDataDownloader.java",
+          "line": 16
+        },
+        "count": 3,
+        "fqn": "org.jetbrains.annotations.NotNull"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.api.RMapCache;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CoreCacheManager.java",
+          "line": 4
+        },
+        "count": 3,
+        "fqn": "org.redisson.api.RMapCache"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.config.Config;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/PooledRedisConfigProvider.java",
+          "line": 7
+        },
+        "count": 3,
+        "fqn": "org.redisson.config.Config"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.PoolConfigDetailedOutput;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/FixtureLifecycleTest.java",
+          "line": 11
+        },
+        "count": 3,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigDetailedOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/PoolPatchRouteTest.java",
+          "line": 18
+        },
+        "count": 3,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.ReservationOutput;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/CloudServicesPoolReservationTest.java",
+          "line": 15
+        },
+        "count": 3,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.ReservationOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.ServerList;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ServerListRouteTest.java",
+          "line": 20
+        },
+        "count": 3,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.ServerList"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.ServerOutput;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/FixtureLifecycleTest.java",
+          "line": 12
+        },
+        "count": 3,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.ServerOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.framework.resources.ResourcesAuthorizer;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 19
+        },
+        "count": 2,
+        "fqn": "com.rms.auth.framework.resources.ResourcesAuthorizer"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.AutomationUtil;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 20
+        },
+        "count": 2,
+        "fqn": "com.rms.core.qe.common.AutomationUtil"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.CommonUtil;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/model/AuthTokenUtil.java",
+          "line": 7
+        },
+        "count": 2,
+        "fqn": "com.rms.core.qe.common.CommonUtil"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.INTERNAL_API_BASE_URI;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/ConfigManager.java",
+          "line": 3
+        },
+        "count": 2,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.INTERNAL_API_BASE_URI"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.WORKFLOW;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 18
+        },
+        "count": 2,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.WORKFLOW"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.WORKFLOW_TAGNAME;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 19
+        },
+        "count": 2,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.WORKFLOW_TAGNAME"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.HealthCheckResource;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/SqlPoolHealthCheckResource.java",
+          "line": 8
+        },
+        "count": 2,
+        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.HealthCheckResource"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckRegistry;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/SqlPoolHealthCheckResource.java",
+          "line": 10
+        },
+        "count": 2,
+        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckRegistry"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.*;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/util/JobUtils.java",
+          "line": 13
+        },
+        "count": 2,
+        "fqn": "com.rms.workflow.api.model.*"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.DockerInput;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/util/WFSUtils.java",
+          "line": 11
+        },
+        "count": 2,
+        "fqn": "com.rms.workflow.api.model.DockerInput"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.ProgressInput1;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/workflow/execution/Task.java",
+          "line": 16
+        },
+        "count": 2,
+        "fqn": "com.rms.workflow.api.model.ProgressInput1"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.ResultsInput;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 19
+        },
+        "count": 2,
+        "fqn": "com.rms.workflow.api.model.ResultsInput"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.typesafe.config.Config;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/database/DataSourceManager.java",
+          "line": 3
+        },
+        "count": 2,
+        "fqn": "com.typesafe.config.Config"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.typesafe.config.ConfigFactory;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/database/DataSourceManager.java",
+          "line": 4
+        },
+        "count": 2,
+        "fqn": "com.typesafe.config.ConfigFactory"
+      },
+      {
+        "anchor": {
+          "anchor": "import static io.restassured.RestAssured.given;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 34
+        },
+        "count": 2,
+        "fqn": "io.restassured.RestAssured.given"
+      },
+      {
+        "anchor": {
+          "anchor": "import static junit.framework.TestCase.*;",
+          "file": "client-java/uds-client/src/test/java/com/rms/unifiedstore/EdmServiceImplTests.java",
+          "line": 5
+        },
+        "count": 2,
+        "fqn": "junit.framework.TestCase.*"
+      },
+      {
+        "anchor": {
+          "anchor": "import net.jodah.failsafe.Fallback;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/FailsafeUtil.java",
+          "line": 16
+        },
+        "count": 2,
+        "fqn": "net.jodah.failsafe.Fallback"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.antlr.v4.runtime.Token;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/visitors/SortByVisitor.java",
+          "line": 9
+        },
+        "count": 2,
+        "fqn": "org.antlr.v4.runtime.Token"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.hk2.utilities.binding.AbstractBinder;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 83
+        },
+        "count": 2,
+        "fqn": "org.glassfish.hk2.utilities.binding.AbstractBinder"
+      },
+      {
+        "anchor": {
+          "anchor": "import static org.hamcrest.CoreMatchers.instanceOf;",
+          "file": "sql-pool/sql-pool-common/src/test/java/RMS/unifiedstore/sqlpool/common/helper/ServerHelperFactoryTest.java",
+          "line": 3
+        },
+        "count": 2,
+        "fqn": "org.hamcrest.CoreMatchers.instanceOf"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.sqlobject.statement.SqlUpdate;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/SchemaChangelogDao.java",
+          "line": 8
+        },
+        "count": 2,
+        "fqn": "org.jdbi.v3.sqlobject.statement.SqlUpdate"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.api.RMap;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CoreCacheManager.java",
+          "line": 3
+        },
+        "count": 2,
+        "fqn": "org.redisson.api.RMap"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.client.codec.Codec;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CoreCacheManager.java",
+          "line": 6
+        },
+        "count": 2,
+        "fqn": "org.redisson.client.codec.Codec"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.HealthApi;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
+          "line": 3
+        },
+        "count": 2,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.HealthApi"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.PoolConfigurationApi;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
+          "line": 4
+        },
+        "count": 2,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.PoolConfigurationApi"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.ReservationApi;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
+          "line": 5
+        },
+        "count": 2,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.ReservationApi"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.ServerApi;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
+          "line": 6
+        },
+        "count": 2,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.ServerApi"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.invoker.ApiClient;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
+          "line": 7
+        },
+        "count": 2,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.invoker.ApiClient"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.auth0.jwt.JWT;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/S2SClaimTokens.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.auth0.jwt.JWT"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.auth0.jwt.JWTCreator;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/S2SClaimTokens.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.auth0.jwt.JWTCreator"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.auth0.jwt.algorithms.Algorithm;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/S2SClaimTokens.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "com.auth0.jwt.algorithms.Algorithm"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.moodys.FlagAttribute;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/featureflag/FeatureFlagConnector.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.moodys.FlagAttribute"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.moodys.FlagProvider;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/featureflag/FeatureFlagConnector.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.moodys.FlagProvider"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.moodys.FlagProviderFactory;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/featureflag/FeatureFlagConnector.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "com.moodys.FlagProviderFactory"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.AuthUtil;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.AuthUtil"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.AuthUtil.resolveAuthToken;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/model/AuthTokenUtil.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.AuthUtil.resolveAuthToken"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.CollectionUtil.checkMapKey;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/model/AuthTokenUtil.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.CollectionUtil.checkMapKey"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.CollectionUtil.compareLists;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.CollectionUtil.compareLists"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.CollectionUtil.convertJSONArrayToList;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.CollectionUtil.convertJSONArrayToList"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.CommonUtil.getEnvVariableValue;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/TestSuiteExecutor.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.CommonUtil.getEnvVariableValue"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.LogUtil.*;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/CatalogEntitiesCrudTest.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.LogUtil.*"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.SlackClientHelper;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
+          "line": 12
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.SlackClientHelper"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.TestRailClient;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
+          "line": 13
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.TestRailClient"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.automationFramework.TestSuiteExecutorUtil.executeTestSuiteExecutorCommand;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/TestSuiteExecutor.java",
+          "line": 6
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.automationFramework.TestSuiteExecutorUtil.executeTestSuiteExecutorCommand"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.BUILD_NUMBER;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.BUILD_NUMBER"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.CREATE_NEW_TESTRUNID;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.CREATE_NEW_TESTRUNID"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.POST_TO_SLACK;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 6
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.POST_TO_SLACK"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.REFRESH_TOKEN;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 7
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.REFRESH_TOKEN"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TENANT_ID;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 8
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.TENANT_ID"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TENANT_NAME;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 9
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.TENANT_NAME"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TESTRAIL_PASSWORD;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 10
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.TESTRAIL_PASSWORD"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TESTRAIL_TESTPLANID;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 11
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.TESTRAIL_TESTPLANID"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TESTRAIL_USERNAME;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 12
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.TESTRAIL_USERNAME"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TEST_RUN_TYPE;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 13
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.TEST_RUN_TYPE"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.UPDATE_TESTRAIL;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 14
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.UPDATE_TESTRAIL"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.USER_NAME;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 15
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.USER_NAME"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.USER_PASSWORD;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 16
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.USER_PASSWORD"
+      },
+      {
+        "anchor": {
+          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.UUID_AUTOMATION;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "line": 17
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.constants.QeConstants.UUID_AUTOMATION"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.core.qe.common.testresult.TestResultDao;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
+          "line": 14
+        },
+        "count": 1,
+        "fqn": "com.rms.core.qe.common.testresult.TestResultDao"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.crypto.core.AES;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/util/EncryptionUtil.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.crypto.core.AES"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.datasource.*;",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/DataAccessConfiguration.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.datasource.*"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.ErrorBody;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/SPMExceptionMapper.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.framework.api.dropwizard.ErrorBody"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.filter.ActionsAllowedDynamicFeature;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 21
+        },
+        "count": 1,
+        "fqn": "com.rms.framework.api.dropwizard.filter.ActionsAllowedDynamicFeature"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.filter.ReadOnlyTokenFilter;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
+          "line": 6
+        },
+        "count": 1,
+        "fqn": "com.rms.framework.api.dropwizard.filter.ReadOnlyTokenFilter"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.filter.ValidateResourcesDynamicFeature.ValidateResourcesRequestFilter;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/filters/ResourceGroupRequestFilter.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "com.rms.framework.api.dropwizard.filter.ValidateResourcesDynamicFeature.ValidateResourcesRequestFilter"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheck;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/healthcheck/QuartzJobsElapsedTimeCheck.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheck"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckResult;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/healthcheck/QuartzJobsElapsedTimeCheck.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckResult"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.client.TenantQueueResourceApi;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/TenantQueueService.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "com.rms.workflow.api.client.TenantQueueResourceApi"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.JobResponse;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/execution/JobUtils.java",
+          "line": 14
+        },
+        "count": 1,
+        "fqn": "com.rms.workflow.api.model.JobResponse"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.TenantQueueOutput;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/TenantQueueService.java",
+          "line": 6
+        },
+        "count": 1,
+        "fqn": "com.rms.workflow.api.model.TenantQueueOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.TenantQueuesOutput;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/TenantQueueService.java",
+          "line": 7
+        },
+        "count": 1,
+        "fqn": "com.rms.workflow.api.model.TenantQueuesOutput"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.workflow.api.model.WorkflowsResponse;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
+          "line": 21
+        },
+        "count": 1,
+        "fqn": "com.rms.workflow.api.model.WorkflowsResponse"
+      },
+      {
+        "anchor": {
+          "anchor": "import dev.failsafe.Failsafe;",
+          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/EdmRollbackExecutor.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "dev.failsafe.Failsafe"
+      },
+      {
+        "anchor": {
+          "anchor": "import dev.failsafe.FailsafeException;",
+          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/EdmRollbackExecutor.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "dev.failsafe.FailsafeException"
+      },
+      {
+        "anchor": {
+          "anchor": "import dev.failsafe.RetryPolicy;",
+          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/EdmRollbackExecutor.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "dev.failsafe.RetryPolicy"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.federecio.dropwizard.swagger.SwaggerBundleConfiguration;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolDropwizardConfiguration.java",
+          "line": 7
+        },
+        "count": 1,
+        "fqn": "io.federecio.dropwizard.swagger.SwaggerBundleConfiguration"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.RestAssured;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 11
+        },
+        "count": 1,
+        "fqn": "io.restassured.RestAssured"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.config.ConnectionConfig;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 12
+        },
+        "count": 1,
+        "fqn": "io.restassured.config.ConnectionConfig"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.config.HttpClientConfig;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 13
+        },
+        "count": 1,
+        "fqn": "io.restassured.config.HttpClientConfig"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.config.RestAssuredConfig;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 14
+        },
+        "count": 1,
+        "fqn": "io.restassured.config.RestAssuredConfig"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.http.ContentType;",
+          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ITHelper.java",
+          "line": 8
+        },
+        "count": 1,
+        "fqn": "io.restassured.http.ContentType"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.response.ResponseBody;",
+          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ITHelper.java",
+          "line": 10
+        },
+        "count": 1,
+        "fqn": "io.restassured.response.ResponseBody"
+      },
+      {
+        "anchor": {
+          "anchor": "import io.restassured.specification.RequestSpecification;",
+          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ITHelper.java",
+          "line": 11
+        },
+        "count": 1,
+        "fqn": "io.restassured.specification.RequestSpecification"
+      },
+      {
+        "anchor": {
+          "anchor": "import net.jodah.failsafe.FailsafeException;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/UdsInvocationHandler.java",
+          "line": 8
+        },
+        "count": 1,
+        "fqn": "net.jodah.failsafe.FailsafeException"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.antlr.v4.runtime.*;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/ParserServiceImpl.java",
+          "line": 17
+        },
+        "count": 1,
+        "fqn": "org.antlr.v4.runtime.*"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.antlr.v4.runtime.misc.IntervalSet;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/ParserServiceImpl.java",
+          "line": 18
+        },
+        "count": 1,
+        "fqn": "org.antlr.v4.runtime.misc.IntervalSet"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.eclipse.jetty.http.HttpStatus;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
+          "line": 23
+        },
+        "count": 1,
+        "fqn": "org.eclipse.jetty.http.HttpStatus"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.eclipse.jetty.server.handler.ErrorHandler;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/UnbrandedErrorHandler.java",
+          "line": 7
+        },
+        "count": 1,
+        "fqn": "org.eclipse.jetty.server.handler.ErrorHandler"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.eclipse.jetty.util.component.LifeCycle;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/spring/SpringBundle.java",
+          "line": 15
+        },
+        "count": 1,
+        "fqn": "org.eclipse.jetty.util.component.LifeCycle"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.flywaydb.core.Flyway;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/FlywayProvision.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "org.flywaydb.core.Flyway"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.flywaydb.core.api.FlywayException;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/FlywayProvision.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "org.flywaydb.core.api.FlywayException"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.hk2.api.InjectionResolver;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/spring/SpringBundle.java",
+          "line": 16
+        },
+        "count": 1,
+        "fqn": "org.glassfish.hk2.api.InjectionResolver"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.hk2.api.TypeLiteral;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 82
+        },
+        "count": 1,
+        "fqn": "org.glassfish.hk2.api.TypeLiteral"
+      },
+      {
+        "anchor": {
+          "anchor": "import static org.glassfish.jersey.client.ClientProperties.CONNECT_TIMEOUT;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.client.ClientProperties.CONNECT_TIMEOUT"
+      },
+      {
+        "anchor": {
+          "anchor": "import static org.glassfish.jersey.client.ClientProperties.READ_TIMEOUT;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.client.ClientProperties.READ_TIMEOUT"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.jackson.JacksonFeature;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
+          "line": 38
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.jackson.JacksonFeature"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.media.multipart.BodyPart;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 19
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.media.multipart.BodyPart"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.media.multipart.FormDataMultiPart;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 20
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.media.multipart.FormDataMultiPart"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.media.multipart.MultiPart;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 21
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.media.multipart.MultiPart"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.media.multipart.MultiPartFeature;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 22
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.media.multipart.MultiPartFeature"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.media.multipart.file.StreamDataBodyPart;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "line": 23
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.media.multipart.file.StreamDataBodyPart"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.server.ParamException;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/mapper/WebApplicationExceptionMapper.java",
+          "line": 13
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.server.ParamException"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.server.model.Invocable;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/mapper/JerseyViolationExceptionMapper.java",
+          "line": 12
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.server.model.Invocable"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.uri.UriComponent;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 16
+        },
+        "count": 1,
+        "fqn": "org.glassfish.jersey.uri.UriComponent"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.h2.store.fs.FileUtils;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/test/java/com.rms.unifiedstore/utility/ZipUtilityTest.java",
+          "line": 14
+        },
+        "count": 1,
+        "fqn": "org.h2.store.fs.FileUtils"
+      },
+      {
+        "anchor": {
+          "anchor": "import static org.hamcrest.CoreMatchers.startsWith;",
+          "file": "sql-pool/sql-pool-common/src/test/java/RMS/unifiedstore/sqlpool/common/helper/ServerHelperTest.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "org.hamcrest.CoreMatchers.startsWith"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.core.Jdbi;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/DaoFactory.java",
+          "line": 8
+        },
+        "count": 1,
+        "fqn": "org.jdbi.v3.core.Jdbi"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.jdbi.v3.sqlobject.SqlObjectPlugin;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/DaoFactory.java",
+          "line": 9
+        },
+        "count": 1,
+        "fqn": "org.jdbi.v3.sqlobject.SqlObjectPlugin"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.joda.time.DateTimeZone;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/DateFormatter.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "org.joda.time.DateTimeZone"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.joda.time.Interval;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/DateFormatter.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "org.joda.time.Interval"
+      },
+      {
+        "anchor": {
+          "anchor": "import static org.mapstruct.NullValuePropertyMappingStrategy.IGNORE;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "org.mapstruct.NullValuePropertyMappingStrategy.IGNORE"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.Redisson;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/RedisClientFactory.java",
+          "line": 3
+        },
+        "count": 1,
+        "fqn": "org.redisson.Redisson"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.codec.LZ4Codec;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/PooledRedisConfigProvider.java",
+          "line": 6
+        },
+        "count": 1,
+        "fqn": "org.redisson.codec.LZ4Codec"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.redisson.spring.cache.RedissonCache;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/GuavaCoreCache.java",
+          "line": 6
+        },
+        "count": 1,
+        "fqn": "org.redisson.spring.cache.RedissonCache"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.skife.jdbi.v2.Handle;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
+          "line": 22
+        },
+        "count": 1,
+        "fqn": "org.skife.jdbi.v2.Handle"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.invoker.ApiException;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/external/SPMClient.java",
+          "line": 16
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.invoker.ApiException"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.*;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/external/SPMClient.java",
+          "line": 17
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.*"
+      },
+      {
+        "anchor": {
+          "anchor": "import static rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.InstanceTypeEnum.LARGE;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/PoolConfigurationTest.java",
+          "line": 4
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.InstanceTypeEnum.LARGE"
+      },
+      {
+        "anchor": {
+          "anchor": "import static rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.TypeEnum.MSSQL_EC2;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/PoolConfigurationTest.java",
+          "line": 5
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.TypeEnum.MSSQL_EC2"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.PoolConfigUpdate;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/PoolPatchRouteTest.java",
+          "line": 19
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigUpdate"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.ReservationUpdate;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ReservationPatchRouteTest.java",
+          "line": 24
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.ReservationUpdate"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.Server;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 16
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.Server"
+      },
+      {
+        "anchor": {
+          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.SqlPoolHealthCheckResponse;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ClientWiringTest.java",
+          "line": 10
+        },
+        "count": 1,
+        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.SqlPoolHealthCheckResponse"
+      }
+    ]
+  },
+  "levels": [
+    [
+      "(root)",
+      "automation",
+      "automation/api-automation",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+      "client-dotnet/RMS.UnifiedStore.Client",
+      "client-java",
+      "client-java/client-core",
+      "core/RMS.UnifiedStore.Core",
+      "core/RMS.UnifiedStore.Core.App",
+      "core/RMS.UnifiedStore.Core.App.Tests",
+      "core/RMS.UnifiedStore.Core.Tests",
+      "exposure-snapshot",
+      "exposure-snapshot/download-exposure",
+      "exposure-snapshot/entity-variation-task",
+      "exposure-snapshot/snapshot-common",
+      "exposure-snapshot/snapshot-legacy",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "exposure-snapshot/snapshot-migration",
+      "exposure-snapshot/snapshot-smoketest",
+      "exposure-snapshot/swagger-resource",
+      "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
+      "ms-sql-java",
+      "ms-sql-java/downgrade-processor",
+      "service-api/RMS.UnifiedStore.Service.Api",
+      "service-api/RMS.UnifiedStore.Service.Api.Common",
+      "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+      "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "sql-pool",
+      "sql-pool/sql-pool-api-client",
+      "sql-pool/sql-pool-common",
+      "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
+      "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
+    ],
+    [
+      "client-java/eih-client",
+      "client-java/uds-client",
+      "exposure-snapshot/ods-domain-data",
+      "exposure-snapshot/snapshot-developer-utils",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
+      "exposure-snapshot/snapshot-sdk",
+      "sql-pool/sql-pool-dal",
+      "sql-pool/sql-pool-provision",
+      "sql-pool/sql-pool-setup"
+    ],
+    [
+      "client-java/uds-client-integration-tests",
+      "exposure-snapshot/idempotency-filter",
+      "exposure-snapshot/snapshot-filter-query-service",
+      "exposure-snapshot/snapshot-task-create",
+      "exposure-snapshot/snapshot-task-delete",
+      "sql-pool/sql-pool-integrationtest",
+      "sql-pool/sql-pool-service",
+      "sql-pool/sql-pool-smoketest"
+    ],
+    [
+      "exposure-snapshot/snapshot-workflow-service",
+      "sql-pool/sql-pool-api",
+      "sql-pool/sql-pool-manager"
+    ],
+    [
+      "exposure-snapshot/snapshot-api"
+    ]
+  ],
+  "modules": [
+    "(root)",
+    "automation",
+    "automation/api-automation",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+    "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+    "client-dotnet/RMS.UnifiedStore.Client",
+    "client-java",
+    "client-java/client-core",
+    "client-java/eih-client",
+    "client-java/uds-client",
+    "client-java/uds-client-integration-tests",
+    "core/RMS.UnifiedStore.Core",
+    "core/RMS.UnifiedStore.Core.App",
+    "core/RMS.UnifiedStore.Core.App.Tests",
+    "core/RMS.UnifiedStore.Core.Tests",
+    "exposure-snapshot",
+    "exposure-snapshot/download-exposure",
+    "exposure-snapshot/entity-variation-task",
+    "exposure-snapshot/idempotency-filter",
+    "exposure-snapshot/ods-domain-data",
+    "exposure-snapshot/snapshot-api",
+    "exposure-snapshot/snapshot-common",
+    "exposure-snapshot/snapshot-developer-utils",
+    "exposure-snapshot/snapshot-filter-query-service",
+    "exposure-snapshot/snapshot-legacy",
+    "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+    "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+    "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
+    "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+    "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
+    "exposure-snapshot/snapshot-migration",
+    "exposure-snapshot/snapshot-sdk",
+    "exposure-snapshot/snapshot-smoketest",
+    "exposure-snapshot/snapshot-task-create",
+    "exposure-snapshot/snapshot-task-delete",
+    "exposure-snapshot/snapshot-workflow-service",
+    "exposure-snapshot/swagger-resource",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
+    "ms-sql-java",
+    "ms-sql-java/downgrade-processor",
+    "service-api/RMS.UnifiedStore.Service.Api",
+    "service-api/RMS.UnifiedStore.Service.Api.Common",
+    "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+    "service-api/RMS.UnifiedStore.Service.Api.Tests",
+    "sql-pool",
+    "sql-pool/sql-pool-api",
+    "sql-pool/sql-pool-api-client",
+    "sql-pool/sql-pool-common",
+    "sql-pool/sql-pool-dal",
+    "sql-pool/sql-pool-integrationtest",
+    "sql-pool/sql-pool-manager",
+    "sql-pool/sql-pool-provision",
+    "sql-pool/sql-pool-service",
+    "sql-pool/sql-pool-setup",
+    "sql-pool/sql-pool-smoketest",
+    "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
+    "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
+  ],
+  "observed": [
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.ImportFromType;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseService.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseService.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.job.JobIdResponse;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseService.java",
+          "line": 6
+        }
+      ],
+      "from": "client-java/eih-client",
+      "to": "client-java/client-core",
+      "weight": 28
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminService.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.ClientFactory;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminServiceFactory.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.BaseService;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminServiceImpl.java",
+          "line": 8
+        }
+      ],
+      "from": "client-java/uds-client",
+      "to": "client-java/client-core",
+      "weight": 247
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterServiceImpl.java",
+          "line": 20
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientImpl.java",
+          "line": 24
+        }
+      ],
+      "from": "client-java/uds-client",
+      "to": "exposure-snapshot/ods-domain-data",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterServiceImpl.java",
+          "line": 20
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientImpl.java",
+          "line": 24
+        }
+      ],
+      "from": "client-java/uds-client",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.BaseService;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/ApiKeyTokenGenerator.java",
+          "line": 12
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.ClientFactory;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/ApiKeyTokenGenerator.java",
+          "line": 13
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.client.core.ClientFactory.ClientType.REAL_TIME;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/ApiKeyTokenGenerator.java",
+          "line": 4
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "client-java/client-core",
+      "weight": 64
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.eih.EihClient;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/DataBridgeRegistrationTests.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.eih.EihClientFactory;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/DataBridgeRegistrationTests.java",
+          "line": 6
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "client-java/eih-client",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.UnifiedStoreClient;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/ServiceApiTestHelper.java",
+          "line": 13
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.UnifiedStoreClientFactory;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/ServiceApiTestHelper.java",
+          "line": 14
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "client-java/uds-client",
+      "weight": 170
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogServiceTests.java",
+          "line": 12
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogServiceTests.java",
+          "line": 12
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogServiceTests.java",
+          "line": 12
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheProvider;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/feature/IdempotentFeature.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.cache.RedisCacheProvider;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/feature/IdempotentFeature.java",
+          "line": 8
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.cache.RedisClientFactory;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/feature/IdempotentFeature.java",
+          "line": 9
+        }
+      ],
+      "from": "exposure-snapshot/idempotency-filter",
+      "to": "exposure-snapshot/ods-domain-data",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.VariationsErrorCode;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/filter/IdempotentRequestFilter.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.ThreadContext;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/filter/IdempotentResponseFilter.java",
+          "line": 10
+        }
+      ],
+      "from": "exposure-snapshot/idempotency-filter",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.*;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/services/DomainService.java",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/ods-domain-data",
+      "to": "client-java/uds-client",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.constants.CoreConstants;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CacheKeyGeneratorWithVersion.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.workflow.helper.Utils;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/PooledRedisConfigProvider.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.utils.FailsafeUtil;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/RedisCacheProvider.java",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/ods-domain-data",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 13
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.*;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/services/DomainService.java",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/ods-domain-data",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.exceptions.UnifiedStoreException;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java",
+          "line": 20
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java",
+          "line": 21
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "client-java/client-core",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.database.CreateConnectionStringResponse;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotApiValidator.java",
+          "line": 12
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.catalog.SortOrder;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/query/SortParser.java",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "client-java/uds-client",
+      "weight": 33
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.utils.idempotent.feature.IdempotentFeature;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 72
+        },
+        {
+          "anchor": "import com.rms.utils.idempotent.filter.IdempotentResource;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java",
+          "line": 35
+        },
+        {
+          "anchor": "import static com.rms.utils.idempotent.IdempotentKeys.REQUESTID;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/EntityVariationService.java",
+          "line": 20
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/idempotency-filter",
+      "weight": 3
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheConfigHelper;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 26
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheConfigMap;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 27
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheKeyGeneratorWithVersion;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 28
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/ods-domain-data",
+      "weight": 12
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.SnapshotConfiguration;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 52
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.clients.AnalyticsGatewayClient;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 53
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.constants.CoreConstants;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 54
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 414
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.snapshot.filter.service.DomainIdentifierValidator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 22
+        },
+        {
+          "anchor": "import com.rms.snapshot.filter.service.IdentifierValidator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 23
+        },
+        {
+          "anchor": "import com.rms.snapshot.filter.service.ParserService;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 24
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-filter-query-service",
+      "weight": 5
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/SnapshotApiImpl.java",
+          "line": 19
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v2/CreateExposureVariationV2JobImpl.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.db.DataSourceManager;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 37
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.UdsSdkHelper;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 38
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.ExternalApiCallHelper;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotApiValidator.java",
+          "line": 10
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 25
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.workflow.V2WorkflowConnector;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 66
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.workflow.WorkflowSearchService;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 67
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.workflow.WorkflowSearchServiceImpl;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 68
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/snapshot-workflow-service",
+      "weight": 30
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.utils.swagger.SwaggerBundle;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 73
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-api",
+      "to": "exposure-snapshot/swagger-resource",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.schema.ExposureTable;",
+          "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+          "line": 2
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.schema.ExposureTableSchema;",
+          "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.schema.ExposureTableSchemaColumn;",
+          "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+          "line": 4
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-developer-utils",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 4
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.DomainResult;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.Field;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.services.DomainService;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-filter-query-service",
+      "to": "exposure-snapshot/ods-domain-data",
+      "weight": 3
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.ExposureSnapshotException;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.DataType;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.VariationsErrorCode;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 8
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-filter-query-service",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 53
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.constants.CoreConstants.PARTITION_MATRIX_FILENAME;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java",
+          "line": 3
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.constants.CoreConstants.PARTITION_WEIGHT_MAP_FILENAME;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java",
+          "line": 4
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.constants.FileExtension.JSON;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 3
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.RMSStorageFactory;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/S3Utility.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.RMSStorageWrapper;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/S3Utility.java",
+          "line": 4
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/src/main/java/com/rms/unifiedstore/partition/SnapshotPartitionTask.java",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/src/main/java/com/rms/unifiedstore/transform/TransformEdmTask.java",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
+          "line": 10
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "client-java/client-core",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.catalog.SortOrder;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/ExternalApiCallHelper.java",
+          "line": 8
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.ExposureSetFactory;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.ExposureSetService;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "client-java/uds-client",
+      "weight": 12
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.AWS_REGION;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/RMSStorageFactory.java",
+          "line": 3
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.STORAGE_SYSTEM_S3;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/RMSStorageFactory.java",
+          "line": 4
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.AWS_S3_ACCESS_KEY;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/S3ConnectionManager.java",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 20
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/workflow/EdmQueryService.java",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-sdk",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.exposurebundle.ExposureBundleEntity;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/lambda/model/LambdaSnapshotEdmBundleResponse.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.exposurebundle.ExposureBundleTableSetEntity;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/lambda/model/LambdaSnapshotEdmBundleResponse.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-task-create",
+      "to": "client-java/uds-client",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.DataSourceErrorCode;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.VariationsErrorCode;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
+          "line": 8
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.utils.FailsafeUtil;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
+          "line": 9
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-task-create",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 13
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-task-delete",
+      "to": "client-java/uds-client",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.payload.AuthKeys;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 7
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-task-delete",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 8
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-task-delete",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.impl.S3SyncWrapper;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.SurrogateJobIdPathDetails;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-task-delete",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 3
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.ExposureSnapshotException;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/V2WorkflowConnector.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.constants.CoreConstants;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/V2WorkflowConnector.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.enums.query.SortOrder;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/V2WorkflowConnector.java",
+          "line": 8
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-workflow-service",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 23
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.snapshot.filter.service.ParserService;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/WorkflowSearchServiceImpl.java",
+          "line": 10
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-workflow-service",
+      "to": "exposure-snapshot/snapshot-filter-query-service",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.spring.SpringBundle;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
+          "line": 27
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.exceptions.SPMException;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/SPMExceptionMapper.java",
+          "line": 9
+        },
+        {
+          "anchor": "import static rms.unifiedstore.sqlpool.common.LoggerContext.requestIdKey;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/filters/RequestIdLoggingFilter.java",
+          "line": 3
+        }
+      ],
+      "from": "sql-pool/sql-pool-api",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 52
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.PoolConfigService;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 36
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.ServerService;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 37
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.PoolConfigService;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 39
+        }
+      ],
+      "from": "sql-pool/sql-pool-api",
+      "to": "sql-pool/sql-pool-service",
+      "weight": 5
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/DataAccessConfiguration.java",
+          "line": 21
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerInstanceType;",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java",
+          "line": 6
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerType;",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java",
+          "line": 7
+        }
+      ],
+      "from": "sql-pool/sql-pool-dal",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 15
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerStatus;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/DecommissionTrapTest.java",
+          "line": 11
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerStatus;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/Phase24ProvisioningChainTest.java",
+          "line": 27
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.Constants;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/Phase24ProvisioningChainTest.java",
+          "line": 28
+        }
+      ],
+      "from": "sql-pool/sql-pool-integrationtest",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 78
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EPoolConfig;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/EntityToTableTest.java",
+          "line": 15
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EReservation;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/EntityToTableTest.java",
+          "line": 16
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/EntityToTableTest.java",
+          "line": 17
+        }
+      ],
+      "from": "sql-pool/sql-pool-integrationtest",
+      "to": "sql-pool/sql-pool-dal",
+      "weight": 7
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.spring.SpringBundle;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolQuartzJobsApplication.java",
+          "line": 24
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolQuartzJobsApplication.java",
+          "line": 25
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.metrics.Metrics;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolSpringConfiguration.java",
+          "line": 12
+        }
+      ],
+      "from": "sql-pool/sql-pool-manager",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 158
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/adaptor/CompositeConnectionCheckingAdaptor.java",
+          "line": 7
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/adaptor/SqlConnectionCheckingAdaptor.java",
+          "line": 11
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/adaptor/SshCheckingAdaptor.java",
+          "line": 6
+        }
+      ],
+      "from": "sql-pool/sql-pool-manager",
+      "to": "sql-pool/sql-pool-provision",
+      "weight": 33
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.eventbus.subscribe.ServerSubscriber;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolSpringConfiguration.java",
+          "line": 13
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.ServerService;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolSpringConfiguration.java",
+          "line": 14
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.ReservationService;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/MetricsCalculatorDelegate.java",
+          "line": 12
+        }
+      ],
+      "from": "sql-pool/sql-pool-manager",
+      "to": "sql-pool/sql-pool-service",
+      "weight": 57
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServer;",
+          "file": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClient.java",
+          "line": 5
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.exceptions.SPMException;",
+          "file": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClientDummy.java",
+          "line": 8
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServer;",
+          "file": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClientDummy.java",
+          "line": 9
+        }
+      ],
+      "from": "sql-pool/sql-pool-provision",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 15
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerStatus;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/eventbus/events/ServerStatusChangeEvent.java",
+          "line": 3
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.metrics.Metrics;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/eventbus/subscribe/ServerSubscriber.java",
+          "line": 12
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServer;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/eventbus/subscribe/ServerSubscriber.java",
+          "line": 13
+        }
+      ],
+      "from": "sql-pool/sql-pool-service",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 79
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EPoolConfig;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
+          "line": 8
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EReservation;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DReservationMapper.java",
+          "line": 8
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DReservationMetadataMapper.java",
+          "line": 7
+        }
+      ],
+      "from": "sql-pool/sql-pool-service",
+      "to": "sql-pool/sql-pool-dal",
+      "weight": 30
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/context/SetupContext.java",
+          "line": 8
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.exceptions.SPMException;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/DatabaseProvision.java",
+          "line": 6
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/DatabaseProvision.java",
+          "line": 7
+        }
+      ],
+      "from": "sql-pool/sql-pool-setup",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 4
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServer;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 19
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.helper.ConnectionFactory;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/util/TestHelper.java",
+          "line": 10
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.helper.ServerHelperFactory;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/util/TestHelper.java",
+          "line": 11
+        }
+      ],
+      "from": "sql-pool/sql-pool-smoketest",
+      "to": "sql-pool/sql-pool-common",
+      "weight": 8
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.cloudservices.ResourceManagementClientCS;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 20
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 21
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceStatus;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 22
+        }
+      ],
+      "from": "sql-pool/sql-pool-smoketest",
+      "to": "sql-pool/sql-pool-provision",
+      "weight": 5
+    }
+  ]
+}

@@ -1,0 +1,687 @@
+{
+  "claims": [
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "correlationId = os.getenv('CORRELATION_ID')",
+          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
+          "line": 13
+        }
+      ],
+      "id": "config.config_correlation_id",
+      "kind": "config",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "Configuration key 'CORRELATION_ID' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
+      "subject": "config:CORRELATION_ID"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV DEBIAN_FRONTEND noninteractive",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_debian_frontend",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+      ],
+      "statement": "Configuration key 'DEBIAN_FRONTEND' is read at 1 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
+      "subject": "config:DEBIAN_FRONTEND"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV FLYWAY_CMD_VERSION=11.8.1",
+          "file": "exposure-snapshot/domain-data-migration/Dockerfile",
+          "line": 11
+        },
+        {
+          "anchor": "ENV FLYWAY_CMD_VERSION=11.8.1",
+          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
+          "line": 16
+        },
+        {
+          "anchor": "ENV FLYWAY_CMD_VERSION=13.4.0",
+          "file": "service-api/docker/Dockerfile",
+          "line": 5
+        }
+      ],
+      "id": "config.config_flyway_cmd_version",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/(files+1)"
+      ],
+      "statement": "Configuration key 'FLYWAY_CMD_VERSION' is read at 3 site(s) in (root), exposure-snapshot, exposure-snapshot/snapshot-migration.",
+      "subject": "config:FLYWAY_CMD_VERSION"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV HOME=/root",
+          "file": "ms-sql-java/downgrade-processor/Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "config.config_home",
+      "kind": "config",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "Configuration key 'HOME' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
+      "subject": "config:HOME"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ARG JACKSON_VERSION=2.22.2",
+          "file": "service-api/docker/Dockerfile",
+          "line": 8
+        }
+      ],
+      "id": "config.config_jackson_version",
+      "kind": "config",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "Configuration key 'JACKSON_VERSION' is read at 1 site(s) in (root).",
+      "subject": "config:JACKSON_VERSION"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV JAVA_ARGS=-Djdk.tls.client.protocols=\"TLSv1,TLSv1.1,TLSv1.2\"",
+          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
+          "line": 36
+        }
+      ],
+      "id": "config.config_java_args",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-migration"
+      ],
+      "statement": "Configuration key 'JAVA_ARGS' is read at 1 site(s) in exposure-snapshot/snapshot-migration.",
+      "subject": "config:JAVA_ARGS"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF-8",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/Dockerfile",
+          "line": 3
+        },
+        {
+          "anchor": "ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF-8",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "config.config_java_tool_options",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "Configuration key 'JAVA_TOOL_OPTIONS' is read at 2 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation, exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
+      "subject": "config:JAVA_TOOL_OPTIONS"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV JDK_JAVA_OPTIONS \"--add-opens java.base/java.time=ALL-UNNAMED\"",
+          "file": "sql-pool/sql-pool-api/Dockerfile",
+          "line": 17
+        },
+        {
+          "anchor": "ENV JDK_JAVA_OPTIONS \"--add-opens java.base/java.time=ALL-UNNAMED\"",
+          "file": "sql-pool/sql-pool-manager/Dockerfile",
+          "line": 17
+        }
+      ],
+      "id": "config.config_jdk_java_options",
+      "kind": "config",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "Configuration key 'JDK_JAVA_OPTIONS' is read at 2 site(s) in sql-pool/sql-pool-api, sql-pool/sql-pool-manager.",
+      "subject": "config:JDK_JAVA_OPTIONS"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV LANG en_US.UTF-8",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 7
+        },
+        {
+          "anchor": "ENV LANG en_US.UTF-8",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 5
+        }
+      ],
+      "id": "config.config_lang",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "Configuration key 'LANG' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:LANG"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV LANGUAGE en_US.UTF-8",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 8
+        },
+        {
+          "anchor": "ENV LANGUAGE en_US.UTF-8",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 6
+        }
+      ],
+      "id": "config.config_language",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "Configuration key 'LANGUAGE' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:LANGUAGE"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV LC_ALL en_US.UTF-8",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 9
+        },
+        {
+          "anchor": "ENV LC_ALL en_US.UTF-8",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 7
+        }
+      ],
+      "id": "config.config_lc_all",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "Configuration key 'LC_ALL' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:LC_ALL"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ARG MAVEN_REPO=https://artifactory.rms-npe-internal.com/artifactory/maven-public",
+          "file": "service-api/docker/Dockerfile",
+          "line": 7
+        }
+      ],
+      "id": "config.config_maven_repo",
+      "kind": "config",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "Configuration key 'MAVEN_REPO' is read at 1 site(s) in (root).",
+      "subject": "config:MAVEN_REPO"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV USER=root",
+          "file": "ms-sql-java/downgrade-processor/Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_user",
+      "kind": "config",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "Configuration key 'USER' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
+      "subject": "config:USER"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV WORKINGDIR=/opt/snapshot-smoketest",
+          "file": "exposure-snapshot/snapshot-smoketest/Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_workingdir",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-smoketest/(files+1)"
+      ],
+      "statement": "Configuration key 'WORKINGDIR' is read at 1 site(s) in exposure-snapshot/snapshot-smoketest.",
+      "subject": "config:WORKINGDIR"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
+          "file": "exposure-snapshot/download-exposure/Dockerfile",
+          "line": 5
+        },
+        {
+          "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/Dockerfile",
+          "line": 5
+        },
+        {
+          "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "config.config_com",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/download-exposure"
+      ],
+      "statement": "Configuration key 'com' is read at 4 site(s) in exposure-snapshot/download-exposure, exposure-snapshot/snapshot-legacy/snapshot-legacy-partition, exposure-snapshot/snapshot-legacy/snapshot-legacy-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:com"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface EConfigPoolRepository extends JpaRepository<EPoolConfig, Long> {}",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EConfigPoolRepository.java",
+          "line": 8
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_econfigpoolrepository.rms_unifiedstore_sqlpool_dal_entities_epoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EConfigPoolRepository reads and writes EPoolConfig; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DPoolConfig asDPoolConfig(PoolConfigUpdate poolConfigUpdate);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 22
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigupdate.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PoolConfigUpdate is converted to DPoolConfig by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.Mapper;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 3
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_poolconfigmapper.library_org_mapstruct_mapper",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PoolConfigMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.PoolConfigMapper -> library:org.mapstruct.Mapper"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "PoolConfigDetailedOutput asPoolConfigDetailedOutput(DPoolConfig dPoolConfig);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 20
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigdetailedoutput",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DPoolConfig is converted to PoolConfigDetailedOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigDetailedOutput"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "PoolConfigOutput asPoolConfigOutput(DPoolConfig dPoolConfig);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 17
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigoutput",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DPoolConfig is converted to PoolConfigOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigOutput"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "EPoolConfig asEPoolConfig(DPoolConfig dPoolConfig);",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
+          "line": 30
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_dal_entities_epoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-service"
+      ],
+      "statement": "DPoolConfig is converted to EPoolConfig by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DPoolConfig asDPoolConfig(EPoolConfig ePoolConfig);",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
+          "line": 22
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_dal_entities_epoolconfig.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-service"
+      ],
+      "statement": "EPoolConfig is converted to DPoolConfig by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.dal.entities.EPoolConfig -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.Mapper;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
+          "line": 3
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_service_mappers_dpoolconfigmapper.library_org_mapstruct_mapper",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-service"
+      ],
+      "statement": "DPoolConfigMapper is converted to Mapper by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.service.mappers.DPoolConfigMapper -> library:org.mapstruct.Mapper"
+    },
+    {
+      "channel": "persist",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "@Entity @Table(name = \"pool_config\")",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java",
+          "line": 9
+        }
+      ],
+      "id": "data_model.entity.pool_config",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "Table 'pool_config' is written from EPoolConfig in sql-pool/sql-pool-dal.",
+      "subject": "table:pool_config"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml",
+          "file": "sql-pool/sql-pool-api/Dockerfile",
+          "line": 23
+        }
+      ],
+      "id": "deployable.process_sql_pool_sql_pool_api",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "sql-pool/sql-pool-api is packaged as its own container image; its entry command is sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml.",
+      "subject": "process:sql-pool/sql-pool-api"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml",
+          "file": "sql-pool/sql-pool-manager/Dockerfile",
+          "line": 23
+        }
+      ],
+      "id": "deployable.process_sql_pool_sql_pool_manager",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-manager/(files+5)"
+      ],
+      "statement": "sql-pool/sql-pool-manager is packaged as its own container image; its entry command is sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml.",
+      "subject": "process:sql-pool/sql-pool-manager"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_CONFIG_PATH = \"/v1/pools\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 11
+        },
+        {
+          "anchor": "@GET @Operation(",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 73
+        }
+      ],
+      "id": "entrypoint.route.get.v1_pools",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/pools is served by PoolConfigResource#getPoolConfigurations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}).",
+      "subject": "route:GET /v1/pools"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_CONFIG_PATH = \"/v1/pools\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 11
+        },
+        {
+          "anchor": "@GET @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 119
+        }
+      ],
+      "id": "entrypoint.route.get.v1_pools_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/pools/{id} is served by PoolConfigResource#getPoolConfig in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}).",
+      "subject": "route:GET /v1/pools/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_CONFIG_PATH = \"/v1/pools\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 11
+        },
+        {
+          "anchor": "@PATCH @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 174
+        }
+      ],
+      "id": "entrypoint.route.patch.v1_pools_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PATCH /v1/pools/{id} is served by PoolConfigResource#updatePoolConfig in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}).",
+      "subject": "route:PATCH /v1/pools/{id}"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws Exception {",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
+          "line": 33
+        },
+        {
+          "anchor": "public interface EConfigPoolRepository extends JpaRepository<EPoolConfig, Long> {}",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EConfigPoolRepository.java",
+          "line": 8
+        },
+        {
+          "anchor": "public interface EReservationRepository extends JpaRepository<EReservation, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationRepository.java",
+          "line": 11
+        },
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/schema/RegenerateSchemaBaseline.java",
+          "line": 28
+        }
+      ],
+      "id": "side_effect.process_boundary.sqlpoolapplication.regenerateschemabaseline.sqlpoolquartzjobsapplication",
+      "kind": "side_effect",
+      "side_effect_type": "db_write",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "SqlPoolApplication and RegenerateSchemaBaseline and SqlPoolQuartzJobsApplication are separate deployable units that exchange data through shared storage (13 shared target(s), including pool_config, reservation, reservation_metadata, server). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call.",
+      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication <-> rms.unifiedstore.sqlpool.integrationtest.support.schema.RegenerateSchemaBaseline <-> rms.unifiedstore.sqlpool.manager.SqlPoolQuartzJobsApplication"
+    }
+  ],
+  "files": [
+    "nuget.config",
+    ".editorconfig",
+    "exposure-snapshot/config.yml",
+    ".github/cicd-configuration-guide.md",
+    "core/RMS.UnifiedStore.Core.App/ServiceConfigurationExtensions.cs",
+    "service-api/RMS.UnifiedStore.Service.Api/App/ConfigurationKeys.cs",
+    "core/RMS.UnifiedStore.Core/Configuration/IConfigurationProvider.cs",
+    "service-api/RMS.UnifiedStore.Service.Api/runtimeconfig.template.json",
+    "core/RMS.UnifiedStore.Core/Configuration/LocalConfigurationProvider.cs",
+    "sql-pool/sql-pool-api/src/main/resources/dropwizard-service-config.yml",
+    "core/RMS.UnifiedStore.Core/Configuration/ChainedConfigurationProvider.cs",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ConfigurationKeys.cs",
+    "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+    "sql-pool/sql-pool-manager/src/main/resources/dropwizard-service-config.yml",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/RedisTlsConfiguration.cs",
+    "automation/api-automation/src/main/java/com/rms/uds/config/ConfigManager.java",
+    "exposure-snapshot/snapshot-api/src/main/resources/dropwizard-service-config.yml",
+    "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/TestConfiguration.cs",
+    "sql-pool/sql-pool-provision/src/main/resources/requestTemplates/sml/poolConfig1.json",
+    "sql-pool/sql-pool-provision/src/main/resources/requestTemplates/sml/poolConfig2.json",
+    "sql-pool/sql-pool-provision/src/main/resources/requestTemplates/sml/poolConfig4.json",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/RedisTlsConfigurationTests.cs",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/UpgradeVersionConfigRecord.cs",
+    "service-api/RMS.UnifiedStore.Service.Api/RecurringJobs/BackgroundServiceConfiguration.cs",
+    "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java",
+    "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Configuration/ConfigurationGroup.cs",
+    "sql-pool/sql-pool-setup/src/main/resources/db/migration/V001.014__create_config_pool_28.sql",
+    "sql-pool/sql-pool-setup/src/main/resources/db/migration/V001.031__sql2022_pools_configs.sql",
+    "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/IUpgradeVersionConfigRepository.cs",
+    "service-api/RMS.UnifiedStore.Service.Api/Handlers/TenantProvisioning/PackageConfiguration.cs"
+  ],
+  "query": "search",
+  "symbols": [
+    "config:id",
+    "config:home",
+    "config:kind",
+    "config:name",
+    "config:RG-001",
+    "config:RG-002",
+    "config:RG-003",
+    "config:RG-004",
+    "config:RG-005",
+    "config:RG-006",
+    "config:S3-001",
+    "config:S3-002",
+    "config:S3-003",
+    "config:S3-004",
+    "config:DAO-001",
+    "config:DAO-002",
+    "config:DAO-003",
+    "config:DAO-004",
+    "config:DAO-005",
+    "config:EXP-001",
+    "config:EXP-002",
+    "config:EXP-003",
+    "config:EXP-004",
+    "config:EXP-005",
+    "config:EXP-006",
+    "config:EXP-007",
+    "config:EXP-008",
+    "config:EXP-009",
+    "config:EXP-010",
+    "config:EXP-011"
+  ],
+  "text": "config",
+  "unknowns": []
+}

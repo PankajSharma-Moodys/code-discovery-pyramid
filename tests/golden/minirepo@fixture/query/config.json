@@ -1,0 +1,17 @@
+{
+  "count": 1,
+  "keys": [
+    {
+      "declared": [],
+      "key": "MINI_DB_URL",
+      "read": [
+        {
+          "at": "Dockerfile:3",
+          "by": "process:root"
+        }
+      ],
+      "values": []
+    }
+  ],
+  "query": "config"
+}

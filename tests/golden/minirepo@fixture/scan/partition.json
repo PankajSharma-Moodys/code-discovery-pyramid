@@ -1,0 +1,79 @@
+{
+  "budgets": {
+    "max_files": 40,
+    "max_loc": 6000
+  },
+  "scopes": [
+    {
+      "by_language": {
+        "docker": 1,
+        "gradle": 2
+      },
+      "by_role": {
+        "build": 3
+      },
+      "file_count": 3,
+      "files": [
+        "Dockerfile",
+        "build.gradle",
+        "settings.gradle"
+      ],
+      "loc": 14,
+      "module": "(root)",
+      "node": "root",
+      "oversized": false
+    },
+    {
+      "by_language": {
+        "gradle": 1,
+        "java": 4,
+        "sql": 1
+      },
+      "by_role": {
+        "build": 1,
+        "schema": 1,
+        "source": 3,
+        "test": 1
+      },
+      "file_count": 6,
+      "files": [
+        "core/build.gradle",
+        "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "core/src/main/resources/db/V001__create_widget.sql",
+        "core/src/test/java/com/example/mini/core/Widget.java"
+      ],
+      "loc": 67,
+      "module": "core",
+      "node": "root/core",
+      "oversized": false
+    },
+    {
+      "by_language": {
+        "gradle": 1,
+        "java": 3
+      },
+      "by_role": {
+        "build": 1,
+        "source": 3
+      },
+      "file_count": 4,
+      "files": [
+        "web/build.gradle",
+        "web/src/main/java/com/example/mini/web/ApiPaths.java",
+        "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "web/src/main/java/com/example/mini/web/WidgetResource.java"
+      ],
+      "loc": 49,
+      "module": "web",
+      "node": "root/web",
+      "oversized": false
+    }
+  ],
+  "totals": {
+    "files": 13,
+    "oversized": 0,
+    "scopes": 3
+  }
+}

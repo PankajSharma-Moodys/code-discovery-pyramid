@@ -1,0 +1,771 @@
+{
+  "claims": [
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "correlationId = os.getenv('CORRELATION_ID')",
+          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
+          "line": 13
+        }
+      ],
+      "id": "config.config_correlation_id",
+      "kind": "config",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "Configuration key 'CORRELATION_ID' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
+      "subject": "config:CORRELATION_ID"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV DEBIAN_FRONTEND noninteractive",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_debian_frontend",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+      ],
+      "statement": "Configuration key 'DEBIAN_FRONTEND' is read at 1 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
+      "subject": "config:DEBIAN_FRONTEND"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV FLYWAY_CMD_VERSION=11.8.1",
+          "file": "exposure-snapshot/domain-data-migration/Dockerfile",
+          "line": 11
+        },
+        {
+          "anchor": "ENV FLYWAY_CMD_VERSION=11.8.1",
+          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
+          "line": 16
+        },
+        {
+          "anchor": "ENV FLYWAY_CMD_VERSION=13.4.0",
+          "file": "service-api/docker/Dockerfile",
+          "line": 5
+        }
+      ],
+      "id": "config.config_flyway_cmd_version",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/(files+1)"
+      ],
+      "statement": "Configuration key 'FLYWAY_CMD_VERSION' is read at 3 site(s) in (root), exposure-snapshot, exposure-snapshot/snapshot-migration.",
+      "subject": "config:FLYWAY_CMD_VERSION"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV HOME=/root",
+          "file": "ms-sql-java/downgrade-processor/Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "config.config_home",
+      "kind": "config",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "Configuration key 'HOME' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
+      "subject": "config:HOME"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ARG JACKSON_VERSION=2.22.2",
+          "file": "service-api/docker/Dockerfile",
+          "line": 8
+        }
+      ],
+      "id": "config.config_jackson_version",
+      "kind": "config",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "Configuration key 'JACKSON_VERSION' is read at 1 site(s) in (root).",
+      "subject": "config:JACKSON_VERSION"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV JAVA_ARGS=-Djdk.tls.client.protocols=\"TLSv1,TLSv1.1,TLSv1.2\"",
+          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
+          "line": 36
+        }
+      ],
+      "id": "config.config_java_args",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-migration"
+      ],
+      "statement": "Configuration key 'JAVA_ARGS' is read at 1 site(s) in exposure-snapshot/snapshot-migration.",
+      "subject": "config:JAVA_ARGS"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF-8",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/Dockerfile",
+          "line": 3
+        },
+        {
+          "anchor": "ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF-8",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "config.config_java_tool_options",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "Configuration key 'JAVA_TOOL_OPTIONS' is read at 2 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation, exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
+      "subject": "config:JAVA_TOOL_OPTIONS"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV JDK_JAVA_OPTIONS \"--add-opens java.base/java.time=ALL-UNNAMED\"",
+          "file": "sql-pool/sql-pool-api/Dockerfile",
+          "line": 17
+        },
+        {
+          "anchor": "ENV JDK_JAVA_OPTIONS \"--add-opens java.base/java.time=ALL-UNNAMED\"",
+          "file": "sql-pool/sql-pool-manager/Dockerfile",
+          "line": 17
+        }
+      ],
+      "id": "config.config_jdk_java_options",
+      "kind": "config",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "Configuration key 'JDK_JAVA_OPTIONS' is read at 2 site(s) in sql-pool/sql-pool-api, sql-pool/sql-pool-manager.",
+      "subject": "config:JDK_JAVA_OPTIONS"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV LANG en_US.UTF-8",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 7
+        },
+        {
+          "anchor": "ENV LANG en_US.UTF-8",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 5
+        }
+      ],
+      "id": "config.config_lang",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "Configuration key 'LANG' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:LANG"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV LANGUAGE en_US.UTF-8",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 8
+        },
+        {
+          "anchor": "ENV LANGUAGE en_US.UTF-8",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 6
+        }
+      ],
+      "id": "config.config_language",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "Configuration key 'LANGUAGE' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:LANGUAGE"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV LC_ALL en_US.UTF-8",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 9
+        },
+        {
+          "anchor": "ENV LC_ALL en_US.UTF-8",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 7
+        }
+      ],
+      "id": "config.config_lc_all",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "Configuration key 'LC_ALL' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:LC_ALL"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ARG MAVEN_REPO=https://artifactory.rms-npe-internal.com/artifactory/maven-public",
+          "file": "service-api/docker/Dockerfile",
+          "line": 7
+        }
+      ],
+      "id": "config.config_maven_repo",
+      "kind": "config",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "Configuration key 'MAVEN_REPO' is read at 1 site(s) in (root).",
+      "subject": "config:MAVEN_REPO"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV USER=root",
+          "file": "ms-sql-java/downgrade-processor/Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_user",
+      "kind": "config",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "Configuration key 'USER' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
+      "subject": "config:USER"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV WORKINGDIR=/opt/snapshot-smoketest",
+          "file": "exposure-snapshot/snapshot-smoketest/Dockerfile",
+          "line": 3
+        }
+      ],
+      "id": "config.config_workingdir",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-smoketest/(files+1)"
+      ],
+      "statement": "Configuration key 'WORKINGDIR' is read at 1 site(s) in exposure-snapshot/snapshot-smoketest.",
+      "subject": "config:WORKINGDIR"
+    },
+    {
+      "channel": "config_read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
+          "file": "exposure-snapshot/download-exposure/Dockerfile",
+          "line": 5
+        },
+        {
+          "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/Dockerfile",
+          "line": 5
+        },
+        {
+          "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/Dockerfile",
+          "line": 4
+        }
+      ],
+      "id": "config.config_com",
+      "kind": "config",
+      "source_nodes": [
+        "root/exposure-snapshot/download-exposure"
+      ],
+      "statement": "Configuration key 'com' is read at 4 site(s) in exposure-snapshot/download-exposure, exposure-snapshot/snapshot-legacy/snapshot-legacy-partition, exposure-snapshot/snapshot-legacy/snapshot-legacy-task, exposure-snapshot/snapshot-task-delete.",
+      "subject": "config:com"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface EConfigPoolRepository extends JpaRepository<EPoolConfig, Long> {}",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EConfigPoolRepository.java",
+          "line": 8
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_econfigpoolrepository.rms_unifiedstore_sqlpool_dal_entities_epoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EConfigPoolRepository reads and writes EPoolConfig; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface EReservationRepository extends JpaRepository<EReservation, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationRepository.java",
+          "line": 11
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_ereservationrepository.rms_unifiedstore_sqlpool_dal_entities_ereservation",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EReservationRepository reads and writes EReservation; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservation"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface EReservationMetadataRepository extends JpaRepository<EReservationMetadata, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationMetadataRepository.java",
+          "line": 9
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_ereservationmetadatarepository.rms_unifiedstore_sqlpool_dal_entities_ereservationmetadata",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EReservationMetadataRepository reads and writes EReservationMetadata; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface EServerRepository extends JpaRepository<EServer, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EServerRepository.java",
+          "line": 14
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_eserverrepository.rms_unifiedstore_sqlpool_dal_entities_eserver",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EServerRepository reads and writes EServer; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServer"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "extends JpaRepository<EServerResourceUsageLog, ResourceUsageLogKey> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EServerUsageLogRepository.java",
+          "line": 14
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_eserverusagelogrepository.rms_unifiedstore_sqlpool_dal_entities_eserverresourceusagelog",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EServerUsageLogRepository reads and writes EServerResourceUsageLog; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerResourceUsageLog"
+    },
+    {
+      "channel": "persist",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public interface EServerStatusLogRepository extends JpaRepository<EServerStatusLog, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EServerStatusLogRepository.java",
+          "line": 13
+        }
+      ],
+      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_eserverstatuslogrepository.rms_unifiedstore_sqlpool_dal_entities_eserverstatuslog",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "EServerStatusLogRepository reads and writes EServerStatusLog; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerStatusLog"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DPoolConfig asDPoolConfig(PoolConfigUpdate poolConfigUpdate);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 22
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigupdate.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PoolConfigUpdate is converted to DPoolConfig by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DReservation asDReservation(Reservation reservation);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
+          "line": 24
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_reservation.rms_unifiedstore_sqlpool_common_model_domain_dreservation",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "Reservation is converted to DReservation by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Reservation -> rms.unifiedstore.sqlpool.common.model.domain.DReservation"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DReservation asDReservation(ReservationUpdate reservation);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
+          "line": 34
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_reservationupdate.rms_unifiedstore_sqlpool_common_model_domain_dreservation",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "ReservationUpdate is converted to DReservation by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ReservationUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DReservation"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DServer asDServer(Server server);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
+          "line": 22
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_server.rms_unifiedstore_sqlpool_common_model_domain_dserver",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "Server is converted to DServer by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Server -> rms.unifiedstore.sqlpool.common.model.domain.DServer"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "DServer asDServer(ServerUpdate server);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
+          "line": 34
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_serverupdate.rms_unifiedstore_sqlpool_common_model_domain_dserver",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "ServerUpdate is converted to DServer by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ServerUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DServer"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.Named;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/HostAndPortMapper.java",
+          "line": 4
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_hostandportmapper.library_org_mapstruct_named",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "HostAndPortMapper is converted to Named by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.HostAndPortMapper -> library:org.mapstruct.Named"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.Mapper;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 3
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_poolconfigmapper.library_org_mapstruct_mapper",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PoolConfigMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.PoolConfigMapper -> library:org.mapstruct.Mapper"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import static org.mapstruct.NullValuePropertyMappingStrategy.IGNORE;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
+          "line": 3
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_reservationmapper.library_org_mapstruct_nullvaluepropertymappingstrategy",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "ReservationMapper is converted to NullValuePropertyMappingStrategy by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapper -> library:org.mapstruct.NullValuePropertyMappingStrategy"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.factory.Mappers;",
+          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ReservationMapperTest.java",
+          "line": 7
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_reservationmappertest.library_org_mapstruct_factory",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "ReservationMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapperTest -> library:org.mapstruct.factory"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.Mapper;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
+          "line": 3
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_servermapper.library_org_mapstruct_mapper",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "ServerMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapper -> library:org.mapstruct.Mapper"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.factory.Mappers;",
+          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ServerMapperTest.java",
+          "line": 7
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_servermappertest.library_org_mapstruct_factory",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "ServerMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapperTest -> library:org.mapstruct.factory"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.Mapper;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerResourceUsageLogMapper.java",
+          "line": 3
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_serverresourceusagelogmapper.library_org_mapstruct_mapper",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "ServerResourceUsageLogMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapper -> library:org.mapstruct.Mapper"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.mapstruct.factory.Mappers;",
+          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ServerResourceUsageLogMapperTest.java",
+          "line": 4
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_serverresourceusagelogmappertest.library_org_mapstruct_factory",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "ServerResourceUsageLogMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapperTest -> library:org.mapstruct.factory"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "PoolConfigDetailedOutput asPoolConfigDetailedOutput(DPoolConfig dPoolConfig);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 20
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigdetailedoutput",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DPoolConfig is converted to PoolConfigDetailedOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigDetailedOutput"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "PoolConfigOutput asPoolConfigOutput(DPoolConfig dPoolConfig);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
+          "line": 17
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigoutput",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DPoolConfig is converted to PoolConfigOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigOutput"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "EPoolConfig asEPoolConfig(DPoolConfig dPoolConfig);",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
+          "line": 30
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_dal_entities_epoolconfig",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-service"
+      ],
+      "statement": "DPoolConfig is converted to EPoolConfig by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "default OffsetDateTime expirationTime(DReservation dReservation) {",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
+          "line": 48
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dreservation.java_time_offsetdatetime",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DReservation is converted to OffsetDateTime by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> java.time.OffsetDateTime"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ReservationOutput asReservationOutput(DReservation dReservation);",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
+          "line": 32
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dreservation.rms_unifiedstore_sqlpool_api_model_dtos_reservationoutput",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DReservation is converted to ReservationOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> rms.unifiedstore.sqlpool.api.model.dtos.ReservationOutput"
+    },
+    {
+      "channel": "map",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "EReservation asEReservation(DReservation dReservation);",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DReservationMapper.java",
+          "line": 31
+        }
+      ],
+      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dreservation.rms_unifiedstore_sqlpool_dal_entities_ereservation",
+      "kind": "data_model",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-service"
+      ],
+      "statement": "DReservation is converted to EReservation by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> rms.unifiedstore.sqlpool.dal.entities.EReservation"
+    }
+  ],
+  "count": 1278,
+  "query": "claims"
+}

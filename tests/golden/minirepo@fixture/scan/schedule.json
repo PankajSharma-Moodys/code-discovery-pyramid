@@ -1,0 +1,44 @@
+{
+  "max_concurrent": 12,
+  "module_deps": {
+    "web": [
+      "core"
+    ]
+  },
+  "module_level": {
+    "(root)": 0,
+    "core": 0,
+    "web": 1
+  },
+  "node_wave": {
+    "root": 0,
+    "root/core": 0,
+    "root/web": 1
+  },
+  "totals": {
+    "nodes": 3,
+    "source_loc_scheduled": 130,
+    "waves": 2
+  },
+  "waves": [
+    {
+      "file_count": 9,
+      "level": 0,
+      "loc": 81,
+      "nodes": [
+        "root",
+        "root/core"
+      ],
+      "wave": 0
+    },
+    {
+      "file_count": 4,
+      "level": 1,
+      "loc": 49,
+      "nodes": [
+        "root/web"
+      ],
+      "wave": 1
+    }
+  ]
+}

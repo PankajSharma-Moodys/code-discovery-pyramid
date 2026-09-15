@@ -1,0 +1,203 @@
+{
+  "by_language": {
+    "docker": 1,
+    "gradle": 4,
+    "java": 7,
+    "sql": 1
+  },
+  "by_role": {
+    "build": 5,
+    "schema": 1,
+    "source": 6,
+    "test": 1
+  },
+  "counts": {
+    "on_disk": 14,
+    "ratio": 1.08,
+    "tracked": 13
+  },
+  "files": [
+    {
+      "binary": false,
+      "bytes": 133,
+      "language": "docker",
+      "loc": 4,
+      "module": "(root)",
+      "path": "Dockerfile",
+      "role": "build"
+    },
+    {
+      "binary": false,
+      "bytes": 68,
+      "language": "gradle",
+      "loc": 7,
+      "module": "(root)",
+      "path": "build.gradle",
+      "role": "build"
+    },
+    {
+      "binary": false,
+      "bytes": 71,
+      "language": "gradle",
+      "loc": 3,
+      "module": "core",
+      "path": "core/build.gradle",
+      "role": "build"
+    },
+    {
+      "binary": false,
+      "bytes": 434,
+      "language": "java",
+      "loc": 22,
+      "module": "core",
+      "path": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "role": "source"
+    },
+    {
+      "binary": false,
+      "bytes": 362,
+      "language": "java",
+      "loc": 20,
+      "module": "core",
+      "path": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "role": "source"
+    },
+    {
+      "binary": false,
+      "bytes": 236,
+      "language": "java",
+      "loc": 7,
+      "module": "core",
+      "path": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "role": "source"
+    },
+    {
+      "binary": false,
+      "bytes": 151,
+      "language": "sql",
+      "loc": 6,
+      "module": "core",
+      "path": "core/src/main/resources/db/V001__create_widget.sql",
+      "role": "schema"
+    },
+    {
+      "binary": false,
+      "bytes": 205,
+      "language": "java",
+      "loc": 9,
+      "module": "core",
+      "path": "core/src/test/java/com/example/mini/core/Widget.java",
+      "role": "test"
+    },
+    {
+      "binary": false,
+      "bytes": 59,
+      "language": "gradle",
+      "loc": 3,
+      "module": "(root)",
+      "path": "settings.gradle",
+      "role": "build"
+    },
+    {
+      "binary": false,
+      "bytes": 95,
+      "language": "gradle",
+      "loc": 4,
+      "module": "web",
+      "path": "web/build.gradle",
+      "role": "build"
+    },
+    {
+      "binary": false,
+      "bytes": 162,
+      "language": "java",
+      "loc": 8,
+      "module": "web",
+      "path": "web/src/main/java/com/example/mini/web/ApiPaths.java",
+      "role": "source"
+    },
+    {
+      "binary": false,
+      "bytes": 160,
+      "language": "java",
+      "loc": 8,
+      "module": "web",
+      "path": "web/src/main/java/com/example/mini/web/WebApplication.java",
+      "role": "source"
+    },
+    {
+      "binary": false,
+      "bytes": 585,
+      "language": "java",
+      "loc": 29,
+      "module": "web",
+      "path": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "role": "source"
+    }
+  ],
+  "head": "<HEAD>",
+  "modules": [
+    {
+      "by_language": {
+        "docker": 1,
+        "gradle": 2
+      },
+      "by_role": {
+        "build": 3
+      },
+      "files": 3,
+      "loc": 14,
+      "manifests": [
+        "build.gradle"
+      ],
+      "name": "(root)",
+      "path": ""
+    },
+    {
+      "by_language": {
+        "gradle": 1,
+        "java": 4,
+        "sql": 1
+      },
+      "by_role": {
+        "build": 1,
+        "schema": 1,
+        "source": 3,
+        "test": 1
+      },
+      "disk_ratio": 1.0,
+      "files": 6,
+      "generated_suspect": false,
+      "loc": 67,
+      "manifests": [
+        "core/build.gradle"
+      ],
+      "name": "core",
+      "on_disk": 6,
+      "path": "core"
+    },
+    {
+      "by_language": {
+        "gradle": 1,
+        "java": 3
+      },
+      "by_role": {
+        "build": 1,
+        "source": 3
+      },
+      "disk_ratio": 1.0,
+      "files": 4,
+      "generated_suspect": false,
+      "loc": 49,
+      "manifests": [
+        "web/build.gradle"
+      ],
+      "name": "web",
+      "on_disk": 4,
+      "path": "web"
+    }
+  ],
+  "repo": "/private<REPO>",
+  "repo_name": "tree",
+  "source": "git"
+}
