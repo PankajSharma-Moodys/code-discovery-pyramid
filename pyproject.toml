@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cdp"
+version = "0.1.0"
+description = "Code Discovery Pyramid — reconstruct and cite undocumented architecture"
+readme = "SKILL.md"
+requires-python = ">=3.9"
+
+# Deliberately empty, and load-bearing.
+#
+# RESEARCH_GRAPHIFY.md §8 item 7 identifies zero dependencies as CDP's real
+# distribution advantage: the tool must work inside an arbitrary repository,
+# possibly offline, installed by copying a directory. CDP_CLI_SCOPE.md states
+# the same constraint ("Stdlib-only Python (`sqlite3` included)"). A dependency
+# added here defeats the property that `cdp install` relies on.
+dependencies = []
+
+[project.scripts]
+cdp = "cdp.cli:main"
+
+[tool.setuptools]
+packages = ["cdp", "cdp.lang"]
+
+# Known limitation, stated rather than papered over: `cli.SKILL_ROOT` is
+# `cdp/../`, so `schema/` and `tests/` are resolved as siblings of the package.
+# That holds for a source checkout and for the `cdp install` copy-a-directory
+# path — the two ways CDP is actually distributed — but not for an installed
+# wheel, where the siblings are site-packages. Making `cdp` pip-installable in
+# the full sense means moving schema/ inside the package as package-data;
+# that is a Phase 2 concern (it changes where state and schema resolve from)
+# and is deliberately not done here, where nothing may change behaviour.

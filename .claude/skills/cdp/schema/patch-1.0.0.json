@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdp.dev/schema/patch/1.0.0",
+  "title": "CDP patch (delta-Sigma)",
+  "description": "RESEARCH.md Appendix A, with two amendments recorded in PLAN.md. (C7) An anchor is a SPAN of consecutive source lines, not a single line: `@Entity` is 7 characters and sits alone on its own line on the validation target, so a per-line anchor cannot cite the detection signal the `persist` channel is defined on. The 12-character floor is kept; the verifier satisfies it by growing the span and matching with interior whitespace normalised. (2) `definition` gains an optional `value`, without which the mandatory route-constant resolution of section 6.3 has nowhere to read the literal from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "node", "run_id", "status"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "node":   { "type": "string", "description": "State-tree path, e.g. root/sql-pool-api" },
+    "run_id": { "type": "string" },
+    "status": { "enum": ["complete", "invalid", "failed", "pending"] },
+    "error":  { "type": "string", "description": "Attached when status is failed or invalid (section 3.5)" },
+    "claims":    { "type": "array", "items": { "$ref": "#/$defs/claim" } },
+    "unknowns":  { "type": "array", "items": { "$ref": "#/$defs/unknown" } },
+    "defines":   { "type": "array", "items": { "$ref": "#/$defs/definition" } },
+    "uses":      { "type": "array", "items": { "$ref": "#/$defs/use" } },
+    "io_edges":  { "type": "array", "items": { "$ref": "#/$defs/io_edge" } }
+  },
+
+  "$defs": {
+
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "line", "anchor"],
+      "properties": {
+        "file":   { "type": "string", "description": "Repo-relative path of a git-tracked file" },
+        "line":   { "type": "integer", "minimum": 1 },
+        "anchor": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 400,
+          "description": "Literal source text, which may span consecutive lines (C7). Verified per section 5.4: at most 3 matches in the file, exactly one within +/-5 lines of `line`, interior whitespace normalised. `line` is the line the span STARTS on, and is rewritten to the true location when the file has drifted."
+        }
+      }
+    },
+
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "subject", "statement", "evidence", "confidence"],
+      "properties": {
+        "id":        { "type": "string", "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)+$" },
+        "kind":      { "$ref": "#/$defs/claim_kind" },
+        "subject":   {
+          "type": "string",
+          "description": "Resolved FQN, table, route, topic or config key. The conflict-detection key of section 5.5; normalised by the resolve phase before merge."
+        },
+        "channel":     { "$ref": "#/$defs/channel" },
+        "visibility":  { "$ref": "#/$defs/visibility" },
+        "side_effect_type": { "$ref": "#/$defs/side_effect_type" },
+        "statement":   { "type": "string", "minLength": 12, "maxLength": 500 },
+        "evidence":    { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/anchor" } },
+        "confidence":  { "$ref": "#/$defs/confidence" },
+        "pending_resolution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set by a leaf whose claim depends on an out-of-scope symbol (section 6.3). Completed or demoted by the resolve phase; never published while true."
+        },
+        "demoted_reason": {
+          "enum": ["anchor_not_found", "ambiguous_anchor", "anchor_too_common",
+                   "unresolved_symbol", "child_failed", "inherited_budget_elision"]
+        },
+        "source_node": { "type": "string", "description": "Set by the merge phase; the node that asserted this claim." },
+        "contested_with": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Set by the merge operator (section 5.5 step 3) when a subject could not be resolved."
+        }
+      }
+    },
+
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "why_unresolved"],
+      "properties": {
+        "question":       { "type": "string", "minLength": 8 },
+        "why_unresolved": { "type": "string", "minLength": 4 },
+        "anchor":         { "$ref": "#/$defs/anchor" },
+        "demoted_from":   { "type": "string", "description": "claim.id, when this entry is a demoted claim" },
+        "source_node":    { "type": "string" }
+      }
+    },
+
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fqn", "kind", "visibility", "anchor"],
+      "properties": {
+        "fqn":        { "type": "string", "description": "Read from source, never inferred from path (section 6.3)" },
+        "kind":       { "$ref": "#/$defs/symbol_kind" },
+        "visibility": { "$ref": "#/$defs/visibility" },
+        "anchor":     { "$ref": "#/$defs/anchor" },
+        "value":      { "type": "string", "description": "Literal value for constants and config keys. Required for the route-constant resolution of section 6.3, which must substitute `/v1/servers` for `ApiConstants.SQL_POOL_SERVER_PATH`." },
+        "file":       { "type": "string" },
+        "module":     { "type": "string" }
+      }
+    },
+
+    "use": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fqn", "resolved", "anchor"],
+      "properties": {
+        "fqn":        { "type": "string" },
+        "resolved":   { "enum": ["local", "external", "third_party", "ambiguous", "unresolved"] },
+        "via_import": { "type": "boolean" },
+        "candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/anchor" },
+          "description": "Populated by the resolve phase when resolved = ambiguous (section 6.4)"
+        },
+        "anchor":     { "$ref": "#/$defs/anchor" },
+        "file":       { "type": "string" },
+        "module":     { "type": "string" },
+        "scope_package": { "type": "string" }
+      }
+    },
+
+    "io_edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target", "channel", "anchor"],
+      "properties": {
+        "source":  { "type": "string" },
+        "target":  { "type": "string", "description": "Symbol, table, route, topic or config key. A `${Owner.CONSTANT}` fragment is a symbolic reference the resolve phase substitutes." },
+        "channel": { "$ref": "#/$defs/channel" },
+        "anchor":  { "$ref": "#/$defs/anchor" },
+        "file":    { "type": "string" },
+        "module":  { "type": "string" }
+      }
+    },
+
+    "claim_kind": {
+      "enum": ["entrypoint", "public_api", "data_model", "config", "side_effect",
+               "test_behaviour", "ownership", "visibility", "deployable",
+               "naming", "dependency"]
+    },
+
+    "channel": {
+      "description": "Section 6.2. Extended only by a human editing this schema; an agent meeting an unlisted channel emits an unknowns[] entry.",
+      "enum": ["call", "map", "persist", "read", "schema_own", "http_in", "http_out",
+               "event_publish", "event_subscribe", "schedule", "config_read",
+               "ssh_exec", "codegen", "process_boundary", "metric_emit"]
+    },
+
+    "symbol_kind": {
+      "enum": ["class", "interface", "enum", "record", "annotation",
+               "method", "field", "constant", "table", "route", "config_key", "topic"]
+    },
+
+    "visibility": { "enum": ["public", "protected", "package", "private", "internal"] },
+
+    "side_effect_type": {
+      "enum": ["db_write", "db_read", "http_out", "filesystem",
+               "process_spawn", "message_publish", "ssh_exec", "metric_emit"]
+    },
+
+    "confidence": {
+      "description": "Canonical definition. Sections 4.3, 5.5, 5.7 and 6.7 are uses of this enum, not redefinitions. 'contested' is set only by the merge operator (section 5.5 step 3), never by an agent.",
+      "enum": ["high", "medium", "low", "contested"]
+    }
+  }
+}
