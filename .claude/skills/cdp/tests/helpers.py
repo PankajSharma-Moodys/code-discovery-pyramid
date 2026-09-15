@@ -20,7 +20,8 @@ from typing import Dict, Optional
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_ROOT))
 
-FIXTURE = Path(__file__).resolve().parent / "fixtures" / "minirepo"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+FIXTURE = FIXTURES / "minirepo"
 
 from cdp.dataflow import build_dataflow  # noqa: E402
 from cdp.derive import derive_claims  # noqa: E402
@@ -36,10 +37,17 @@ def have_git() -> bool:
     return shutil.which("git") is not None
 
 
-def make_repo(tmp: Path) -> Path:
-    """Copy the fixture into `tmp` and commit it, if git is available."""
-    repo = Path(tmp) / "minirepo"
-    shutil.copytree(FIXTURE, repo)
+def make_repo(tmp: Path, fixture: str = "minirepo") -> Path:
+    """Copy a fixture into `tmp` and commit it, if git is available.
+
+    `fixture` names a directory under `tests/fixtures/`:
+
+        minirepo   root manifest *and* sub-manifests -- the aggregator case
+        solorepo   one root manifest, none beneath it -- the M1.1 field bug
+        anonrepo   ditto, but the manifest states no name -- honest degradation
+    """
+    repo = Path(tmp) / fixture
+    shutil.copytree(FIXTURES / fixture, repo)
     if not have_git():
         return repo
     # Author and committer dates are pinned alongside the identities so that the

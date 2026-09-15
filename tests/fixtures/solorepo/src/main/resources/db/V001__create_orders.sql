@@ -1,0 +1,4 @@
+CREATE TABLE orders (
+    id BIGINT PRIMARY KEY,
+    total NUMERIC(12, 2) NOT NULL
+);

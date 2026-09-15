@@ -2,5 +2,6 @@
   "file": null,
   "module": null,
   "search": "config",
-  "symbol": "build:rootProject.name"
+  "symbol": "build:rootProject.name",
+  "trace": "/v1/widgets"
 }

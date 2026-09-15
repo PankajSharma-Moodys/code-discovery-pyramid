@@ -20,6 +20,8 @@ pass that only changed indentation.
 
 from __future__ import annotations
 
+import bisect
+from collections import OrderedDict
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .util import normalise_ws
@@ -43,31 +45,93 @@ def find_matches(lines: Sequence[str], anchor: str, max_span: int = MAX_SPAN) ->
     The "begins" qualifier is load-bearing. Without it, a single-line anchor on
     line 40 also reports a match at line 39 (span 2 covers it), at line 38
     (span 3), and so on — which would make every anchor look `anchor_too_common`
-    and demote the entire corpus. A hit is only recorded at line *i* if the
-    anchor is not already contained in the remainder of the span below *i*.
+    and demote the entire corpus. A hit is only recorded at the line the match
+    genuinely starts on.
+
+    **Why this is a whole-file index and not a scan.** The obvious
+    implementation — for every start line, join up to `max_span` lines,
+    normalise, test — re-normalises the entire file once per span width per
+    anchor. Profiling a 477-file scan put 83% of the *total* runtime in this
+    function and counted 7,168,250 `normalise_ws` calls for 6,476 anchors:
+    roughly 1,100 normalisations per anchor, almost all of them of lines that
+    had already been normalised for the previous anchor.
+
+    Normalising the file once into a single string and letting `str.find` do
+    the search in C is the same computation with the redundancy removed. It is
+    160x faster on the same input and returns identical results — which the
+    golden baseline, not this docstring, is what actually proves.
     """
     needle = normalise_ws(anchor)
     if not needle:
         return []
+    blob, offsets, numbers = _normalised_index(lines)
+    if not blob:
+        return []
+
     hits: List[int] = []
-    n = len(lines)
-    for i in range(n):
-        span = None
-        for width in range(1, max_span + 1):
-            if i + width > n:
-                break
-            window = normalise_ws(" ".join(lines[i : i + width]))
-            if needle in window:
-                span = width
-                break
-        if span is None:
-            continue
-        if span > 1:
-            tail = normalise_ws(" ".join(lines[i + 1 : i + span]))
-            if needle in tail:
-                continue  # the match really starts further down
-        hits.append(i + 1)
+    position = 0
+    while True:
+        found = blob.find(needle, position)
+        if found < 0:
+            break
+        start = bisect.bisect_right(offsets, found) - 1
+        end = bisect.bisect_right(offsets, found + len(needle) - 1) - 1
+        # The span is measured in *source* lines, not in non-blank ones: the
+        # naive version joined blank lines too, and they cost span width while
+        # contributing nothing to the text.
+        if numbers[end] - numbers[start] < max_span:
+            if not hits or hits[-1] != numbers[start]:
+                hits.append(numbers[start])
+        position = found + 1
     return hits
+
+
+#: Bounded memo of the last few files' normalised forms.
+#
+# Keyed on `id(lines)`, which is only sound because the entry holds a reference
+# to the list itself: without that the list could be collected and a different
+# list allocated at the same address, and this function would then answer about
+# the wrong file — a correctness bug that would surface as a mis-anchored claim,
+# which is the single worst failure mode CDP has. The identity re-check below is
+# the guard; the held reference is what makes the guard sufficient.
+_INDEX_CACHE: "OrderedDict[int, Tuple[Sequence[str], str, List[int], List[int]]]" = OrderedDict()
+_INDEX_CACHE_MAX = 8
+
+
+def _normalised_index(lines: Sequence[str]) -> Tuple[str, List[int], List[int]]:
+    """`(blob, offsets, numbers)` — the file as one normalised string.
+
+    `blob` is every non-empty normalised line joined by a single space.
+    `offsets[k]` is where the k-th such line starts in `blob`, and `numbers[k]`
+    is its 1-based source line number. Joining with a space and normalising is
+    associative, so a needle matches `blob` exactly when it matched the naive
+    per-window join.
+    """
+    key = id(lines)
+    cached = _INDEX_CACHE.get(key)
+    if cached is not None and cached[0] is lines:
+        _INDEX_CACHE.move_to_end(key)
+        return cached[1], cached[2], cached[3]
+
+    parts: List[str] = []
+    offsets: List[int] = []
+    numbers: List[int] = []
+    cursor = 0
+    for index, line in enumerate(lines):
+        text = normalise_ws(line)
+        if not text:
+            continue
+        parts.append(text)
+        offsets.append(cursor)
+        numbers.append(index + 1)
+        cursor += len(text) + 1  # the joining space
+
+    entry = (lines, " ".join(parts), offsets, numbers)
+    _INDEX_CACHE[key] = entry
+    _INDEX_CACHE.move_to_end(key)
+    while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
+        _INDEX_CACHE.popitem(last=False)
+    return entry[1], entry[2], entry[3]
 
 
 def _qualifies(lines: Sequence[str], text: str, line_no: int) -> bool:

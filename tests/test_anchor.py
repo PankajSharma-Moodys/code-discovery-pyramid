@@ -15,6 +15,7 @@ from helpers import SKILL_ROOT  # noqa: F401  (sets sys.path)
 
 from cdp.anchor import (
     AMBIGUOUS,
+    MAX_SPAN,
     MIN_ANCHOR_LEN,
     NOT_FOUND,
     TOO_COMMON,
@@ -22,6 +23,7 @@ from cdp.anchor import (
     find_matches,
     verify_anchor,
 )
+from cdp.util import normalise_ws
 
 ENTITY = [
     "package com.example;",
@@ -137,3 +139,94 @@ class TestVerify(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IndexedMatchingEquivalenceTest(unittest.TestCase):
+    """`find_matches` is an index, not a scan — and must answer identically.
+
+    Profiling put 83% of a whole scan inside `find_matches`, re-normalising
+    every line of every file once per anchor per span width: 7,168,250
+    `normalise_ws` calls for 6,476 anchors. It now normalises each file once
+    into a single string and lets `str.find` search it in C, which is ~160x
+    faster on the same input.
+
+    That is a rewrite of the anchoring trust boundary, so the speed is not the
+    thing to test. **Every claim CDP publishes is anchored by this function**,
+    and an off-by-one here does not crash — it silently cites the wrong line.
+    So this test keeps the naive implementation alive as an oracle and asserts
+    the two agree, over real source files rather than hand-built strings.
+    """
+
+    @staticmethod
+    def naive(lines, anchor, max_span=MAX_SPAN):
+        """The pre-index implementation, verbatim, as a differential oracle."""
+        needle = normalise_ws(anchor)
+        if not needle:
+            return []
+        hits, n = [], len(lines)
+        for i in range(n):
+            span = None
+            for width in range(1, max_span + 1):
+                if i + width > n:
+                    break
+                if needle in normalise_ws(" ".join(lines[i:i + width])):
+                    span = width
+                    break
+            if span is None:
+                continue
+            if span > 1 and needle in normalise_ws(" ".join(lines[i + 1:i + span])):
+                continue
+            hits.append(i + 1)
+        return hits
+
+    def probes(self, lines):
+        """Real anchors, multi-line spans, short fragments and absent needles.
+
+        The multi-line probes are the ones that matter: they straddle blank
+        lines, and span width is counted in *source* lines, so an index that
+        counted only non-blank lines would accept a match the scan rejects.
+        """
+        body = [l.strip() for l in lines if l.strip()]
+        spans = [" ".join(lines[i:i + 3]) for i in range(0, len(lines), 37)]
+        return (body[:40] + spans[:20] + [s[:15] for s in body[:10]]
+                + ["", "   ", "}", "zzz-definitely-not-present"])
+
+    def test_agrees_with_the_naive_scan_on_real_files(self) -> None:
+        import glob
+
+        checked = 0
+        for path in sorted(glob.glob(str(SKILL_ROOT / "cdp" / "**" / "*.py"),
+                                     recursive=True)):
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                lines = handle.read().splitlines()
+            if not lines:
+                continue
+            for probe in self.probes(lines):
+                for max_span in (1, 2, MAX_SPAN, 6):
+                    checked += 1
+                    self.assertEqual(
+                        self.naive(lines, probe, max_span),
+                        find_matches(lines, probe, max_span),
+                        "%s  max_span=%d  probe=%r" % (path, max_span, probe[:60]),
+                    )
+        self.assertGreater(checked, 5000, "the oracle found nothing to compare")
+
+    def test_span_width_counts_blank_lines(self) -> None:
+        """Explicit, because it is the one way the index could diverge."""
+        lines = ["alpha beta gamma", "", "", "", "delta epsilon zeta"]
+        needle = "alpha beta gamma delta epsilon zeta"
+        # Five source lines apart: inside a span of 5, outside a span of 4.
+        self.assertEqual(find_matches(lines, needle, 5), [1])
+        self.assertEqual(find_matches(lines, needle, 4), [])
+        self.assertEqual(self.naive(lines, needle, 4), [])
+
+    def test_cache_cannot_answer_about_the_wrong_file(self) -> None:
+        """The memo is keyed on `id(lines)`, which is only sound because the
+        entry holds the list alive. Churning many short-lived lists is how a
+        recycled address would show up."""
+        seen = []
+        for n in range(200):
+            lines = ["unique marker number %d here" % n, "filler line"]
+            seen.append(find_matches(lines, "unique marker number %d here" % n))
+            del lines
+        self.assertEqual(seen, [[1]] * 200)

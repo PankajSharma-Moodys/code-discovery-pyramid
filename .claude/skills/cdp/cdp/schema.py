@@ -135,10 +135,19 @@ class Validator:
             for key in schema.get("required", []):
                 if key not in value:
                     errors.append("%s: missing required property %r" % (where, key))
-            if schema.get("additionalProperties") is False:
+            extra = schema.get("additionalProperties")
+            if extra is False:
                 for key in sorted(value):
                     if key not in props:
                         errors.append("%s: unexpected property %r" % (where, key))
+            elif isinstance(extra, dict):
+                # An object-valued `additionalProperties` constrains the values
+                # of an open-keyed map. `_assert_supported` already recurses into
+                # it, so not checking it here would be the silent-ignore this
+                # module's docstring refuses to do.
+                for key in sorted(value):
+                    if key not in props:
+                        self._check(value[key], extra, "%s/%s" % (path, key), errors)
             for key, sub in sorted(props.items()):
                 if key in value:
                     self._check(value[key], sub, "%s/%s" % (path, key), errors)
@@ -164,6 +173,11 @@ def _assert_supported(schema: Any, path: str = "") -> None:
 
 def schema_path(skill_root: Path) -> Path:
     return Path(skill_root) / "schema" / "patch-1.0.0.json"
+
+
+def help_schema_path(skill_root: Path) -> Path:
+    """The schema `cdp help --json` is committed against (§C item 1.4)."""
+    return Path(skill_root) / "schema" / "help-1.0.0.json"
 
 
 def validate_patch(patch: Dict, validator: Validator) -> List[str]:

@@ -199,5 +199,12 @@
   ],
   "repo": "/private<REPO>",
   "repo_name": "tree",
+  "root_module": {
+    "is_module": false,
+    "manifest": null,
+    "name": null,
+    "named": false,
+    "reason": "sub-manifests exist; the root is the root scope (§3.3)"
+  },
   "source": "git"
 }

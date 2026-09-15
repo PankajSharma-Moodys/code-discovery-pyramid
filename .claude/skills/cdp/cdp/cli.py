@@ -32,6 +32,7 @@ from . import dataflow as dataflow_mod
 from . import docs as docs_mod
 from . import golden as golden_mod
 from . import graph as graph_mod
+from . import helpdoc
 from . import inventory as inventory_mod
 from . import partition as partition_mod
 from . import query as query_mod
@@ -50,6 +51,7 @@ from .util import (
     write_json,
     write_text,
 )
+from .inventory import ROOT_MODULE as ROOT_MODULE_LABEL
 from .verify import STRICT, verify_all
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
@@ -57,7 +59,7 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent
 #: Floor on the bundled suite's size. `selftest` fails below it rather than
 # reporting a green run over nothing. Raise it deliberately when tests are
 # added; never lower it to make a red build green.
-MIN_TESTS = 100
+MIN_TESTS = 180
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -102,6 +104,8 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--max-leaf-loc", type=int, default=partition_mod.DEFAULT_MAX_LOC)
     s.add_argument("--max-concurrent", type=int, default=schedule_mod.DEFAULT_MAX_CONCURRENT)
     s.add_argument("--max-hops", type=int, default=dataflow_mod.DEFAULT_MAX_HOPS)
+    s.add_argument("--no-docs", dest="docs", action="store_false", default=True,
+                   help="skip rendering <state-dir>/docs/ at the end of the scan")
     s.add_argument("--quiet", action="store_true")
     s.set_defaults(func=cmd_scan)
 
@@ -114,7 +118,15 @@ def _parser() -> argparse.ArgumentParser:
     q.add_argument("--subject", default=None)
     q.add_argument("--from", dest="frm", default=None)
     q.add_argument("--to", dest="to", default=None)
-    q.add_argument("--limit", type=int, default=40)
+    # One knob, not seven. `--limit` used to sit beside eleven unrelated
+    # hard-coded caps inside `query.py`; both are now `--budget`, which is
+    # counted and reported rather than applied silently.
+    q.add_argument("--budget", type=int, default=None,
+                   help="rows this answer may emit, across every list in it "
+                        "(default %d; `stats` and `coverage` are never budgeted)"
+                        % query_mod.DEFAULT_BUDGET)
+    q.add_argument("--max-hops", type=int, default=dataflow_mod.DEFAULT_MAX_HOPS,
+                   help="`query trace` only: how far to walk from the entry point")
     q.set_defaults(func=cmd_query)
 
     d = add("docs", "render the markdown artifacts")
@@ -145,6 +157,8 @@ def _parser() -> argparse.ArgumentParser:
     i.add_argument("target", nargs="?", help="repository to install into")
     i.add_argument("--self", action="store_true",
                    help="refresh this repository's own vendored .claude/skills/cdp copy")
+    i.add_argument("--hook", action="store_true",
+                   help="also install the PreToolUse nudge (requires in-repo state)")
     i.set_defaults(func=cmd_install)
 
     stest = add("selftest", "run the bundled tests")
@@ -161,6 +175,14 @@ def _parser() -> argparse.ArgumentParser:
     stest.add_argument("--golden-name", metavar="SLUG",
                        help="with --golden: baseline directory name, overriding <repo>@<sha>")
     stest.set_defaults(func=cmd_selftest)
+
+    h = add("help", "when to use what, in what order, and what comes next")
+    h.add_argument("topic", nargs="?",
+                   help="'workflows' for the named recipes, or a command name")
+    h.add_argument("--json", action="store_true",
+                   help="emit the machine-readable command surface "
+                        "(schema/help-1.0.0.json)")
+    h.set_defaults(func=cmd_help)
     return p
 
 
@@ -253,7 +275,7 @@ def cmd_scan(args) -> int:
         "run_id": run_id,
         "status": "complete",
         "claims": derived,
-        "unknowns": _structural_unknowns(inventory, xref),
+        "unknowns": _structural_unknowns(inventory, xref, graph),
     }
     validator = Validator.load(schema_path(SKILL_ROOT))
     errors = validate_patch(patch, validator)
@@ -304,15 +326,51 @@ def cmd_scan(args) -> int:
         },
     )
 
+    # §C item 1.2: docs were a separate command, so a rescan produced state and
+    # no visible output, and the user-facing half of the module-detection bug
+    # was invisible until someone remembered to run `cdp docs`. Rendering here
+    # is the default; `--no-docs` opts out.
+    if getattr(args, "docs", True):
+        written = _render_docs(query_mod.Store(state_dir), state_dir / "docs")
+        say("docs      %d file(s) -> %s" % (len(written), state_dir / "docs"))
+
     if paths.inside_repo():
         _ensure_gitignore(paths.repo)
     say("\nstate     %s" % state_dir)
-    say("next      cdp query stats | cdp docs | cdp prompts")
+    say("next      cdp query stats | cdp query trace <entrypoint> | cdp prompts")
     return 0
 
 
-def _structural_unknowns(inventory: Dict, xref: Dict) -> List[Dict]:
+def _structural_unknowns(inventory: Dict, xref: Dict, graph: Dict) -> List[Dict]:
     out: List[Dict] = []
+    root = inventory.get("root_module") or {}
+    if root.get("is_module") and not root.get("named"):
+        out.append(
+            {
+                "question": "What is this module called?",
+                "why_unresolved": (
+                    "The scan root holds a build manifest (%s) and no sub-manifests, so the "
+                    "repository is one module — but the manifest states no name, and the "
+                    "directory name is an artifact of where the repository was cloned rather "
+                    "than the module's identity. It is reported as %s rather than guessed."
+                    % (root.get("manifest") or "unreadable", ROOT_MODULE_LABEL)
+                ),
+            }
+        )
+    for row in graph.get("declared_ambiguous", []):
+        out.append(
+            {
+                "question": "Which module does %s's declared dependency on '%s' point at?"
+                % (row["from"], row["dep"]),
+                "why_unresolved": (
+                    "%d modules share the basename '%s' (%s). A build manifest names a "
+                    "dependency by its short name, and picking one of two equally-supported "
+                    "candidates would assert an edge the repository does not state, so no "
+                    "declared edge is drawn."
+                    % (len(row["candidates"]), row["dep"], ", ".join(row["candidates"]))
+                ),
+            }
+        )
     if inventory["source"] == "walk":
         out.append(
             {
@@ -370,16 +428,33 @@ def _fold_and_write(state_dir: Path, xref: Dict, part: Dict) -> Dict:
 def cmd_query(args) -> int:
     store = query_mod.Store(_paths(args).state)
     fn = query_mod.QUERIES[args.kind]
+    # One `Budget` per response, shared by every list in it. `stats` and
+    # `coverage` are constructed without one and take no `budget` argument, so
+    # the exemption is enforced by their signatures rather than by a convention.
+    unbudgeted = args.kind in query_mod.UNBUDGETED
+    if unbudgeted and args.budget is not None:
+        raise CdpError(
+            "`query %s` is never budgeted: it is the check `SKILL.md` tells you to "
+            "run before concluding that something is absent, and a budgeted "
+            "guardrail cannot detect a budgeted answer." % args.kind
+        )
+    budget = None if unbudgeted else query_mod.Budget(args.budget)
+
     if args.kind in ("symbol", "file", "module", "search"):
         if not args.term:
             raise CdpError("`query %s` needs a term" % args.kind)
-        result = fn(store, args.term)
+        result = fn(store, args.term, budget=budget)
+    elif args.kind == "trace":
+        if not args.term:
+            raise CdpError("`query trace` needs an entry point")
+        result = fn(store, args.term, max_hops=args.max_hops, budget=budget)
     elif args.kind in ("routes", "table", "config", "unknowns"):
-        result = fn(store, args.term)
+        result = fn(store, args.term, budget=budget)
     elif args.kind == "paths":
-        result = fn(store, args.frm, args.to, args.limit)
+        result = fn(store, args.frm, args.to, budget=budget)
     elif args.kind == "claims":
-        result = fn(store, args.claim_kind or args.term, args.module, args.subject, args.limit)
+        result = fn(store, args.claim_kind or args.term, args.module, args.subject,
+                    budget=budget)
     else:
         result = fn(store)
 
@@ -393,15 +468,24 @@ def cmd_query(args) -> int:
 # ------------------------------------------------------------------- docs
 
 
+def _render_docs(store: "query_mod.Store", out: Path) -> List[Path]:
+    """The one call site for the renderer.
+
+    `scan` and `docs` both render, and if they did it through two argument lists
+    they could drift — at which point the golden baseline, which captures
+    `cdp docs`, would stop describing what `cdp scan` writes.
+    """
+    return docs_mod.render_all(
+        out, store.inventory, store.extraction, store.graph, store.partition,
+        store.xref, store.dataflow, store.state, store.manifest,
+    )
+
+
 def cmd_docs(args) -> int:
     paths = _paths(args)
     store = query_mod.Store(paths.state)
     out = Path(args.out).expanduser().resolve() if args.out else paths.state / "docs"
-    written = docs_mod.render_all(
-        out, store.inventory, store.extraction, store.graph, store.partition,
-        store.xref, store.dataflow, store.state, store.manifest,
-    )
-    for path in written:
+    for path in _render_docs(store, out):
         print(path)
     return 0
 
@@ -570,6 +654,34 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_help(args) -> int:
+    """Guidance, derived from the live parser.
+
+    `describe(_parser())` rather than a table: the command list cannot drift
+    from the CLI, because it *is* the CLI. A hand-maintained help text that
+    disagrees with the tool is a confident wrong answer about the tool itself.
+    """
+    surface = helpdoc.describe(_parser())
+    if args.json:
+        errors = Validator.load(schema_path_help()).validate(surface)
+        if errors:
+            raise CdpError(
+                "`help --json` does not satisfy its own committed schema:\n  "
+                + "\n  ".join(errors[:10])
+            )
+        print(__import__("json").dumps(surface, indent=2, sort_keys=True,
+                                       ensure_ascii=False))
+        return 0
+    print(helpdoc.render(surface, args.topic))
+    return 0
+
+
+def schema_path_help() -> Path:
+    from .schema import help_schema_path
+
+    return help_schema_path(SKILL_ROOT)
+
+
 def cmd_validate(args) -> int:
     validator = Validator.load(schema_path(SKILL_ROOT))
     errors = validate_patch(read_json(Path(args.path)), validator)
@@ -653,9 +765,83 @@ def cmd_install(args) -> int:
     if source_agent.exists():
         shutil.copy2(source_agent, agents / "cdp-leaf.md")
     print("installed %s" % dest)
+    if getattr(args, "hook", False):
+        for line in install_hook(target, dest):
+            print(line)
     print("try       python3 %s scan --in-repo --repo %s"
           % (dest / "run.py", target))
     return 0
+
+
+#: `matcher` is compared as an exact string when it contains only letters,
+# digits and `|`, so this fires on exactly these three tools and nothing else.
+HOOK_MATCHER = "Read|Grep|Glob"
+
+
+def install_hook(target: Path, dest: Path) -> List[str]:
+    """Register the PreToolUse nudge in `<target>/.claude/settings.json`.
+
+    **States the constraint rather than installing something that never fires.**
+    The hook discovers state by walking up from the file being read
+    (`hook.find_state`), so it can only ever see an *in-repo* `.cdp/`. CDP's
+    default writes state to `cwd/.cdp`, outside the analysed repository, by
+    deliberate design (see this module's docstring). Installing the hook against
+    that default produces a hook that no-ops on every single invocation — which
+    looks identical, from the outside, to a hook that is working and finding
+    nothing worth saying. Phase 2's store resolution (2.3) removes the
+    constraint; until then it is printed, loudly, at install time.
+    """
+    import json as json_mod
+
+    notes: List[str] = []
+    state = target / ".cdp"
+    if not (state / "inventory.json").is_file():
+        notes.append(
+            "note      no %s yet, so the hook will no-op until you run:\n"
+            "            python3 %s scan --in-repo --repo %s\n"
+            "          The hook is only coherent under --in-repo: it finds state by\n"
+            "          walking up from the file being read, and the default state\n"
+            "          location (cwd/.cdp) is outside the analysed repository."
+            % (state, dest / "run.py", target)
+        )
+
+    settings_path = target / ".claude" / "settings.json"
+    settings: Dict = {}
+    if settings_path.exists():
+        try:
+            settings = read_json(settings_path)
+        except ValueError:
+            raise CdpError(
+                "%s is not valid JSON; refusing to overwrite it. Fix or move it, "
+                "then re-run with --hook." % settings_path
+            )
+    if not isinstance(settings, dict):
+        raise CdpError("%s does not contain a JSON object" % settings_path)
+
+    command = "python3 %s" % (dest / "cdp" / "hook.py")
+    entry = {"type": "command", "command": command, "args": []}
+    hooks = settings.setdefault("hooks", {})
+    groups = hooks.setdefault("PreToolUse", [])
+    for group in groups:
+        if isinstance(group, dict) and group.get("matcher") == HOOK_MATCHER:
+            handlers = group.setdefault("hooks", [])
+            # Idempotent: re-running `install --hook` must not stack duplicates.
+            if not any(h.get("command") == command for h in handlers
+                       if isinstance(h, dict)):
+                handlers.append(entry)
+            break
+    else:
+        groups.append({"matcher": HOOK_MATCHER, "hooks": [entry]})
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(settings_path, settings)
+    notes.insert(0, "hook      PreToolUse on %s -> %s" % (HOOK_MATCHER, settings_path))
+    notes.insert(1, "          it fires only on files whose inventory role is 'source', "
+                    "at most once\n          per session, and no-ops silently when "
+                    "inventory.head != git HEAD.")
+    notes.append("          python3 %s --explain   to see what it injects and why"
+                 % (dest / "cdp" / "hook.py"))
+    return notes
 
 
 # ------------------------------------------------------- reproducibility gate
@@ -813,13 +999,18 @@ def _golden_terms(store) -> Dict[str, Optional[str]]:
 
     symbols = getattr(store, "state", {}).get("claims", [])
     xref = getattr(store, "xref", {}) or {}
+    symbol = first(xref.get("symbols", {}).values() if isinstance(
+        xref.get("symbols"), dict) else xref.get("symbols", []), "fqn")
     return {
-        "symbol": first(xref.get("symbols", {}).values() if isinstance(
-            xref.get("symbols"), dict) else xref.get("symbols", []), "fqn"),
+        "symbol": symbol,
         "file": first(xref.get("resolution", {}).get("files", []), "path")
         if isinstance(xref.get("resolution"), dict) else None,
         "module": first(symbols, "module"),
         "search": "config",
+        # A route if the repository has one, since that is the entry point a
+        # consumer actually traces; the first symbol otherwise, so the query is
+        # still exercised on a repository with no HTTP surface.
+        "trace": first(xref.get("routes", []), "route") or symbol,
     }
 
 
@@ -839,11 +1030,18 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
         _scan_into(repo, state)
 
         for path in sorted(state.rglob("*")):
-            if path.is_file() and "__pycache__" not in path.parts:
-                rel = path.relative_to(state)
-                artifacts["scan/%s" % rel.as_posix()] = path.read_text(
-                    encoding="utf-8", errors="replace"
-                )
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            rel = path.relative_to(state)
+            # `scan` renders docs into the state directory as of M1.2, and
+            # `cdp docs` is captured separately below through the same renderer
+            # (`_render_docs`). Capturing both would double the baseline for no
+            # extra evidence.
+            if rel.parts and rel.parts[0] == "docs":
+                continue
+            artifacts["scan/%s" % rel.as_posix()] = path.read_text(
+                encoding="utf-8", errors="replace"
+            )
 
         head = read_json(state / "inventory.json").get("head")
 
@@ -865,7 +1063,7 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
             argv = ["query", kind, "--json", "--repo", str(repo),
                     "--state-dir", str(state)]
             term = terms.get(kind)
-            if kind in ("symbol", "file", "module", "search"):
+            if kind in ("symbol", "file", "module", "search", "trace"):
                 if not term:
                     artifacts["query/%s.json" % kind] = (
                         '"no term available in this repository; query not run"\n'

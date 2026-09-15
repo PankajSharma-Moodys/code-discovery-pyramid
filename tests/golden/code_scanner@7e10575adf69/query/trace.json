@@ -1,0 +1,506 @@
+{
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "4221f095ad396ca3e435111a511c2d795cee0d8b95e59a0e07166b6aad12a0c0",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": 200,
+  "caveat": "This is a reading list, not an answer. CDP has no parameter or branch model: it collapses a wide grep into a small cited read whose completeness is stated by the `elided` count below — zero means the list is complete, anything else means it is qualified. Hops marked `medium` come from the import table: an import proves that a file *can* reach a symbol, not that it does.",
+  "elided": 0,
+  "entry": "/",
+  "file_count": 68,
+  "files": [
+    {
+      "at": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:570",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java",
+      "module": "exposure-snapshot/snapshot-api",
+      "why": "entry point (http_in) GET /"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/ParserServiceImpl.java:30",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/ParserServiceImpl.java",
+      "module": "exposure-snapshot/snapshot-filter-query-service",
+      "why": "defines com.rms.snapshot.filter.service.ParserServiceImpl"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java:4",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
+      "module": "exposure-snapshot/snapshot-sdk",
+      "why": "UdsSdkHelper --call--> ExposureSetFactory"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ExposureSetFactory.java:8",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ExposureSetFactory.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.ExposureSetFactory"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ExposureSetService.java:12",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ExposureSetService.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.ExposureSetService"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterService.java:12",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterService.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.ResultRegisterService"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterServiceFactory.java:8",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterServiceFactory.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.ResultRegisterServiceFactory"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClient.java:20",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClient.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.UnifiedStoreClient"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientFactory.java:5",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientFactory.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.UnifiedStoreClientFactory"
+    },
+    {
+      "at": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/ClientFactory.java:10",
+      "confidence": "high",
+      "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/ClientFactory.java",
+      "module": "client-java/client-core",
+      "why": "defines com.rms.unifiedstore.client.core.ClientFactory"
+    },
+    {
+      "at": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/exceptions/UnifiedStoreException.java:5",
+      "confidence": "high",
+      "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/exceptions/UnifiedStoreException.java",
+      "module": "client-java/client-core",
+      "why": "defines com.rms.unifiedstore.client.core.exceptions.UnifiedStoreException"
+    },
+    {
+      "at": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/ExceptionResponse.java:8",
+      "confidence": "high",
+      "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/ExceptionResponse.java",
+      "module": "client-java/client-core",
+      "why": "defines com.rms.unifiedstore.client.core.model.ExceptionResponse"
+    },
+    {
+      "at": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/User.java:3",
+      "confidence": "high",
+      "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/User.java",
+      "module": "client-java/client-core",
+      "why": "defines com.rms.unifiedstore.client.core.model.User"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleEntity.java:9",
+      "confidence": "medium",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleEntity.java",
+      "module": "client-java/uds-client",
+      "why": "ExposureBundleEntity --call--> UdsDateDeserializer"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/converter/UdsDateDeserializer.java:12",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/converter/UdsDateDeserializer.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.converter.UdsDateDeserializer"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/converter/UdsDateSerializer.java:10",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/converter/UdsDateSerializer.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.converter.UdsDateSerializer"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/CatalogCards.java:3",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/CatalogCards.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.CatalogCards"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/EdmEntity.java:16",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/EdmEntity.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.EdmEntity"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/GetCatalogCardResponse.java:10",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/GetCatalogCardResponse.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.GetCatalogCardResponse"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/SortOrder.java:3",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/SortOrder.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.SortOrder"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis/Analysis.java:3",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis/Analysis.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.analysis.Analysis"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis/ImportedLossTableAnalysis.java:9",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis/ImportedLossTableAnalysis.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.analysis.ImportedLossTableAnalysis"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis/RiskAnalysisEntity.java:16",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis/RiskAnalysisEntity.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.catalog.analysis.RiskAnalysisEntity"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/database/CreateConnectionStringResponse.java:16",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/database/CreateConnectionStringResponse.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.database.CreateConnectionStringResponse"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleMetricEntity.java:12",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleMetricEntity.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.exposurebundle.ExposureBundleMetricEntity"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleTableMetadata.java:10",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleTableMetadata.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.exposurebundle.ExposureBundleTableMetadata"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleTableSetEntity.java:13",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleTableSetEntity.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.exposurebundle.ExposureBundleTableSetEntity"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposureset/CreateExposureSetRequest.java:8",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposureset/CreateExposureSetRequest.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.exposureset.CreateExposureSetRequest"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposureset/PatchExposureSetRequest.java:5",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposureset/PatchExposureSetRequest.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.exposureset.PatchExposureSetRequest"
+    },
+    {
+      "at": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/loss/CreateLoss.java:9",
+      "confidence": "high",
+      "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/model/loss/CreateLoss.java",
+      "module": "client-java/uds-client",
+      "why": "defines com.rms.unifiedstore.model.loss.CreateLoss"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/RefreshAgExecutorServiceHelper.java:13",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/RefreshAgExecutorServiceHelper.java",
+      "module": "exposure-snapshot/snapshot-api",
+      "why": "defines com.rms.unifiedstore.snapshot.api.helper.RefreshAgExecutorServiceHelper"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/TokenGenerator.java:16",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/TokenGenerator.java",
+      "module": "exposure-snapshot/snapshot-api",
+      "why": "defines com.rms.unifiedstore.snapshot.api.helper.TokenGenerator"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/error/InternalErrorCode.java:3",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/error/InternalErrorCode.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "InternalErrorCode --call--> ErrorCode"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/ErrorCode.java:5",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/ErrorCode.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.ErrorCode"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/ErrorMessage.java:5",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/ErrorMessage.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.ErrorMessage"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/ExposureSnapshotException.java:3",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/ExposureSnapshotException.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.ExposureSnapshotException"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/SnapshotConfiguration.java:13",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/SnapshotConfiguration.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.SnapshotConfiguration"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/clients/AnalyticsGatewayClient.java:25",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/clients/AnalyticsGatewayClient.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.clients.AnalyticsGatewayClient"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/clients/model/ExternalTableAddFilesResponse.java:8",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/clients/model/ExternalTableAddFilesResponse.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.clients.model.ExternalTableAddFilesResponse"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java:6",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.constants.ApiConstants"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/CoreConstants.java:6",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/CoreConstants.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.constants.CoreConstants"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/WorkflowConstants.java:9",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/WorkflowConstants.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.constants.WorkflowConstants.SNAPSHOT_PARTITION"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constraints/OptionalMin.java:19",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constraints/OptionalMin.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.constraints.OptionalMin"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTablesDao.java:9",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/ExposureTablesDao.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.dbo.ExposureTablesDao"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/RelationalCondition.java:5",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/RelationalCondition.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "RelationalCondition --call--> LossType"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/data/LossType.java:3",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/data/LossType.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.enums.data.LossType"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/query/RelationalOperator.java:5",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/query/RelationalOperator.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.enums.query.RelationalOperator"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/SortBy.java:3",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/SortBy.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "SortBy --call--> SortOrder"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/query/SortOrder.java:3",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/enums/query/SortOrder.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.enums.query.SortOrder"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/RESTClient.java:31",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/RESTClient.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.helper.RESTClient"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/schema/ExposureTable.java:4",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/schema/ExposureTable.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "ExposureTable --call--> ShaHashHelper"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/ShaHashHelper.java:8",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/ShaHashHelper.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.helper.ShaHashHelper"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/UdsInvocationHandler.java:11",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/UdsInvocationHandler.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.helper.UdsInvocationHandler"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/ClientErrorCode.java:7",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/ClientErrorCode.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.ClientErrorCode"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/Identifier.java:6",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/Identifier.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "Identifier --call--> DataType"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/DataType.java:10",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/DataType.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.DataType"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/ExposurePeril.java:3",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/ExposurePeril.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.ExposurePeril"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/Condition.java:7",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/Condition.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "Condition --call--> SqlSerializable"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/SqlSerializable.java:8",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/SqlSerializable.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.SqlSerializable"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/ThreadContext.java:6",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/ThreadContext.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.ThreadContext"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/InListCondition.java:7",
+      "confidence": "medium",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/InListCondition.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "InListCondition --call--> Value"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/Value.java:7",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/Value.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.Value"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/Expression.java:26",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/Expression.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.query.Expression"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/schema/ExposureTableSchemaColumn.java:3",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/schema/ExposureTableSchemaColumn.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.model.schema.ExposureTableSchemaColumn"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/payload/SnapshotTaskKeys.java:26",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/payload/SnapshotTaskKeys.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.WORKFLOW_API"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/utils/ContextAwareCallable.java:10",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/utils/ContextAwareCallable.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.utils.ContextAwareCallable"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/utils/FailsafeUtil.java:16",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/utils/FailsafeUtil.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.utils.FailsafeUtil"
+    },
+    {
+      "at": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/workflow/helper/Utils.java:24",
+      "confidence": "high",
+      "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/workflow/helper/Utils.java",
+      "module": "exposure-snapshot/snapshot-common",
+      "why": "defines com.rms.unifiedstore.snapshot.common.workflow.helper.Utils"
+    }
+  ],
+  "found": true,
+  "hops_exhausted": false,
+  "max_hops": 8,
+  "query": "trace",
+  "resolved_as": {
+    "at": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java:570",
+    "channel": "http_in",
+    "handler": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource#getExposureBundleTableSets",
+    "kind": "route",
+    "label": "GET /",
+    "module": "exposure-snapshot/snapshot-api",
+    "node": "com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource"
+  },
+  "trail": "85 node(s) reachable from com.rms.unifiedstore.snapshot.api.resources.ExposureBundlesResource",
+  "unknowns": []
+}

@@ -1,4 +1,11 @@
 {
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "4221f095ad396ca3e435111a511c2d795cee0d8b95e59a0e07166b6aad12a0c0",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": 200,
   "claims": [
     {
       "channel": "config_read",
@@ -730,42 +737,3579 @@
       "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> java.time.OffsetDateTime"
     },
     {
-      "channel": "map",
+      "channel": "codegen",
       "confidence": "high",
       "evidence": [
         {
-          "anchor": "ReservationOutput asReservationOutput(DReservation dReservation);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
-          "line": 32
+          "anchor": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+          "file": "automation/pom.xml",
+          "line": 1
         }
       ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dreservation.rms_unifiedstore_sqlpool_api_model_dtos_reservationoutput",
-      "kind": "data_model",
+      "id": "dependency.generated.automation",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/automation"
+      ],
+      "statement": "automation holds 2 git-tracked file(s) against 44 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
+      "subject": "automation"
+    },
+    {
+      "channel": "codegen",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+          "file": "client-java/pom.xml",
+          "line": 1
+        }
+      ],
+      "id": "dependency.generated.client_java",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java"
+      ],
+      "statement": "client-java holds 3 git-tracked file(s) against 420 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
+      "subject": "client-java"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.ImportFromType;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseService.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseService.java",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.client_java_eih_client.client_java_client_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/eih-client"
+      ],
+      "statement": "client-java/eih-client imports client-java/client-core at 28 distinct sites.",
+      "subject": "client-java/eih-client -> client-java/client-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminService.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.ClientFactory;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminServiceFactory.java",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client.client_java_client_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
+      ],
+      "statement": "client-java/uds-client imports client-java/client-core at 247 distinct sites.",
+      "subject": "client-java/uds-client -> client-java/client-core"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterServiceImpl.java",
+          "line": 20
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientImpl.java",
+          "line": 24
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client.exposure_snapshot_ods_domain_data",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
+      ],
+      "statement": "client-java/uds-client imports exposure-snapshot/ods-domain-data at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client -> exposure-snapshot/ods-domain-data"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/ResultRegisterServiceImpl.java",
+          "line": 20
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.*;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientImpl.java",
+          "line": 24
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
+      ],
+      "statement": "client-java/uds-client imports exposure-snapshot/snapshot-sdk at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client -> exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.BaseService;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/ApiKeyTokenGenerator.java",
+          "line": 12
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.ClientFactory;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/ApiKeyTokenGenerator.java",
+          "line": 13
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.client_java_client_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports client-java/client-core at 64 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> client-java/client-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.eih.EihClient;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/DataBridgeRegistrationTests.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.eih.EihClientFactory;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/DataBridgeRegistrationTests.java",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.client_java_eih_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports client-java/eih-client at 2 distinct sites.",
+      "subject": "client-java/uds-client-integration-tests -> client-java/eih-client"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.UnifiedStoreClient;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/ServiceApiTestHelper.java",
+          "line": 13
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.client_java_uds_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports client-java/uds-client at 170 distinct sites.",
+      "subject": "client-java/uds-client-integration-tests -> client-java/uds-client"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-common at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-sdk at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheProvider;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/feature/IdempotentFeature.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.cache.RedisCacheProvider;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/feature/IdempotentFeature.java",
+          "line": 8
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_idempotency_filter.exposure_snapshot_ods_domain_data",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/idempotency-filter"
+      ],
+      "statement": "exposure-snapshot/idempotency-filter imports exposure-snapshot/ods-domain-data at 6 distinct sites.",
+      "subject": "exposure-snapshot/idempotency-filter -> exposure-snapshot/ods-domain-data"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.VariationsErrorCode;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/filter/IdempotentRequestFilter.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.ThreadContext;",
+          "file": "exposure-snapshot/idempotency-filter/src/main/java/com/rms/utils/idempotent/filter/IdempotentResponseFilter.java",
+          "line": 10
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_idempotency_filter.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/idempotency-filter"
+      ],
+      "statement": "exposure-snapshot/idempotency-filter imports exposure-snapshot/snapshot-common at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/idempotency-filter -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.*;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/services/DomainService.java",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_ods_domain_data.client_java_uds_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/ods-domain-data"
+      ],
+      "statement": "exposure-snapshot/ods-domain-data imports client-java/uds-client at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/ods-domain-data -> client-java/uds-client"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.constants.CoreConstants;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CacheKeyGeneratorWithVersion.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.workflow.helper.Utils;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/PooledRedisConfigProvider.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_ods_domain_data.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/ods-domain-data"
+      ],
+      "statement": "exposure-snapshot/ods-domain-data imports exposure-snapshot/snapshot-common at 13 distinct sites.",
+      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.*;",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/services/DomainService.java",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_ods_domain_data.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/ods-domain-data"
+      ],
+      "statement": "exposure-snapshot/ods-domain-data imports exposure-snapshot/snapshot-sdk at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.exceptions.UnifiedStoreException;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java",
+          "line": 20
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java",
+          "line": 21
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.client_java_client_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports client-java/client-core at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-api -> client-java/client-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.database.CreateConnectionStringResponse;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotApiValidator.java",
+          "line": 12
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.client_java_uds_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports client-java/uds-client at 33 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-api -> client-java/uds-client"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.utils.idempotent.feature.IdempotentFeature;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 72
+        },
+        {
+          "anchor": "import com.rms.utils.idempotent.filter.IdempotentResource;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java",
+          "line": 35
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_idempotency_filter",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/idempotency-filter at 3 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/idempotency-filter"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheConfigHelper;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 26
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.cache.CacheConfigMap;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 27
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_ods_domain_data",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/ods-domain-data at 12 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/ods-domain-data"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.SnapshotConfiguration;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 52
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.clients.AnalyticsGatewayClient;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 53
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-common at 414 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.snapshot.filter.service.DomainIdentifierValidator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 22
+        },
+        {
+          "anchor": "import com.rms.snapshot.filter.service.IdentifierValidator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 23
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_snapshot_filter_query_service",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-filter-query-service at 5 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-filter-query-service"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/SnapshotApiImpl.java",
+          "line": 19
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.db.DataSourceManager;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 37
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.UdsSdkHelper;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 38
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-sdk at 25 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.workflow.V2WorkflowConnector;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 66
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.workflow.WorkflowSearchService;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 67
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_snapshot_workflow_service",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-workflow-service at 30 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-workflow-service"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.utils.swagger.SwaggerBundle;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 73
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_swagger_resource",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/swagger-resource at 1 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/swagger-resource"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.schema.ExposureTable;",
+          "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+          "line": 2
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.schema.ExposureTableSchema;",
+          "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_developer_utils.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-developer-utils"
+      ],
+      "statement": "exposure-snapshot/snapshot-developer-utils imports exposure-snapshot/snapshot-common at 4 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-developer-utils -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.DomainResult;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.Field;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_filter_query_service.exposure_snapshot_ods_domain_data",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-filter-query-service"
+      ],
+      "statement": "exposure-snapshot/snapshot-filter-query-service imports exposure-snapshot/ods-domain-data at 3 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-filter-query-service -> exposure-snapshot/ods-domain-data"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.ExposureSnapshotException;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.DataType;",
+          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
+          "line": 7
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_filter_query_service.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-filter-query-service"
+      ],
+      "statement": "exposure-snapshot/snapshot-filter-query-service imports exposure-snapshot/snapshot-common at 53 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-filter-query-service -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "channel": "codegen",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+          "file": "exposure-snapshot/snapshot-legacy/pom.xml",
+          "line": 1
+        }
+      ],
+      "id": "dependency.generated.exposure_snapshot_snapshot_legacy",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy holds 1 git-tracked file(s) against 58 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
+      "subject": "exposure-snapshot/snapshot-legacy"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.constants.CoreConstants.PARTITION_MATRIX_FILENAME;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java",
+          "line": 3
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.constants.CoreConstants.PARTITION_WEIGHT_MAP_FILENAME;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_core.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core imports exposure-snapshot/snapshot-common at 3 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.RMSStorageFactory;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/S3Utility.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.RMSStorageWrapper;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/S3Utility.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_core.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core imports exposure-snapshot/snapshot-sdk at 2 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core -> exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/src/main/java/com/rms/unifiedstore/partition/SnapshotPartitionTask.java",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_partition.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition imports exposure-snapshot/snapshot-common at 1 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/src/main/java/com/rms/unifiedstore/transform/TransformEdmTask.java",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_transform.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform imports exposure-snapshot/snapshot-common at 1 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
+          "line": 10
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_sdk.client_java_client_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-sdk/src/main/java"
+      ],
+      "statement": "exposure-snapshot/snapshot-sdk imports client-java/client-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-sdk -> client-java/client-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.catalog.SortOrder;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/ExternalApiCallHelper.java",
+          "line": 8
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.ExposureSetFactory;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_sdk.client_java_uds_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-sdk/src/main/java"
+      ],
+      "statement": "exposure-snapshot/snapshot-sdk imports client-java/uds-client at 12 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-sdk -> client-java/uds-client"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.AWS_REGION;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/RMSStorageFactory.java",
+          "line": 3
+        },
+        {
+          "anchor": "import static com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.STORAGE_SYSTEM_S3;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/RMSStorageFactory.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_sdk.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-sdk/src/main/java"
+      ],
+      "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-common at 20 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/workflow/EdmQueryService.java",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_sdk.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-sdk/src/main/java"
+      ],
+      "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.exposurebundle.ExposureBundleEntity;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/lambda/model/LambdaSnapshotEdmBundleResponse.java",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.exposurebundle.ExposureBundleTableSetEntity;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/lambda/model/LambdaSnapshotEdmBundleResponse.java",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_task_create.client_java_uds_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-create"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-create imports client-java/uds-client at 2 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-task-create -> client-java/uds-client"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.DataSourceErrorCode;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.model.VariationsErrorCode;",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
+          "line": 8
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_task_create.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-create"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-create imports exposure-snapshot/snapshot-common at 13 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-task-create -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.client_java_uds_client",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-delete"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-delete imports client-java/uds-client at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-task-delete -> client-java/uds-client"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-delete"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-common at 8 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-delete"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.impl.S3SyncWrapper;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.SurrogateJobIdPathDetails;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-delete"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-sdk at 3 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-sdk"
+    },
+    {
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.ExposureSnapshotException;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/V2WorkflowConnector.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.constants.CoreConstants;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/V2WorkflowConnector.java",
+          "line": 7
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_workflow_service.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-workflow-service"
+      ],
+      "statement": "exposure-snapshot/snapshot-workflow-service imports exposure-snapshot/snapshot-common at 23 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.snapshot.filter.service.ParserService;",
+          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/WorkflowSearchServiceImpl.java",
+          "line": 10
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_workflow_service.exposure_snapshot_snapshot_filter_query_service",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-workflow-service"
+      ],
+      "statement": "exposure-snapshot/snapshot-workflow-service imports exposure-snapshot/snapshot-filter-query-service at 1 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-filter-query-service"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.spring.SpringBundle;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
+          "line": 27
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.exceptions.SPMException;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/SPMExceptionMapper.java",
+          "line": 9
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_api.sql_pool_sql_pool_common",
+      "kind": "dependency",
       "source_nodes": [
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
-      "statement": "DReservation is converted to ReservationOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> rms.unifiedstore.sqlpool.api.model.dtos.ReservationOutput"
+      "statement": "sql-pool/sql-pool-api imports sql-pool/sql-pool-common at 52 distinct sites.",
+      "subject": "sql-pool/sql-pool-api -> sql-pool/sql-pool-common"
     },
     {
-      "channel": "map",
       "confidence": "high",
       "evidence": [
         {
-          "anchor": "EReservation asEReservation(DReservation dReservation);",
-          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DReservationMapper.java",
-          "line": 31
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.PoolConfigService;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 36
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.ServerService;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 37
         }
       ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dreservation.rms_unifiedstore_sqlpool_dal_entities_ereservation",
-      "kind": "data_model",
+      "id": "dependency.observed.sql_pool_sql_pool_api.sql_pool_sql_pool_service",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "sql-pool/sql-pool-api imports sql-pool/sql-pool-service at 5 distinct sites.",
+      "subject": "sql-pool/sql-pool-api -> sql-pool/sql-pool-service"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/DataAccessConfiguration.java",
+          "line": 21
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerInstanceType;",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_dal.sql_pool_sql_pool_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "sql-pool/sql-pool-dal imports sql-pool/sql-pool-common at 15 distinct sites.",
+      "subject": "sql-pool/sql-pool-dal -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerStatus;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/DecommissionTrapTest.java",
+          "line": 11
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerStatus;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/Phase24ProvisioningChainTest.java",
+          "line": 27
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_integrationtest.sql_pool_sql_pool_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/(files)"
+      ],
+      "statement": "sql-pool/sql-pool-integrationtest imports sql-pool/sql-pool-common at 78 distinct sites.",
+      "subject": "sql-pool/sql-pool-integrationtest -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EPoolConfig;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/EntityToTableTest.java",
+          "line": 15
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EReservation;",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/EntityToTableTest.java",
+          "line": 16
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_integrationtest.sql_pool_sql_pool_dal",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/(files)"
+      ],
+      "statement": "sql-pool/sql-pool-integrationtest imports sql-pool/sql-pool-dal at 7 distinct sites.",
+      "subject": "sql-pool/sql-pool-integrationtest -> sql-pool/sql-pool-dal"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.spring.SpringBundle;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolQuartzJobsApplication.java",
+          "line": 24
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolQuartzJobsApplication.java",
+          "line": 25
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_manager.sql_pool_sql_pool_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-manager/(files+5)"
+      ],
+      "statement": "sql-pool/sql-pool-manager imports sql-pool/sql-pool-common at 158 distinct sites.",
+      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/adaptor/CompositeConnectionCheckingAdaptor.java",
+          "line": 7
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/adaptor/SqlConnectionCheckingAdaptor.java",
+          "line": 11
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_manager.sql_pool_sql_pool_provision",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-manager/(files+5)"
+      ],
+      "statement": "sql-pool/sql-pool-manager imports sql-pool/sql-pool-provision at 33 distinct sites.",
+      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-provision"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.eventbus.subscribe.ServerSubscriber;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolSpringConfiguration.java",
+          "line": 13
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.service.services.ServerService;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/SqlPoolSpringConfiguration.java",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_manager.sql_pool_sql_pool_service",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-manager/(files+5)"
+      ],
+      "statement": "sql-pool/sql-pool-manager imports sql-pool/sql-pool-service at 57 distinct sites.",
+      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-service"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServer;",
+          "file": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClient.java",
+          "line": 5
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.exceptions.SPMException;",
+          "file": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClientDummy.java",
+          "line": 8
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_provision.sql_pool_sql_pool_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-provision/(files+2)"
+      ],
+      "statement": "sql-pool/sql-pool-provision imports sql-pool/sql-pool-common at 15 distinct sites.",
+      "subject": "sql-pool/sql-pool-provision -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServerStatus;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/eventbus/events/ServerStatusChangeEvent.java",
+          "line": 3
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.metrics.Metrics;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/eventbus/subscribe/ServerSubscriber.java",
+          "line": 12
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_service.sql_pool_sql_pool_common",
+      "kind": "dependency",
       "source_nodes": [
         "root/sql-pool/sql-pool-service"
       ],
-      "statement": "DReservation is converted to EReservation by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> rms.unifiedstore.sqlpool.dal.entities.EReservation"
+      "statement": "sql-pool/sql-pool-service imports sql-pool/sql-pool-common at 79 distinct sites.",
+      "subject": "sql-pool/sql-pool-service -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EPoolConfig;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
+          "line": 8
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.dal.entities.EReservation;",
+          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DReservationMapper.java",
+          "line": 8
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_service.sql_pool_sql_pool_dal",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-service"
+      ],
+      "statement": "sql-pool/sql-pool-service imports sql-pool/sql-pool-dal at 30 distinct sites.",
+      "subject": "sql-pool/sql-pool-service -> sql-pool/sql-pool-dal"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.util.GreenMetadataDbConnection;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/context/SetupContext.java",
+          "line": 8
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.exceptions.SPMException;",
+          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/DatabaseProvision.java",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_setup.sql_pool_sql_pool_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-setup/(files+1)"
+      ],
+      "statement": "sql-pool/sql-pool-setup imports sql-pool/sql-pool-common at 4 distinct sites.",
+      "subject": "sql-pool/sql-pool-setup -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.model.domain.DServer;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 19
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.common.helper.ConnectionFactory;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/util/TestHelper.java",
+          "line": 10
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_smoketest.sql_pool_sql_pool_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-smoketest"
+      ],
+      "statement": "sql-pool/sql-pool-smoketest imports sql-pool/sql-pool-common at 8 distinct sites.",
+      "subject": "sql-pool/sql-pool-smoketest -> sql-pool/sql-pool-common"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.cloudservices.ResourceManagementClientCS;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 20
+        },
+        {
+          "anchor": "import rms.unifiedstore.sqlpool.provision.model.ResourceResponse;",
+          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
+          "line": 21
+        }
+      ],
+      "id": "dependency.observed.sql_pool_sql_pool_smoketest.sql_pool_sql_pool_provision",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-smoketest"
+      ],
+      "statement": "sql-pool/sql-pool-smoketest imports sql-pool/sql-pool-provision at 5 distinct sites.",
+      "subject": "sql-pool/sql-pool-smoketest -> sql-pool/sql-pool-provision"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"java\", \\",
+          "file": "automation/api-automation/Dockerfile",
+          "line": 25
+        }
+      ],
+      "id": "deployable.process_automation_api_automation",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/automation/api-automation/(files+10)"
+      ],
+      "statement": "automation/api-automation is packaged as its own container image; its entry command is [\"java\", \\.",
+      "subject": "process:automation/api-automation"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"/bin/bash\", \"-e\", \"run-migrations.sh\"]",
+          "file": "exposure-snapshot/domain-data-migration/Dockerfile",
+          "line": 30
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_domain_data_migration",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/(files+1)"
+      ],
+      "statement": "exposure-snapshot is packaged as its own container image; its entry command is [\"/bin/bash\", \"-e\", \"run-migrations.sh\"].",
+      "subject": "process:exposure-snapshot/domain-data-migration"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/download-exposure/Dockerfile",
+          "line": 23
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_download_exposure",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/download-exposure"
+      ],
+      "statement": "exposure-snapshot/download-exposure is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/download-exposure"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
+          "line": 19
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_entity_variation_task",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "exposure-snapshot/entity-variation-task is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/entity-variation-task"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD /api-run",
+          "file": "exposure-snapshot/snapshot-api/Dockerfile",
+          "line": 17
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_api",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/(files+8)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api is packaged as its own container image; its entry command is /api-run.",
+      "subject": "process:exposure-snapshot/snapshot-api"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD /runWorkflow.sh",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/Dockerfile",
+          "line": 12
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation is packaged as its own container image; its entry command is /runWorkflow.sh.",
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/Dockerfile",
+          "line": 17
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_partition",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/Dockerfile",
+          "line": 21
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_task",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
+          "line": 18
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_transform",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"/bin/bash\", \"-e\", \"run-flyway-migrations.sh\"]",
+          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
+          "line": 38
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_migration",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-migration"
+      ],
+      "statement": "exposure-snapshot/snapshot-migration is packaged as its own container image; its entry command is [\"/bin/bash\", \"-e\", \"run-flyway-migrations.sh\"].",
+      "subject": "process:exposure-snapshot/snapshot-migration"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/snapshot-smoketest/Dockerfile",
+          "line": 17
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_smoketest",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-smoketest/(files+1)"
+      ],
+      "statement": "exposure-snapshot/snapshot-smoketest is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/snapshot-smoketest"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS /opt/snapshot-task-create.jar",
+          "file": "exposure-snapshot/snapshot-task-create/Dockerfile",
+          "line": 12
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_task_create",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-create"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-create is packaged as its own container image; its entry command is java $JAVA_OPTS /opt/snapshot-task-create.jar.",
+      "subject": "process:exposure-snapshot/snapshot-task-create"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java $JAVA_OPTS \\",
+          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
+          "line": 21
+        }
+      ],
+      "id": "deployable.process_exposure_snapshot_snapshot_task_delete",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-delete"
+      ],
+      "statement": "exposure-snapshot/snapshot-task-delete is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
+      "subject": "process:exposure-snapshot/snapshot-task-delete"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"]",
+          "file": "managed-sql/Dockerfile",
+          "line": 9
+        }
+      ],
+      "id": "deployable.process_managed_sql",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "(root) is packaged as its own container image; its entry command is [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"].",
+      "subject": "process:managed-sql"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java -jar /opt/downgrade-processor.jar",
+          "file": "ms-sql-java/downgrade-processor/Dockerfile",
+          "line": 22
+        }
+      ],
+      "id": "deployable.process_ms_sql_java_downgrade_processor",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "ms-sql-java/downgrade-processor is packaged as its own container image; its entry command is java -jar /opt/downgrade-processor.jar.",
+      "subject": "process:ms-sql-java/downgrade-processor"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"dotnet\", \"/app/RMS.UnifiedStore.Service.Api/RMS.UnifiedStore.Service.Api.dll\"]",
+          "file": "service-api/docker/Dockerfile",
+          "line": 53
+        }
+      ],
+      "id": "deployable.process_service_api_docker",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "(root) is packaged as its own container image; its entry command is [\"dotnet\", \"/app/RMS.UnifiedStore.Service.Api/RMS.UnifiedStore.Service.Api.dll\"].",
+      "subject": "process:service-api/docker"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml",
+          "file": "sql-pool/sql-pool-api/Dockerfile",
+          "line": 23
+        }
+      ],
+      "id": "deployable.process_sql_pool_sql_pool_api",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/(files+2)"
+      ],
+      "statement": "sql-pool/sql-pool-api is packaged as its own container image; its entry command is sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml.",
+      "subject": "process:sql-pool/sql-pool-api"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml",
+          "file": "sql-pool/sql-pool-manager/Dockerfile",
+          "line": 23
+        }
+      ],
+      "id": "deployable.process_sql_pool_sql_pool_manager",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-manager/(files+5)"
+      ],
+      "statement": "sql-pool/sql-pool-manager is packaged as its own container image; its entry command is sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml.",
+      "subject": "process:sql-pool/sql-pool-manager"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD java -cp \"*\" rms.unifiedstore.sqlpool.setup.SetupApplication",
+          "file": "sql-pool/sql-pool-setup/Dockerfile",
+          "line": 16
+        }
+      ],
+      "id": "deployable.process_sql_pool_sql_pool_setup",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-setup/(files+1)"
+      ],
+      "statement": "sql-pool/sql-pool-setup is packaged as its own container image; its entry command is java -cp \"*\" rms.unifiedstore.sqlpool.setup.SetupApplication.",
+      "subject": "process:sql-pool/sql-pool-setup"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD sql-pool-smoketest/bin/sql-pool-smoketest rms.unifiedstore.sqlpool.test.SqlPoolTestSuite",
+          "file": "sql-pool/sql-pool-smoketest/Dockerfile",
+          "line": 22
+        }
+      ],
+      "id": "deployable.process_sql_pool_sql_pool_smoketest",
+      "kind": "deployable",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-smoketest"
+      ],
+      "statement": "sql-pool/sql-pool-smoketest is packaged as its own container image; its entry command is sql-pool-smoketest/bin/sql-pool-smoketest rms.unifiedstore.sqlpool.test.SqlPoolTestSuite.",
+      "subject": "process:sql-pool/sql-pool-smoketest"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
+          "line": 143
+        }
+      ],
+      "id": "entrypoint.main.generateexposureschemafromparquetfiles",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-developer-utils"
+      ],
+      "statement": "GenerateExposureSchemaFromParquetFiles declares a process entry point in exposure-snapshot/snapshot-developer-utils; it is one of the repository's separately-startable units.",
+      "subject": "GenerateExposureSchemaFromParquetFiles"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 126
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_delete_task_deletesnapshottask",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-delete"
+      ],
+      "statement": "DeleteSnapshotTask declares a process entry point in exposure-snapshot/snapshot-task-delete; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.delete.task.DeleteSnapshotTask"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws IOException {",
+          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/DowngradeProcessor.java",
+          "line": 32
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_downgrade_downgradeprocessor",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "DowngradeProcessor declares a process entry point in ms-sql-java/downgrade-processor; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.downgrade.DowngradeProcessor"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/engine/AccountSnapshotEngine.java",
+          "line": 9
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_entityvariation_engine_accountsnapshotengine",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)"
+      ],
+      "statement": "AccountSnapshotEngine declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.entityvariation.engine.AccountSnapshotEngine"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/engine/PortfolioSnapshotEngine.java",
+          "line": 9
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_entityvariation_engine_portfoliosnapshotengine",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)"
+      ],
+      "statement": "PortfolioSnapshotEngine declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.entityvariation.engine.PortfolioSnapshotEngine"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/engine/SnapshotEngine.java",
+          "line": 14
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_entityvariation_engine_snapshotengine",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)"
+      ],
+      "statement": "SnapshotEngine declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.entityvariation.engine.SnapshotEngine"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ExposureBundleServiceIT.java",
+          "line": 17
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_entityvariation_integration_exposurebundleserviceit",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/(files+8)"
+      ],
+      "statement": "ExposureBundleServiceIT declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.entityvariation.integration.ExposureBundleServiceIT"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/src/main/java/com/rms/unifiedstore/partition/SnapshotPartitionTask.java",
+          "line": 10
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_partition_snapshotpartitiontask",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
+      ],
+      "statement": "SnapshotPartitionTask declares a process entry point in exposure-snapshot/snapshot-legacy/snapshot-legacy-partition; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.partition.SnapshotPartitionTask"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws Exception {",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 102
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_snapshot_api_apiapplication",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "APIApplication declares a process entry point in exposure-snapshot/snapshot-api; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.snapshot.api.APIApplication"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/GetS2STokenApp.java",
+          "line": 10
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_snapshot_api_gets2stokenapp",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "GetS2STokenApp declares a process entry point in exposure-snapshot/snapshot-api; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.snapshot.api.GetS2STokenApp"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/SnapshotApplication.java",
+          "line": 25
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_snapshot_task_create_snapshotapplication",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-task-create"
+      ],
+      "statement": "SnapshotApplication declares a process entry point in exposure-snapshot/snapshot-task-create; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.snapshot.task.create.SnapshotApplication"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws Exception {",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/AutomationDebugTool.java",
+          "line": 81
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_test_automation_automationdebugtool",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)"
+      ],
+      "statement": "AutomationDebugTool declares a process entry point in client-java/uds-client-integration-tests; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.test.automation.AutomationDebugTool"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws Exception {",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/PipelineTestRunner.java",
+          "line": 15
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_test_automation_pipelinetestrunner",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)"
+      ],
+      "statement": "PipelineTestRunner declares a process entry point in client-java/uds-client-integration-tests; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.test.automation.PipelineTestRunner"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/src/main/java/com/rms/unifiedstore/transform/TransformEdmTask.java",
+          "line": 10
+        }
+      ],
+      "id": "entrypoint.main.com_rms_unifiedstore_transform_transformedmtask",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+      ],
+      "statement": "TransformEdmTask declares a process entry point in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform; it is one of the repository's separately-startable units.",
+      "subject": "com.rms.unifiedstore.transform.TransformEdmTask"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"/bin/bash\", \"-e\", \"run-migrations.sh\"]",
+          "file": "exposure-snapshot/domain-data-migration/Dockerfile",
+          "line": 30
+        }
+      ],
+      "id": "entrypoint.main.exposure_snapshot_domain_data_migration",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/(files+1)"
+      ],
+      "statement": "exposure-snapshot/domain-data-migration declares a process entry point in exposure-snapshot; it is one of the repository's separately-startable units.",
+      "subject": "exposure-snapshot/domain-data-migration"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CMD [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"]",
+          "file": "managed-sql/Dockerfile",
+          "line": 9
+        }
+      ],
+      "id": "entrypoint.main.managed_sql",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/(build+5)"
+      ],
+      "statement": "managed-sql declares a process entry point in (root); it is one of the repository's separately-startable units.",
+      "subject": "managed-sql"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "if __name__ == \"__main__\":",
+          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
+          "line": 449
+        }
+      ],
+      "id": "entrypoint.main.ms_sql_java_downgrade_processor_scripts_winrm_script",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "winrm_script declares a process entry point in ms-sql-java/downgrade-processor; it is one of the repository's separately-startable units.",
+      "subject": "ms-sql-java.downgrade-processor.scripts.winrm_script"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws Exception {",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
+          "line": 33
+        }
+      ],
+      "id": "entrypoint.main.rms_unifiedstore_sqlpool_api_sqlpoolapplication",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "SqlPoolApplication declares a process entry point in sql-pool/sql-pool-api; it is one of the repository's separately-startable units.",
+      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_RESERVATION_PATH = \"/v1/reservations\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 7
+        },
+        {
+          "anchor": "@DELETE @Path(\"/{reservation_id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 269
+        }
+      ],
+      "id": "entrypoint.route.delete.v1_reservations_reservation_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DELETE /v1/reservations/{reservation_id} is served by ReservationResource#deleteReservation in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}/{reservation_id}).",
+      "subject": "route:DELETE /v1/reservations/{reservation_id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_SERVER_PATH = \"/v1/servers\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 10
+        },
+        {
+          "anchor": "@DELETE @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 263
+        }
+      ],
+      "id": "entrypoint.route.delete.v1_servers_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "DELETE /v1/servers/{id} is served by ServerResource#unRegister in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}).",
+      "subject": "route:DELETE /v1/servers/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_HEALTH_PATH = \"/health\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 6
+        },
+        {
+          "anchor": "@GET @ResponseMetered",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/SqlPoolHealthCheckResource.java",
+          "line": 43
+        }
+      ],
+      "id": "entrypoint.route.get.health",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /health is served by SqlPoolHealthCheckResource#health in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_HEALTH_PATH}).",
+      "subject": "route:GET /health"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_CONFIG_PATH = \"/v1/pools\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 11
+        },
+        {
+          "anchor": "@GET @Operation(",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 73
+        }
+      ],
+      "id": "entrypoint.route.get.v1_pools",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/pools is served by PoolConfigResource#getPoolConfigurations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}).",
+      "subject": "route:GET /v1/pools"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_CONFIG_PATH = \"/v1/pools\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 11
+        },
+        {
+          "anchor": "@GET @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 119
+        }
+      ],
+      "id": "entrypoint.route.get.v1_pools_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/pools/{id} is served by PoolConfigResource#getPoolConfig in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}).",
+      "subject": "route:GET /v1/pools/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_RESERVATION_PATH = \"/v1/reservations\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 7
+        },
+        {
+          "anchor": "@GET @Operation(",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 71
+        }
+      ],
+      "id": "entrypoint.route.get.v1_reservations",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/reservations is served by ReservationResource#getReservations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}).",
+      "subject": "route:GET /v1/reservations"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_RESERVATION_PATH = \"/v1/reservations\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 7
+        },
+        {
+          "anchor": "@GET @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 139
+        }
+      ],
+      "id": "entrypoint.route.get.v1_reservations_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/reservations/{id} is served by ReservationResource#findReservation in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}/{id}).",
+      "subject": "route:GET /v1/reservations/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_SERVER_PATH = \"/v1/servers\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 10
+        },
+        {
+          "anchor": "@GET @Operation(",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 71
+        }
+      ],
+      "id": "entrypoint.route.get.v1_servers",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/servers is served by ServerResource#getAvailableServers in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}).",
+      "subject": "route:GET /v1/servers"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_SERVER_PATH = \"/v1/servers\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 10
+        },
+        {
+          "anchor": "@GET @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 127
+        }
+      ],
+      "id": "entrypoint.route.get.v1_servers_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/servers/{id} is served by ServerResource#getServer in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}).",
+      "subject": "route:GET /v1/servers/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_SERVER_PATH = \"/v1/servers\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 10
+        },
+        {
+          "anchor": "@GET @Path(\"/{id}/logs\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 295
+        }
+      ],
+      "id": "entrypoint.route.get.v1_servers_id_logs",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "GET /v1/servers/{id}/logs is served by ServerResource#getServerStatusLogs in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}/logs).",
+      "subject": "route:GET /v1/servers/{id}/logs"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "@GET @Path(VARIATION_PATH)",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java",
+          "line": 521
+        },
+        {
+          "anchor": "public static final String SNAPSHOT_PATH = \"v1/{tenantId}/exposures\";",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+          "line": 29
+        }
+      ],
+      "id": "entrypoint.route.get.v1_tenantid_exposures",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+      ],
+      "statement": "GET v1/{tenantId}/exposures is served by EntityVariationResource#getEntityVariations in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}).",
+      "subject": "route:GET v1/{tenantId}/exposures"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "@GET @Path(ApiConstants.VARIATION_JOBS_PATH)",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java",
+          "line": 405
+        },
+        {
+          "anchor": "public static final String SNAPSHOT_PATH = \"v1/{tenantId}/exposures\";",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+          "line": 29
+        },
+        {
+          "anchor": "public static final String VARIATION_JOBS_PATH = \"/{entityName}/variationjobs/{variationJobId}\";",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+          "line": 35
+        }
+      ],
+      "id": "entrypoint.route.get.v1_tenantid_exposures_entityname_variationjobs_variationjobid",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+      ],
+      "statement": "GET v1/{tenantId}/exposures//{entityName}/variationjobs/{variationJobId} is served by EntityVariationResource#getEntityVariationJob in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}/${ApiConstants.VARIATION_JOBS_PATH}).",
+      "subject": "route:GET v1/{tenantId}/exposures//{entityName}/variationjobs/{variationJobId}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_CONFIG_PATH = \"/v1/pools\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 11
+        },
+        {
+          "anchor": "@PATCH @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 174
+        }
+      ],
+      "id": "entrypoint.route.patch.v1_pools_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PATCH /v1/pools/{id} is served by PoolConfigResource#updatePoolConfig in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}).",
+      "subject": "route:PATCH /v1/pools/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_RESERVATION_PATH = \"/v1/reservations\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 7
+        },
+        {
+          "anchor": "@PATCH @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 224
+        }
+      ],
+      "id": "entrypoint.route.patch.v1_reservations_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PATCH /v1/reservations/{id} is served by ReservationResource#updateReservation in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}/{id}).",
+      "subject": "route:PATCH /v1/reservations/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_SERVER_PATH = \"/v1/servers\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 10
+        },
+        {
+          "anchor": "@PATCH @Path(\"/{id}\")",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 217
+        }
+      ],
+      "id": "entrypoint.route.patch.v1_servers_id",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "PATCH /v1/servers/{id} is served by ServerResource#updateServer in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}).",
+      "subject": "route:PATCH /v1/servers/{id}"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_RESERVATION_PATH = \"/v1/reservations\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 7
+        },
+        {
+          "anchor": "@POST @Operation(",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 180
+        }
+      ],
+      "id": "entrypoint.route.post.v1_reservations",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "POST /v1/reservations is served by ReservationResource#makeReservations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}).",
+      "subject": "route:POST /v1/reservations"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static final String SQL_POOL_SERVER_PATH = \"/v1/servers\";",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java",
+          "line": 10
+        },
+        {
+          "anchor": "@POST @Operation(",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 173
+        }
+      ],
+      "id": "entrypoint.route.post.v1_servers",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "POST /v1/servers is served by ServerResource#register in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}).",
+      "subject": "route:POST /v1/servers"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "@POST @Consumes(MediaType.APPLICATION_JSON)",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java",
+          "line": 157
+        },
+        {
+          "anchor": "public static final String SNAPSHOT_PATH = \"v1/{tenantId}/exposures\";",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+          "line": 29
+        }
+      ],
+      "id": "entrypoint.route.post.v1_tenantid_exposures",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+      ],
+      "statement": "POST v1/{tenantId}/exposures is served by EntityVariationResource#postEntityVariation in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}).",
+      "subject": "route:POST v1/{tenantId}/exposures"
+    },
+    {
+      "channel": "http_in",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "@POST @Consumes(MediaType.APPLICATION_JSON)",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java",
+          "line": 816
+        },
+        {
+          "anchor": "public static final String SNAPSHOT_PATH = \"v1/{tenantId}/exposures\";",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+          "line": 29
+        },
+        {
+          "anchor": "public static final String LIVE_VARIATION_PATH = \"/live-variations\";",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/constants/ApiConstants.java",
+          "line": 48
+        }
+      ],
+      "id": "entrypoint.route.post.v1_tenantid_exposures_live_variations",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+      ],
+      "statement": "POST v1/{tenantId}/exposures//live-variations is served by EntityVariationResource#postLiveEntityVariations in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}/${ApiConstants.LIVE_VARIATION_PATH}).",
+      "subject": "route:POST v1/{tenantId}/exposures//live-variations"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "rootProject.name = 'spm'",
+          "file": "sql-pool/settings.gradle",
+          "line": 1
+        }
+      ],
+      "id": "naming.root_project.spm",
+      "kind": "naming",
+      "source_nodes": [
+        "root/sql-pool"
+      ],
+      "statement": "The build's root project is named 'spm', which appears in no directory name; every module directory is '?...'. Build logs, metrics and the OpenAPI title use 'spm'.",
+      "subject": "build:rootProject.name"
+    },
+    {
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public class CacheConstants {",
+          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/constants/CacheConstants.java",
+          "line": 3
+        },
+        {
+          "anchor": "public class SPMExceptionMapper implements ExceptionMapper<SPMException> {",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/SPMExceptionMapper.java",
+          "line": 11
+        }
+      ],
+      "id": "naming.package_path.structure",
+      "kind": "naming",
+      "source_nodes": [
+        "root/exposure-snapshot/ods-domain-data",
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "1 source files declare a package whose text and directory path do not correspond (e.g. directory 'com/rms/unifiedstore/snapshot/common/constants' declares 'package com.rms.unifiedstore.constants'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
+      "statements": [
+        "1 source files declare a package whose text and directory path do not correspond (e.g. directory 'com/rms/unifiedstore/snapshot/common/constants' declares 'package com.rms.unifiedstore.constants'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
+        "75 source files declare a package whose text and directory path differ only in case (e.g. directory 'RMS/UnifiedStore/sqlpool/api/errorhandling' declares 'package rms.unifiedstore.sqlpool.api.errorhandling'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible."
+      ],
+      "subject": "package-path-divergence"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE CountrySchemeMap",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql/V1.39__UIQ-7263_LOOK_UP.sql",
+          "line": 2191
+        },
+        {
+          "anchor": "CREATE TABLE CountrySchemeMap",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql/V1.41__UIQ-7263_LOOK_UP.sql",
+          "line": 2228
+        }
+      ],
+      "id": "ownership.schema.table_countryschememap",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql"
+      ],
+      "statement": "The schema for 'CountrySchemeMap' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:CountrySchemeMap"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "/**** Description: Create table [DBScriptHistory] for incident 17112 ****/",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql/V1.0__MI_New_EDM.sql",
+          "line": 793
+        },
+        {
+          "anchor": "/**** Description: Create table [DBScriptHistory] for incident 17112 ****/",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql/V1.0__MI_New_RDM.sql",
+          "line": 112
+        }
+      ],
+      "id": "ownership.schema.table_dbscripthistory",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql"
+      ],
+      "statement": "The schema for 'DBScriptHistory' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:DBScriptHistory"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE IF NOT EXISTS ${cardAccessTable}",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/R__200_CreateCardAccess.sql",
+          "line": 23
+        },
+        {
+          "anchor": "ALTER TABLE IF EXISTS catalog.catalog_${tenantId}_securable_card ADD COLUMN IF NOT EXISTS mdf_free_space_in_kb BIGINT;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V16_1_1_30__DatabaseMdfLdfFreeSpaceInKb.sql",
+          "line": 1
+        },
+        {
+          "anchor": "ALTER TABLE IF EXISTS catalog.catalog_${tenantId}_securable_card",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V16_1_1_31__ServerStorageMetricsInMb.sql",
+          "line": 1
+        },
+        {
+          "anchor": "ALTER TABLE IF EXISTS ${cardTable} ALTER COLUMN entityname TYPE varchar(256);",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V3_1_1_1__AlterEntityNameColumnLen.sql",
+          "line": 7
+        }
+      ],
+      "id": "ownership.schema.table_if",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations"
+      ],
+      "statement": "The schema for 'IF' is owned by catalog-service/RMS.UnifiedStore.Service.Catalog.Common, defined across 4 migration(s).",
+      "subject": "table:IF"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE [Lookup].\"LandSlide\"(",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql/V1.0__MI_New_EDM.sql",
+          "line": 229
+        },
+        {
+          "anchor": "ALTER TABLE [Lookup].[GeoLocationCode] DROP CONSTRAINT PK_GeoLocationCode",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V16.0.000__130TO160_EDM.sql",
+          "line": 1333
+        },
+        {
+          "anchor": "CREATE TABLE [Lookup].[locattributes](",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.000__Edm17_18_EDM.sql",
+          "line": 6379
+        },
+        {
+          "anchor": "INSERT INTO #DBTemp SELECT 'Lookup', 'AddressType', 'PK_AddressType', 'ALTER TABLE [Lookup].[AddressType] ADD CONSTRAINT [PK_AddressType] PRIMARY KEY (AddressTypeID ASC) ;'",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.128__CombinedEDMUpgrade_EDM.sql",
+          "line": 89
+        }
+      ],
+      "id": "ownership.schema.table_lookup",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql"
+      ],
+      "statement": "The schema for 'Lookup' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 6 migration(s).",
+      "subject": "table:Lookup"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE catalog.catalog_${tenantId}_abstract_program_card (",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V10_1_1_1__CreateNormalizedTables.sql",
+          "line": 5
+        },
+        {
+          "anchor": "alter table catalog.catalog_${tenantId}_abstractbh_card drop column outward_reinsurance_program_variation_id;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V12_1_1_1__CorrectAbstractbhVariationId.sql",
+          "line": 1
+        },
+        {
+          "anchor": "ALTER TABLE catalog.catalog_${tenantId}_abstract_program_card",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V16_1_1_10__SystemLastUpdateDateTime.sql",
+          "line": 1
+        },
+        {
+          "anchor": "ALTER TABLE catalog.catalog_${tenantId}_archive_card",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V16_1_1_12__ArchiveEntityTypeColumn.sql",
+          "line": 5
+        }
+      ],
+      "id": "ownership.schema.table_catalog_catalog",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations"
+      ],
+      "statement": "The schema for 'catalog.catalog_' is owned by catalog-service/RMS.UnifiedStore.Service.Catalog.Common, defined across 22 migration(s).",
+      "subject": "table:catalog.catalog_"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE [company].[accgrpscoreinfo] ADD [classofbusiness] [nvarchar](20) NULL",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.298__MI-37724_EDM.sql",
+          "line": 3
+        },
+        {
+          "anchor": "ALTER TABLE [company].[companyinfo] ADD [CompanyInfoNum] nvarchar(1024) NULL",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.405__SCHEMA-157_EDM.sql",
+          "line": 17
+        }
+      ],
+      "id": "ownership.schema.table_company",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'company' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:company"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE cyber.Policy",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.405__SCHEMA-157_EDM.sql",
+          "line": 180
+        },
+        {
+          "anchor": "ALTER TABLE cyber.Policy DROP CONSTRAINT DF_CyberPolicy_PrimaryExcess;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.431__IRP-5732_EDM.sql",
+          "line": 7
+        }
+      ],
+      "id": "ownership.schema.table_cyber_policy",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'cyber.Policy' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:cyber.Policy"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE [dbo].[fldet] DROP CONSTRAINT [DF_FLDET_30YRRPDEF];",
+          "file": "ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V23_to_V22.sql",
+          "line": 683
+        },
+        {
+          "anchor": "ALTER TABLE [dbo].[loccvg]",
+          "file": "ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V25_to_V25.sql",
+          "line": 2066
+        },
+        {
+          "anchor": "ALTER TABLE [dbo].[fldet] DROP CONSTRAINT [DF_FLDET_30YRRPDEF];",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/RollbackScripts/Rollback_V23_to_V22.sql",
+          "line": 683
+        },
+        {
+          "anchor": "ALTER TABLE [dbo].[loccvg]",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/RollbackScripts/Rollback_V25_to_V25.sql",
+          "line": 2066
+        }
+      ],
+      "id": "ownership.schema.table_dbo",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts"
+      ],
+      "statement": "The schema for 'dbo' is owned by ms-sql-java/downgrade-processor, service-api/RMS.UnifiedStore.Service.Api, defined across 21 migration(s).",
+      "subject": "table:dbo"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE dbo.\"buildingattributes\"(",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql/V1.0__MI_New_EDM.sql",
+          "line": 804
+        },
+        {
+          "anchor": "CREATE TABLE dbo.\"rdm_extentboundingconditions\"(",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql/V1.0__MI_New_RDM.sql",
+          "line": 1634
+        }
+      ],
+      "id": "ownership.schema.table_dbo",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql"
+      ],
+      "statement": "The schema for 'dbo.' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo."
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE dbo.FRDET ADD DISTANCETOCALFIREHIGH FLOAT NOT NULL CONSTRAINT DF_DISTANCETOCALFIREHIGH DEFAULT(-999)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.181__MI-20762_EDM.sql",
+          "line": 21
+        },
+        {
+          "anchor": "ALTER TABLE dbo.FRDET ADD SUPHAZVERSION VARCHAR(8) NOT NULL CONSTRAINT DF_FRDET_SUPHAZVERSION DEFAULT ('');",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.214__MI-26678_EDM.sql",
+          "line": 414
+        }
+      ],
+      "id": "ownership.schema.table_dbo_frdet",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.FRDET' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.FRDET"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE dbo.Property ADD ROOFYEAR DATETIME NULL DEFAULT '9999-12-31'",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.366__MI-49311_EDM.sql",
+          "line": 32
+        },
+        {
+          "anchor": "ALTER TABLE dbo.Property",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.408__MI-80009_EDM.sql",
+          "line": 18
+        }
+      ],
+      "id": "ownership.schema.table_dbo_property",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.Property' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.Property"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "alter table dbo.dbattribute alter column value varchar(48) not null",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V16.0.000__130TO160_EDM.sql",
+          "line": 15639
+        },
+        {
+          "anchor": "alter table dbo.dbattribute alter column value varchar(48) not null",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V17.0.000__Edm16_17_EDM.sql",
+          "line": 997
+        },
+        {
+          "anchor": "ALTER TABLE dbo.dbattribute alter column value varchar(100) not null;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.128__CombinedEDMUpgrade_EDM.sql",
+          "line": 279
+        }
+      ],
+      "id": "ownership.schema.table_dbo_dbattribute",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.dbattribute' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 3 migration(s).",
+      "subject": "table:dbo.dbattribute"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE dbo.eqdet ADD SOILPERIODMATCH smallint NOT NULL CONSTRAINT DF_EQDET_SOILPERIODMATCH DEFAULT (0)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.184__MI-1803_EDM.sql",
+          "line": 4
+        },
+        {
+          "anchor": "ALTER TABLE dbo.eqdet ADD EQREMDESIGN tinyint NULL;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.428__IRP-4844_EDM.sql",
+          "line": 41
+        }
+      ],
+      "id": "ownership.schema.table_dbo_eqdet",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.eqdet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.eqdet"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "Create table dbo.exposure_metrics",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.128__CombinedEDMUpgrade_EDM.sql",
+          "line": 385
+        },
+        {
+          "anchor": "ALTER TABLE dbo.exposure_metrics ADD policyExpirationDate datetime NOT NULL CONSTRAINT DF_POLICY_EXPDATE DEFAULT '9999-12-31'",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.187__NUX-80_EDM.sql",
+          "line": 3
+        },
+        {
+          "anchor": "ALTER TABLE dbo.exposure_metrics ADD policyExpirationDate datetime NOT NULL CONSTRAINT DF_POLICY_EXPDATE DEFAULT '9999-12-31'",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.188__NUX-80-V2_EDM.sql",
+          "line": 3
+        },
+        {
+          "anchor": "ALTER TABLE dbo.exposure_metrics",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.426__CBR-1196_EDM.sql",
+          "line": 17
+        }
+      ],
+      "id": "ownership.schema.table_dbo_exposure_metrics",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.exposure_metrics' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 4 migration(s).",
+      "subject": "table:dbo.exposure_metrics"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE dbo.fldet ADD FLUVIALFLOODDEFENSERP float NOT NULL CONSTRAINT DF_FLDET_FLUVIALFLOODDEFENSERP DEFAULT (0)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.184__MI-1803_EDM.sql",
+          "line": 19
+        },
+        {
+          "anchor": "ALTER TABLE dbo.fldet ADD FLREMDESIGN tinyint NULL;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.428__IRP-4844_EDM.sql",
+          "line": 7
+        }
+      ],
+      "id": "ownership.schema.table_dbo_fldet",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.fldet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.fldet"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE dbo.hudet ADD HUCONTAMINATION smallint NOT NULL CONSTRAINT DF_HUDET_HUCONTAMINATION DEFAULT (0)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.131__MI-14336_EDM.sql",
+          "line": 5
+        },
+        {
+          "anchor": "ALTER TABLE dbo.hudet ADD HUVELOCITY smallint NOT NULL CONSTRAINT DF_HUDET_HUVELOCITY DEFAULT (0)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.184__MI-1803_EDM.sql",
+          "line": 42
+        },
+        {
+          "anchor": "ALTER TABLE dbo.hudet",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.366__MI-49311_EDM.sql",
+          "line": 108
+        },
+        {
+          "anchor": "ALTER TABLE dbo.hudet ADD HUREMDESIGN tinyint NULL;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.428__IRP-4844_EDM.sql",
+          "line": 27
+        }
+      ],
+      "id": "ownership.schema.table_dbo_hudet",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.hudet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 4 migration(s).",
+      "subject": "table:dbo.hudet"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE dbo.regioncountrymap",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql/V1.39__UIQ-7263_LOOK_UP.sql",
+          "line": 10
+        },
+        {
+          "anchor": "CREATE TABLE dbo.regioncountrymap",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql/V1.41__UIQ-7263_LOOK_UP.sql",
+          "line": 10
+        }
+      ],
+      "id": "ownership.schema.table_dbo_regioncountrymap",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql"
+      ],
+      "statement": "The schema for 'dbo.regioncountrymap' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.regioncountrymap"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE dbo.riskscore",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.181__MI-20762_EDM.sql",
+          "line": 4
+        },
+        {
+          "anchor": "CREATE TABLE dbo.riskscore",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.214__MI-26678_EDM.sql",
+          "line": 7
+        }
+      ],
+      "id": "ownership.schema.table_dbo_riskscore",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.riskscore' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.riskscore"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE dbo.todet ADD TODEPRECIATIONAGE smallint NOT NULL CONSTRAINT DF_TODET_TODEPRECIATIONAGE DEFAULT (0)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.184__MI-1803_EDM.sql",
+          "line": 50
+        },
+        {
+          "anchor": "ALTER TABLE dbo.todet ADD TOROOFACVFLAG BIT NULL DEFAULT 0",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.366__MI-49311_EDM.sql",
+          "line": 82
+        }
+      ],
+      "id": "ownership.schema.table_dbo_todet",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'dbo.todet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:dbo.todet"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE domain_data.\"domain\" (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V009__CommonDomainTables.sql",
+          "line": 7
+        },
+        {
+          "anchor": "CREATE TABLE domain_data.\"domain\" (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V035__ReloadTables.sql",
+          "line": 254
+        },
+        {
+          "anchor": "CREATE TABLE domain_data.\"label\" (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V037__Insert_DomainTables3.sql",
+          "line": 30
+        }
+      ],
+      "id": "ownership.schema.table_domain_data",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/exposure-snapshot/domain-data-migration/migrations"
+      ],
+      "statement": "The schema for 'domain_data.' is owned by exposure-snapshot, defined across 3 migration(s).",
+      "subject": "table:domain_data."
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE domain_data.entity (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V009__CommonDomainTables.sql",
+          "line": 26
+        },
+        {
+          "anchor": "CREATE TABLE domain_data.entity (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V035__ReloadTables.sql",
+          "line": 7
+        }
+      ],
+      "id": "ownership.schema.table_domain_data_entity",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/exposure-snapshot/domain-data-migration/migrations"
+      ],
+      "statement": "The schema for 'domain_data.entity' is owned by exposure-snapshot, defined across 2 migration(s).",
+      "subject": "table:domain_data.entity"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE domain_data.entityattributes (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V009__CommonDomainTables.sql",
+          "line": 51
+        },
+        {
+          "anchor": "CREATE TABLE domain_data.entityattributes (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V035__ReloadTables.sql",
+          "line": 275
+        }
+      ],
+      "id": "ownership.schema.table_domain_data_entityattributes",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/exposure-snapshot/domain-data-migration/migrations"
+      ],
+      "statement": "The schema for 'domain_data.entityattributes' is owned by exposure-snapshot, defined across 2 migration(s).",
+      "subject": "table:domain_data.entityattributes"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE domain_data.entitytype (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V009__CommonDomainTables.sql",
+          "line": 101
+        },
+        {
+          "anchor": "CREATE TABLE domain_data.entitytype (",
+          "file": "exposure-snapshot/domain-data-migration/migrations/V035__ReloadTables.sql",
+          "line": 3512
+        }
+      ],
+      "id": "ownership.schema.table_domain_data_entitytype",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/exposure-snapshot/domain-data-migration/migrations"
+      ],
+      "statement": "The schema for 'domain_data.entitytype' is owned by exposure-snapshot, defined across 2 migration(s).",
+      "subject": "table:domain_data.entitytype"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "ALTER TABLE fldet ADD PCNTLOSSSITEDEDAMT float NOT NULL CONSTRAINT DF_FLDET_PCNTLOSSSITEDEDAMT DEFAULT (0)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.128__CombinedEDMUpgrade_EDM.sql",
+          "line": 782
+        },
+        {
+          "anchor": "ALTER TABLE fldet DROP CONSTRAINT [DF_FLDET_30YRRPDEF]",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V18.0.214__MI-26678_EDM.sql",
+          "line": 63
+        }
+      ],
+      "id": "ownership.schema.table_fldet",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'fldet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
+      "subject": "table:fldet"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "CREATE TABLE [internal].[exposuretag](",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.277__MI-24467-36712_EDM.sql",
+          "line": 10
+        },
+        {
+          "anchor": "CREATE TABLE [internal].[exposure_enrichment] (",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.394__MI-56444_EDM.sql",
+          "line": 8
+        },
+        {
+          "anchor": "CREATE TABLE [internal].[exposure_enrichment] (",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.399__MI‑81116-81086_EDM.sql",
+          "line": 9
+        },
+        {
+          "anchor": "CREATE TABLE [internal].[exposure_enrichment] (",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.400__MI-81327-81041_EDM.sql",
+          "line": 10
+        }
+      ],
+      "id": "ownership.schema.table_internal",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'internal' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 5 migration(s).",
+      "subject": "table:internal"
+    },
+    {
+      "channel": "schema_own",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "-- Create table type for model profile attributes",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.364__UIQ-7263_EDM.sql",
+          "line": 9
+        },
+        {
+          "anchor": "-- Create table type for model profile attributes",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.365__UIQ-7263_EDM.sql",
+          "line": 8
+        },
+        {
+          "anchor": "-- Create table type for model profile attributes",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.371__UIQ-7263_EDM.sql",
+          "line": 11
+        },
+        {
+          "anchor": "-- Create table type for parameters to each validation SP",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql/V19.0.378__CBR-364_EDM.sql",
+          "line": 12
+        }
+      ],
+      "id": "ownership.schema.table_type",
+      "kind": "ownership",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
+      ],
+      "statement": "The schema for 'type' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 4 migration(s).",
+      "subject": "table:type"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.apache.http.params.CoreConnectionPNames;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
+          "line": 16
+        }
+      ],
+      "id": "side_effect.automation_api_automation.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/automation/api-automation/src/main/java/com/rms/uds/tests"
+      ],
+      "statement": "automation/api-automation makes outbound HTTP calls, across 1 site(s).",
+      "subject": "automation/api-automation:http_out"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import okhttp3.HttpUrl;",
+          "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/BaseService.java",
+          "line": 38
+        },
+        {
+          "anchor": "import okhttp3.ConnectionPool;",
+          "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/ClientFactory.java",
+          "line": 4
+        },
+        {
+          "anchor": "import okhttp3.MediaType;",
+          "file": "client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/Constants.java",
+          "line": 3
+        }
+      ],
+      "id": "side_effect.client_java_client_core.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/client-java/client-core"
+      ],
+      "statement": "client-java/client-core makes outbound HTTP calls, across 3 site(s).",
+      "subject": "client-java/client-core:http_out"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import okhttp3.OkHttpClient;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseServiceFactory.java",
+          "line": 6
+        },
+        {
+          "anchor": "import okhttp3.OkHttpClient;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/DatabaseServiceImpl.java",
+          "line": 17
+        },
+        {
+          "anchor": "import okhttp3.OkHttpClient;",
+          "file": "client-java/eih-client/src/main/java/com/rms/eih/JobServiceFactory.java",
+          "line": 6
+        }
+      ],
+      "id": "side_effect.client_java_eih_client.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/client-java/eih-client"
+      ],
+      "statement": "client-java/eih-client makes outbound HTTP calls, across 4 site(s).",
+      "subject": "client-java/eih-client:http_out"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import okhttp3.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/ApiKeyTokenGenerator.java",
+          "line": 29
+        },
+        {
+          "anchor": "import okhttp3.MediaType;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/SmlUserSetupService.java",
+          "line": 14
+        },
+        {
+          "anchor": "import java.net.http.HttpClient;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestHttpClient.java",
+          "line": 8
+        }
+      ],
+      "id": "side_effect.client_java_uds_client_integration_tests.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests makes outbound HTTP calls, across 6 site(s).",
+      "subject": "client-java/uds-client-integration-tests:http_out"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import okhttp3.OkHttpClient;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminServiceFactory.java",
+          "line": 5
+        },
+        {
+          "anchor": "import okhttp3.MediaType;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AdminServiceImpl.java",
+          "line": 14
+        },
+        {
+          "anchor": "import okhttp3.OkHttpClient;",
+          "file": "client-java/uds-client/src/main/java/com/rms/unifiedstore/AnalysisRegisterServiceFactory.java",
+          "line": 6
+        }
+      ],
+      "id": "side_effect.client_java_uds_client.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
+      ],
+      "statement": "client-java/uds-client makes outbound HTTP calls, across 47 site(s).",
+      "subject": "client-java/uds-client:http_out"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.apache.http.client.utils.URIBuilder;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/GeoHazHelper.java",
+          "line": 25
+        }
+      ],
+      "id": "side_effect.exposure_snapshot_entity_variation_task.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/(files)"
+      ],
+      "statement": "exposure-snapshot/entity-variation-task makes outbound HTTP calls, across 1 site(s).",
+      "subject": "exposure-snapshot/entity-variation-task:http_out"
+    },
+    {
+      "channel": "http_out",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import org.apache.http.client.utils.URIBuilder;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java",
+          "line": 68
+        }
+      ],
+      "id": "side_effect.exposure_snapshot_snapshot_api.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+      ],
+      "statement": "exposure-snapshot/snapshot-api makes outbound HTTP calls, across 1 site(s).",
+      "subject": "exposure-snapshot/snapshot-api:http_out"
+    },
+    {
+      "channel": "metric_emit",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.codahale.metrics.MetricRegistry;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
+          "line": 11
+        },
+        {
+          "anchor": "import com.codahale.metrics.annotation.ResponseMetered;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/EntityVariationResource.java",
+          "line": 29
+        },
+        {
+          "anchor": "import com.codahale.metrics.annotation.ResponseMetered;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/ExposureBundlesResource.java",
+          "line": 15
+        }
+      ],
+      "id": "side_effect.exposure_snapshot_snapshot_api.metric_emit",
+      "kind": "side_effect",
+      "side_effect_type": "metric_emit",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-api emits metrics to an observability sink, across 7 site(s).",
+      "subject": "exposure-snapshot/snapshot-api:metric_emit"
+    },
+    {
+      "channel": "metric_emit",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.codahale.metrics.MetricRegistry;",
+          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/database/ManagedDataSourceFactoryImpl.java",
+          "line": 3
+        }
+      ],
+      "id": "side_effect.exposure_snapshot_snapshot_common.metric_emit",
+      "kind": "side_effect",
+      "side_effect_type": "metric_emit",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-common/(files+5)"
+      ],
+      "statement": "exposure-snapshot/snapshot-common emits metrics to an observability sink, across 1 site(s).",
+      "subject": "exposure-snapshot/snapshot-common:metric_emit"
+    },
+    {
+      "channel": "read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "SELECT name from sys.schemas where USER_NAME(principal_id)=@user and name <> 'dbo';",
+          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
+          "line": 110
+        },
+        {
+          "anchor": "SET @sql_user='IF EXISTS(SELECT 1 FROM sys.database_principals WHERE name = ' + ''''+@user+'''' + ') DROP USER ['+ @user +']';",
+          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
+          "line": 125
+        },
+        {
+          "anchor": "\"Invoke-SqlCmd -ServerInstance 'localhost' -Database 'master' -Query \\\"IF EXISTS(select * from sys.databases where name='%s') DROP DATABASE %s;\\\"\"",
+          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
+          "line": 162
+        }
+      ],
+      "id": "side_effect.ms_sql_java_downgrade_processor.read",
+      "kind": "side_effect",
+      "side_effect_type": "db_read",
+      "source_nodes": [
+        "root/ms-sql-java/downgrade-processor/(files+3)"
+      ],
+      "statement": "ms-sql-java/downgrade-processor reads from the database, across 4 site(s).",
+      "subject": "ms-sql-java/downgrade-processor:read"
+    },
+    {
+      "channel": "process_boundary",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public static void main(String[] args) throws Exception {",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
+          "line": 33
+        },
+        {
+          "anchor": "public interface EConfigPoolRepository extends JpaRepository<EPoolConfig, Long> {}",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EConfigPoolRepository.java",
+          "line": 8
+        },
+        {
+          "anchor": "public interface EReservationRepository extends JpaRepository<EReservation, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationRepository.java",
+          "line": 11
+        },
+        {
+          "anchor": "public static void main(String[] args) {",
+          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/schema/RegenerateSchemaBaseline.java",
+          "line": 28
+        }
+      ],
+      "id": "side_effect.process_boundary.sqlpoolapplication.regenerateschemabaseline.sqlpoolquartzjobsapplication",
+      "kind": "side_effect",
+      "side_effect_type": "db_write",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "SqlPoolApplication and RegenerateSchemaBaseline and SqlPoolQuartzJobsApplication are separate deployable units that exchange data through shared storage (13 shared target(s), including pool_config, reservation, reservation_metadata, server). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call.",
+      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication <-> rms.unifiedstore.sqlpool.integrationtest.support.schema.RegenerateSchemaBaseline <-> rms.unifiedstore.sqlpool.manager.SqlPoolQuartzJobsApplication"
+    },
+    {
+      "channel": "metric_emit",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.codahale.metrics.annotation.ResponseMetered;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/PoolConfigResource.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.codahale.metrics.annotation.ResponseMetered;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ReservationResource.java",
+          "line": 5
+        },
+        {
+          "anchor": "import com.codahale.metrics.annotation.ResponseMetered;",
+          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/ServerResource.java",
+          "line": 5
+        }
+      ],
+      "id": "side_effect.sql_pool_sql_pool_api.metric_emit",
+      "kind": "side_effect",
+      "side_effect_type": "metric_emit",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-api/src/main/java"
+      ],
+      "statement": "sql-pool/sql-pool-api emits metrics to an observability sink, across 4 site(s).",
+      "subject": "sql-pool/sql-pool-api:metric_emit"
+    },
+    {
+      "channel": "metric_emit",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import io.prometheus.client.Gauge;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/metrics/Metrics.java",
+          "line": 3
+        },
+        {
+          "anchor": "import io.prometheus.client.CollectorRegistry;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/metrics/MetricsImpl.java",
+          "line": 3
+        },
+        {
+          "anchor": "import io.prometheus.client.Gauge;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/metrics/QuartzMetrics.java",
+          "line": 3
+        }
+      ],
+      "id": "side_effect.sql_pool_sql_pool_common.metric_emit",
+      "kind": "side_effect",
+      "side_effect_type": "metric_emit",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/(exceptions+3)"
+      ],
+      "statement": "sql-pool/sql-pool-common emits metrics to an observability sink, across 5 site(s).",
+      "subject": "sql-pool/sql-pool-common:metric_emit"
+    },
+    {
+      "channel": "ssh_exec",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.jcraft.jsch.ChannelExec;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/helper/ssh/SshCommandExecutor.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.jcraft.jsch.JSch;",
+          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/helper/ssh/SshCommandExecutorFactory.java",
+          "line": 3
+        },
+        {
+          "anchor": "import com.jcraft.jsch.JSchException;",
+          "file": "sql-pool/sql-pool-common/src/test/java/RMS/unifiedstore/sqlpool/common/helper/disk/DiskUsageCheckerWindowsTest.java",
+          "line": 8
+        }
+      ],
+      "id": "side_effect.sql_pool_sql_pool_common.ssh_exec",
+      "kind": "side_effect",
+      "side_effect_type": "ssh_exec",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-common/(files+4)"
+      ],
+      "statement": "sql-pool/sql-pool-common runs commands on remote hosts over SSH, across 4 site(s).",
+      "subject": "sql-pool/sql-pool-common:ssh_exec"
+    },
+    {
+      "channel": "read",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public interface EConfigPoolRepository extends JpaRepository<EPoolConfig, Long> {}",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EConfigPoolRepository.java",
+          "line": 8
+        },
+        {
+          "anchor": "public interface EReservationMetadataRepository extends JpaRepository<EReservationMetadata, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationMetadataRepository.java",
+          "line": 9
+        },
+        {
+          "anchor": "public interface EReservationRepository extends JpaRepository<EReservation, Long> {",
+          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationRepository.java",
+          "line": 11
+        }
+      ],
+      "id": "side_effect.sql_pool_sql_pool_dal.read",
+      "kind": "side_effect",
+      "side_effect_type": "db_read",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-dal"
+      ],
+      "statement": "sql-pool/sql-pool-dal reads from the database, across 6 site(s).",
+      "subject": "sql-pool/sql-pool-dal:read"
+    },
+    {
+      "channel": "metric_emit",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import io.prometheus.client.Gauge;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/healthcheck/QuartzJobsElapsedTimeCheck.java",
+          "line": 5
+        },
+        {
+          "anchor": "import io.prometheus.client.Gauge;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/AbstractJob.java",
+          "line": 6
+        },
+        {
+          "anchor": "import com.codahale.metrics.annotation.Timed;",
+          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/resources/SqlPoolQuartzHealthCheckResource.java",
+          "line": 3
+        }
+      ],
+      "id": "side_effect.sql_pool_sql_pool_manager.metric_emit",
+      "kind": "side_effect",
+      "side_effect_type": "metric_emit",
+      "source_nodes": [
+        "root/sql-pool/sql-pool-manager/src/main/(healthcheck+3)"
+      ],
+      "statement": "sql-pool/sql-pool-manager emits metrics to an observability sink, across 6 site(s).",
+      "subject": "sql-pool/sql-pool-manager:metric_emit"
     }
   ],
   "count": 1278,
+  "elided": 1078,
   "query": "claims"
 }

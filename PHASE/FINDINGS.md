@@ -62,10 +62,17 @@ becomes an `unknown`, never a silent gap*).
 **Owner:** Phase 1 (correctness band). It is a bug hit in the field, of the same
 family as scope item 1.1, and Phase 1 is where honest degradation lives.
 
-**Consequence until fixed:** this repository cannot be a golden or determinism
-target for itself. `make check` uses `$TARGET_REPO` and the `minirepo` fixture,
-both of which have unique module basenames. `make check-self` exists to
-demonstrate the failure and is not part of the gate.
+**Status: fixed in Phase 1.** `_declared_edges` now builds `{basename: [modules]}`
+and draws an edge only when exactly one candidate survives. An ambiguous
+basename yields **no edge** and is returned in a new `graph.declared_ambiguous`
+list, which `cmd_scan` turns into a structural unknown naming the dependency and
+every candidate. That is the option this entry argued for: `sorted(module_set)`
+would have made the flapping stop while leaving CDP asserting one of two
+equally-supported edges, which is exactly what `merge.py:186-188` forbids.
+
+`make check-self` should now pass; it is kept as a regression demonstration
+rather than removed, since the condition it exercises (two modules named `core`)
+is not reproduced by either gate target.
 
 ---
 
@@ -108,3 +115,94 @@ M0.1 acceptance criterion produced no output and returned 0. Added a guard plus
 `cdp/__main__.py`. Worth recording only because an acceptance criterion asserted
 behaviour that did not exist, which is the failure mode Phase 0 is built to
 prevent.
+
+---
+
+## F5 — `query trace` resolved entry points to a key the edge graph does not hold
+
+**Severity:** high for the feature, and invisible on the fixture.
+**Status: fixed in Phase 1 (M1.5), found by running the milestone on
+`$TARGET_REPO` rather than only on `tests/fixtures/minirepo`.**
+
+A route handler is recorded as `Class#method` (`resolve.py` takes it from the
+`io_edge` source), while `dataflow.py` keys its adjacency on the file's *primary
+symbol*. Walking from the raw handler string found no adjacency and returned a
+one-file trace — which renders identically to a genuinely leaf endpoint, i.e.
+*"this endpoint touches nothing"*.
+
+The fixture did not show it: `minirepo`'s handler reaches the same files through
+the `defines` fallback, so the trace looked plausible. The first real endpoint
+traced on the validation target returned one file where the correct answer is
+37 (`GET /v1/servers` → `ServerResource` → `ServerService` → `EServer` →
+`ServerMapper`, each with its justifying edge).
+
+Two fixes, both kept: `_resolve_entry` resolves a route to its file's primary
+symbol, and `_pivot` retries the owning class and then the primary symbol for
+any entry point whose node has no outgoing edges, recording `pivoted_from` so
+the substitution is stated rather than applied silently.
+
+**The lesson is `PHASE/README.md`'s existing rule, not a new one:** *every
+milestone is exercised on real non-fixture input*. This is the second Phase 1
+defect — with F1 — that only a real target exposed.
+
+---
+
+## F6 — `find_matches` re-normalised the whole file once per anchor
+
+**Severity:** high for usability, zero for correctness — it computed the right
+answer, 25x slower than necessary. **Status: fixed in Phase 1.**
+
+**Where:** `cdp/anchor.py` `find_matches`.
+
+The naive form joined up to `max_span` lines at every start line, normalised the
+join, and tested the needle — so it re-normalised the entire file once per span
+width **per anchor**. `cProfile` over a 477-file scan:
+
+| | share of total | calls |
+|---|---|---|
+| `extract_file` | 93% | 475 |
+| └ `anchor.find_matches` | **83%** | 6,476 |
+| └── `util.normalise_ws` | 51% | **7,168,250** |
+
+1,107 normalisations per anchor, nearly all of lines already normalised for the
+previous anchor. It degrades quadratically in file length, which is why the
+effect was far worse on the full target (497 SQL files, 669k LOC) than on a
+small module.
+
+**Fix.** Normalise each file *once* into a single string plus a char-offset →
+line-number index, and locate anchors with `str.find`, which searches in C. Same
+computation, redundancy removed.
+
+**Measured:**
+
+| | before | after | |
+|---|---|---|---|
+| `sql-pool` (477 files) | 3.6s | **0.84s** | 4.3x |
+| `$TARGET_REPO` (4,728 files, 1.42M LOC) | 2m31s | **6.05s** | **25x** |
+| `make check TARGET_REPO=...` (4 scans) | ~13m | **1m06s** | 12x |
+
+**Why this is believable and not merely asserted.** Anchoring is CDP's trust
+boundary: every published claim is anchored here, and an off-by-one does not
+crash, it silently cites the wrong line. Three independent checks, all green:
+
+1. **The golden baselines hold byte-identical** — both the fixture's and
+   `$TARGET_REPO`'s, the latter blessed from the *pre-fix* code. No claim, no
+   anchor, no line number moved.
+2. **A differential oracle test** (`tests/test_anchor.py`
+   `IndexedMatchingEquivalenceTest`) keeps the naive implementation alive and
+   asserts the two agree over every `cdp/**/*.py` file, across real anchors,
+   blank-line-straddling multi-line spans, short fragments and absent needles,
+   at four span widths — 9,000+ comparisons, 0 mismatches. It is a permanent
+   test, not a one-off script, so the equivalence is enforced going forward.
+3. **`verify` is unchanged on the target:** 1,279/1,279 derived claims anchored,
+   0 demoted.
+
+**The one subtlety, pinned by its own test.** Span width is counted in *source*
+lines, including blank ones, because the naive version joined blank lines and
+they consumed span width while contributing no text. An index built only over
+non-blank lines would accept matches the scan rejected.
+`test_span_width_counts_blank_lines` is that assertion.
+
+**Remaining headroom, not taken.** Extraction is embarrassingly parallel per
+file and `multiprocessing` is stdlib, which is worth a further 4-8x. It is not
+in Phase 1's scope and 6s is no longer the bottleneck for anyone.

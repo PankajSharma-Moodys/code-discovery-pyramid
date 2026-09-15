@@ -1,0 +1,15 @@
+// The honest-degradation case for PHASE/phase_1_plan.md M1.1.
+//
+// One manifest at the scan root and none beneath it, so the root is one module
+// -- but Gradle keeps identity in `settings.gradle` and there is no
+// `settings.gradle` here, so the build states no name. The directory name is
+// not an answer: it is wherever this happened to be cloned. CDP reports the
+// module as `(root)` and raises a structural unknown instead of guessing.
+
+plugins {
+    id 'java'
+}
+
+dependencies {
+    implementation 'com.google.guava:guava:32.1.2-jre'
+}

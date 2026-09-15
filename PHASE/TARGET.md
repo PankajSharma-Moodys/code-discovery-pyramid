@@ -100,6 +100,27 @@ The third option is the most informative, because it is a real .NET repository
 layout that CDP currently does not recognise as one. It is a Phase 1 decision,
 not a Phase 0 one.
 
+### Decision taken in Phase 1 (M1.1): the constructed fixture, not the widening
+
+Option 2. `tests/fixtures/solorepo` is a single-module Maven project and
+`tests/fixtures/anonrepo` is the unnameable case; `minirepo` is retained as the
+aggregator regression. Option 3 was rejected on the evidence: adding
+`Directory.Build.props` to `MANIFEST_NAMES` would **not** make this target
+exhibit the bug, because sub-manifests exist beneath its root and the fixed rule
+correctly leaves the root as the root scope in that case. It would change only
+that file's role classification, churning the baseline for no signal.
+
+1.1 was nevertheless exercised on real input, by pointing `--repo` at one module
+of this target:
+
+    cdp scan --repo $TARGET_REPO/sql-pool/sql-pool-api
+
+Before: the top-level-directory fallback. After: exactly one module, the
+`root_module` block recording `is_module: true` from `build.gradle`, and — since
+that manifest states no name and no `settings.gradle` sits beside it — `named:
+false` plus the *"What is this module called?"* structural unknown, rather than
+a name borrowed from the directory.
+
 ## Finding T3 — this repository is not a valid golden target for itself
 
 Unrelated to `$TARGET_REPO`, found while capturing the baseline, and recorded

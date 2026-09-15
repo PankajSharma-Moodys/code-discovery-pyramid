@@ -6,6 +6,7 @@
       "to": "core"
     }
   ],
+  "declared_ambiguous": [],
   "divergence": {
     "declared_edges": 1,
     "declared_not_observed": [],

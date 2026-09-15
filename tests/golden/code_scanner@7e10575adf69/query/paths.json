@@ -1,5 +1,13 @@
 {
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "4221f095ad396ca3e435111a511c2d795cee0d8b95e59a0e07166b6aad12a0c0",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": 200,
   "count": 56,
+  "elided": 0,
   "paths": [
     {
       "confidence": "high",
@@ -1439,6 +1447,627 @@
         "rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata"
       ],
       "trigger": "rms.unifiedstore.sqlpool.manager.jobs.ReconcileServersWithProvidersJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/ReconcileServersWithProvidersJob.java:13",
+          "channel": "call",
+          "from": "ReconcileServersWithProvidersJob",
+          "to": "DServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:36",
+          "channel": "map",
+          "from": "DServer",
+          "to": "EServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServer.java:11",
+          "channel": "persist",
+          "from": "EServer",
+          "to": "table:server"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [
+        "rms.unifiedstore.sqlpool.common.model.domain.DServer",
+        "rms.unifiedstore.sqlpool.dal.entities.EServer"
+      ],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.ReconcileServersWithProvidersJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/ReconcileServersWithProvidersJob.java:19",
+          "channel": "call",
+          "from": "ReconcileServersWithProvidersJob",
+          "to": "ServerService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ServerService.java:21",
+          "channel": "call",
+          "from": "ServerService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:11",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServerResourceUsageLog"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServerResourceUsageLog.java:5",
+          "channel": "persist",
+          "from": "EServerResourceUsageLog",
+          "to": "table:server_resource_usage_log"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.ReconcileServersWithProvidersJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/ReconcileServersWithProvidersJob.java:19",
+          "channel": "call",
+          "from": "ReconcileServersWithProvidersJob",
+          "to": "ServerService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ServerService.java:21",
+          "channel": "call",
+          "from": "ServerService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:12",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServerStatusLog"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServerStatusLog.java:7",
+          "channel": "persist",
+          "from": "EServerStatusLog",
+          "to": "table:server_status_log"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.ReconcileServersWithProvidersJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/RetryFailedDeleteServersJob.java:15",
+          "channel": "call",
+          "from": "RetryFailedDeleteServersJob",
+          "to": "ResourceManagementClientFactory"
+        },
+        {
+          "at": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClientFactory.java:8",
+          "channel": "call",
+          "from": "ResourceManagementClientFactory",
+          "to": "ResourceManagementClientCS"
+        },
+        {
+          "at": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/cloudservices/ResourceManagementClientCS.java:15",
+          "channel": "call",
+          "from": "ResourceManagementClientCS",
+          "to": "DPoolConfig"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java:30",
+          "channel": "map",
+          "from": "DPoolConfig",
+          "to": "EPoolConfig"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java:9",
+          "channel": "persist",
+          "from": "EPoolConfig",
+          "to": "table:pool_config"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-provision",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [
+        "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig",
+        "rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+      ],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.RetryFailedDeleteServersJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/RetryFailedDeleteServersJob.java:15",
+          "channel": "call",
+          "from": "RetryFailedDeleteServersJob",
+          "to": "ResourceManagementClientFactory"
+        },
+        {
+          "at": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/ResourceManagementClientFactory.java:8",
+          "channel": "call",
+          "from": "ResourceManagementClientFactory",
+          "to": "ResourceManagementClientCS"
+        },
+        {
+          "at": "sql-pool/sql-pool-provision/src/main/java/RMS/UnifiedStore/sqlpool/provision/cloudservices/ResourceManagementClientCS.java:16",
+          "channel": "call",
+          "from": "ResourceManagementClientCS",
+          "to": "DServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:36",
+          "channel": "map",
+          "from": "DServer",
+          "to": "EServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServer.java:11",
+          "channel": "persist",
+          "from": "EServer",
+          "to": "table:server"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-provision",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [
+        "rms.unifiedstore.sqlpool.common.model.domain.DServer",
+        "rms.unifiedstore.sqlpool.dal.entities.EServer"
+      ],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.RetryFailedDeleteServersJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/TrackServersUsageJob.java:11",
+          "channel": "call",
+          "from": "TrackServersUsageJob",
+          "to": "ProcessServerHintsDelegate"
+        },
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/ProcessServerHintsDelegate.java:10",
+          "channel": "call",
+          "from": "ProcessServerHintsDelegate",
+          "to": "DPoolConfig"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java:30",
+          "channel": "map",
+          "from": "DPoolConfig",
+          "to": "EPoolConfig"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EPoolConfig.java:9",
+          "channel": "persist",
+          "from": "EPoolConfig",
+          "to": "table:pool_config"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [
+        "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig",
+        "rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+      ],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.TrackServersUsageJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/TrackServersUsageJob.java:10",
+          "channel": "call",
+          "from": "TrackServersUsageJob",
+          "to": "MetricsCalculatorDelegate"
+        },
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/MetricsCalculatorDelegate.java:12",
+          "channel": "call",
+          "from": "MetricsCalculatorDelegate",
+          "to": "ReservationService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ReservationService.java:28",
+          "channel": "call",
+          "from": "ReservationService",
+          "to": "EReservation"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EReservation.java:10",
+          "channel": "persist",
+          "from": "EReservation",
+          "to": "table:reservation"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.TrackServersUsageJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/TrackServersUsageJob.java:10",
+          "channel": "call",
+          "from": "TrackServersUsageJob",
+          "to": "MetricsCalculatorDelegate"
+        },
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/MetricsCalculatorDelegate.java:12",
+          "channel": "call",
+          "from": "MetricsCalculatorDelegate",
+          "to": "ReservationService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ReservationService.java:29",
+          "channel": "call",
+          "from": "ReservationService",
+          "to": "EReservationMetadata"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EReservationMetadata.java:7",
+          "channel": "persist",
+          "from": "EReservationMetadata",
+          "to": "table:reservation_metadata"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.TrackServersUsageJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/TrackServersUsageJob.java:10",
+          "channel": "call",
+          "from": "TrackServersUsageJob",
+          "to": "MetricsCalculatorDelegate"
+        },
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/MetricsCalculatorDelegate.java:12",
+          "channel": "call",
+          "from": "MetricsCalculatorDelegate",
+          "to": "ReservationService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ReservationService.java:30",
+          "channel": "call",
+          "from": "ReservationService",
+          "to": "EServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServer.java:11",
+          "channel": "persist",
+          "from": "EServer",
+          "to": "table:server"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.TrackServersUsageJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/TrackServersUsageJob.java:10",
+          "channel": "call",
+          "from": "TrackServersUsageJob",
+          "to": "MetricsCalculatorDelegate"
+        },
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/MetricsCalculatorDelegate.java:12",
+          "channel": "call",
+          "from": "MetricsCalculatorDelegate",
+          "to": "ReservationService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ReservationService.java:33",
+          "channel": "call",
+          "from": "ReservationService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:11",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServerResourceUsageLog"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServerResourceUsageLog.java:5",
+          "channel": "persist",
+          "from": "EServerResourceUsageLog",
+          "to": "table:server_resource_usage_log"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.TrackServersUsageJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/TrackServersUsageJob.java:10",
+          "channel": "call",
+          "from": "TrackServersUsageJob",
+          "to": "MetricsCalculatorDelegate"
+        },
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/delegate/MetricsCalculatorDelegate.java:12",
+          "channel": "call",
+          "from": "MetricsCalculatorDelegate",
+          "to": "ReservationService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ReservationService.java:33",
+          "channel": "call",
+          "from": "ReservationService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:12",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServerStatusLog"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServerStatusLog.java:7",
+          "channel": "persist",
+          "from": "EServerStatusLog",
+          "to": "table:server_status_log"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.TrackServersUsageJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/WriteServerResourceUsageLogJob.java:20",
+          "channel": "call",
+          "from": "WriteServerResourceUsageLogJob",
+          "to": "ServerService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ServerService.java:21",
+          "channel": "call",
+          "from": "ServerService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:9",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "GenericMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/model/mappers/GenericMapper.java:7",
+          "channel": "call",
+          "from": "GenericMapper",
+          "to": "DReservationMetadata"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DReservationMetadataMapper.java:18",
+          "channel": "map",
+          "from": "DReservationMetadata",
+          "to": "EReservationMetadata"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EReservationMetadata.java:7",
+          "channel": "persist",
+          "from": "EReservationMetadata",
+          "to": "table:reservation_metadata"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-common",
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [
+        "rms.unifiedstore.sqlpool.common.model.domain.DReservationMetadata",
+        "rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata"
+      ],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.WriteServerResourceUsageLogJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/WriteServerResourceUsageLogJob.java:20",
+          "channel": "call",
+          "from": "WriteServerResourceUsageLogJob",
+          "to": "ServerService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ServerService.java:21",
+          "channel": "call",
+          "from": "ServerService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:10",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServer.java:11",
+          "channel": "persist",
+          "from": "EServer",
+          "to": "table:server"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.WriteServerResourceUsageLogJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/WriteServerResourceUsageLogJob.java:20",
+          "channel": "call",
+          "from": "WriteServerResourceUsageLogJob",
+          "to": "ServerService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ServerService.java:21",
+          "channel": "call",
+          "from": "ServerService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:11",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServerResourceUsageLog"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServerResourceUsageLog.java:5",
+          "channel": "persist",
+          "from": "EServerResourceUsageLog",
+          "to": "table:server_resource_usage_log"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.WriteServerResourceUsageLogJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/WriteServerResourceUsageLogJob.java:20",
+          "channel": "call",
+          "from": "WriteServerResourceUsageLogJob",
+          "to": "ServerService"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/services/ServerService.java:21",
+          "channel": "call",
+          "from": "ServerService",
+          "to": "DServerMapper"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:12",
+          "channel": "call",
+          "from": "DServerMapper",
+          "to": "EServerStatusLog"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServerStatusLog.java:7",
+          "channel": "persist",
+          "from": "EServerStatusLog",
+          "to": "table:server_status_log"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [],
+      "trigger": "rms.unifiedstore.sqlpool.manager.jobs.WriteServerResourceUsageLogJob"
+    },
+    {
+      "confidence": "medium",
+      "hops": [
+        {
+          "at": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/jobs/AbstractJob.java:18",
+          "channel": "call",
+          "from": "AbstractJob",
+          "to": "DServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DServerMapper.java:36",
+          "channel": "map",
+          "from": "DServer",
+          "to": "EServer"
+        },
+        {
+          "at": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/entities/EServer.java:11",
+          "channel": "persist",
+          "from": "EServer",
+          "to": "table:server"
+        }
+      ],
+      "modules": [
+        "sql-pool/sql-pool-dal",
+        "sql-pool/sql-pool-manager",
+        "sql-pool/sql-pool-service"
+      ],
+      "representation_chain": [
+        "rms.unifiedstore.sqlpool.common.model.domain.DServer",
+        "rms.unifiedstore.sqlpool.dal.entities.EServer"
+      ],
+      "trigger": "scheduler"
     }
   ],
   "query": "paths"

@@ -1,4 +1,12 @@
 {
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "4221f095ad396ca3e435111a511c2d795cee0d8b95e59a0e07166b6aad12a0c0",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": null,
+  "budget_note": "coverage is never budgeted: it is the check that detects a compromised answer, so it must not be able to be compromised the same way.",
   "coverage": {
     "files_complete": 0,
     "files_total": 4728,
@@ -178,6 +186,7 @@
       "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
     ]
   },
+  "elided": 0,
   "node_errors": {},
   "nodes": {
     "root": "complete"

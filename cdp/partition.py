@@ -39,11 +39,19 @@ def partition(
     for f in inventory["files"]:
         by_module.setdefault(f["module"], []).append(f)
 
+    # A module's *name* and its *path prefix* are not the same string. They
+    # coincide for a module found by its sub-manifest, whose name is its
+    # directory — but a single-module repository is named by its manifest
+    # (`my-service`) while its files sit at the repository root. Deriving the
+    # prefix from the name would look for `my-service/...` and split nothing.
+    path_of = {m["name"]: m["path"] for m in inventory["modules"]}
+
     scopes: List[Dict] = []
     for module in sorted(by_module):
         files = sorted(by_module[module], key=lambda f: f["path"])
         node = "root" if module == ROOT_MODULE else "root/" + module
-        prefix = "" if module == ROOT_MODULE else module + "/"
+        path = path_of.get(module, "" if module == ROOT_MODULE else module)
+        prefix = (path + "/") if path else ""
         _cut(node, module, prefix, files, max_files, max_loc, scopes)
 
     scopes = _coalesce(scopes, max_files, max_loc)

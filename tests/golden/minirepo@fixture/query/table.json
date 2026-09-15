@@ -1,5 +1,13 @@
 {
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "0f3019ffcdd6fbbb66cee9f9030fe1cf89fba9c48a069d06b3f89017f2e2a1b1",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": 200,
   "count": 1,
+  "elided": 0,
   "name": null,
   "query": "table",
   "tables": [
@@ -7,6 +15,8 @@
       "evidence": [
         "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8"
       ],
+      "evidence_count": 1,
+      "migration_count": 1,
       "migrations": [
         "core/src/main/resources/db/V001__create_widget.sql:1"
       ],

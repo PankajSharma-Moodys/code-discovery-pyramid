@@ -1,4 +1,12 @@
 {
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "0f3019ffcdd6fbbb66cee9f9030fe1cf89fba9c48a069d06b3f89017f2e2a1b1",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": null,
+  "budget_note": "stats is never budgeted: it is the check that detects a compromised answer, so it must not be able to be compromised the same way.",
   "build_name": "mini-svc",
   "census": {
     "on_disk": 14,
@@ -30,12 +38,14 @@
       "root/web"
     ]
   },
+  "declared_ambiguous": [],
   "divergence": {
     "declared": 1,
     "declared_not_observed": [],
     "observed": 1,
     "observed_not_declared": []
   },
+  "elided": 0,
   "head": "<HEAD>",
   "inventory_source": "git",
   "languages": {

@@ -1,4 +1,12 @@
 {
+  "as_of": {
+    "commit": "<HEAD>",
+    "fold_hash": "4221f095ad396ca3e435111a511c2d795cee0d8b95e59a0e07166b6aad12a0c0",
+    "repo": "tree",
+    "state_version": 1
+  },
+  "budget": null,
+  "budget_note": "stats is never budgeted: it is the check that detects a compromised answer, so it must not be able to be compromised the same way.",
   "build_name": "spm",
   "census": {
     "on_disk": 4729,
@@ -200,6 +208,7 @@
       "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
     ]
   },
+  "declared_ambiguous": [],
   "divergence": {
     "declared": 54,
     "declared_not_observed": [
@@ -352,6 +361,7 @@
       }
     ]
   },
+  "elided": 0,
   "head": "<HEAD>",
   "inventory_source": "git",
   "languages": {

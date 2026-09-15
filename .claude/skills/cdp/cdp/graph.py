@@ -31,7 +31,7 @@ def build_graph(inventory: Dict, extraction: Dict) -> Dict:
     observed, unresolved, third_party = _observed_edges(
         extraction, module_set, symbol_owner, namespace_owner
     )
-    declared = _declared_edges(extraction, inventory, module_set)
+    declared, declared_ambiguous = _declared_edges(extraction, inventory, module_set)
 
     observed_pairs = {(e["from"], e["to"]) for e in observed}
     declared_pairs = {(e["from"], e["to"]) for e in declared}
@@ -41,6 +41,7 @@ def build_graph(inventory: Dict, extraction: Dict) -> Dict:
     return {
         "modules": modules,
         "declared": declared,
+        "declared_ambiguous": declared_ambiguous,
         "observed": observed,
         "divergence": {
             "observed_not_declared": [
@@ -172,23 +173,53 @@ def _looks_third_party(fqn: str) -> bool:
     return "." not in fqn and "/" not in fqn
 
 
-def _declared_edges(extraction: Dict, inventory: Dict, module_set: Set[str]) -> List[Dict]:
+def _declared_edges(
+    extraction: Dict, inventory: Dict, module_set: Set[str]
+) -> Tuple[List[Dict], List[Dict]]:
     """Manifest-declared edges, restricted to dependencies that name a module
     of this repository. A `com.fasterxml:jackson` coordinate is a real declared
     dependency but not an inter-module edge, and §5.2's comparison is about
-    inter-module edges only."""
-    by_basename = {m.rsplit("/", 1)[-1]: m for m in module_set}
-    edges = []
+    inter-module edges only.
+
+    Returns `(edges, ambiguous)`.
+
+    A manifest names a dependency by its short name (`project(':core')`,
+    `<artifactId>core</artifactId>`), and a monorepo may hold more than one
+    module whose directory basename is `core`. An earlier version built
+    `{basename: module}` by iterating a `set`, so the winner was whichever the
+    set yielded last — which varies with `PYTHONHASHSEED`, making two scans of
+    one commit disagree about where a declared dependency points
+    (`PHASE/FINDINGS.md` F1).
+
+    Sorting the set would have made that deterministic while leaving CDP
+    asserting one of two equally-supported edges. `owners_of` above states the
+    opposite policy for the observed arm — *§6.4 forbids the resolver from
+    picking when an FQN is declared in more than one place* — and the declared
+    arm has no better claim to a winner. So an ambiguous basename yields **no
+    edge** and is returned as an unresolved reference instead, which R6 requires
+    to surface as an `unknown` rather than as a silent gap.
+    """
+    by_basename: Dict[str, List[str]] = {}
+    for module in sorted(module_set):
+        by_basename.setdefault(module.rsplit("/", 1)[-1], []).append(module)
+
+    edges: List[Dict] = []
+    ambiguous: List[Dict] = []
     for src, deps in sorted(extraction["declared_deps"].items()):
-        for dep in deps:
-            target = None
+        for dep in sorted(set(deps)):
             if dep in module_set:
-                target = dep
-            elif dep in by_basename:
-                target = by_basename[dep]
-            if target and target != src:
-                edges.append({"from": src, "to": target})
-    return sorted(edges, key=lambda e: (e["from"], e["to"]))
+                candidates = [dep]
+            else:
+                candidates = by_basename.get(dep, [])
+            candidates = [c for c in candidates if c != src]
+            if len(candidates) == 1:
+                edges.append({"from": src, "to": candidates[0]})
+            elif len(candidates) > 1:
+                ambiguous.append({"from": src, "dep": dep, "candidates": candidates})
+    return (
+        sorted(edges, key=lambda e: (e["from"], e["to"])),
+        sorted(ambiguous, key=lambda a: (a["from"], a["dep"])),
+    )
 
 
 # ------------------------------------------------------------------ layering
@@ -302,4 +333,9 @@ def summarise(graph: Dict) -> List[str]:
         lines.append("  L%d  %s" % (i, ", ".join(layer)))
     if graph["cycles"]:
         lines.append("  cycles: " + "; ".join(" <-> ".join(c) for c in graph["cycles"]))
+    for row in graph.get("declared_ambiguous", []):
+        lines.append(
+            "  ! %s declares '%s'; %d modules share that name, so no edge is drawn: %s"
+            % (row["from"], row["dep"], len(row["candidates"]), ", ".join(row["candidates"]))
+        )
     return lines

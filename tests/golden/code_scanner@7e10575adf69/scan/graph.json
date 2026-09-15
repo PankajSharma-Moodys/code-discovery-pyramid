@@ -225,6 +225,7 @@
       "to": "sql-pool/sql-pool-provision"
     }
   ],
+  "declared_ambiguous": [],
   "divergence": {
     "declared_edges": 54,
     "declared_not_observed": [

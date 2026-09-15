@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The single-module case, which is how a service repository is normally laid
+  out and how `--repo` is normally pointed. One manifest, at the scan root,
+  with none beneath it.
+
+  Before PHASE/phase_1_plan.md M1.1 this produced a module named `src` from the
+  top-level-directory fallback: a name that appears in no manifest, owns every
+  file, and can never be the target of a declared edge.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>solo-service</artifactId>
+  <version>1.0.0</version>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.15.2</version>
+    </dependency>
+  </dependencies>
+</project>

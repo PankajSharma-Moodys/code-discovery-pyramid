@@ -2,5 +2,6 @@
   "file": null,
   "module": null,
   "search": "config",
-  "symbol": "GenerateExposureSchemaFromParquetFiles"
+  "symbol": "GenerateExposureSchemaFromParquetFiles",
+  "trace": "/"
 }

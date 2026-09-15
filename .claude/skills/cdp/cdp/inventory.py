@@ -23,7 +23,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .lang import classify_role, get_extractor, is_manifest
+from .lang import classify_role, extract_file, get_extractor, is_manifest
 from .util import (
     CdpError,
     count_disk_files,
@@ -50,7 +50,9 @@ def build_inventory(repo: Path) -> Dict:
         paths = walk_files(repo)
 
     manifests = sorted(p for p in paths if is_manifest(p))
-    module_roots = _module_roots(paths, manifests)
+    root_module = _root_module(repo, paths, manifests)
+    root_name = root_module["name"] or ROOT_MODULE
+    module_roots = [] if root_module["is_module"] else _module_roots(paths, manifests)
 
     files: List[Dict] = []
     for rel in paths:
@@ -68,7 +70,7 @@ def build_inventory(repo: Path) -> Dict:
         files.append(
             {
                 "path": rel,
-                "module": _module_for(rel, module_roots),
+                "module": _module_for(rel, module_roots, root_name),
                 "language": extractor.language if extractor.language != "build" else _build_language(rel),
                 "role": classify_role(rel, extractor),
                 "loc": loc,
@@ -77,7 +79,7 @@ def build_inventory(repo: Path) -> Dict:
             }
         )
 
-    modules = _module_summaries(repo, files, module_roots, manifests)
+    modules = _module_summaries(repo, files, module_roots, manifests, root_name)
     on_disk = count_disk_files(repo)
     tracked = len(files)
 
@@ -93,6 +95,7 @@ def build_inventory(repo: Path) -> Dict:
         },
         "by_language": _tally(files, "language"),
         "by_role": _tally(files, "role"),
+        "root_module": root_module,
         "modules": modules,
         "files": files,
     }
@@ -109,8 +112,15 @@ def _module_roots(paths: List[str], manifests: List[str]) -> List[str]:
     go, cargo and poetry all mark their module roots this way — and it needs no
     knowledge of any particular repository's layout.
 
-    A manifest at the repository root does not create a module; the root is the
-    root scope (§3.3), which exists precisely to own the files no module claims.
+    A manifest at the repository root does not, by itself, create a module: in a
+    monorepo whose root manifest is an aggregator, the root is the root scope
+    (§3.3), which exists precisely to own the files no module claims. That case
+    is decided by `_root_module` before this function is called; reaching here
+    means the root is not a module, so only sub-manifests are considered.
+
+    The last resort — a module per top-level directory — applies only when the
+    repository holds no manifest anywhere. It is a guess, and it is why pointing
+    `--repo` at a single module used to produce a bogus `src`.
     """
     dirs = set()
     for manifest in manifests:
@@ -119,18 +129,116 @@ def _module_roots(paths: List[str], manifests: List[str]) -> List[str]:
             dirs.add(parent)
 
     if not dirs:
-        # No sub-manifests: fall back to top-level directories that hold files.
+        # No manifest anywhere: fall back to top-level directories that hold files.
         for path in paths:
             if "/" in path:
                 dirs.add(path.split("/", 1)[0])
     return sorted(dirs, key=lambda d: (-d.count("/"), d))
 
 
-def _module_for(rel: str, module_roots: List[str]) -> str:
+def _root_module(repo: Path, paths: List[str], manifests: List[str]) -> Dict:
+    """Decide whether the scan root is itself one module, and what it is called.
+
+    **The bug this exists to fix.** Pointing `--repo` at a single module — the
+    normal way to scan one service — put a manifest at the scan root and none
+    below it. `_module_roots` excluded the root by rule and then fell through to
+    its last resort, inventing one module per top-level directory: a repository
+    whose whole identity is `<artifactId>my-service</artifactId>` was reported as
+    a module named `src`, with zero declared edges (nothing named `src` in any
+    manifest) and zero observed edges (there was only one module to import from).
+
+    The distinction that was missing is *aggregator vs. leaf*. A root manifest
+    with sub-manifests beneath it is an aggregator and the old rule is right. A
+    root manifest with nothing beneath it **is** the module, and its name is the
+    one the build gives it — never the directory, which is an artifact of where
+    someone happened to clone.
+
+    Degrades honestly (§R6): when the manifest yields no name, the root is still
+    one module, but it keeps the anonymous `(root)` label and `named` is false,
+    so `cmd_scan` can raise a structural unknown instead of guessing.
+    """
+    root_manifests = [m for m in manifests if "/" not in m]
+    sub_manifests = [m for m in manifests if "/" in m]
+    if not root_manifests or sub_manifests:
+        return {
+            "is_module": False,
+            "named": False,
+            "name": None,
+            "manifest": None,
+            "reason": (
+                "sub-manifests exist; the root is the root scope (§3.3)"
+                if sub_manifests
+                else "no build manifest at the scan root"
+            ),
+        }
+
+    name, manifest = _root_module_name(repo, paths, root_manifests)
+    return {
+        "is_module": True,
+        "named": bool(name),
+        "name": name,
+        "manifest": manifest,
+        "reason": (
+            "a build manifest at the scan root with none beneath it: the root is "
+            "one module"
+        ),
+    }
+
+
+#: Manifest notes that carry the build's own name for the thing it builds, best
+# first. `root_project_name` is Gradle's explicit statement of identity;
+# `artifact` is the Maven artifactId, the npm `name`, the go module path, the
+# Cargo/PEP-621 package name.
+_NAME_NOTES = ("root_project_name=", "artifact=")
+
+#: Gradle splits identity from configuration: `build.gradle` marks the module,
+# `settings.gradle` names it. Reading the marker alone would leave every
+# single-module Gradle build anonymous.
+_GRADLE_SETTINGS = ("settings.gradle", "settings.gradle.kts")
+
+_PROJECT_FILE_SUFFIXES = (".csproj", ".fsproj", ".vbproj")
+
+
+def _root_module_name(
+    repo: Path, paths: List[str], root_manifests: List[str]
+) -> Tuple[Optional[str], Optional[str]]:
+    """`(name, manifest)` read out of the root manifest, or `(None, manifest)`.
+
+    Reuses the real manifest extractors rather than re-parsing: the same code
+    that produces `declared_deps` produces the name, so the two cannot drift.
+    """
+    present = set(paths)
+    candidates = sorted(root_manifests) + [s for s in _GRADLE_SETTINGS if s in present]
+
+    notes: List[Tuple[str, str]] = []
+    for rel in candidates:
+        try:
+            facts = extract_file(rel, read_lines(repo / rel), ROOT_MODULE)
+        except OSError:
+            continue
+        for note in facts.notes:
+            notes.append((note, rel))
+
+    for prefix in _NAME_NOTES:
+        for note, rel in notes:
+            if note.startswith(prefix):
+                name = note[len(prefix):].strip().rsplit("/", 1)[-1]
+                if name:
+                    return name, rel
+    # An MSBuild project file has no name element: the file stem *is* the
+    # assembly name. That is still the build's own statement of identity, not
+    # the directory's.
+    for rel in sorted(root_manifests):
+        if rel.endswith(_PROJECT_FILE_SUFFIXES):
+            return rel.rsplit(".", 1)[0], rel
+    return None, (sorted(root_manifests)[0] if root_manifests else None)
+
+
+def _module_for(rel: str, module_roots: List[str], root_name: str = ROOT_MODULE) -> str:
     for root in module_roots:  # deepest first
         if rel == root or rel.startswith(root + "/"):
             return root
-    return ROOT_MODULE
+    return root_name
 
 
 def _build_language(rel: str) -> str:
@@ -147,19 +255,28 @@ def _build_language(rel: str) -> str:
 
 
 def _module_summaries(
-    repo: Path, files: List[Dict], module_roots: List[str], manifests: List[str]
+    repo: Path,
+    files: List[Dict],
+    module_roots: List[str],
+    manifests: List[str],
+    root_name: str = ROOT_MODULE,
 ) -> List[Dict]:
     names = sorted(set(f["module"] for f in files))
     manifest_by_dir: Dict[str, List[str]] = {}
     for m in manifests:
-        parent = m.rsplit("/", 1)[0] if "/" in m else ROOT_MODULE
+        parent = m.rsplit("/", 1)[0] if "/" in m else root_name
         manifest_by_dir.setdefault(parent, []).append(m)
 
     out = []
     for name in names:
         owned = [f for f in files if f["module"] == name]
-        path = "" if name == ROOT_MODULE else name
-        disk = count_disk_files(repo / path) if path else 0
+        # The root module's path is the repository root, whether it is the
+        # anonymous root scope or a named single module.
+        path = "" if name == root_name else name
+        # `(root)` is a scope, not a module, so it gets no census of its own.
+        # A *named* root module is a module and does.
+        censused = name != ROOT_MODULE
+        disk = count_disk_files(repo / path) if censused else 0
         entry = {
             "name": name,
             "path": path,
@@ -169,7 +286,7 @@ def _module_summaries(
             "by_language": _tally(owned, "language"),
             "by_role": _tally(owned, "role"),
         }
-        if path:
+        if censused:
             entry["on_disk"] = disk
             entry["disk_ratio"] = round(disk / len(owned), 2) if owned else 0.0
             # A module whose tracked count is a rounding error against its disk
@@ -197,6 +314,13 @@ def summarise(inventory: Dict) -> List[str]:
         "languages " + ", ".join("%s %d" % (k, v) for k, v in list(inventory["by_language"].items())[:8]),
         "modules   %d" % len(inventory["modules"]),
     ]
+    root = inventory.get("root_module") or {}
+    if root.get("is_module") and root.get("named"):
+        lines.append("          scan root is one module, named '%s' by %s"
+                     % (root["name"], root["manifest"]))
+    elif root.get("is_module"):
+        lines.append("          scan root is one module, but %s does not name it"
+                     % (root.get("manifest") or "its manifest"))
     for m in sorted(inventory["modules"], key=lambda m: -m["files"]):
         flag = "  <- generated?" if m.get("generated_suspect") else ""
         lines.append(
