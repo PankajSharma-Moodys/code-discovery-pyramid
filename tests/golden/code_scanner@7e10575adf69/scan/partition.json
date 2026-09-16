@@ -49,7 +49,8 @@
       ],
       "module": "(root)",
       "node": "root/(.github+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "3ef2b528bb40ca0a3d963f819b541d2725f4a45d13e5c9711a8eab44af6d40ae"
     },
     {
       "by_language": {
@@ -119,7 +120,8 @@
       ],
       "module": "(root)",
       "node": "root/(build+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "ea56589c8d786e8fa164a4fc0ff20f61ad9575e9a471280f8b6e184505db2b94"
     },
     {
       "by_language": {
@@ -153,7 +155,8 @@
       "loc": 6433,
       "module": "(root)",
       "node": "root/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "d744f167ec8fa0e5c159ac1d3e38d0fabb3ff794e77d368b7174b8c7a59c4ceb"
     },
     {
       "by_language": {
@@ -192,7 +195,8 @@
       "loc": 5644,
       "module": "(root)",
       "node": "root/.claude",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "4a78c44fcf402b82a91a0882c08013013202b6388fd55c72f2a65c44071f233b"
     },
     {
       "by_language": {
@@ -227,7 +231,8 @@
       "loc": 4905,
       "module": "(root)",
       "node": "root/.cursor",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "49989b30dc164904e503425774a563be529ff1ad49cba36cb5fdf93c68d6a245"
     },
     {
       "by_language": {
@@ -246,7 +251,8 @@
       "loc": 40,
       "module": "automation",
       "node": "root/automation",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "d8fa6afe38f628a523342ca551067459875b8c413590db3fa9a3f8ee68a67f34"
     },
     {
       "by_language": {
@@ -313,7 +319,8 @@
       ],
       "module": "automation/api-automation",
       "node": "root/automation/api-automation/(files+10)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "955d216e5ada7ba701d2981492515cd7eef4b1927193257d81fd097ac0053c23"
     },
     {
       "by_language": {
@@ -337,7 +344,8 @@
       "loc": 4783,
       "module": "automation/api-automation",
       "node": "root/automation/api-automation/src/main/java/com/rms/uds/tests",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "5bc2d7bc6fe09599223628904b7adb93ba59157f9efddfae48597aa848adfe0e"
     },
     {
       "by_language": {
@@ -400,7 +408,8 @@
       ],
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "c5cd0cead1b0157116f072f0613e93cb6c30f56ab34dfb2b4f1dedf27d47440d"
     },
     {
       "by_language": {
@@ -451,7 +460,8 @@
       "loc": 7470,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "57aa1bfd0d8ae39174073a5dcd7401da2799557c1d42a2fc67d1663d3b881327"
     },
     {
       "by_language": {
@@ -519,7 +529,8 @@
       ],
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/(Cache+10)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "1091e0e47ac77a02edfc73810b55821de5193c21f92069c8af376fb8d26115fd"
     },
     {
       "by_language": {
@@ -582,7 +593,8 @@
       ],
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/(files+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "61ff1111b2f378ff1c0ec238ed5e6f0def0dd5cbb13faf6b457eaf31c9d77251"
     },
     {
       "by_language": {
@@ -660,7 +672,8 @@
       "loc": 1169,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Contracts/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "a7c9641691966eee93247c1f36ab1df70aaf39855737ad6c9cf313288547c454"
     },
     {
       "by_language": {
@@ -706,7 +719,8 @@
       "loc": 1185,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Data",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "480d783791c7f03e05d36cc9b8f18eeeb914e142bfe549caa38b2c68e410e068"
     },
     {
       "by_language": {
@@ -744,7 +758,8 @@
       "loc": 2792,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Handler",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "a18307634fa4e2205925fd98f18378bd3bbbf89c5ccf3daf5e9baa50c5126204"
     },
     {
       "by_language": {
@@ -780,7 +795,8 @@
       "loc": 6553,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Integration",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "5d5965c19d3a3ab0586461df0308608a488ac68ceb36f8a73eab76d775c0c432"
     },
     {
       "by_language": {
@@ -829,7 +845,8 @@
       "loc": 16908,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Resources",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "4a6e5df7278a2cbd5e754395b322f389c125b1b2b8f6ddd8a530cebfaceffcea"
     },
     {
       "by_language": {
@@ -884,7 +901,8 @@
       "loc": 2120,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Schema",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "872f4ff30681730c52f774c7f0ece1f31b5ea9248ea89277d7dd5436b2b04147"
     },
     {
       "by_language": {
@@ -982,7 +1000,8 @@
       "loc": 6011,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "7da959b8372514a6d01b4db54510144705bd0a393d1f21a0a008a3c754d56cd5"
     },
     {
       "by_language": {
@@ -1016,7 +1035,8 @@
       ],
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/(files+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "26777495c9ff2c14cf3ea39777b8d825dd192d18d7355b821b1fd4c1c1df787a"
     },
     {
       "by_language": {
@@ -1055,7 +1075,8 @@
       "loc": 3039,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "b071eb5d8b287e9f9ce6025aa3eb0d0c74fccef7c2a5e151e56d6acc114fa8a6"
     },
     {
       "by_language": {
@@ -1092,7 +1113,8 @@
       "loc": 1589,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Tasks",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "801485a287f92bc97d26d365f45ab3d7b46ce23261b50233c1019feb48ed1472"
     },
     {
       "by_language": {
@@ -1157,7 +1179,8 @@
       ],
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/(files+6)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "5b16d5e25abf8ea4ead0d46e14d1cb59c5f25cdf1c00228db2a3e84da432f2ff"
     },
     {
       "by_language": {
@@ -1206,7 +1229,8 @@
       "loc": 2140,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Module",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "6f36c0aa62c5f60e4dc3faca299b7aab2c08828b40ed2bd27ab4898b0a1c7907"
     },
     {
       "by_language": {
@@ -1251,7 +1275,8 @@
       "loc": 1903,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Tasks",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "fa7959a885e53c80895d10fccf7130ac633a364b7d90f48974e14a486ad2f322"
     },
     {
       "by_language": {
@@ -1286,7 +1311,8 @@
       "loc": 3000,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "ae6d6312b1d5b4c848043d797d96e077c41317c564062017c1f459c7da6e0941"
     },
     {
       "by_language": {
@@ -1333,7 +1359,8 @@
       ],
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog/(files+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2ae7013198ef5fdbc917279e10e25e40f921305cf790186ce469ffda5e92e347"
     },
     {
       "by_language": {
@@ -1381,7 +1408,8 @@
       "loc": 5030,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "ff338ca396bb02a06629df5e7c9bf0b8396ae7f113bf04d655f7e1012d620759"
     },
     {
       "by_language": {
@@ -1455,7 +1483,8 @@
       "loc": 4260,
       "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
       "node": "root/catalog-service/RMS.UnifiedStore.Service.Catalog/Job",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "2023acdd0dddf10df6493f8217e6ca1f214a395aae317fa2fbd5e5ce53111152"
     },
     {
       "by_language": {
@@ -1511,7 +1540,8 @@
       "loc": 4484,
       "module": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
       "node": "root/catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "ba05e8772861f5425dcfe717dd105f4a80ddb6e98c3ce846107351f569290d60"
     },
     {
       "by_language": {
@@ -1530,7 +1560,8 @@
       "loc": 15,
       "module": "client-dotnet/RMS.UnifiedStore.Client",
       "node": "root/client-dotnet/RMS.UnifiedStore.Client",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "75dda51c8fa326dd3ae94ca38765a2ed39986bd368712614458802f7a13a12de"
     },
     {
       "by_language": {
@@ -1552,7 +1583,8 @@
       "loc": 193,
       "module": "client-java",
       "node": "root/client-java",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2c1027eeeb2026b06912e0f90605e8bf64f8cb1f4ddd5cf6ad3a2f5ff057e697"
     },
     {
       "by_language": {
@@ -1600,7 +1632,8 @@
       "loc": 1595,
       "module": "client-java/client-core",
       "node": "root/client-java/client-core",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "1ad1ffcdd428bb666694e4eef7bd4b761b63b01d9d0ae298591c4812b2f013cd"
     },
     {
       "by_language": {
@@ -1628,7 +1661,8 @@
       "loc": 443,
       "module": "client-java/eih-client",
       "node": "root/client-java/eih-client",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "d6941306cc36c160f1f12877049888f37f4fbdad11e8f9714113a678fd3c5c3a"
     },
     {
       "by_language": {
@@ -1684,7 +1718,8 @@
       ],
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "3cdd4932ccaed3d70f27fe55f56104e05886f8b8ccaed1eadcd8dfb849f8fddb"
     },
     {
       "by_language": {
@@ -1726,7 +1761,8 @@
       ],
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9543a1209fc7bc46c90d25e0b6b23f15870032cba765975e3e40cf3f7f633437"
     },
     {
       "by_language": {
@@ -1748,7 +1784,8 @@
       "loc": 3926,
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/datacatalog",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "c1fd6abaa635242b2187708e4e9ea83215a84ae25513fad2a69dea1913b29c9c"
     },
     {
       "by_language": {
@@ -1788,7 +1825,8 @@
       "loc": 8420,
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "ed23e142e7e03a961563a04570a7460dea070958d13467d67c670c881dd16c23"
     },
     {
       "by_language": {
@@ -1809,7 +1847,8 @@
       "loc": 3030,
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/src/test/resources/automation",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "222291ada639d186cae4052ce5e167bcdcc96664516296e2dbdb003fa255c4f7"
     },
     {
       "by_language": {
@@ -1847,7 +1886,8 @@
       "loc": 1743,
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/src/test/resources/docs",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "51c471e93603188a39c68dfffe69ab0fef50f155cfdabe1641f7c1ebb0bb3f0b"
     },
     {
       "by_language": {
@@ -1883,7 +1923,8 @@
       "loc": 0,
       "module": "client-java/uds-client-integration-tests",
       "node": "root/client-java/uds-client-integration-tests/src/test/resources/rdm-edm-dbfiles",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "48c283eead6d79375b410f5190de95053fed54c4b4fbe20b21bac2c6c4804d20"
     },
     {
       "by_language": {
@@ -1944,7 +1985,8 @@
       ],
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/(files+10)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "466ba56f762841c394469cc119e32864a7f1fc660013deef44a24a9d39311857"
     },
     {
       "by_language": {
@@ -2010,7 +2052,8 @@
       ],
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/src/(helper+7)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "346e65fb0ed769f813e45da3e69f898b76a31cea6682581996f079f4e25e5684"
     },
     {
       "by_language": {
@@ -2095,7 +2138,8 @@
       "loc": 15458,
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "092505a1dd524fa0ced51fe3b558d77d5ba3383a84449f5a520f84cff12118c9"
     },
     {
       "by_language": {
@@ -2151,7 +2195,8 @@
       "loc": 2469,
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "26c2a15c7054d8a7d3260bd83897e77b6d3124ead4833a87797e26da8bcaef07"
     },
     {
       "by_language": {
@@ -2179,7 +2224,8 @@
       "loc": 4333,
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/analysis",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "da4da44609d62891fff35c7f02efbd460aefc4f5bb4971d6c4cff1882267c231"
     },
     {
       "by_language": {
@@ -2233,7 +2279,8 @@
       "loc": 2629,
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/model/database/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "49c24d01b3b599822b87abd17aeebc6e5e5dbcd1a5a19b095d46dab0d3f3e76c"
     },
     {
       "by_language": {
@@ -2264,7 +2311,8 @@
       "loc": 6500,
       "module": "client-java/uds-client",
       "node": "root/client-java/uds-client/src/test/java/com/rms/unifiedstore/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "14a3061d9e32711c703e26e7af484d45a810007937c355ead9150a820d6840f9"
     },
     {
       "by_language": {
@@ -2304,7 +2352,8 @@
       "loc": 924,
       "module": "core/RMS.UnifiedStore.Core.App",
       "node": "root/core/RMS.UnifiedStore.Core.App",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "c5d1b17e757c12f4f61b3b9c8bd8eac90fbfcd5657a2c2d869f6926f3f08b968"
     },
     {
       "by_language": {
@@ -2325,7 +2374,8 @@
       "loc": 226,
       "module": "core/RMS.UnifiedStore.Core.App.Tests",
       "node": "root/core/RMS.UnifiedStore.Core.App.Tests",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "74f692317651b39211ca6a6e9988c7c12190609f64ea677e0ddfb470cf84902f"
     },
     {
       "by_language": {
@@ -2350,7 +2400,8 @@
       "loc": 1093,
       "module": "core/RMS.UnifiedStore.Core.Tests",
       "node": "root/core/RMS.UnifiedStore.Core.Tests",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "d08b94de910dee3dca318d544ca4c0df4e180c0b9ebd495ab92374948471a1bc"
     },
     {
       "by_language": {
@@ -2380,7 +2431,8 @@
       ],
       "module": "core/RMS.UnifiedStore.Core",
       "node": "root/core/RMS.UnifiedStore.Core/(Contracts+2)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "b3c7e6447f80c7c28484ba6c477aae337aab7783214bd1355b2149e9c0882c53"
     },
     {
       "by_language": {
@@ -2447,7 +2499,8 @@
       ],
       "module": "core/RMS.UnifiedStore.Core",
       "node": "root/core/RMS.UnifiedStore.Core/(files+7)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "44fbd61092358153c6898ce5238c101969ad33fb95b0e50d1c15cd5841d1c2dd"
     },
     {
       "by_language": {
@@ -2490,7 +2543,8 @@
       "loc": 417,
       "module": "core/RMS.UnifiedStore.Core",
       "node": "root/core/RMS.UnifiedStore.Core/Exceptions",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "341a885581f2968271d526c78541c1ccdbbd93b909d8b40ac29d34990afabc57"
     },
     {
       "by_language": {
@@ -2523,7 +2577,8 @@
       ],
       "module": "exposure-snapshot",
       "node": "root/exposure-snapshot/(files+1)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "4c5282ad458db9db042f6c5cb7551e71d8891347bfd0b7528ef040ee1a01fa00"
     },
     {
       "by_language": {
@@ -2579,7 +2634,8 @@
       "loc": 246851,
       "module": "exposure-snapshot",
       "node": "root/exposure-snapshot/domain-data-migration/migrations",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "40d280e3f603b8c4e41d492b7db3cdf4430882d0ba665e741f238d8788882aa5"
     },
     {
       "by_language": {
@@ -2620,7 +2676,8 @@
       "loc": 3510,
       "module": "exposure-snapshot/download-exposure",
       "node": "root/exposure-snapshot/download-exposure",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e4fa1296ba75be67f620c458e37fd819c6c15675a85458934b036dd80ee41514"
     },
     {
       "by_language": {
@@ -2690,7 +2747,8 @@
       ],
       "module": "exposure-snapshot/entity-variation-task",
       "node": "root/exposure-snapshot/entity-variation-task/(files+8)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "fc9a5197840dac68813623186f4fe8dac6c56bd66da7a55ea5540ce3831b90bb"
     },
     {
       "by_language": {
@@ -2752,7 +2810,8 @@
       ],
       "module": "exposure-snapshot/entity-variation-task",
       "node": "root/exposure-snapshot/entity-variation-task/src/(files+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e862a02b1e556f45b352f60c71d95557f2f3537804e1f4b2141b06099f44c460"
     },
     {
       "by_language": {
@@ -2821,7 +2880,8 @@
       ],
       "module": "exposure-snapshot/entity-variation-task",
       "node": "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "1e571ab144f7e2a564ccd1be4c66a5c8b93df043dbbb00b6ffcd0042d20322d8"
     },
     {
       "by_language": {
@@ -2860,7 +2920,8 @@
       "loc": 703,
       "module": "exposure-snapshot/entity-variation-task",
       "node": "root/exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/errors",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "db44165f9c6c7d2c11c5c2e43bc075e21c0d0ee488bd6eec8cb9a07727c8d591"
     },
     {
       "by_language": {
@@ -2886,7 +2947,8 @@
       "loc": 4210,
       "module": "exposure-snapshot/entity-variation-task",
       "node": "root/exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "983d9ea724f957fb1d361066490571f8401a13ffc5793baf177a4eb12e889bf6"
     },
     {
       "by_language": {
@@ -2912,7 +2974,8 @@
       "loc": 3625,
       "module": "exposure-snapshot/entity-variation-task",
       "node": "root/exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/helper",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "dba7e7ddc68a2f95d3b9f357b0cee523f64f122af3c0ea5ea186882df1016777"
     },
     {
       "by_language": {
@@ -2937,7 +3000,8 @@
       "loc": 478,
       "module": "exposure-snapshot/idempotency-filter",
       "node": "root/exposure-snapshot/idempotency-filter",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9a89597b45037662930c9954a77b27e73d400f7854f6cd65c91918a82a98b291"
     },
     {
       "by_language": {
@@ -2986,7 +3050,8 @@
       "loc": 2550,
       "module": "exposure-snapshot/ods-domain-data",
       "node": "root/exposure-snapshot/ods-domain-data",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2bc8fa801a29a0a52953c94ca97090c2dd8adf1beb5a815e6a43fc9e138b86f1"
     },
     {
       "by_language": {
@@ -3044,7 +3109,8 @@
       ],
       "module": "exposure-snapshot/snapshot-api",
       "node": "root/exposure-snapshot/snapshot-api/(files+8)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "71deeed840e539a13343c0b918ac6159c1f06d30f353a44ec0e5ca634e0fec41"
     },
     {
       "by_language": {
@@ -3107,7 +3173,8 @@
       ],
       "module": "exposure-snapshot/snapshot-api",
       "node": "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e4a48a5e8b9e6be00a90126383f26d012466c34b6c67143a86d2b6834f04dba3"
     },
     {
       "by_language": {
@@ -3136,7 +3203,8 @@
       "loc": 3419,
       "module": "exposure-snapshot/snapshot-api",
       "node": "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "af0068beeb46514b3fcec8d34684eb19511822ca886b710a030fadc0abfd7bd7"
     },
     {
       "by_language": {
@@ -3176,7 +3244,8 @@
       "loc": 1314,
       "module": "exposure-snapshot/snapshot-api",
       "node": "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/model/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9c504504acfe02646f78801de488286adb8462cce31a87941f2aae121bcb3b65"
     },
     {
       "by_language": {
@@ -3197,7 +3266,8 @@
       "loc": 3264,
       "module": "exposure-snapshot/snapshot-api",
       "node": "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "48b7792e5a3166765449bc9068e8bf5606f948718c879a639705926979b74a16"
     },
     {
       "by_language": {
@@ -3225,7 +3295,8 @@
       "loc": 3119,
       "module": "exposure-snapshot/snapshot-api",
       "node": "root/exposure-snapshot/snapshot-api/src/test",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "772c6966191746a68a085dd8efd0e554d1a95c42780bbd1ec3c67bb71ef646cb"
     },
     {
       "by_language": {
@@ -3290,7 +3361,8 @@
       ],
       "module": "exposure-snapshot/snapshot-common",
       "node": "root/exposure-snapshot/snapshot-common/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "65c6ae486254571564feb76adc96d56cd2bb3b055c2e6946bd523e5038f21952"
     },
     {
       "by_language": {
@@ -3354,7 +3426,8 @@
       ],
       "module": "exposure-snapshot/snapshot-common",
       "node": "root/exposure-snapshot/snapshot-common/src/main/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "c3a5e7c2021edbf7e6951dc57d67abe836b436ca3824c2cc2123578160ff33f9"
     },
     {
       "by_language": {
@@ -3412,7 +3485,8 @@
       ],
       "module": "exposure-snapshot/snapshot-common",
       "node": "root/exposure-snapshot/snapshot-common/src/main/(files+9)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e36f0c2cdb37cd5dbe2733064fbe015a64111f2b73bb77ad0a072739061ecdb7"
     },
     {
       "by_language": {
@@ -3473,7 +3547,8 @@
       ],
       "module": "exposure-snapshot/snapshot-common",
       "node": "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/(clients+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "cd42f3c0e36ec9f8783e23fcb05c769701e5d7eba6de4616b7d40cd989b69ba2"
     },
     {
       "by_language": {
@@ -3519,7 +3594,8 @@
       "loc": 2893,
       "module": "exposure-snapshot/snapshot-common",
       "node": "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "05f955f7c804fb8f22688b05b02d8f0e3e94c779e2216e7d8ff11848d3828cb6"
     },
     {
       "by_language": {
@@ -3575,7 +3651,8 @@
       "loc": 3886,
       "module": "exposure-snapshot/snapshot-common",
       "node": "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "6c5077cfc0d427061fcb80a9dc60d4a074616a58d7fd074d0972633b3221cb03"
     },
     {
       "by_language": {
@@ -3594,7 +3671,8 @@
       "loc": 189,
       "module": "exposure-snapshot/snapshot-developer-utils",
       "node": "root/exposure-snapshot/snapshot-developer-utils",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "0fe484993bde9de075cbdfddf65e71d201cc308c7077d663b13141fe03641052"
     },
     {
       "by_language": {
@@ -3631,7 +3709,8 @@
       "loc": 2217,
       "module": "exposure-snapshot/snapshot-filter-query-service",
       "node": "root/exposure-snapshot/snapshot-filter-query-service",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2c9b138d3617522f5d8480b8242d970498cbb9173317e85e0a6a945a749979c5"
     },
     {
       "by_language": {
@@ -3647,7 +3726,8 @@
       "loc": 215,
       "module": "exposure-snapshot/snapshot-legacy",
       "node": "root/exposure-snapshot/snapshot-legacy",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "15ff597732fb50351ec4008c4d24e9bbda6913ff1968aa9086fe59f7d0241932"
     },
     {
       "by_language": {
@@ -3673,7 +3753,8 @@
       "loc": 605,
       "module": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
       "node": "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "ecab08a99e86429b834e86857fef4878880dc51881f759f369ff0e58419a12ba"
     },
     {
       "by_language": {
@@ -3712,7 +3793,8 @@
       "loc": 992,
       "module": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
       "node": "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "f4176a50c8f278d440303fa267e485cee1aee6d6d6fb1dbc00041966eab2e5e9"
     },
     {
       "by_language": {
@@ -3735,7 +3817,8 @@
       "loc": 163,
       "module": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
       "node": "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "7efcddd3a9a848220ef5cd2ebf86d160dc8c3596cd791ff71fdab36c22d0572a"
     },
     {
       "by_language": {
@@ -3779,7 +3862,8 @@
       "loc": 4670,
       "module": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
       "node": "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "52f172cc742b86986c19e108a19af63d5010569e21477d550417f415e567a60b"
     },
     {
       "by_language": {
@@ -3802,7 +3886,8 @@
       "loc": 196,
       "module": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
       "node": "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "926e711281dbacf27c67c43d9c4a13dd070b6334d06f56ac2e6791ffb38d611d"
     },
     {
       "by_language": {
@@ -3837,7 +3922,8 @@
       "loc": 732,
       "module": "exposure-snapshot/snapshot-migration",
       "node": "root/exposure-snapshot/snapshot-migration",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "77d0cbdb2356d7103632ccb30aaf394f8941f15aac3713d39ee4ee829719c986"
     },
     {
       "by_language": {
@@ -3868,7 +3954,8 @@
       ],
       "module": "exposure-snapshot/snapshot-sdk",
       "node": "root/exposure-snapshot/snapshot-sdk/(files+2)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "51d02c4baf7162c681a6ada790bfd2a9af0aef749b8ee4027c6d8d17e7161ccf"
     },
     {
       "by_language": {
@@ -3913,7 +4000,8 @@
       "loc": 3933,
       "module": "exposure-snapshot/snapshot-sdk",
       "node": "root/exposure-snapshot/snapshot-sdk/src/main/java",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2be99e1564416e8654b3ed6eace380dccc0c2d5d73e59635eec93e8cc40a7f3e"
     },
     {
       "by_language": {
@@ -3942,7 +4030,8 @@
       "loc": 3463,
       "module": "exposure-snapshot/snapshot-sdk",
       "node": "root/exposure-snapshot/snapshot-sdk/src/main/scala",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "69f47bd82a0af5f47d3326345bba1bbbef43cec64884a40e685fc4ace1c5faa6"
     },
     {
       "by_language": {
@@ -3974,7 +4063,8 @@
       ],
       "module": "exposure-snapshot/snapshot-smoketest",
       "node": "root/exposure-snapshot/snapshot-smoketest/(files+1)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "cf27e4d32eb7f79441ef96096844b62dc88f24660fa4c7a81e2c36aa51c8056f"
     },
     {
       "by_language": {
@@ -4024,7 +4114,8 @@
       "loc": 3002,
       "module": "exposure-snapshot/snapshot-smoketest",
       "node": "root/exposure-snapshot/snapshot-smoketest/src/main/scala",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9b57e1f941348ced82561c4d3e1b5c548e7134556bc42c51cde8439979fd5e27"
     },
     {
       "by_language": {
@@ -4064,7 +4155,8 @@
       "loc": 1430,
       "module": "exposure-snapshot/snapshot-task-create",
       "node": "root/exposure-snapshot/snapshot-task-create",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "c66a5bd2b623c07de8a7559d1f66c7120c1582dfa90d12a7c2af0dc5b91292b9"
     },
     {
       "by_language": {
@@ -4089,7 +4181,8 @@
       "loc": 428,
       "module": "exposure-snapshot/snapshot-task-delete",
       "node": "root/exposure-snapshot/snapshot-task-delete",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "714ef9efb15006c7ce00ea48320d03ecc4279b42a99b157c7dcb79257980222d"
     },
     {
       "by_language": {
@@ -4138,7 +4231,8 @@
       "loc": 2621,
       "module": "exposure-snapshot/snapshot-workflow-service",
       "node": "root/exposure-snapshot/snapshot-workflow-service",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "efccef3ddbc881f91a3526c8ec0e6be61d2812080dabfada3eab93ffa53a666f"
     },
     {
       "by_language": {
@@ -4167,7 +4261,8 @@
       ],
       "module": "exposure-snapshot/swagger-resource",
       "node": "root/exposure-snapshot/swagger-resource/(files+2)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "1afcf2e188b8da3333260966ba644c7fa61e4a924ffc47bfc62fe278573e0cd7"
     },
     {
       "by_language": {
@@ -4201,7 +4296,8 @@
       "loc": 11262,
       "module": "exposure-snapshot/swagger-resource",
       "node": "root/exposure-snapshot/swagger-resource/src/main/resources/swagger-static-v3",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "a3e3bf225ec8e107d8b50328cdd359b7539c826b5a55f67a58153fe4fd845832"
     },
     {
       "by_language": {
@@ -4250,7 +4346,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/(Archives+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e9bfdff160a2dc5ce4ec629a33c7d65be35f428f74aaaae46dc3dce1872ee345"
     },
     {
       "by_language": {
@@ -4299,7 +4396,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/(BackgroundJobs+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "f8f4465c69772d0a94e86dd6fe4a97b96ae8bcbdf2357fae7896a9a080f07038"
     },
     {
       "by_language": {
@@ -4355,7 +4453,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/(files+10)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "69ae7720deb4681adb6190715b6cf0935952e4b28dde511f21e0b2bf5d9dd87b"
     },
     {
       "by_language": {
@@ -4378,7 +4477,8 @@
       "loc": 4655,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Databases",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "d203b513aeb005817284411e50139915412616396ac73d2015f08cf28e1aa8fb"
     },
     {
       "by_language": {
@@ -4406,7 +4506,8 @@
       "loc": 6795,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "4ce5304b1d8587723f51e43af198b377a487ce228fc155815ce03b62ce63425a"
     },
     {
       "by_language": {
@@ -4431,7 +4532,8 @@
       "loc": 4027,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/SqlInstances",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "c7d2e6b537dd9c6975edaf5d445412630910f291c7a59e7610696218827e4bee"
     },
     {
       "by_language": {
@@ -4493,7 +4595,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(App+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "f024f296c12b13d6d712931034f39980f64c6e06b2f4b9588a5f1b218900209c"
     },
     {
       "by_language": {
@@ -4554,7 +4657,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(Aws+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2e210d8fd036516d9e72a0377e22ca559eb3a073ccce7f3f749390f763257646"
     },
     {
       "by_language": {
@@ -4614,7 +4718,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(BackgroundJobs+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "830afa4081714a5824ea41d227340d3518625fa081e2608b52b525f7b90759e5"
     },
     {
       "by_language": {
@@ -4678,7 +4783,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(Clusters+6)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "b777a5170cdb1f91d2559bf65ba3cd612ec9ced16b1aff033c455d19c05c6a0e"
     },
     {
       "by_language": {
@@ -4736,7 +4842,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(EdmSync+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e8fa9162b24687954249b63d4798a4e85f2553dc15693148940e832799ba0e9f"
     },
     {
       "by_language": {
@@ -4764,7 +4871,8 @@
       ],
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(files+1)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "08dc5e0378ee9b42c6b8267c30426089813da661c1431a4b01ce0fb659cd811f"
     },
     {
       "by_language": {
@@ -4883,7 +4991,8 @@
       "loc": 1795,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Contracts/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "a97897a86de2c3eef8df36d66a5be7e215ca521b6ced4599055dd0b2e360181a"
     },
     {
       "by_language": {
@@ -4926,7 +5035,8 @@
       "loc": 8168,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "a076f732a0173f1b747a93256a02eeca679836a81e35538afa446dc6df87a077"
     },
     {
       "by_language": {
@@ -4976,7 +5086,8 @@
       "loc": 1260,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "a85287148c9896f9419c061b05fe21449e94ef191c60fce3df769419f26de9b4"
     },
     {
       "by_language": {
@@ -5011,7 +5122,8 @@
       "loc": 4640,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "79ba0f8d2f46622b505ba7c75f85fab68fa69c9469d3b30e1714aa3ee04e39d8"
     },
     {
       "by_language": {
@@ -5077,7 +5189,8 @@
       "loc": 18516,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/Migrations",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "767e37ea9496f20525ed6f80fee330325256a497a2305b8dcda1d1fdcc7f1ed5"
     },
     {
       "by_language": {
@@ -5114,7 +5227,8 @@
       "loc": 4947,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Databases",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "4d3d089c048dacfb745644625ce1e15af4d46fbc1502ad87eb4aab54957f3dca"
     },
     {
       "by_language": {
@@ -5157,7 +5271,8 @@
       "loc": 6019,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Handlers/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e05f0e0ac7e87d5068bb03e00064365435fc56d333fad10f63719bf0d8978803"
     },
     {
       "by_language": {
@@ -5204,7 +5319,8 @@
       "loc": 5504,
       "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
       "node": "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/SqlInstances",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "83b3e7fe950cb46e95095d2acf8a9fdb804fb13c8f64d6f0001e1a5a8433a968"
     },
     {
       "by_language": {
@@ -5227,7 +5343,8 @@
       "loc": 146,
       "module": "ms-sql-java",
       "node": "root/ms-sql-java",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e2a262b63f429ed8b70043bb215e522dcc959a7a2c3663437a31994ee0ec0060"
     },
     {
       "by_language": {
@@ -5274,7 +5391,8 @@
       ],
       "module": "ms-sql-java/downgrade-processor",
       "node": "root/ms-sql-java/downgrade-processor/(files+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "026b3d457d0d8205f4a840d7d62a15058c412282fd0346d76de5c534fe443218"
     },
     {
       "by_language": {
@@ -5298,7 +5416,8 @@
       "loc": 54531,
       "module": "ms-sql-java/downgrade-processor",
       "node": "root/ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "1eddfe6bf2333211c2b057d2debebf07b56c390fd88b55786fed1f2db70a9dd7"
     },
     {
       "by_language": {
@@ -5320,7 +5439,8 @@
       "loc": 311,
       "module": "service-api/RMS.UnifiedStore.Service.Api.Common",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Common",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "5c7ba505446ae65a2327ed7ea8ee91f078ea12b44de1697dda5244ccaf871335"
     },
     {
       "by_language": {
@@ -5353,7 +5473,8 @@
       "loc": 2305,
       "module": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "b2df30b74d6801009608b45acd0acceef3e165098975f8b3733746f0fb0d83d4"
     },
     {
       "by_language": {
@@ -5411,7 +5532,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(Api.Clients.ResourceManager+13)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "fa3a7f67e1b02971b61024435a1b9765cfcb40a01b68a3e541b45bc02394f857"
     },
     {
       "by_language": {
@@ -5447,7 +5569,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(Common+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "d8927cec9df510e07f10ab6af54634f3f277068939a38d0a29f57832860b59c2"
     },
     {
       "by_language": {
@@ -5499,7 +5622,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(Engine+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "680fc9e695699cfe57f684c473ed575559cf7b6d1c7d0bde4bf9d3b248003e06"
     },
     {
       "by_language": {
@@ -5563,7 +5687,8 @@
       "loc": 17299,
       "module": "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "64623efccf76c658d62eebc7424a21383202af56c4c60d475a5b03e9e2538524"
     },
     {
       "by_language": {
@@ -5605,7 +5730,8 @@
       "loc": 11240,
       "module": "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "b4c61f96fe7d3229a860d929c4e64f1c2029196b01a6aaf4bc4da1a7a28ef7bd"
     },
     {
       "by_language": {
@@ -5639,7 +5765,8 @@
       "loc": 6640,
       "module": "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api.Tests/RecurringJobs",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "77dbcebeaf15f02017c2c718a30f3d73ef6a24e9fac4c38ea960a7beb79eb06c"
     },
     {
       "by_language": {
@@ -5702,7 +5829,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(App+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9d779c8a7cb783f9d442b0421aa0284f7a59bbadcac57167855cf50f1d3ba4ea"
     },
     {
       "by_language": {
@@ -5774,7 +5902,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(Attribute+12)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "a475b733dc7aef2f9315b48df59c13a3b0adccea650acc1825cbe17e88776fd0"
     },
     {
       "by_language": {
@@ -5838,7 +5967,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(DataBridge+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "7a6ef7079e67c85ad80898fa462b313a6d584cb5d02fd3aa6311367ba09770fc"
     },
     {
       "by_language": {
@@ -5901,7 +6031,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(ExposureSnapshot+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "eba46e071290057ec6fc4d2dd31163e74f4f9bc60385db89b814269086cbe12b"
     },
     {
       "by_language": {
@@ -5962,7 +6093,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(Internal+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "8d54998649362df3a7802d951e7165c89189924e40a16ea12b3c373c32c01f30"
     },
     {
       "by_language": {
@@ -6023,7 +6155,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(MoveDatabase+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "6e577b8541551479db93ec87b844de82d97b6bababe0d36b76225b8cb2686d55"
     },
     {
       "by_language": {
@@ -6090,7 +6223,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "0bd857fa856a07e491043bfeeb7093e7fe708fe4b490ce1a9d7b8827a758f940"
     },
     {
       "by_language": {
@@ -6129,7 +6263,8 @@
       ],
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/(files+9)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "cb75fc96e5b90d86ffbc904621c36685f5b4bc2567b5fb05ba87ca8a7d95897c"
     },
     {
       "by_language": {
@@ -6166,7 +6301,8 @@
       "loc": 622,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Clients/ManagedSql",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "0979052ef91d0d6f54289099399b8f3e952f80b8bdfb1c8fb4dfa21b06a36b2d"
     },
     {
       "by_language": {
@@ -6238,7 +6374,8 @@
       "loc": 1432,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Contracts/v1/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "34063483b2dc074f32705c35e54b45113ade6f7d7d777129d4319388283a227d"
     },
     {
       "by_language": {
@@ -6273,7 +6410,8 @@
       "loc": 4127,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Controllers/v1",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "09757b208994f289c55e3ad5297e6144d2ec35a9fc2be5e3392bf8ff9a900a63"
     },
     {
       "by_language": {
@@ -6324,7 +6462,8 @@
       "loc": 3794,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/DataLayer/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "775c83e5277a1534524d9a4d2ba2efda354cf5621fb92e8a43932dc6c58b6159"
     },
     {
       "by_language": {
@@ -6392,7 +6531,8 @@
       "loc": 11632,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/DataLayer/EF/Migrations",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "13e6a8d1e257c7d12e1ddea27817c50ddbc41f72855294758df1865901f21c97"
     },
     {
       "by_language": {
@@ -6434,7 +6574,8 @@
       "loc": 1714,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/DataMigration",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "f089e1e4da616d779ed0ce27dbc6d903eab3f372c08bf9f54b9e777c29b65c9e"
     },
     {
       "by_language": {
@@ -6476,7 +6617,8 @@
       "loc": 396,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Exceptions",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "2c8badf6858cf3a99e68dc44620919a2af306b4a7f35cf33031aa0a5fa75f36d"
     },
     {
       "by_language": {
@@ -6612,7 +6754,8 @@
       "loc": 18947,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Handlers/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "ede07f1dfba8c989c47caba252866e2ecd783ef6f5d379ab9542a803787640cc"
     },
     {
       "by_language": {
@@ -6643,7 +6786,8 @@
       "loc": 5029,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Integration",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "076e6ef5385f50abed58fd40684fb58de628e177615c6cc17aa747ea59b23cd0"
     },
     {
       "by_language": {
@@ -6687,7 +6831,8 @@
       "loc": 5881,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/RecurringJobs",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "76b7c0b45eba5df4013c7c7f78413780cb0813e4943d1d5bf98057447aaf9b7b"
     },
     {
       "by_language": {
@@ -6708,7 +6853,8 @@
       "loc": 54386,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Resources/RollbackScripts",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "82e6c834a3e1e26fccfd4d3700c1be4fe8ca55e2491428f95d742e20b16c11f1"
     },
     {
       "by_language": {
@@ -6725,7 +6871,8 @@
       "loc": 77253,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "da85b16decd8b1bfef91bd93e258c7f367c6f3a29ee44d5769e114b91af9ec78"
     },
     {
       "by_language": {
@@ -7031,7 +7178,8 @@
       "loc": 358664,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "c6e9ff9d75538b5f844e0f2e2f5f262732c44feaa2dbf4cfb8808d307cf28c3b"
     },
     {
       "by_language": {
@@ -7071,7 +7219,8 @@
       "loc": 43068,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql",
-      "oversized": true
+      "oversized": true,
+      "scope_hash": "d7bb0460e6fde0e2a4e1e4db21c8370bd45f3262663195399a1745ffabe94948"
     },
     {
       "by_language": {
@@ -7114,7 +7263,8 @@
       "loc": 2265,
       "module": "service-api/RMS.UnifiedStore.Service.Api",
       "node": "root/service-api/RMS.UnifiedStore.Service.Api/Utils",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "5ff17ec66f31defb4dffec47dc16d510db03d162d1d413be2842c18a8053987a"
     },
     {
       "by_language": {
@@ -7155,7 +7305,8 @@
       "loc": 2497,
       "module": "sql-pool",
       "node": "root/sql-pool",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9720db3b9ec3a92b0036a062470d3f579df401f7687be36684e263702c9e9467"
     },
     {
       "by_language": {
@@ -7174,7 +7325,8 @@
       "loc": 62,
       "module": "sql-pool/sql-pool-api-client",
       "node": "root/sql-pool/sql-pool-api-client",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "446c51de47fd439b194fe821a3759c5f64481c723fbcb821ee64690ac6ffbd07"
     },
     {
       "by_language": {
@@ -7212,7 +7364,8 @@
       ],
       "module": "sql-pool/sql-pool-api",
       "node": "root/sql-pool/sql-pool-api/(files+2)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "5538bba0ad5a9a8888b1919e2793acafec09c9ddae7de205be527470fcf1ad20"
     },
     {
       "by_language": {
@@ -7265,7 +7418,8 @@
       "loc": 3390,
       "module": "sql-pool/sql-pool-api",
       "node": "root/sql-pool/sql-pool-api/src/main/java",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "6282c5ac6dc7679b47870beb93abc6046f9c3a7a1da5c138c9a16926a0483cab"
     },
     {
       "by_language": {
@@ -7329,7 +7483,8 @@
       ],
       "module": "sql-pool/sql-pool-common",
       "node": "root/sql-pool/sql-pool-common/(files+4)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "e2c16459b72e4744ca762f1f58971719acefb76823d2b0468ec3b145c7c8be0c"
     },
     {
       "by_language": {
@@ -7378,7 +7533,8 @@
       ],
       "module": "sql-pool/sql-pool-common",
       "node": "root/sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/(exceptions+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "013b1eff390959789f9b61898d507ddb293b0330f8c6bd56a576ae5b3c93c353"
     },
     {
       "by_language": {
@@ -7415,7 +7571,8 @@
       "loc": 1911,
       "module": "sql-pool/sql-pool-common",
       "node": "root/sql-pool/sql-pool-common/src/test",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "7d1ec04a4bff6f6caeb1df8048c3af6be312b6b81a1cffe3592a84c2896cd1e5"
     },
     {
       "by_language": {
@@ -7453,7 +7610,8 @@
       "loc": 1801,
       "module": "sql-pool/sql-pool-dal",
       "node": "root/sql-pool/sql-pool-dal",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "a0925b9a10946f338cf76f092136fdf414639b9223845a742e0e7c5e333b5bfb"
     },
     {
       "by_language": {
@@ -7502,7 +7660,8 @@
       ],
       "module": "sql-pool/sql-pool-integrationtest",
       "node": "root/sql-pool/sql-pool-integrationtest/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "7f13c44ffc864301d3c116073130ab4a2d885904768fcedaacf33950daaed50e"
     },
     {
       "by_language": {
@@ -7559,7 +7718,8 @@
       "loc": 21087,
       "module": "sql-pool/sql-pool-integrationtest",
       "node": "root/sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/(files)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "6583b8f8532b39e2956b3805a1c728dc89e7f9bf4f20798d02b7198727f907c7"
     },
     {
       "by_language": {
@@ -7594,7 +7754,8 @@
       "loc": 4477,
       "module": "sql-pool/sql-pool-integrationtest",
       "node": "root/sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/wiring",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "eefa7551bf245a2d5e88d4e8d284715f00bf39e94b48a381e639aaeaf7892456"
     },
     {
       "by_language": {
@@ -7661,7 +7822,8 @@
       ],
       "module": "sql-pool/sql-pool-manager",
       "node": "root/sql-pool/sql-pool-manager/(files+5)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "8e1c98d945d99877cbbe88ccbd0c43524e5b69174e99f3d4067bb0a4bd8bad0c"
     },
     {
       "by_language": {
@@ -7693,7 +7855,8 @@
       ],
       "module": "sql-pool/sql-pool-manager",
       "node": "root/sql-pool/sql-pool-manager/src/main/(healthcheck+3)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "dd6fca700d5eb8338acca0a332761c527b22453a340ef8ea51effe20f799c413"
     },
     {
       "by_language": {
@@ -7734,7 +7897,8 @@
       "loc": 4483,
       "module": "sql-pool/sql-pool-manager",
       "node": "root/sql-pool/sql-pool-manager/src/test",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "4197ace01c0da7dd5d8ed5dbf9416bfe422c7a08a9b8daab1481f15ad5ff9a28"
     },
     {
       "by_language": {
@@ -7776,7 +7940,8 @@
       ],
       "module": "sql-pool/sql-pool-provision",
       "node": "root/sql-pool/sql-pool-provision/(files+2)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "3a6878f3e8967d9e64db3caec7703495da4b104bdf9fb148cbe1d012434a6cf4"
     },
     {
       "by_language": {
@@ -7826,7 +7991,8 @@
       "loc": 876,
       "module": "sql-pool/sql-pool-provision",
       "node": "root/sql-pool/sql-pool-provision/src/main/resources",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "cd3e3e95d31f4df39764bc3ce9bc8d4275f337ad10595a3abd635eb938c01b37"
     },
     {
       "by_language": {
@@ -7867,7 +8033,8 @@
       "loc": 5821,
       "module": "sql-pool/sql-pool-service",
       "node": "root/sql-pool/sql-pool-service",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "565f63be8e59f44680e71d1caf0754c31d44e69f200dd217fa542327a2148fb5"
     },
     {
       "by_language": {
@@ -7903,7 +8070,8 @@
       ],
       "module": "sql-pool/sql-pool-setup",
       "node": "root/sql-pool/sql-pool-setup/(files+1)",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "1f18c2e16e4470bd4e869d46c99a6cd38412b619101aa7c9f7df1e5cda202fee"
     },
     {
       "by_language": {
@@ -7956,7 +8124,8 @@
       "loc": 1322,
       "module": "sql-pool/sql-pool-setup",
       "node": "root/sql-pool/sql-pool-setup/src/main/resources",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "752f58998320af2089d702739d9d23ec69a9dc01585f64b26717bf556d259986"
     },
     {
       "by_language": {
@@ -7986,7 +8155,8 @@
       "loc": 887,
       "module": "sql-pool/sql-pool-smoketest",
       "node": "root/sql-pool/sql-pool-smoketest",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "b8e12b52ac4ab9c5d42ff40f2bd4a960ab9efeb6532567af396c8d3ee6f97e00"
     },
     {
       "by_language": {
@@ -8011,7 +8181,8 @@
       "loc": 365,
       "module": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
       "node": "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "cf4a97eba05a355e70865a11b6760348b3dd20baa59d4af7279d7839c7ecad6a"
     },
     {
       "by_language": {
@@ -8029,7 +8200,8 @@
       "loc": 86,
       "module": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests",
       "node": "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "6d4dcd26a45d58c2672f7aa573f6d86f3690b8298b9d1c32dcf120fb41dde647"
     }
   ],
   "totals": {

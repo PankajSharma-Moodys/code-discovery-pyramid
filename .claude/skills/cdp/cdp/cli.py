@@ -29,9 +29,13 @@ from contextlib import contextmanager as contextlib_contextmanager
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+from . import anchor as anchor_mod
 from . import dataflow as dataflow_mod
+from . import diffs as diffs_mod
 from . import docs as docs_mod
 from . import freshness as freshness_mod
+from . import gates as gates_mod
+from . import githooks as githooks_mod
 from . import golden as golden_mod
 from . import graph as graph_mod
 from . import helpdoc
@@ -40,10 +44,11 @@ from . import partition as partition_mod
 from . import query as query_mod
 from . import refresh as refresh_mod
 from . import resolve as resolve_mod
+from . import rollback as rollback_mod
 from . import schedule as schedule_mod
 from . import snapshot as snapshot_mod
 from . import state as state_mod
-from .store import FileStore
+from .store import ARTIFACTS, REPORTS, SqliteStore, WorkspaceStore, has_scanned
 from .store import registry as registry_mod
 from .derive import derive_claims
 from .extract import run_extract
@@ -53,6 +58,7 @@ from .util import (
     CDP_VERSION,
     CdpError,
     read_json,
+    run_git,
     stable_hash,
     write_json,
     write_text,
@@ -133,6 +139,11 @@ def _parser() -> argparse.ArgumentParser:
                         % query_mod.DEFAULT_BUDGET)
     q.add_argument("--max-hops", type=int, default=dataflow_mod.DEFAULT_MAX_HOPS,
                    help="`query trace` only: how far to walk from the entry point")
+    q.add_argument("--as-of", dest="as_of", default=None, metavar="COMMIT",
+                   help="replay the claim log up to this commit's run, against "
+                        "the current structural view (M3.7). A commit only -- "
+                        "patches carry no timestamp (D8), so a wall-clock cut "
+                        "is not supported")
     q.set_defaults(func=cmd_query)
 
     d = add("docs", "render the markdown artifacts")
@@ -160,9 +171,58 @@ def _parser() -> argparse.ArgumentParser:
     st = add("status", "waves, node statuses and coverage")
     st.set_defaults(func=cmd_status)
 
+    df = add("diff", "typed structural deltas between two scanned state directories")
+    df.add_argument("old_state", help="state directory of the earlier snapshot")
+    df.add_argument("new_state", help="state directory of the later snapshot")
+    df.add_argument("--json", action="store_true")
+    df.set_defaults(func=cmd_diff)
+
+    gc = add("gc", "drop snapshots not kept by the retention rule")
+    gc.add_argument("--db", default=None,
+                     help="path to a SqliteStore index.db (default: the resolved store's)")
+    gc.add_argument("--head-sha", default=None,
+                    help="commit sha to treat as HEAD (default: `git -C --repo` HEAD)")
+    gc.add_argument("--pin", action="append", default=[], metavar="SHA",
+                    help="mark a commit's snapshot pinned before computing retention (repeatable)")
+    gc.add_argument("--unpin", action="append", default=[], metavar="SHA")
+    gc.add_argument("--dry-run", action="store_true", help="report what would be dropped, drop nothing")
+    gc.set_defaults(func=cmd_gc)
+
+    rb = add("rollback", "exclude a run's patches from the fold, without deleting them")
+    rb_target = rb.add_mutually_exclusive_group(required=True)
+    rb_target.add_argument("--to-run", metavar="RUN_OR_COMMIT",
+                            help="exclude just this run's patches")
+    rb_target.add_argument("--to-snapshot", metavar="COMMIT",
+                            help="exclude this run and every run appended after it")
+    rb.add_argument("--reason", default=None, help="why (recorded in the rollback ledger)")
+    rb.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
+    rb.set_defaults(func=cmd_rollback)
+
+    schema_defs = Validator.load(schema_path(SKILL_ROOT)).schema["$defs"]
+    an = add("answer", "record a human claim against an unknown -- validate, "
+                        "verify anchor, entail, fold, no bypass (M4.4)")
+    an.add_argument("scope", help="the node this claim belongs to, e.g. root/gateway")
+    an.add_argument("--subject", required=True, help="what the claim is about, e.g. a fqn")
+    an.add_argument("--kind", required=True, choices=sorted(schema_defs["claim_kind"]["enum"]),
+                    help="one of CDP's closed claim kinds -- R11: humans outrank "
+                         "models on interpretation, never on structure")
+    an.add_argument("--claim", required=True, dest="statement", help="the statement text")
+    an.add_argument("--anchor", required=True, metavar="FILE:LINE",
+                    help="where this is true; the citable text is read from the file itself")
+    an.add_argument("--channel", default=None, choices=sorted(schema_defs["channel"]["enum"]))
+    an.add_argument("--confidence", default="high", choices=["high", "medium", "low"])
+    an.add_argument("--author", default=None, help="default: git config user.name <user.email>")
+    an.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
+    an.set_defaults(func=cmd_answer)
+
     v = add("validate", "validate a patch file against the schema")
     v.add_argument("path")
     v.set_defaults(func=cmd_validate)
+
+    gh = add("githook", "install/uninstall post-commit & post-checkout hooks "
+                        "that auto-run `cdp refresh` (M3.8, opt-in, off by default)")
+    gh.add_argument("action", choices=["install", "uninstall"])
+    gh.set_defaults(func=cmd_githook)
 
     i = add("install", "copy this skill into another repository")
     i.add_argument("target", nargs="?", help="repository to install into")
@@ -231,6 +291,15 @@ class Paths:
             return False
 
 
+def _open_store(state_dir: Path) -> SqliteStore:
+    """The CLI's actual default backend (D3, `PHASE/FINDINGS.md`): `SqliteStore`
+    at `<state_dir>/index.db`, the path `CDP_CLI_SCOPE.md` 2.3 and
+    `phase_2_plan.md` already name. `state_dir` itself stays a directory --
+    `docs/`, `prompts/` and the inbox are filesystem handoffs regardless of
+    backend (`store/__init__.py`'s module docstring)."""
+    return SqliteStore(state_dir / "index.db")
+
+
 def _run_id(head: str) -> str:
     """Derived from the commit, not the clock.
 
@@ -250,6 +319,15 @@ def _stamp_claims(claims: List[Dict], head: str) -> None:
     """
     for claim in claims:
         claim.setdefault("claim_reviewed_at", head)
+
+
+def _next_generation(existing_patches: Sequence[Dict], node: str) -> int:
+    """1-based attempt count for `node` (M3.4). Stamped once at append time,
+    onto data the patch carries forever, so `state.fold`'s per-node
+    supersession reads a fact rather than a log position -- order-independent
+    by construction, the same way `node_status` already is."""
+    prior = [int(p.get("generation") or 1) for p in existing_patches if str(p.get("node")) == node]
+    return (max(prior) + 1) if prior else 1
 
 
 # ------------------------------------------------------------------- scan
@@ -278,6 +356,7 @@ def cmd_scan(args) -> int:
     say("\n".join(graph_mod.summarise(graph)))
 
     part = partition_mod.partition(inventory, args.max_leaf_files, args.max_leaf_loc)
+    refresh_mod.annotate_scope_hashes(paths.repo, part)
     say("partition %d scopes (%d oversized)" % (part["totals"]["scopes"], part["totals"]["oversized"]))
 
     sched = schedule_mod.build_schedule(part, graph, args.max_concurrent)
@@ -290,7 +369,7 @@ def cmd_scan(args) -> int:
     say("\n".join(dataflow_mod.summarise(flow)))
 
     state_dir = paths.state
-    store = FileStore(state_dir)
+    store = _open_store(state_dir)
     store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"]))
     store.write_artifact("inventory", inventory)
     store.write_artifact("extract", extraction)
@@ -312,6 +391,7 @@ def cmd_scan(args) -> int:
         "run_id": run_id,
         "author_kind": "python",
         "status": "complete",
+        "generation": _next_generation(store.load_patches(), "root"),
         "claims": derived,
         "unknowns": _structural_unknowns(inventory, xref, graph),
     }
@@ -376,6 +456,7 @@ def cmd_scan(args) -> int:
         _ensure_gitignore(paths.repo)
     say("\nstate     %s" % state_dir)
     say("next      cdp query stats | cdp query trace <entrypoint> | cdp prompts")
+    store.close()
     return 0
 
 
@@ -454,10 +535,14 @@ def _ensure_gitignore(repo: Path) -> None:
 
 
 def _fold_and_write(
-    store: FileStore, xref: Dict, part: Dict, repo: Optional[Path] = None, mode: str = STRICT
+    store: "WorkspaceStore", xref: Dict, part: Dict, repo: Optional[Path] = None, mode: str = STRICT
 ) -> Dict:
     patches = store.load_patches()
-    folded = state_mod.fold(patches, xref, part, repo=repo, mode=mode)
+    folded = state_mod.fold(
+        patches, xref, part, repo=repo, mode=mode,
+        excluded_run_ids=rollback_mod.load_excluded_run_ids(store),
+        extraction=store.read_artifact("extract") if store.has_artifact("extract") else None,
+    )
     store.write_artifact("state", folded)
     return folded
 
@@ -465,8 +550,36 @@ def _fold_and_write(
 # ------------------------------------------------------------------ query
 
 
+def _apply_as_of(store: "query_mod.Store", commit: str) -> None:
+    """M3.7: replay the claim log up to `commit`'s run, against the *current*
+    structural view (`xref`/`partition` are not rebuilt at the old commit --
+    that is `refresh`'s job, not a query's). This is what keeps it "nearly
+    free" per `phase_3_plan.md`: one extra `fold` over an already-loaded patch
+    list, no re-extraction, no repo checkout.
+
+    Anchors are not re-verified against `repo` here (`fold(..., repo=None)`):
+    verifying an old claim's anchor against the *current* tree would report
+    drift that `refresh` already has a home for, and verifying against the old
+    tree would need a checkout this operation is explicitly meant to avoid
+    paying for. The claims returned are exactly what the log asserted as of
+    that run, unverified against any tree.
+    """
+    run_id = rollback_mod.resolve_run_id(commit)
+    kept, _excluded, found = rollback_mod.patches_up_to_run(store.backend.load_patches(), run_id)
+    if not found:
+        raise CdpError(
+            "commit %s never appears in this store's patch log -- `--as-of` "
+            "only replays history this store actually recorded" % commit
+        )
+    folded = state_mod.fold(kept, store.xref, store.partition, extraction=store.extraction)
+    store._cache["state"] = folded
+    store.as_of_run_id = run_id
+
+
 def cmd_query(args) -> int:
-    store = query_mod.Store(_paths(args).state)
+    store = query_mod.Store(_open_store(_paths(args).state))
+    if getattr(args, "as_of", None):
+        _apply_as_of(store, args.as_of)
     fn = query_mod.QUERIES[args.kind]
     # One `Budget` per response, shared by every list in it. `stats` and
     # `coverage` are constructed without one and take no `budget` argument, so
@@ -502,6 +615,7 @@ def cmd_query(args) -> int:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(query_mod.render(result))
+    store.close()
     return 0
 
 
@@ -523,10 +637,11 @@ def _render_docs(store: "query_mod.Store", out: Path) -> List[Path]:
 
 def cmd_docs(args) -> int:
     paths = _paths(args)
-    store = query_mod.Store(paths.state)
+    store = query_mod.Store(_open_store(paths.state))
     out = Path(args.out).expanduser().resolve() if args.out else paths.state / "docs"
     for path in _render_docs(store, out):
         print(path)
+    store.close()
     return 0
 
 
@@ -535,7 +650,7 @@ def cmd_docs(args) -> int:
 
 def cmd_prompts(args) -> int:
     paths = _paths(args)
-    backend = FileStore(paths.state)
+    backend = _open_store(paths.state)
     store = query_mod.Store(backend)
     sched = store._load("schedule")
     run_id = store.manifest.get("run_id", "cdp")
@@ -570,6 +685,7 @@ def cmd_prompts(args) -> int:
                  "  BUDGET FIRED (%d elided)" % row["elided_claims"] if row["budget_fired"] else ""))
     if not fired:
         print("\ninherited-sigma budget never fired; the 200-claim default is not binding here.")
+    backend.close()
     return 0
 
 
@@ -585,7 +701,7 @@ def cmd_collect(args) -> int:
     which is the only place that can ask the agent to try again.
     """
     paths = _paths(args)
-    backend = FileStore(paths.state)
+    backend = _open_store(paths.state)
     store = query_mod.Store(backend)
     inbox = backend.read_inbox()
 
@@ -617,18 +733,47 @@ def cmd_collect(args) -> int:
             continue
         accepted.append(patch)
 
+    # M4.2: the four unknown gates. Subject/negative-entailment/provenance run
+    # here, per-patch, before a patch's `unknowns[]` is appended to the log --
+    # the same point schema validation already runs at. Clustering (gate 4)
+    # runs inside `fold` instead (`cdp/gates.py` `cluster_unknowns`), since
+    # cluster membership is a property of the whole current unknown set.
+    def_fqns, edge_subjects, edges_by_key = gates_mod.build_extraction_index(store.extraction)
+    node_to_hash = {s["node"]: s.get("scope_hash") for s in store.partition["scopes"]}
+    task_states_cache: Dict[str, Dict[str, Dict]] = {}
+    unknown_rejections: List[Dict] = []
+
+    def _task_rows_for(run_id: str) -> Dict[str, Dict]:
+        if run_id not in task_states_cache:
+            getter = getattr(backend, "task_states", None)
+            task_states_cache[run_id] = getter(run_id) if callable(getter) else {}
+        return task_states_cache[run_id]
+
     # M2.3: append the raw, unverified patch. Verification runs inside
     # `fold`, against `paths.repo`, not here — see `cli.py` `cmd_scan`.
+    log_so_far = backend.load_patches()
     for patch in accepted:
         patch.setdefault("author_kind", "llm")
+        node = str(patch.get("node", "leaf"))
+        patch["generation"] = _next_generation(log_so_far, node)
+        log_so_far.append(patch)
         _stamp_claims(patch.get("claims") or [], store.inventory["head"])
-        backend.append_patch(patch, str(patch.get("node", "leaf")))
+        run_id = str(patch.get("run_id", store.manifest.get("run_id", "cdp")))
+        task_rows = _task_rows_for(run_id).get(node_to_hash.get(node))
+        kept_unknowns, patch_rejections = gates_mod.gate_patch_unknowns(
+            patch.get("unknowns") or [], node, def_fqns, edge_subjects, edges_by_key,
+            scope_nodes, {node: task_rows},
+        )
+        patch["unknowns"] = kept_unknowns
+        unknown_rejections.extend(patch_rejections)
+        backend.append_patch(patch, node)
         backend.clear_inbox(str(patch.get("node", "")))
 
     folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=args.mode)
     stats = folded["verification"]
     backend.write_report("verify", stats)
     backend.write_report("rejected", {"rejected": rejected})
+    backend.write_report("unknown_gates", {"rejected": unknown_rejections})
 
     print("accepted  %d patch(es), rejected %d" % (len(accepted), len(rejected)))
     if stats["claims_in"]:
@@ -643,7 +788,12 @@ def cmd_collect(args) -> int:
         print("  REJECTED %s (%s)" % (row["file"], row.get("node", "?")))
         for err in row["errors"][:4]:
             print("    %s" % err)
+    if unknown_rejections:
+        print("gates     %d unknown(s) rejected" % len(unknown_rejections))
+        for row in unknown_rejections[:8]:
+            print("  REJECTED unknown (%s): %s" % (row["node"], row["reason"]))
     print("coverage  %.1f%%" % (100 * folded["coverage"]["fraction"]))
+    backend.close()
     return 0
 
 
@@ -652,13 +802,14 @@ def cmd_collect(args) -> int:
 
 def cmd_fold(args) -> int:
     paths = _paths(args)
-    backend = FileStore(paths.state)
+    backend = _open_store(paths.state)
     store = query_mod.Store(backend)
     if args.check:
         problems = state_mod.check_fold(backend, store.xref, store.partition, repo=paths.repo)
         problems += state_mod.check_order_independence(
             backend.load_patches(), store.xref, store.partition
         )
+        backend.close()
         if problems:
             for problem in problems:
                 print("FAIL  %s" % problem)
@@ -670,6 +821,7 @@ def cmd_fold(args) -> int:
     print("folded %d patch(es) -> %d claims, %d unknowns, coverage %.1f%%"
           % (folded["provenance"]["patch_count"], len(folded["claims"]),
              len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
+    backend.close()
     return 0
 
 
@@ -685,8 +837,9 @@ def cmd_refresh(args) -> int:
     same `rename_map`/`edited_files` arguments `state.fold` now accepts.
     """
     paths = _paths(args)
-    backend = FileStore(paths.state)
+    backend = _open_store(paths.state)
     store = query_mod.Store(backend)
+    prior_snapshot_id = backend.snapshot_id()
     say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
 
     if snapshot_mod.is_dirty(paths.repo):
@@ -698,6 +851,7 @@ def cmd_refresh(args) -> int:
         raise CdpError("no prior scan to refresh from -- run `cdp scan` first")
     if new_head == prev_head:
         say("refresh   HEAD unchanged (%s); nothing to do" % new_head[:12])
+        backend.close()
         return 0
 
     history_ok = True
@@ -722,22 +876,37 @@ def cmd_refresh(args) -> int:
         budgets.get("max_leaf_files", partition_mod.DEFAULT_MAX_FILES),
         budgets.get("max_leaf_loc", partition_mod.DEFAULT_MAX_LOC),
     )
+    refresh_mod.annotate_scope_hashes(paths.repo, new_part)
+    dispatch = refresh_mod.changed_scopes(store.partition, new_part)
     new_flow = dataflow_mod.build_dataflow(
         new_extraction, new_xref, new_graph, budgets.get("max_hops", dataflow_mod.DEFAULT_MAX_HOPS)
     )
 
+    # Read before `begin_snapshot` moves the backend's selection forward --
+    # `store` wraps this same backend instance, and `state` is not read
+    # anywhere above this line, so reading it after the snapshot switch would
+    # silently return the new (not-yet-written) snapshot's empty default.
+    before_demoted = len(store.state.get("unknowns", []))
+
     backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"]))
+    # M2.4's per-snapshot patch isolation (`test_store_sqlite.py`) means the
+    # snapshot just selected starts with an empty log. Carry the prior
+    # snapshot's log forward verbatim -- refresh re-verifies the *existing*
+    # log (D10), it never appends to it, so an empty one would fold to zero
+    # claims regardless of how many were live a moment ago.
+    if not backend.load_patches():
+        backend.copy_patches_from(prior_snapshot_id)
     backend.write_artifact("inventory", new_inventory)
     backend.write_artifact("extract", new_extraction)
     backend.write_artifact("graph", new_graph)
     backend.write_artifact("partition", new_part)
     backend.write_artifact("xref", new_xref)
     backend.write_artifact("dataflow", new_flow)
-
-    before_demoted = len(store.state.get("unknowns", []))
     folded = state_mod.fold(
         backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=args.mode,
         rename_map=rename_map, edited_files=frozenset(edited),
+        excluded_run_ids=rollback_mod.load_excluded_run_ids(backend),
+        extraction=new_extraction,
     )
     backend.write_artifact("state", folded)
     backend.write_artifact(
@@ -756,11 +925,15 @@ def cmd_refresh(args) -> int:
         % (len(changed), new_extraction["totals"]["parsed_files"]))
     say("rename    %d file(s) renamed, %d edited, %d added, %d deleted"
         % (len(rename_map), len(edited), len(added), len(deleted)))
+    say("scopes    %d/%d changed (dispatch needed for %d, %d reuse the prior claim)"
+        % (len(dispatch), len(new_part["scopes"]), len(dispatch),
+           len(new_part["scopes"]) - len(dispatch)))
     say("verify    %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn "
         "(%d newly demoted), zero model calls"
         % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
            buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN],
            after_demoted - before_demoted))
+    backend.close()
     return 0
 
 
@@ -778,7 +951,7 @@ def _git_head_or_raise(repo: Path) -> str:
 
 def cmd_status(args) -> int:
     paths = _paths(args)
-    store = query_mod.Store(paths.state)
+    store = query_mod.Store(_open_store(paths.state))
     sched = store._load("schedule")
     state = store.state
     statuses = state.get("nodes", {})
@@ -801,7 +974,211 @@ def cmd_status(args) -> int:
                  wave["file_count"], wave["loc"]))
         for node in wave["nodes"]:
             print("    %-9s %s" % (statuses.get(node, "pending"), node))
+    store.close()
     return 0
+
+
+# ------------------------------------------------------------------- diff
+
+
+def cmd_diff(args) -> int:
+    old = query_mod.Store(Path(args.old_state).expanduser().resolve())
+    new = query_mod.Store(Path(args.new_state).expanduser().resolve())
+    result = diffs_mod.diff_snapshots(old.graph, old.xref, old.state, new.graph, new.xref, new.state)
+    if args.json:
+        print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print("\n".join(diffs_mod.summarise(result)))
+    return 0
+
+
+# --------------------------------------------------------------------- gc
+
+
+def cmd_gc(args) -> int:
+    """M3.6/0.10: a snapshot is kept iff HEAD, pinned, or cited by a live
+    claim's `anchor_verified_at`/`claim_reviewed_at`.
+
+    `--db` defaults to the same resolved store every other command writes
+    (D3, `PHASE/FINDINGS.md`: `SqliteStore` is the CLI's actual default
+    backend), so `gc` needs no separate setup step for the common case --
+    only an override for retention against a store `_paths()` would not
+    resolve to on its own.
+    """
+    paths = _paths(args)
+    db_path = Path(args.db).expanduser().resolve() if args.db else (paths.state / "index.db")
+    store = SqliteStore(db_path)
+    try:
+        repo = paths.repo
+        repo_id = registry_mod.repo_identity(repo)
+        for sha in args.pin:
+            store.set_pinned(sha, True)
+        for sha in args.unpin:
+            store.set_pinned(sha, False)
+        head_sha = args.head_sha or _git_head_or_raise(repo)
+        snapshots = [s for s in store.list_snapshots() if s["repo_id"] == repo_id]
+        if not any(s["commit_sha"] == head_sha for s in snapshots):
+            raise CdpError("no snapshot for HEAD (%s) in %s -- run `cdp scan` against this store first"
+                            % (head_sha[:12], db_path))
+        store.begin_snapshot(repo_id, head_sha)
+        head_claims = store.read_artifact("state", {}).get("claims", [])
+        cited = {c.get("anchor_verified_at") for c in head_claims} | {c.get("claim_reviewed_at") for c in head_claims}
+        cited.discard(None)
+        keep_ids = snapshot_mod.snapshots_to_keep(snapshots, repo_id, head_sha, cited)
+        drop = [s for s in snapshots if s["id"] not in keep_ids]
+        print("gc        keeping %d/%d snapshot(s) (head + pinned + cited), dropping %d"
+              % (len(snapshots) - len(drop), len(snapshots), len(drop)))
+        for s in drop:
+            print("          drop %s%s" % ((s["commit_sha"] or "?")[:12], " [dry-run]" if args.dry_run else ""))
+            if not args.dry_run:
+                store.delete_snapshot(s["id"])
+    finally:
+        store.close()
+    return 0
+
+
+# ---------------------------------------------------------------- rollback
+
+
+def cmd_rollback(args) -> int:
+    """M3.7: exclude a run's patches from the fold, without deleting them (R5).
+
+    `--to-run` drops exactly one run, wherever it sits in the log. `--to-snapshot`
+    drops that run and every run appended after it -- the log's own append
+    order, since patches carry no timestamp by construction (D8). Either way
+    the excluded run_ids are recorded in an append-only ledger
+    (`cdp/rollback.py`) that every future fold (`scan`, `collect`, `fold`,
+    `refresh`) reads, so the exclusion holds until a future rollback changes it.
+    """
+    paths = _paths(args)
+    backend = _open_store(paths.state)
+    store = query_mod.Store(backend)
+    patches = backend.load_patches()
+
+    if args.to_run:
+        target = rollback_mod.resolve_run_id(args.to_run)
+        kept, new_excluded = rollback_mod.patches_excluding_run(patches, target)
+        if not new_excluded:
+            raise CdpError("no patch in the log is stamped with run %s -- nothing to roll back" % target)
+        kind = "to_run"
+    else:
+        target = rollback_mod.resolve_run_id(args.to_snapshot)
+        kept, new_excluded, found = rollback_mod.patches_up_to_run(patches, target)
+        if not found:
+            raise CdpError("run %s never appended a patch -- nothing to roll back to" % target)
+        if not new_excluded:
+            print("rollback  --to-snapshot %s: already the most recent run, nothing to exclude" % target)
+            backend.close()
+            return 0
+        kind = "to_snapshot"
+
+    prior_excluded = rollback_mod.load_excluded_run_ids(backend)
+    all_excluded = prior_excluded | new_excluded
+    folded = state_mod.fold(
+        patches, store.xref, store.partition, repo=paths.repo, mode=args.mode,
+        excluded_run_ids=all_excluded,
+        extraction=store.extraction,
+    )
+    backend.write_artifact("state", folded)
+    reason = args.reason or ("rollback --%s %s" % (kind.replace("_", "-"), target))
+    rollback_mod.record_rollback(backend, kind, target, new_excluded, reason)
+
+    print("rollback  %s %s: excluded %d run(s) (%s)"
+          % (("--to-run" if kind == "to_run" else "--to-snapshot"), target,
+             len(new_excluded), ", ".join(sorted(new_excluded))))
+    print("folded    %d claim(s), %d unknown(s), coverage %.1f%%"
+          % (len(folded["claims"]), len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
+    backend.close()
+    return 0
+
+
+def _git_identity(repo: Path) -> str:
+    name = run_git(repo, "config", "user.name")
+    email = run_git(repo, "config", "user.email")
+    name = (name or "").strip() or "unknown"
+    email = (email or "").strip()
+    return "%s <%s>" % (name, email) if email else name
+
+
+def cmd_answer(args) -> int:
+    """M4.4: a human claim against an unknown, through the *entire* pipeline
+    -- validate, verify the anchor, entail, fold -- exactly like a leaf
+    agent's patch (`cmd_collect`). `author_kind=human` changes merge
+    precedence (R11) and, per `entail.py`, whether a contradiction is
+    silently accepted -- it never changes the gate itself.
+    """
+    paths = _paths(args)
+    backend = _open_store(paths.state)
+    store = query_mod.Store(backend)
+
+    scope_nodes = {s["node"] for s in store.partition["scopes"]}
+    if args.scope not in scope_nodes:
+        backend.close()
+        raise CdpError("%r is not a scope in partition.json" % args.scope)
+
+    file_part, sep, line_part = args.anchor.rpartition(":")
+    if not sep or not line_part.isdigit():
+        backend.close()
+        raise CdpError("--anchor must be FILE:LINE, got %r" % args.anchor)
+    abs_path = (paths.repo / file_part)
+    try:
+        text = abs_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        backend.close()
+        raise CdpError("cannot read %s: %s" % (file_part, exc))
+    anchor = anchor_mod.build_anchor(file_part, text.splitlines(), int(line_part) - 1)
+    if anchor is None:
+        backend.close()
+        raise CdpError("no citable anchor at %s:%s -- humans are not exempt from anchor "
+                        "verification either" % (file_part, line_part))
+
+    claim = {
+        "id": "human.%s" % stable_hash([args.scope, args.subject, args.statement])[:16],
+        "kind": args.kind,
+        "subject": args.subject,
+        "statement": args.statement,
+        "evidence": [anchor],
+        "confidence": args.confidence,
+        "author_kind": "human",
+        "author": args.author or _git_identity(paths.repo),
+    }
+    if args.channel:
+        claim["channel"] = args.channel
+
+    log_so_far = backend.load_patches()
+    patch = {
+        "schema_version": "1.0.0",
+        "node": args.scope,
+        "run_id": "cdp-answer-%s" % claim["id"].split(".", 1)[1][:8],
+        "status": "complete",
+        "author_kind": "human",
+        "generation": _next_generation(log_so_far, args.scope),
+        "claims": [claim],
+    }
+    validator = Validator.load(schema_path(SKILL_ROOT))
+    errors = validate_patch(patch, validator)
+    if errors:
+        backend.close()
+        raise CdpError("schema-invalid claim:\n  " + "\n  ".join(errors[:10]))
+
+    _stamp_claims(patch["claims"], store.inventory["head"])
+    backend.append_patch(patch, args.scope)
+
+    folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=args.mode)
+    kept = any(c["id"] == claim["id"] for c in folded["claims"])
+    row = next((c for c in folded["claims"] if c["id"] == claim["id"]), None)
+    if row is None:
+        print("cdp: claim was NOT kept -- verification demoted it into unknowns[]", file=sys.stderr)
+    else:
+        print("answer    %s  verdict=%s  confidence=%s"
+              % (claim["id"], row.get("verdict"), row.get("confidence")))
+    discharged = [u for u in folded["unknowns"]
+                  if u.get("status") == "resolved"
+                  and (u.get("resolved_by") or {}).get("claim_id") == claim["id"]]
+    for u in discharged:
+        print("          discharged: %s" % u["question"])
+    backend.close()
+    return 0 if kept else 1
 
 
 def cmd_help(args) -> int:
@@ -884,6 +1261,17 @@ def copy_distribution(dest: Path) -> None:
             shutil.copy2(src, dest / member)
 
 
+def cmd_githook(args) -> int:
+    """M3.8. Distinct from `install --hook` above: that installs the
+    PreToolUse nudge into `.claude/settings.json`; this installs real git
+    `post-commit`/`post-checkout` hooks that call `cdp refresh`."""
+    repo = _paths(args).repo
+    fn = githooks_mod.install if args.action == "install" else githooks_mod.uninstall
+    for line in fn(repo):
+        print(line)
+    return 0
+
+
 def cmd_install(args) -> int:
     """Copy the skill into another repository. This is the portability story.
 
@@ -945,8 +1333,8 @@ def install_hook(target: Path, dest: Path) -> List[str]:
 
     notes: List[str] = []
     registered = registry_mod.lookup(registry_mod.repo_identity(target))
-    has_state = FileStore(target / ".cdp").has_artifact("inventory") or (
-        registered is not None and FileStore(registered).has_artifact("inventory")
+    has_state = has_scanned(target / ".cdp") or (
+        registered is not None and has_scanned(registered)
     )
     if not has_state:
         notes.append(
@@ -1005,11 +1393,40 @@ VOLATILE_FIELDS = ("generated_at",)
 
 
 def _state_files(root: Path) -> Dict[str, Path]:
+    """Raw filesystem outputs under the state dir -- `docs/`, `prompts/`, and
+    (for `check_determinism`'s test stubs, which write directly rather than
+    through a store) anything else. Excludes `index.db`: two independent
+    writes of identical content are not guaranteed byte-identical at the
+    SQLite file level (page allocation, not just logical data), so its
+    content is compared separately, through the store API (`_store_snapshot`).
+    """
     return {
         str(p.relative_to(root)): p
         for p in sorted(root.rglob("*"))
-        if p.is_file() and "__pycache__" not in p.parts
+        if p.is_file() and "__pycache__" not in p.parts and p.name != "index.db"
     }
+
+
+def _store_snapshot(root: Path) -> Dict[str, str]:
+    """`<root>/index.db`'s content, canonically serialised through the store
+    API -- comparable across two independently-written stores holding
+    identical content, unlike the file's own bytes (see `_state_files`).
+    `{}` vs `{}` (no differences) when no `index.db` exists at all, e.g. a
+    `check_determinism` test stub that writes raw files directly."""
+    backend = SqliteStore(root / "index.db")
+    try:
+        out = {
+            "index.db:%s" % name: golden_mod.canonical(backend.read_artifact(name, {}))
+            for name in ARTIFACTS
+        }
+        out.update({
+            "index.db:reports/%s" % name: golden_mod.canonical(backend.read_report(name, {}))
+            for name in REPORTS
+        })
+        out["index.db:patches"] = golden_mod.canonical(backend.load_patches())
+        return out
+    finally:
+        backend.close()
 
 
 def check_determinism(repo: Path, scan: Optional[Callable] = None) -> List[str]:
@@ -1044,6 +1461,24 @@ def check_determinism(repo: Path, scan: Optional[Callable] = None) -> List[str]:
             if left == right:
                 continue
             if rel != VOLATILE_FILE:
+                problems.append(
+                    "%s: differs between two scans of one commit%s"
+                    % (rel, _first_difference(left, right))
+                )
+                continue
+            problems.extend(_volatile_diff(rel, left, right))
+
+        store_a, store_b = _store_snapshot(a), _store_snapshot(b)
+        for rel in sorted(set(store_a) - set(store_b)):
+            problems.append("%s: written by the first scan only" % rel)
+        for rel in sorted(set(store_b) - set(store_a)):
+            problems.append("%s: written by the second scan only" % rel)
+        for rel in sorted(set(store_a) & set(store_b)):
+            left_text, right_text = store_a[rel], store_b[rel]
+            if left_text == right_text:
+                continue
+            left, right = left_text.encode("utf-8"), right_text.encode("utf-8")
+            if rel != "index.db:manifest":
                 problems.append(
                     "%s: differs between two scans of one commit%s"
                     % (rel, _first_difference(left, right))
@@ -1179,21 +1614,23 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
         state = Path(tmp) / "state"
         _scan_into(repo, state)
 
-        for path in sorted(state.rglob("*")):
-            if not path.is_file() or "__pycache__" in path.parts:
-                continue
-            rel = path.relative_to(state)
-            # `scan` renders docs into the state directory as of M1.2, and
-            # `cdp docs` is captured separately below through the same renderer
-            # (`_render_docs`). Capturing both would double the baseline for no
-            # extra evidence.
-            if rel.parts and rel.parts[0] == "docs":
-                continue
-            artifacts["scan/%s" % rel.as_posix()] = path.read_text(
-                encoding="utf-8", errors="replace"
+        # Read back through the store API (D3, `PHASE/FINDINGS.md`), not a raw
+        # filesystem walk: the default backend is `SqliteStore`, one binary
+        # file, which a byte-diff cannot describe. `golden_mod.canonical`
+        # re-serialises every artifact the same way regardless of backend, so
+        # capture is a function of content, not of the storage format.
+        backend = SqliteStore(state / "index.db")
+        for name in ARTIFACTS:
+            artifacts["scan/%s.json" % name] = golden_mod.canonical(
+                backend.read_artifact(name, {})
             )
-
-        head = FileStore(state).read_artifact("inventory").get("head")
+        for name in REPORTS:
+            artifacts["scan/reports/%s.json" % name] = golden_mod.canonical(
+                backend.read_report(name, {})
+            )
+        artifacts["scan/patches.json"] = golden_mod.canonical(backend.load_patches())
+        head = backend.read_artifact("inventory").get("head")
+        backend.close()
 
         # `docs` is driven through the CLI so the golden set covers the command
         # a user runs, not an internal function it happens to call today.
@@ -1221,6 +1658,7 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
                     continue
                 argv.append(term)
             artifacts["query/%s.json" % kind] = _run_cli(argv)
+        store.close()
     return artifacts, head
 
 

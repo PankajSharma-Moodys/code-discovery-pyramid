@@ -35,6 +35,7 @@ class TraceTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
+        cls.store.close()
         cls.tmp.cleanup()
 
     def run_cli(self, *argv) -> str:

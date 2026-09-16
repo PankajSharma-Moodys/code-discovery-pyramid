@@ -49,9 +49,19 @@ class ConformanceMixin:
         store.write_artifact("inventory", {"head": "abc"})
         self.assertTrue(store.exists())
 
-    def test_report_is_write_only_but_does_not_raise(self):
+    def test_missing_report_without_default_raises(self):
         store = self.make_store()
-        store.write_report("verify", {"claims_in": 3})  # must not raise
+        with self.assertRaises(CdpError):
+            store.read_report("verify")
+
+    def test_missing_report_with_default_returns_it(self):
+        store = self.make_store()
+        self.assertEqual(store.read_report("verify", {}), {})
+
+    def test_written_report_round_trips(self):
+        store = self.make_store()
+        store.write_report("verify", {"claims_in": 3})
+        self.assertEqual(store.read_report("verify"), {"claims_in": 3})
 
     def test_empty_patch_log_is_an_empty_list(self):
         store = self.make_store()

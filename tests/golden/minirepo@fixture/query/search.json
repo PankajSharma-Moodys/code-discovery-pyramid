@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "bbc97090d908f3320fe5efe9e63bac048c238acef0a9301a1f71b2de3a449c44",
+    "fold_hash": "4d3886ece0ee4af6287734961f36e7a301c0d0813126fb8d633c0453283c6afd",
     "repo": "tree",
     "state_version": 1
   },
@@ -25,7 +25,8 @@
         "root"
       ],
       "statement": "Configuration key 'MINI_DB_URL' is read at 1 site(s) in (root).",
-      "subject": "config:MINI_DB_URL"
+      "subject": "config:MINI_DB_URL",
+      "verdict": "consistent"
     }
   ],
   "counts": {

@@ -21,7 +21,8 @@
       "loc": 14,
       "module": "(root)",
       "node": "root",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "fb27b8271386ceb768f8595229e0d11d9f8fa21e21755e99d2ff8af17d1ec53a"
     },
     {
       "by_language": {
@@ -47,7 +48,8 @@
       "loc": 67,
       "module": "core",
       "node": "root/core",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "9dda2e1859feb226a99dcdbda670146c6fb931f5d9fd020af43d5263e8f45585"
     },
     {
       "by_language": {
@@ -68,7 +70,8 @@
       "loc": 49,
       "module": "web",
       "node": "root/web",
-      "oversized": false
+      "oversized": false,
+      "scope_hash": "583f534d1d076d6092fe6f3742c400c5104409852a9b8a3e37056910a7432a46"
     }
   ],
   "totals": {

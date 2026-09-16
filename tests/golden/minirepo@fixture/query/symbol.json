@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "bbc97090d908f3320fe5efe9e63bac048c238acef0a9301a1f71b2de3a449c44",
+    "fold_hash": "4d3886ece0ee4af6287734961f36e7a301c0d0813126fb8d633c0453283c6afd",
     "repo": "tree",
     "state_version": 1
   },
@@ -28,7 +28,8 @@
             "root/core"
           ],
           "statement": "WidgetRepository reads and writes WidgetEntity; no table name is stated in source, so the binding is left to the persistence framework's default.",
-          "subject": "entity:com.example.mini.core.WidgetEntity"
+          "subject": "entity:com.example.mini.core.WidgetEntity",
+          "verdict": "consistent"
         },
         {
           "anchor_verified_at": "<HEAD>",
@@ -47,7 +48,8 @@
             "root"
           ],
           "statement": "The build's root project is named 'mini-svc', which appears in no directory name; every module directory is '?...'. Build logs, metrics and the OpenAPI title use 'mini-svc'.",
-          "subject": "build:rootProject.name"
+          "subject": "build:rootProject.name",
+          "verdict": "consistent"
         },
         {
           "anchor_verified_at": "<HEAD>",
@@ -66,7 +68,8 @@
             "root/core"
           ],
           "statement": "1 source files declare a package whose text and directory path differ only in case (e.g. directory 'COM/Example/mini/core' declares 'package com.example.mini.core'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
-          "subject": "package-path-divergence"
+          "subject": "package-path-divergence",
+          "verdict": "consistent"
         }
       ],
       "collision": false,

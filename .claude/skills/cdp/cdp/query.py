@@ -32,28 +32,43 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
-from .store import FileStore, WorkspaceStore
+from .store import SqliteStore, WorkspaceStore
 from .util import CdpError, truncate
 
 
 class Store:
     """Lazily-loaded view over a workspace store.
 
-    Accepts a `WorkspaceStore` directly, or a `Path`/`str` for backward
-    compatibility — a bare directory is wrapped in a `FileStore`. Reading and
-    writing state itself is `store/`'s job (R1); this class only caches rows
-    and exposes the properties every renderer and query reads.
+    Accepts a `WorkspaceStore` directly, or a `Path`/`str` for convenience --
+    a bare directory is wrapped as `SqliteStore(dir/index.db)`, the CLI's own
+    default (D3, `PHASE/FINDINGS.md`). There is no `FileStore` fallback: every
+    production write path constructs `SqliteStore`, so a directory with no
+    `index.db` has no state to read, full stop. Reading and writing state
+    itself is `store/`'s job (R1); this class only caches rows and exposes
+    the properties every renderer and query reads.
     """
 
     def __init__(self, backend: Union["WorkspaceStore", Path, str]) -> None:
         if isinstance(backend, WorkspaceStore):
             self.backend = backend
         else:
-            path = Path(backend)
-            if not path.is_dir():
-                raise CdpError("no CDP state at %s — run `scan` first" % path)
-            self.backend = FileStore(path)
+            db = Path(backend) / "index.db"
+            if not db.is_file():
+                raise CdpError("no CDP state at %s — run `scan` first" % backend)
+            self.backend = SqliteStore(db)
+        # A view over the store reads the *current* state by default -- the
+        # most recent snapshot, not whichever one `_snapshot_id()`'s lazy
+        # `id=1` fallback happens to land on. See `use_latest_snapshot`'s
+        # docstring for the bug this closes.
+        use_latest = getattr(self.backend, "use_latest_snapshot", None)
+        if callable(use_latest):
+            use_latest()
         self._cache: Dict[str, Any] = {}
+
+    def close(self) -> None:
+        close = getattr(self.backend, "close", None)
+        if close is not None:
+            close()
 
     def _load(self, name: str, default: Any = None) -> Any:
         if name not in self._cache:
@@ -211,12 +226,20 @@ def _as_of(store: Store) -> Dict:
     """
     inventory = store.inventory
     provenance = (store.state or {}).get("provenance", {})
-    return {
+    result = {
         "repo": inventory.get("repo_name"),
         "commit": inventory.get("head", "unpinned"),
         "state_version": provenance.get("patch_count", 0),
         "fold_hash": provenance.get("fold_hash"),
     }
+    # M3.7 `--as-of`: the claim log was replayed only up to a past run, but
+    # `xref`/`graph` (and so `inventory.head` above) are still the current
+    # structural view -- naming that explicitly rather than letting `commit`
+    # imply the whole answer is historical when only the claims are.
+    as_of_run_id = getattr(store, "as_of_run_id", None)
+    if as_of_run_id:
+        result["patch_log_as_of"] = as_of_run_id
+    return result
 
 
 def _finish(result: Dict, store: Store, budget: Optional[Budget]) -> Dict:
@@ -1191,6 +1214,16 @@ def render(result: Dict) -> str:
             for row in rows:
                 lines.append("    %s" % row["question"])
                 lines.append("      why: %s" % row["why_unresolved"])
+                if row.get("needs"):
+                    lines.append("      needs: %s%s" % (
+                        row["needs"], " (migrated)" if row.get("needs_migrated") else ""))
+                status = row.get("status", "open")
+                if status != "open":
+                    rb = row.get("resolved_by") or {}
+                    detail = ("  resolved_by=%s (%s @ %s)" % (
+                        rb.get("claim_id"), rb.get("author_kind"), rb.get("at_snapshot"))
+                        if status == "resolved" else "")
+                    lines.append("      status: %s%s" % (status, detail))
                 if row.get("anchor"):
                     lines.append("      %s" % cite(row["anchor"]))
 

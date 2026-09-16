@@ -296,3 +296,246 @@ shallow clone or a truly garbage-collected commit.
 
 Worktree removed after the exercise (`git worktree remove --force`); the main
 checkout's `git status --porcelain` was empty before and after.
+
+## Phase 3 (M3.4) — scope-hash caching exercised on a real one-file edit
+
+Scoped to M3.4 only this session (`PHASE/FINDINGS.md` records the fix and why
+M3.5–M3.8 stay deferred). Same worktree pattern as M3.1–M3.3's exercise above:
+
+    git worktree add --detach /tmp/m34_wt 7e10575adf69a193da7f547aed088f7409f1f7c4
+    cdp scan --repo /tmp/m34_wt/sql-pool/sql-pool-api --state-dir <scratch>
+    # append one line to one .java file in the 38-file scope, commit
+    cdp refresh --repo /tmp/m34_wt/sql-pool/sql-pool-api --state-dir <scratch>
+
+```
+scopes    1/2 changed (dispatch needed for 1, 1 reuse the prior claim)
+```
+
+The 11-file scope's `scope_hash` did not move; the edited 38-file scope's did.
+This is the milestone's own acceptance line ("a commit touching 2 of 17
+scopes dispatches 2 scopes, not 17") reproduced against real content changed
+by a real commit, not a synthetic partition. Worktree removed after the
+exercise; main checkout's `git status --porcelain` was empty before and
+after.
+
+## Phase 3 (M3.5-M3.6) — `cdp diff` and `cdp gc` exercised on the same real commit pair
+
+Scoped to M3.5/M3.6 only this session (`PHASE/FINDINGS.md` records the
+multi-snapshot gap this surfaced — `FileStore` cannot hold two snapshots, and
+the CLI never constructs a `SqliteStore` — and why each milestone's design
+answers it differently). Same worktree pattern as the M3.1-M3.4 exercises:
+
+    git worktree add --detach /tmp/diff_wt 7e10575adf69a193da7f547aed088f7409f1f7c4
+    cdp scan --repo /tmp/diff_wt/sql-pool/sql-pool-api --state-dir /tmp/diff_old --quiet
+    git -C /tmp/diff_wt checkout -q bab4ea0dce85   # current tip, ~8 months later
+    cdp scan --repo /tmp/diff_wt/sql-pool/sql-pool-api --state-dir /tmp/diff_new --quiet
+    cdp diff /tmp/diff_old /tmp/diff_new
+
+```
+diff      0 module(s) added, 0 removed
+          0 declared edge(s) +/-0/0, 0 observed edge(s) +/-0/0
+          0 route(s) added, 0 removed
+          0 claim(s) added, 0 removed, 0 anchor(s) moved
+```
+
+Zero deltas, consistent with the M3.1-M3.3 finding that this module's 41
+structural claims all verified live across the same commit range: a real diff
+of zero is the expected cross-check here, not a vacuous run. The eight
+non-trivial delta shapes (module/edge/route/claim added or removed, anchor
+moved, undeclared dependency appearing, coverage regression) are exercised on
+synthetic dicts shaped like the real schemas (`tests/test_diffs.py`), since
+this real commit pair never produced any of them within this session's
+budget.
+
+For `cdp gc`, since no scan path writes into a `SqliteStore` (the CLI's
+default backend is still `FileStore` — D3), one was populated directly at
+this target's real `repo_id` and the same two real commit shas: an old
+snapshot cited by a claim's `claim_reviewed_at`, an uncited orphan snapshot,
+and the head snapshot. `cdp gc --db ... --repo /tmp/diff_wt/sql-pool/sql-pool-api`
+(a real CLI invocation, real `repo_identity`/git-HEAD resolution) dropped only
+the orphan and kept the cited old snapshot plus HEAD, confirmed by reading
+`list_snapshots()` back rather than trusting the summary line; `--dry-run`
+reported the identical plan without deleting anything, checked first.
+
+Worktree removed after the exercise; main checkout's `git status --porcelain`
+was empty before and after.
+
+## D3 resolved — `SqliteStore` exercised as the CLI's real default, live
+
+`PHASE/FINDINGS.md`'s "D3 resolved" entry has the fix; this is its real-target
+evidence. `cdp scan` / `query stats` / `fold --check` / `docs` / `prompts` /
+`status` all run against `$TARGET_REPO/sql-pool/sql-pool-api` (scratch state
+dir): `index.db` is confirmed a real SQLite file (`file(1)`: "SQLite 3.x
+database... database pages 275"), every command reads it correctly, and no
+stray top-level `*.json` artifact sits alongside it. `hook.find_state`
+against a freshly `git init`'d, never-scanned scratch directory returns
+`None` and creates no `.cdp/` at all (the bug `store.has_scanned` fixes:
+constructing `SqliteStore` merely to check existence would otherwise litter
+one at every parent directory the hook probes).
+
+Both golden baselines (fixture and `$TARGET_REPO`) re-blessed for the shape
+change golden capture now has (`scan/patches/0000-derived.json` -> one
+`scan/patches.json`; `REPORTS` always present, `{}` when unwritten): target
+diff is 15 files, the same shape as every prior phase's re-bless (`fold_hash`
+via the new `"rollback": null` field already pending un-blessed from M3.7,
+`scope_hash` per scope from M3.4, plus this session's patches/reports
+restructuring) — confirmed via `git diff` on `scan/state.json` showing only
+the additive `rollback` field and its consequent hash change, nothing else.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (selftest,
+determinism x2, fold --check x2, golden x2): **all gates green**, including
+the reproducibility gate against the new default backend
+(`test_minirepo_scans_reproducibly` and the target's own `determinism`
+gate both pass) — the concrete proof that `_store_snapshot`'s canonical-JSON
+comparison, not a raw byte-diff of `index.db`, is what makes two independent
+scans of one commit agree.
+
+## Phase 3 (M3.8) — git hooks, and a defect they exposed in `refresh` itself
+
+Scoped to M3.8 only this session -- the last milestone in `phase_3_plan.md`;
+M3.1-M3.7 were already complete going in. `PHASE/FINDINGS.md` F12 and the
+"Phase 3 (M3.8)" entry (D19) have the full account; this is the real-target
+evidence.
+
+Exercising the hooks' effect required composing `scan` -> a hook-triggered
+`refresh` -> a separate `cdp status` process -- a composition no prior
+phase's real-target exercise had performed (each trusted `refresh`'s own
+printed summary). Doing that composition surfaced F12: `refresh` wrote into
+a snapshot that `status`/`query`/`docs`/`fold`/`collect` never read back, and
+separately, a freshly-selected snapshot's patch log started empty (M2.4's
+correct per-snapshot isolation), so `refresh`'s fold saw zero claims. Both
+fixed this session (`SqliteStore.use_latest_snapshot`/`touch_seq`,
+`copy_patches_from`); the fixture-level proof is
+`tests/test_githooks.py::RealHookFiringTest`, driven by real `git commit`/
+`git checkout` subprocesses invoking the installed hook scripts, not a direct
+`cdp refresh` call.
+
+**Real-target exercise, deliberately scoped down for safety (D19).** A git
+repository's hooks directory is shared across every worktree
+(`git rev-parse --git-path hooks` resolves to the common `.git/hooks/`) --
+confirmed live: installing against a detached worktree of `$TARGET_REPO`
+(`sql-pool/sql-pool-api`, pinned commit) placed the hooks in
+`/Users/sharmp49/git/unified-store/.git/hooks/`, the real, shared hooks
+directory this session's own working copy (`/Users/sharmp49/git/code_scanner`)
+also resolves to, since it is itself a linked worktree of that repository.
+`cdp githook uninstall` against the same worktree path was run immediately
+after and confirmed (by listing the directory) to remove exactly those two
+files and nothing else; `git status --porcelain` on the real repo was empty
+before and after. Given that, the hook-*firing* acceptance criteria (commit
+triggers refresh; branch switch triggers refresh; file checkout does not)
+were proven on the fixture instead of risking a second real install/fire
+cycle against a live, currently-used repository -- what real-target scale
+did confirm is `hooks_dir()`'s worktree-aware resolution and a clean
+install/uninstall roundtrip, both above.
+
+## Phase 4 (M4.1) — entailment, exercised on a real module before the gate
+
+Scoped to M4.1 only this session (`PHASE/FINDINGS.md` has the full account,
+including the `source_nodes` bug the real-target exercise found and the fix).
+`sql-pool/sql-pool-api` scanned fresh into `/tmp/m41_scratch`:
+
+```
+verify    41/41 derived claims anchored (0 demoted, rate 0.000)
+```
+
+Entailment on those 41 derived claims (read back from `index.db` directly):
+
+```
+{"consistent": 39, "contradicted": 0, "entailed": 2}   rate_contradicted: 0.0
+```
+
+Matches M4.1's own acceptance line for a derived patch exactly. Per-node
+`entailed_ratio` (after the `source_nodes` fix): `root/(files+2)` 0.1667,
+`root/src/main/java` 0.0286 -- both low, expected for a module whose claims
+are almost entirely `naming`/`ownership`/`test_behaviour` kinds with no
+`channel` set, so `entailed` only fires for the `config`/`side_effect`-style
+claims built directly from an `io_edge`.
+
+The full-`$TARGET_REPO` number, from the blessed golden `state.json`
+(1,278 derived claims, `make check TARGET_REPO=... ` fully green):
+
+```
+{"consistent": 1243, "entailed": 35, "contradicted": 0}   rate_contradicted: 0.0
+```
+
+Zero contradicted at full scale, on the exact same claims `TARGET.md`'s
+census already counts (1,278). `entailed_ratio` by scope ranges 0.0 (most
+SQL-migration and C#-only scopes -- no `channel`-bearing claims at all, since
+CDP reads no C#, Finding T1) to 1.0 (a few small scopes whose only claims are
+process-entrypoint/config-read facts an `io_edge` already states);
+`sql-pool-manager` (14/19 claims entailed, 0.74) is the highest non-trivial
+concentration. `make check`'s own two full-target passes (determinism,
+`fold --check`, golden) all green with this data live -- see
+`PHASE/FINDINGS.md` for the two real defects the exercise found
+(`source_nodes` breaking the per-scope ratio, and `fold_hash`'s
+`extraction=None` vs `extraction={}` inconsistency) before this number was
+trustworthy.
+
+## Phase 4 (M4.2) — the four unknown gates, exercised on a real module
+
+Scoped to M4.2 only this session (`PHASE/FINDINGS.md` has the full account:
+gates 1-3 run in `cmd_collect`, gate 4 (clustering) in `state.fold`, and the
+two decisions the plan left open — `subject`/`channel` optional rather than
+required, D20; `snapshot_task`'s read path wired with no writer yet, D21).
+
+`sql-pool/sql-pool-api` scanned fresh into `/tmp/m42_scratch`. A hand-written
+inbox patch for its one non-empty scope (`root/(files+2)`) carried three
+unknowns: a legitimate scope-level one (`subject` = the scope node itself), one
+already answered by a real `config_read` io_edge in that scope, and one naming
+a fabricated subject. `cdp collect`:
+
+```
+gates     2 unknown(s) rejected
+  REJECTED unknown (root/(files+2)): already answered by io_edge config-file:.../dropwizard-service-config.yml -> config:logging.type (config_read) at src/main/resources/dropwizard-service-config.yml:21
+  REJECTED unknown (root/(files+2)): subject 'Nonexistent.FakeSubject' names nothing in defines[]/io_edges and is not a scope
+```
+
+Both gates fired with a cited reason against real target structure, not a
+synthetic dict. The legitimate scope-level unknown survived into `state.json`
+with `provenance_state: "unexamined"` — the honest answer given D21 (no
+`snapshot_task` writer exists yet in this codebase). Scratch directory
+removed after the exercise.
+
+`make check TARGET_REPO=...` (selftest, determinism x2, fold --check x2,
+golden x2): green after re-blessing both baselines for the additive
+`reports/unknown_gates.json` shape (present, `{}`, on every scan that never
+ran `collect` — the same convention `rejected` already established).
+
+## Phase 4 (M4.3-M4.4) — needs_*/R12 and `cdp answer`, exercised on a real module
+
+Scoped to M4.3/M4.4 only this session (`PHASE/FINDINGS.md` has the full
+account, including F13 — unknowns silently disappearing across a node's
+re-run, which is exactly what R12 forbids — found and fixed this session).
+`sql-pool/sql-pool-api` scanned fresh into a scratch dir:
+
+```
+$ cdp answer "root/(files+2)" --subject Dockerfile.JDK_JAVA_OPTIONS \
+    --kind naming --claim "..." --anchor Dockerfile:17
+answer    human.a0000fcd013c02a1  verdict=consistent  confidence=high
+
+$ cdp answer "root/(files+2)" --subject Fake.Thing --kind naming \
+    --claim "..." --anchor Dockerfile:99999
+cdp: no citable anchor at Dockerfile:99999 -- humans are not exempt from
+anchor verification either                                    (exit 2)
+```
+
+A hand-written unknown with no `needs` field, submitted via the inbox,
+was rejected by `collect` with the closed vocabulary cited in the reason —
+the same "gates" reporting mechanism M4.2 already established. `query
+unknowns --json` on the same scratch scan showed a real, pre-existing
+structural unknown ("What is this module called?") grandfathered exactly as
+designed: `needs: needs_human`, `needs_migrated: true`, `status: open`.
+Scratch directory removed after the exercise; `make check` (below) is the
+full-target confirmation.
+
+## Phase 3 (M3.7) — rollback and `--as-of` exercised on a real module
+
+Scoped to M3.7 only this session (`PHASE/FINDINGS.md` D16-D18 record the
+design: an append-only exclusion ledger, log-append-order as the ordering
+axis since patches carry no timestamp, and `--as-of` limited to a commit).
+`sql-pool/sql-pool-api` scanned into a scratch dir at the pinned commit
+(41 claims). A synthetic bad run sharing the derived patch's node was
+appended and folded; `cdp rollback --to-run <bad-run>` excluded it and
+restored exactly 41 claims; `fold --check` passed against the new ledger;
+`cdp query claims --as-of <root-run>` reproduced the same 41-claim answer
+read-only. Scratch directory removed after the exercise.

@@ -30,7 +30,7 @@ ARTIFACTS = (
     "inventory", "extract", "graph", "partition", "schedule",
     "xref", "dataflow", "state", "manifest",
 )
-REPORTS = ("verify", "conflicts", "prompts", "rejected")
+REPORTS = ("verify", "conflicts", "prompts", "rejected", "unknown_gates")
 
 
 class WorkspaceStore(ABC):
@@ -83,6 +83,13 @@ class WorkspaceStore(ABC):
     def write_report(self, name: str, data: Any) -> None:
         ...
 
+    @abstractmethod
+    def read_report(self, name: str, default: Any = None) -> Any:
+        """Read one of `REPORTS`, written by `write_report`. Raise `CdpError`
+        if missing and no default -- symmetric with `read_artifact`, needed by
+        golden capture, which must read state back through this interface
+        rather than walking a backend's filesystem layout."""
+
     # ------------------------------------------------------------ patch log
 
     @abstractmethod
@@ -127,7 +134,20 @@ class WorkspaceStore(ABC):
         """Remove the inbox entry for `node` once its patch has been logged."""
 
 
+def has_scanned(state_dir) -> bool:
+    """Whether a scan has ever written to `state_dir`, checked without
+    constructing a backend. `SqliteStore.__init__` creates its db file (and
+    parent directory) as a side effect of merely opening it -- fine for a
+    command that is about to scan or read real state, wrong here: this is
+    called from a directory-walk probe (`hook.find_state`) on every watched
+    tool call, for directories the vast majority of which were never scanned.
+    """
+    from pathlib import Path
+
+    return (Path(state_dir) / "index.db").is_file()
+
+
 from .file_backend import FileStore  # noqa: E402  (avoid a circular import at module load)
 from .sqlite_backend import SqliteStore  # noqa: E402
 
-__all__ = ["WorkspaceStore", "FileStore", "SqliteStore", "ARTIFACTS", "REPORTS"]
+__all__ = ["WorkspaceStore", "FileStore", "SqliteStore", "ARTIFACTS", "REPORTS", "has_scanned"]

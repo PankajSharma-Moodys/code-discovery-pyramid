@@ -46,6 +46,14 @@ class FileStore(WorkspaceStore):
     def write_report(self, name: str, data: Any) -> None:
         write_json(self.root / "reports" / (name + ".json"), data)
 
+    def read_report(self, name: str, default: Any = None) -> Any:
+        path = self.root / "reports" / (name + ".json")
+        if not path.exists():
+            if default is None:
+                raise CdpError("missing report %s" % path)
+            return default
+        return read_json(path)
+
     # ------------------------------------------------------------ patch log
 
     def _patches_dir(self) -> Path:

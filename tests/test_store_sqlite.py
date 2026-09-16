@@ -125,6 +125,54 @@ class TestSnapshotLineage(unittest.TestCase):
         self.store.mark_durable()  # must not raise
 
 
+class TestRetention(unittest.TestCase):
+    """M3.6/0.10: `list_snapshots`/`set_pinned`/`delete_snapshot`, the
+    primitives `cdp gc` builds on. The retention *decision* itself is
+    `snapshot.snapshots_to_keep` (`tests/test_snapshot.py`) -- these assert the
+    storage operations it is applied against are correct."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.store = SqliteStore(Path(self._tmp.name) / "index.db")
+        self.addCleanup(self.store.close)
+
+    def test_new_snapshot_is_unpinned_by_default(self):
+        self.store.begin_snapshot("repo-a", "commit-1")
+        rows = self.store.list_snapshots()
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["pinned"])
+
+    def test_set_pinned_round_trips(self):
+        self.store.begin_snapshot("repo-a", "commit-1")
+        self.store.set_pinned("commit-1", True)
+        self.assertTrue(self.store.list_snapshots()[0]["pinned"])
+        self.store.set_pinned("commit-1", False)
+        self.assertFalse(self.store.list_snapshots()[0]["pinned"])
+
+    def test_set_pinned_on_unknown_commit_raises(self):
+        with self.assertRaises(CdpError):
+            self.store.set_pinned("no-such-commit", True)
+
+    def test_delete_snapshot_never_touches_a_sibling_snapshot(self):
+        self.store.begin_snapshot("repo-a", "commit-1")
+        self.store.append_patch({"node": "root", "status": "complete"}, "root")
+        self.store.write_artifact("inventory", {"head": "commit-1"})
+        [dropped] = [r for r in self.store.list_snapshots() if r["commit_sha"] == "commit-1"]
+
+        self.store.begin_snapshot("repo-a", "commit-2")
+        self.store.append_patch({"node": "root", "status": "complete"}, "root2")
+        self.store.write_artifact("inventory", {"head": "commit-2"})
+
+        self.store.delete_snapshot(dropped["id"])
+
+        remaining = self.store.list_snapshots()
+        self.assertEqual([r["commit_sha"] for r in remaining], ["commit-2"])
+        self.store.begin_snapshot("repo-a", "commit-2")
+        self.assertEqual(self.store.read_artifact("inventory"), {"head": "commit-2"})
+        self.assertEqual(len(self.store.load_patches()), 1)
+
+
 class TestRunsAndTasks(unittest.TestCase):
     """M2.5 (0.12/0.13): schema only, driven in Phase 5."""
 

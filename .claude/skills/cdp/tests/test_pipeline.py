@@ -19,8 +19,26 @@ from helpers import SKILL_ROOT, MiniRepoTest, Pipeline, make_repo
 
 from cdp.partition import assert_partition, partition
 from cdp.state import check_order_independence, fold, fold_hash
+from cdp.store import ARTIFACTS, REPORTS, SqliteStore
 from cdp.util import CdpError, stable_hash
 from cdp.verify import LENIENT, STRICT, verify_all
+
+
+def _state_snapshot(state: Path) -> dict:
+    """Every artifact/report/patch in `state`'s store, canonically serialised
+    -- backend-agnostic (the default is `SqliteStore`, one binary file a raw
+    byte-diff cannot describe; `manifest` carries a timestamp and is excluded,
+    same as the golden gate's own `EXCLUDED`)."""
+    backend = SqliteStore(state / "index.db")
+    try:
+        out = {name: json.dumps(backend.read_artifact(name, {}), sort_keys=True)
+               for name in ARTIFACTS if name != "manifest"}
+        out.update({"report:%s" % name: json.dumps(backend.read_report(name, {}), sort_keys=True)
+                    for name in REPORTS})
+        out["patches"] = json.dumps(backend.load_patches(), sort_keys=True)
+        return out
+    finally:
+        backend.close()
 
 RUN_PY = SKILL_ROOT / "run.py"
 
@@ -208,13 +226,9 @@ class TestReproducible(unittest.TestCase):
                      "--state-dir", str(state), "--quiet"],
                     check=True, capture_output=True,
                 )
-                # manifest.json is the only state file carrying wall-clock and
-                # is excluded for exactly that reason.
-                digests.append({
-                    p.name: p.read_bytes()
-                    for p in sorted(state.rglob("*.json"))
-                    if p.name != "manifest.json"
-                })
+                # manifest is the only state file carrying wall-clock and is
+                # excluded for exactly that reason (`_state_snapshot`).
+                digests.append(_state_snapshot(state))
             self.assertEqual(sorted(digests[0]), sorted(digests[1]))
             for name in digests[0]:
                 self.assertEqual(digests[0][name], digests[1][name],
@@ -242,12 +256,13 @@ class TestReproducible(unittest.TestCase):
             subprocess.run(
                 [sys.executable, str(RUN_PY), "scan", "--repo", str(repo),
                  "--state-dir", str(state), "--quiet"], check=True, capture_output=True)
-            path = state / "state.json"
-            doc = json.loads(path.read_text())
+            backend = SqliteStore(state / "index.db")
+            doc = backend.read_artifact("state")
             doc["claims"].append({"id": "hand.patched", "kind": "naming",
                                   "subject": "x", "statement": "Written by hand.",
                                   "evidence": [], "confidence": "high"})
-            path.write_text(json.dumps(doc, indent=2, sort_keys=True))
+            backend.write_artifact("state", doc)
+            backend.close()
             proc = subprocess.run(
                 [sys.executable, str(RUN_PY), "fold", "--check", "--repo", str(repo),
                  "--state-dir", str(state)], capture_output=True, text=True)
@@ -302,7 +317,9 @@ class TestCli(unittest.TestCase):
                     [sys.executable, str(RUN_PY)] + cmd + ["--repo", str(repo),
                      "--state-dir", str(state)], check=True, capture_output=True)
             prompts = sorted((state / "prompts").glob("*.md"))
-            scopes = json.loads((state / "partition.json").read_text())["scopes"]
+            backend = SqliteStore(state / "index.db")
+            scopes = backend.read_artifact("partition")["scopes"]
+            backend.close()
             self.assertEqual(len(prompts), len(scopes))
             text = prompts[0].read_text()
             self.assertIn("read these files and only these files", text)

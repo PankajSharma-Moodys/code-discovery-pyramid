@@ -18,7 +18,8 @@
         "root"
       ],
       "statement": "Configuration key 'MINI_DB_URL' is read at 1 site(s) in (root).",
-      "subject": "config:MINI_DB_URL"
+      "subject": "config:MINI_DB_URL",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -38,7 +39,8 @@
         "root/core"
       ],
       "statement": "WidgetRepository reads and writes WidgetEntity; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:com.example.mini.core.WidgetEntity"
+      "subject": "entity:com.example.mini.core.WidgetEntity",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -58,7 +60,8 @@
         "root/core"
       ],
       "statement": "Table 'widget' is written from WidgetEntity in core.",
-      "subject": "table:widget"
+      "subject": "table:widget",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -82,7 +85,8 @@
         "root/web"
       ],
       "statement": "web imports core at 2 distinct sites.",
-      "subject": "web -> core"
+      "subject": "web -> core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -102,7 +106,8 @@
         "root"
       ],
       "statement": "(root) is packaged as its own container image; its entry command is [\"java\", \"-jar\", \"/app/web.jar\"].",
-      "subject": "process:root"
+      "subject": "process:root",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -122,7 +127,8 @@
         "root/web"
       ],
       "statement": "WebApplication declares a process entry point in web; it is one of the repository's separately-startable units.",
-      "subject": "com.example.mini.web.WebApplication"
+      "subject": "com.example.mini.web.WebApplication",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -142,7 +148,8 @@
         "root"
       ],
       "statement": "root declares a process entry point in (root); it is one of the repository's separately-startable units.",
-      "subject": "root"
+      "subject": "root",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -167,7 +174,8 @@
         "root/web"
       ],
       "statement": "GET /v1/widgets is served by WidgetResource#list in web (declared via the constant ${ApiPaths.WIDGETS}).",
-      "subject": "route:GET /v1/widgets"
+      "subject": "route:GET /v1/widgets",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -192,7 +200,8 @@
         "root/web"
       ],
       "statement": "GET /v1/widgets/{id} is served by WidgetResource#get in web (declared via the constant ${ApiPaths.WIDGETS}/{id}).",
-      "subject": "route:GET /v1/widgets/{id}"
+      "subject": "route:GET /v1/widgets/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -211,7 +220,8 @@
         "root"
       ],
       "statement": "The build's root project is named 'mini-svc', which appears in no directory name; every module directory is '?...'. Build logs, metrics and the OpenAPI title use 'mini-svc'.",
-      "subject": "build:rootProject.name"
+      "subject": "build:rootProject.name",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -230,7 +240,8 @@
         "root/core"
       ],
       "statement": "1 source files declare a package whose text and directory path differ only in case (e.g. directory 'COM/Example/mini/core' declares 'package com.example.mini.core'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
-      "subject": "package-path-divergence"
+      "subject": "package-path-divergence",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -250,7 +261,8 @@
         "root/core"
       ],
       "statement": "The schema for 'widget' is owned by core, defined across 1 migration(s).",
-      "subject": "table:widget"
+      "subject": "table:widget",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -271,10 +283,12 @@
         "root/core"
       ],
       "statement": "core reads from the database, across 1 site(s).",
-      "subject": "core:read"
+      "subject": "core:read",
+      "verdict": "consistent"
     }
   ],
   "conflicts": [],
+  "contradictions": [],
   "coverage": {
     "files_complete": 3,
     "files_total": 13,
@@ -283,6 +297,34 @@
       "root/core",
       "root/web"
     ]
+  },
+  "entailment": {
+    "by_node": {
+      "root": {
+        "consistent": 3,
+        "contradicted": 0,
+        "entailed": 1,
+        "entailed_ratio": 0.25
+      },
+      "root/core": {
+        "consistent": 5,
+        "contradicted": 0,
+        "entailed": 0,
+        "entailed_ratio": 0.0
+      },
+      "root/web": {
+        "consistent": 3,
+        "contradicted": 0,
+        "entailed": 1,
+        "entailed_ratio": 0.25
+      }
+    },
+    "counts": {
+      "consistent": 11,
+      "contradicted": 0,
+      "entailed": 2
+    },
+    "rate_contradicted": 0.0
   },
   "merge_stats": {
     "conflicts": 0,
@@ -299,9 +341,10 @@
     "root": "complete"
   },
   "provenance": {
-    "fold_hash": "bbc97090d908f3320fe5efe9e63bac048c238acef0a9301a1f71b2de3a449c44",
+    "fold_hash": "4d3886ece0ee4af6287734961f36e7a301c0d0813126fb8d633c0453283c6afd",
     "patch_count": 1
   },
+  "rollback": null,
   "schema_version": "1.0.0",
   "unknowns": [],
   "verification": {

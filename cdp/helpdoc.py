@@ -127,6 +127,15 @@ GUIDANCE: Dict[str, List[str]] = {
         "`stats` and `coverage` are never budgeted, which is why they are the two",
         "commands to check before concluding that something does not exist.",
     ],
+    "unknowns, honestly": [
+        "An unknown is validated around, never on its content -- CDP checks that",
+        "its subject exists and isn't already answered, not whether the gap is real.",
+        "Completeness of unknowns is out of scope permanently: whether an agent",
+        "failed to notice something it did not know it did not know is unknowable",
+        "by construction. Coverage and `doctor`'s recall against a golden set are",
+        "the only proxies. `needs_*` says what would resolve one; `cdp answer`",
+        "resolves it through the same pipeline a model claim goes through.",
+    ],
 }
 
 

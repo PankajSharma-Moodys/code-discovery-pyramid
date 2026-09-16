@@ -32,6 +32,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, FrozenSet, Iterable, List, Optional, Sequence
 
+from .entail import entail_claims, summarize as summarize_entailment
+from .gates import build_extraction_index, cluster_unknowns, discharge_unknowns, grandfather_needs
 from .merge import merge_claims
 from .util import git_head, stable_hash
 from .verify import STRICT, verify_all
@@ -54,6 +56,8 @@ def fold(
     mode: str = STRICT,
     rename_map: Optional[Dict[str, str]] = None,
     edited_files: Optional[FrozenSet[str]] = None,
+    excluded_run_ids: Optional[FrozenSet[str]] = None,
+    extraction: Optional[Dict] = None,
 ) -> Dict:
     """The whole of state derivation. Deterministic: same inputs, same bytes out.
 
@@ -79,7 +83,22 @@ def fold(
     existing order-independent merge cannot introduce order-dependence; the
     property `check_order_independence` tests continues to hold for the same
     reason it always did.
+
+    `excluded_run_ids` (Phase 3, M3.7 -- `cdp/rollback.py`) is a rolled-back
+    run's identity, never a position: a patch whose `run_id` is in this set is
+    dropped before anything else runs, so it contributes no claim, no status,
+    no coverage -- as if it had never been appended, without the log itself
+    ever being rewritten (R5). This is what makes rollback exact rather than
+    approximate: fold is pure in its patch-list argument, so excluding the same
+    run_ids twice, or excluding them via a different ledger entry, always
+    yields the same bytes.
+
+    `extraction` (Phase 4, M4.1) is this same commit's `io_edges`/`defines`
+    (`cdp/entail.py`), used only to assign each claim a `verdict` -- never to
+    add, drop or reword a claim.
     """
+    if excluded_run_ids:
+        patches = [p for p in patches if str(p.get("run_id")) not in excluded_run_ids]
     raw_patches = list(patches)
     verification = None
     verified_patches = raw_patches
@@ -113,12 +132,44 @@ def fold(
             node_status.setdefault(node, status)
         if patch.get("error"):
             node_errors[node] = str(patch["error"])
-        if status != "complete":
+
+    # A node re-run yields one generation, not an accumulation of every attempt
+    # ever appended (M3.4, ARCHITECTURE.md's sharp-edges table: "both patches are
+    # `complete`; neither supersedes"). Among a node's `complete` patches, only
+    # the highest `generation` contributes claims. `generation` is data stamped
+    # onto the patch at append time (`cli.py` `cmd_collect`/`cmd_scan`), not a
+    # position in this list, so this selection is order-independent by
+    # construction the same way `node_status` above is: permuting `patches`
+    # cannot change which patch owns the max generation for a node.
+    best_complete: Dict[str, Dict] = {}
+    for patch in verified_patches:
+        if str(patch.get("status", "pending")) != "complete":
             continue
+        node = str(patch.get("node", "?"))
+        gen = int(patch.get("generation") or 1)
+        current = best_complete.get(node)
+        if current is None:
+            best_complete[node] = patch
+            continue
+        cur_gen = int(current.get("generation") or 1)
+        if gen > cur_gen or (gen == cur_gen and stable_hash(patch) > stable_hash(current)):
+            best_complete[node] = patch
+
+    for node, patch in best_complete.items():
         for claim in patch.get("claims") or []:
             row = dict(claim)
             row.setdefault("source_node", node)
             claims.append(row)
+
+    # R12: unknowns are sticky. Unlike claims, they accumulate across *every*
+    # `complete` patch for a node, not just the highest generation -- a later
+    # re-run's patch that simply omits a question it already asked must not
+    # make that question silently vanish (`_dedupe_unknowns` collapses an
+    # exact repeat; discharge below is the only thing that closes one out).
+    for patch in verified_patches:
+        if str(patch.get("status", "pending")) != "complete":
+            continue
+        node = str(patch.get("node", "?"))
         for unknown in patch.get("unknowns") or []:
             row = dict(unknown)
             row.setdefault("source_node", node)
@@ -128,6 +179,9 @@ def fold(
     claims = [c for c in claims if c.get("source_node") not in superseded]
 
     merged = merge_claims(claims, xref.get("symbols", {}))
+    merged_claims = entail_claims(merged["claims"], extraction)
+    contradictions = [c for c in merged_claims if c.get("verdict") == "contradicted"]
+    entailment = summarize_entailment(merged_claims)
     coverage = _coverage(node_status, partition)
 
     # Failure propagates as a stated gap, never as silence (§3.5).
@@ -138,13 +192,21 @@ def fold(
                 "why_unresolved": "Node status is '%s'%s."
                 % (node_status[node], ": " + node_errors[node] if node in node_errors else ""),
                 "source_node": node,
+                "needs": "needs_human",
             }
         )
 
+    scope_nodes = {s["node"] for s in (partition or {}).get("scopes", [])}
+    def_fqns, edge_subjects, _edges_by_key = build_extraction_index(extraction)
+    resolved_unknowns = discharge_unknowns(
+        grandfather_needs(_dedupe_unknowns(unknowns)), merged_claims,
+        def_fqns, edge_subjects, scope_nodes,
+    )
+
     return {
         "schema_version": "1.0.0",
-        "claims": merged["claims"],
-        "unknowns": _dedupe_unknowns(unknowns),
+        "claims": merged_claims,
+        "unknowns": cluster_unknowns(resolved_unknowns),
         "conflicts": merged["conflicts"],
         "near_misses": merged["near_misses"],
         "merge_stats": merged["stats"],
@@ -152,22 +214,32 @@ def fold(
         "node_errors": dict(sorted(node_errors.items())),
         "coverage": coverage,
         "verification": verification,
+        "entailment": entailment,
+        "contradictions": contradictions,
+        "rollback": {"excluded_run_ids": sorted(excluded_run_ids)} if excluded_run_ids else None,
         "provenance": {
             "patch_count": len(raw_patches),
-            "fold_hash": fold_hash(raw_patches, xref, partition),
+            "fold_hash": fold_hash(raw_patches, xref, partition, extraction),
         },
     }
 
 
-def fold_hash(patches: Sequence[Dict], xref: Dict, partition: Optional[Dict]) -> str:
+def fold_hash(
+    patches: Sequence[Dict], xref: Dict, partition: Optional[Dict], extraction: Optional[Dict] = None
+) -> str:
     """A hash of the fold's *inputs*, order-independently.
 
     Patch hashes are sorted before combining so that the value is a property of
     the log's contents rather than of the order files happened to be read in.
+    `extraction` is optional and appended last (Phase 4, M4.1: entailment reads
+    it too) so every pre-existing 3-argument call site keeps hashing exactly
+    what it always did.
     """
     parts = sorted(stable_hash(p) for p in patches)
     parts.append(stable_hash(xref.get("symbols", {})))
     parts.append(stable_hash([s["node"] for s in (partition or {}).get("scopes", [])]))
+    if extraction is not None:
+        parts.append(stable_hash({"io_edges": extraction.get("io_edges"), "defines": extraction.get("defines")}))
     return stable_hash(parts)
 
 
@@ -229,11 +301,21 @@ def check_fold(
     if not store.has_artifact("state"):
         return ["state does not exist; nothing has been folded yet"]
     on_disk = store.read_artifact("state")
-    recomputed = fold(store.load_patches(), xref, partition, repo=repo, mode=mode)
+    # M3.7: a prior `rollback` excluded some run_ids from the materialised
+    # state without deleting their patches (R5) -- recomputing from the raw
+    # log without the same exclusion would flag every rolled-back claim's
+    # absence as drift instead of confirming it.
+    from .rollback import load_excluded_run_ids
+
+    recomputed = fold(
+        store.load_patches(), xref, partition, repo=repo, mode=mode,
+        excluded_run_ids=load_excluded_run_ids(store),
+        extraction=store.read_artifact("extract") if store.has_artifact("extract") else None,
+    )
     problems = []
     if on_disk.get("provenance", {}).get("fold_hash") != recomputed["provenance"]["fold_hash"]:
         problems.append("fold_hash mismatch: the log has changed since state.json was written")
-    for key in ("claims", "unknowns", "conflicts", "coverage"):
+    for key in ("claims", "unknowns", "conflicts", "coverage", "entailment", "contradictions"):
         if stable_hash(on_disk.get(key)) != stable_hash(recomputed.get(key)):
             problems.append(
                 "state.json/%s is not derivable from patches/ + xref.json "

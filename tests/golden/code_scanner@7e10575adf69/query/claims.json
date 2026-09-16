@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "61966ec12d47592a01e6167cbaac7f1a6e30496d72975d2760453c26188327b8",
+    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
     "repo": "tree",
     "state_version": 1
   },
@@ -25,7 +25,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "Configuration key 'CORRELATION_ID' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
-      "subject": "config:CORRELATION_ID"
+      "subject": "config:CORRELATION_ID",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -45,7 +46,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
       ],
       "statement": "Configuration key 'DEBIAN_FRONTEND' is read at 1 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
-      "subject": "config:DEBIAN_FRONTEND"
+      "subject": "config:DEBIAN_FRONTEND",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -75,7 +77,8 @@
         "root/exposure-snapshot/(files+1)"
       ],
       "statement": "Configuration key 'FLYWAY_CMD_VERSION' is read at 3 site(s) in (root), exposure-snapshot, exposure-snapshot/snapshot-migration.",
-      "subject": "config:FLYWAY_CMD_VERSION"
+      "subject": "config:FLYWAY_CMD_VERSION",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -95,7 +98,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "Configuration key 'HOME' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
-      "subject": "config:HOME"
+      "subject": "config:HOME",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -115,7 +119,8 @@
         "root/(build+5)"
       ],
       "statement": "Configuration key 'JACKSON_VERSION' is read at 1 site(s) in (root).",
-      "subject": "config:JACKSON_VERSION"
+      "subject": "config:JACKSON_VERSION",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -135,7 +140,8 @@
         "root/exposure-snapshot/snapshot-migration"
       ],
       "statement": "Configuration key 'JAVA_ARGS' is read at 1 site(s) in exposure-snapshot/snapshot-migration.",
-      "subject": "config:JAVA_ARGS"
+      "subject": "config:JAVA_ARGS",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -160,7 +166,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
       ],
       "statement": "Configuration key 'JAVA_TOOL_OPTIONS' is read at 2 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation, exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
-      "subject": "config:JAVA_TOOL_OPTIONS"
+      "subject": "config:JAVA_TOOL_OPTIONS",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -185,7 +192,8 @@
         "root/sql-pool/sql-pool-api/(files+2)"
       ],
       "statement": "Configuration key 'JDK_JAVA_OPTIONS' is read at 2 site(s) in sql-pool/sql-pool-api, sql-pool/sql-pool-manager.",
-      "subject": "config:JDK_JAVA_OPTIONS"
+      "subject": "config:JDK_JAVA_OPTIONS",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -210,7 +218,8 @@
         "root/exposure-snapshot/entity-variation-task/(files+8)"
       ],
       "statement": "Configuration key 'LANG' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
-      "subject": "config:LANG"
+      "subject": "config:LANG",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -235,7 +244,8 @@
         "root/exposure-snapshot/entity-variation-task/(files+8)"
       ],
       "statement": "Configuration key 'LANGUAGE' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
-      "subject": "config:LANGUAGE"
+      "subject": "config:LANGUAGE",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -260,7 +270,8 @@
         "root/exposure-snapshot/entity-variation-task/(files+8)"
       ],
       "statement": "Configuration key 'LC_ALL' is read at 2 site(s) in exposure-snapshot/entity-variation-task, exposure-snapshot/snapshot-task-delete.",
-      "subject": "config:LC_ALL"
+      "subject": "config:LC_ALL",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -280,7 +291,8 @@
         "root/(build+5)"
       ],
       "statement": "Configuration key 'MAVEN_REPO' is read at 1 site(s) in (root).",
-      "subject": "config:MAVEN_REPO"
+      "subject": "config:MAVEN_REPO",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -300,7 +312,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "Configuration key 'USER' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
-      "subject": "config:USER"
+      "subject": "config:USER",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -320,7 +333,8 @@
         "root/exposure-snapshot/snapshot-smoketest/(files+1)"
       ],
       "statement": "Configuration key 'WORKINGDIR' is read at 1 site(s) in exposure-snapshot/snapshot-smoketest.",
-      "subject": "config:WORKINGDIR"
+      "subject": "config:WORKINGDIR",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -350,7 +364,8 @@
         "root/exposure-snapshot/download-exposure"
       ],
       "statement": "Configuration key 'com' is read at 4 site(s) in exposure-snapshot/download-exposure, exposure-snapshot/snapshot-legacy/snapshot-legacy-partition, exposure-snapshot/snapshot-legacy/snapshot-legacy-task, exposure-snapshot/snapshot-task-delete.",
-      "subject": "config:com"
+      "subject": "config:com",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -370,7 +385,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "EConfigPoolRepository reads and writes EPoolConfig; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EPoolConfig",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -390,7 +406,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "EReservationRepository reads and writes EReservation; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservation"
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservation",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -410,7 +427,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "EReservationMetadataRepository reads and writes EReservationMetadata; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata"
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -430,7 +448,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "EServerRepository reads and writes EServer; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServer"
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServer",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -450,7 +469,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "EServerUsageLogRepository reads and writes EServerResourceUsageLog; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerResourceUsageLog"
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerResourceUsageLog",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -470,7 +490,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "EServerStatusLogRepository reads and writes EServerStatusLog; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerStatusLog"
+      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerStatusLog",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -490,7 +511,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "PoolConfigUpdate is converted to DPoolConfig by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig"
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -510,7 +532,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "Reservation is converted to DReservation by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Reservation -> rms.unifiedstore.sqlpool.common.model.domain.DReservation"
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Reservation -> rms.unifiedstore.sqlpool.common.model.domain.DReservation",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -530,7 +553,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "ReservationUpdate is converted to DReservation by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ReservationUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DReservation"
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ReservationUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DReservation",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -550,7 +574,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "Server is converted to DServer by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Server -> rms.unifiedstore.sqlpool.common.model.domain.DServer"
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Server -> rms.unifiedstore.sqlpool.common.model.domain.DServer",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -570,7 +595,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "ServerUpdate is converted to DServer by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ServerUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DServer"
+      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ServerUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DServer",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -590,7 +616,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "HostAndPortMapper is converted to Named by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.HostAndPortMapper -> library:org.mapstruct.Named"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.HostAndPortMapper -> library:org.mapstruct.Named",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -610,7 +637,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "PoolConfigMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.PoolConfigMapper -> library:org.mapstruct.Mapper"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.PoolConfigMapper -> library:org.mapstruct.Mapper",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -630,7 +658,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "ReservationMapper is converted to NullValuePropertyMappingStrategy by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapper -> library:org.mapstruct.NullValuePropertyMappingStrategy"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapper -> library:org.mapstruct.NullValuePropertyMappingStrategy",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -650,7 +679,8 @@
         "root/sql-pool/sql-pool-api/(files+2)"
       ],
       "statement": "ReservationMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapperTest -> library:org.mapstruct.factory"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapperTest -> library:org.mapstruct.factory",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -670,7 +700,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "ServerMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapper -> library:org.mapstruct.Mapper"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapper -> library:org.mapstruct.Mapper",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -690,7 +721,8 @@
         "root/sql-pool/sql-pool-api/(files+2)"
       ],
       "statement": "ServerMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapperTest -> library:org.mapstruct.factory"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapperTest -> library:org.mapstruct.factory",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -710,7 +742,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "ServerResourceUsageLogMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapper -> library:org.mapstruct.Mapper"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapper -> library:org.mapstruct.Mapper",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -730,7 +763,8 @@
         "root/sql-pool/sql-pool-api/(files+2)"
       ],
       "statement": "ServerResourceUsageLogMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapperTest -> library:org.mapstruct.factory"
+      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapperTest -> library:org.mapstruct.factory",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -750,7 +784,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "DPoolConfig is converted to PoolConfigDetailedOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigDetailedOutput"
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigDetailedOutput",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -770,7 +805,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "DPoolConfig is converted to PoolConfigOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigOutput"
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigOutput",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -790,7 +826,8 @@
         "root/sql-pool/sql-pool-service"
       ],
       "statement": "DPoolConfig is converted to EPoolConfig by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.dal.entities.EPoolConfig",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -810,7 +847,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "DReservation is converted to OffsetDateTime by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> java.time.OffsetDateTime"
+      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> java.time.OffsetDateTime",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -830,7 +868,8 @@
         "root/automation"
       ],
       "statement": "automation holds 2 git-tracked file(s) against 44 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
-      "subject": "automation"
+      "subject": "automation",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -850,7 +889,8 @@
         "root/client-java"
       ],
       "statement": "client-java holds 3 git-tracked file(s) against 420 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
-      "subject": "client-java"
+      "subject": "client-java",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -874,7 +914,8 @@
         "root/client-java/eih-client"
       ],
       "statement": "client-java/eih-client imports client-java/client-core at 28 distinct sites.",
-      "subject": "client-java/eih-client -> client-java/client-core"
+      "subject": "client-java/eih-client -> client-java/client-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -898,7 +939,8 @@
         "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
       ],
       "statement": "client-java/uds-client imports client-java/client-core at 247 distinct sites.",
-      "subject": "client-java/uds-client -> client-java/client-core"
+      "subject": "client-java/uds-client -> client-java/client-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -922,7 +964,8 @@
         "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
       ],
       "statement": "client-java/uds-client imports exposure-snapshot/ods-domain-data at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "client-java/uds-client -> exposure-snapshot/ods-domain-data"
+      "subject": "client-java/uds-client -> exposure-snapshot/ods-domain-data",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -946,7 +989,8 @@
         "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
       ],
       "statement": "client-java/uds-client imports exposure-snapshot/snapshot-sdk at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "client-java/uds-client -> exposure-snapshot/snapshot-sdk"
+      "subject": "client-java/uds-client -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -970,7 +1014,8 @@
         "root/client-java/uds-client-integration-tests/(files+5)"
       ],
       "statement": "client-java/uds-client-integration-tests imports client-java/client-core at 64 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "client-java/uds-client-integration-tests -> client-java/client-core"
+      "subject": "client-java/uds-client-integration-tests -> client-java/client-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -994,7 +1039,8 @@
         "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests"
       ],
       "statement": "client-java/uds-client-integration-tests imports client-java/eih-client at 2 distinct sites.",
-      "subject": "client-java/uds-client-integration-tests -> client-java/eih-client"
+      "subject": "client-java/uds-client-integration-tests -> client-java/eih-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1018,7 +1064,8 @@
         "root/client-java/uds-client-integration-tests/(files+5)"
       ],
       "statement": "client-java/uds-client-integration-tests imports client-java/uds-client at 170 distinct sites.",
-      "subject": "client-java/uds-client-integration-tests -> client-java/uds-client"
+      "subject": "client-java/uds-client-integration-tests -> client-java/uds-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1042,7 +1089,8 @@
         "root/client-java/uds-client-integration-tests/(files+5)"
       ],
       "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-common at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-common"
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1066,7 +1114,8 @@
         "root/client-java/uds-client-integration-tests/(files+5)"
       ],
       "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1090,7 +1139,8 @@
         "root/client-java/uds-client-integration-tests/(files+5)"
       ],
       "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-sdk at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-sdk"
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1114,7 +1164,8 @@
         "root/exposure-snapshot/idempotency-filter"
       ],
       "statement": "exposure-snapshot/idempotency-filter imports exposure-snapshot/ods-domain-data at 6 distinct sites.",
-      "subject": "exposure-snapshot/idempotency-filter -> exposure-snapshot/ods-domain-data"
+      "subject": "exposure-snapshot/idempotency-filter -> exposure-snapshot/ods-domain-data",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1138,7 +1189,8 @@
         "root/exposure-snapshot/idempotency-filter"
       ],
       "statement": "exposure-snapshot/idempotency-filter imports exposure-snapshot/snapshot-common at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/idempotency-filter -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/idempotency-filter -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1157,7 +1209,8 @@
         "root/exposure-snapshot/ods-domain-data"
       ],
       "statement": "exposure-snapshot/ods-domain-data imports client-java/uds-client at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/ods-domain-data -> client-java/uds-client"
+      "subject": "exposure-snapshot/ods-domain-data -> client-java/uds-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1181,7 +1234,8 @@
         "root/exposure-snapshot/ods-domain-data"
       ],
       "statement": "exposure-snapshot/ods-domain-data imports exposure-snapshot/snapshot-common at 13 distinct sites.",
-      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1200,7 +1254,8 @@
         "root/exposure-snapshot/ods-domain-data"
       ],
       "statement": "exposure-snapshot/ods-domain-data imports exposure-snapshot/snapshot-sdk at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-sdk"
+      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1224,7 +1279,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
       ],
       "statement": "exposure-snapshot/snapshot-api imports client-java/client-core at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-api -> client-java/client-core"
+      "subject": "exposure-snapshot/snapshot-api -> client-java/client-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1248,7 +1304,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports client-java/uds-client at 33 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-api -> client-java/uds-client"
+      "subject": "exposure-snapshot/snapshot-api -> client-java/uds-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1272,7 +1329,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/idempotency-filter at 3 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/idempotency-filter"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/idempotency-filter",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1296,7 +1354,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/ods-domain-data at 12 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/ods-domain-data"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/ods-domain-data",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1320,7 +1379,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-common at 414 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1344,7 +1404,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-filter-query-service at 5 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-filter-query-service"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-filter-query-service",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1368,7 +1429,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1392,7 +1454,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-sdk at 25 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-sdk"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1416,7 +1479,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-workflow-service at 30 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-workflow-service"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-workflow-service",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1435,7 +1499,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/swagger-resource at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/swagger-resource"
+      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/swagger-resource",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1459,7 +1524,8 @@
         "root/exposure-snapshot/snapshot-developer-utils"
       ],
       "statement": "exposure-snapshot/snapshot-developer-utils imports exposure-snapshot/snapshot-common at 4 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-developer-utils -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-developer-utils -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1483,7 +1549,8 @@
         "root/exposure-snapshot/snapshot-filter-query-service"
       ],
       "statement": "exposure-snapshot/snapshot-filter-query-service imports exposure-snapshot/ods-domain-data at 3 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-filter-query-service -> exposure-snapshot/ods-domain-data"
+      "subject": "exposure-snapshot/snapshot-filter-query-service -> exposure-snapshot/ods-domain-data",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1507,7 +1574,8 @@
         "root/exposure-snapshot/snapshot-filter-query-service"
       ],
       "statement": "exposure-snapshot/snapshot-filter-query-service imports exposure-snapshot/snapshot-common at 53 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-filter-query-service -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-filter-query-service -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1527,7 +1595,8 @@
         "root/exposure-snapshot/snapshot-legacy"
       ],
       "statement": "exposure-snapshot/snapshot-legacy holds 1 git-tracked file(s) against 58 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
-      "subject": "exposure-snapshot/snapshot-legacy"
+      "subject": "exposure-snapshot/snapshot-legacy",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1551,7 +1620,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core imports exposure-snapshot/snapshot-common at 3 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1575,7 +1645,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core imports exposure-snapshot/snapshot-sdk at 2 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core -> exposure-snapshot/snapshot-sdk"
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1594,7 +1665,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition imports exposure-snapshot/snapshot-common at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1613,7 +1685,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform imports exposure-snapshot/snapshot-common at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1632,7 +1705,8 @@
         "root/exposure-snapshot/snapshot-sdk/src/main/java"
       ],
       "statement": "exposure-snapshot/snapshot-sdk imports client-java/client-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-sdk -> client-java/client-core"
+      "subject": "exposure-snapshot/snapshot-sdk -> client-java/client-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1656,7 +1730,8 @@
         "root/exposure-snapshot/snapshot-sdk/src/main/java"
       ],
       "statement": "exposure-snapshot/snapshot-sdk imports client-java/uds-client at 12 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-sdk -> client-java/uds-client"
+      "subject": "exposure-snapshot/snapshot-sdk -> client-java/uds-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1680,7 +1755,8 @@
         "root/exposure-snapshot/snapshot-sdk/src/main/java"
       ],
       "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-common at 20 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1699,7 +1775,8 @@
         "root/exposure-snapshot/snapshot-sdk/src/main/java"
       ],
       "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1723,7 +1800,8 @@
         "root/exposure-snapshot/snapshot-task-create"
       ],
       "statement": "exposure-snapshot/snapshot-task-create imports client-java/uds-client at 2 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-task-create -> client-java/uds-client"
+      "subject": "exposure-snapshot/snapshot-task-create -> client-java/uds-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1747,7 +1825,8 @@
         "root/exposure-snapshot/snapshot-task-create"
       ],
       "statement": "exposure-snapshot/snapshot-task-create imports exposure-snapshot/snapshot-common at 13 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-task-create -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-task-create -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1766,7 +1845,8 @@
         "root/exposure-snapshot/snapshot-task-delete"
       ],
       "statement": "exposure-snapshot/snapshot-task-delete imports client-java/uds-client at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-task-delete -> client-java/uds-client"
+      "subject": "exposure-snapshot/snapshot-task-delete -> client-java/uds-client",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1790,7 +1870,8 @@
         "root/exposure-snapshot/snapshot-task-delete"
       ],
       "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-common at 8 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1809,7 +1890,8 @@
         "root/exposure-snapshot/snapshot-task-delete"
       ],
       "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1833,7 +1915,8 @@
         "root/exposure-snapshot/snapshot-task-delete"
       ],
       "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-sdk at 3 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-sdk"
+      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1857,7 +1940,8 @@
         "root/exposure-snapshot/snapshot-workflow-service"
       ],
       "statement": "exposure-snapshot/snapshot-workflow-service imports exposure-snapshot/snapshot-common at 23 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-common"
+      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1876,7 +1960,8 @@
         "root/exposure-snapshot/snapshot-workflow-service"
       ],
       "statement": "exposure-snapshot/snapshot-workflow-service imports exposure-snapshot/snapshot-filter-query-service at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-filter-query-service"
+      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-filter-query-service",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1900,7 +1985,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "sql-pool/sql-pool-api imports sql-pool/sql-pool-common at 52 distinct sites.",
-      "subject": "sql-pool/sql-pool-api -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-api -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1924,7 +2010,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "sql-pool/sql-pool-api imports sql-pool/sql-pool-service at 5 distinct sites.",
-      "subject": "sql-pool/sql-pool-api -> sql-pool/sql-pool-service"
+      "subject": "sql-pool/sql-pool-api -> sql-pool/sql-pool-service",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1948,7 +2035,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "sql-pool/sql-pool-dal imports sql-pool/sql-pool-common at 15 distinct sites.",
-      "subject": "sql-pool/sql-pool-dal -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-dal -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1972,7 +2060,8 @@
         "root/sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/(files)"
       ],
       "statement": "sql-pool/sql-pool-integrationtest imports sql-pool/sql-pool-common at 78 distinct sites.",
-      "subject": "sql-pool/sql-pool-integrationtest -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-integrationtest -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -1996,7 +2085,8 @@
         "root/sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/(files)"
       ],
       "statement": "sql-pool/sql-pool-integrationtest imports sql-pool/sql-pool-dal at 7 distinct sites.",
-      "subject": "sql-pool/sql-pool-integrationtest -> sql-pool/sql-pool-dal"
+      "subject": "sql-pool/sql-pool-integrationtest -> sql-pool/sql-pool-dal",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2020,7 +2110,8 @@
         "root/sql-pool/sql-pool-manager/(files+5)"
       ],
       "statement": "sql-pool/sql-pool-manager imports sql-pool/sql-pool-common at 158 distinct sites.",
-      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2044,7 +2135,8 @@
         "root/sql-pool/sql-pool-manager/(files+5)"
       ],
       "statement": "sql-pool/sql-pool-manager imports sql-pool/sql-pool-provision at 33 distinct sites.",
-      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-provision"
+      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-provision",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2068,7 +2160,8 @@
         "root/sql-pool/sql-pool-manager/(files+5)"
       ],
       "statement": "sql-pool/sql-pool-manager imports sql-pool/sql-pool-service at 57 distinct sites.",
-      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-service"
+      "subject": "sql-pool/sql-pool-manager -> sql-pool/sql-pool-service",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2092,7 +2185,8 @@
         "root/sql-pool/sql-pool-provision/(files+2)"
       ],
       "statement": "sql-pool/sql-pool-provision imports sql-pool/sql-pool-common at 15 distinct sites.",
-      "subject": "sql-pool/sql-pool-provision -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-provision -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2116,7 +2210,8 @@
         "root/sql-pool/sql-pool-service"
       ],
       "statement": "sql-pool/sql-pool-service imports sql-pool/sql-pool-common at 79 distinct sites.",
-      "subject": "sql-pool/sql-pool-service -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-service -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2140,7 +2235,8 @@
         "root/sql-pool/sql-pool-service"
       ],
       "statement": "sql-pool/sql-pool-service imports sql-pool/sql-pool-dal at 30 distinct sites.",
-      "subject": "sql-pool/sql-pool-service -> sql-pool/sql-pool-dal"
+      "subject": "sql-pool/sql-pool-service -> sql-pool/sql-pool-dal",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2164,7 +2260,8 @@
         "root/sql-pool/sql-pool-setup/(files+1)"
       ],
       "statement": "sql-pool/sql-pool-setup imports sql-pool/sql-pool-common at 4 distinct sites.",
-      "subject": "sql-pool/sql-pool-setup -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-setup -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2188,7 +2285,8 @@
         "root/sql-pool/sql-pool-smoketest"
       ],
       "statement": "sql-pool/sql-pool-smoketest imports sql-pool/sql-pool-common at 8 distinct sites.",
-      "subject": "sql-pool/sql-pool-smoketest -> sql-pool/sql-pool-common"
+      "subject": "sql-pool/sql-pool-smoketest -> sql-pool/sql-pool-common",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2212,7 +2310,8 @@
         "root/sql-pool/sql-pool-smoketest"
       ],
       "statement": "sql-pool/sql-pool-smoketest imports sql-pool/sql-pool-provision at 5 distinct sites.",
-      "subject": "sql-pool/sql-pool-smoketest -> sql-pool/sql-pool-provision"
+      "subject": "sql-pool/sql-pool-smoketest -> sql-pool/sql-pool-provision",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2232,7 +2331,8 @@
         "root/automation/api-automation/(files+10)"
       ],
       "statement": "automation/api-automation is packaged as its own container image; its entry command is [\"java\", \\.",
-      "subject": "process:automation/api-automation"
+      "subject": "process:automation/api-automation",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2252,7 +2352,8 @@
         "root/exposure-snapshot/(files+1)"
       ],
       "statement": "exposure-snapshot is packaged as its own container image; its entry command is [\"/bin/bash\", \"-e\", \"run-migrations.sh\"].",
-      "subject": "process:exposure-snapshot/domain-data-migration"
+      "subject": "process:exposure-snapshot/domain-data-migration",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2272,7 +2373,8 @@
         "root/exposure-snapshot/download-exposure"
       ],
       "statement": "exposure-snapshot/download-exposure is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/download-exposure"
+      "subject": "process:exposure-snapshot/download-exposure",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2292,7 +2394,8 @@
         "root/exposure-snapshot/entity-variation-task/(files+8)"
       ],
       "statement": "exposure-snapshot/entity-variation-task is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/entity-variation-task"
+      "subject": "process:exposure-snapshot/entity-variation-task",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2312,7 +2415,8 @@
         "root/exposure-snapshot/snapshot-api/(files+8)"
       ],
       "statement": "exposure-snapshot/snapshot-api is packaged as its own container image; its entry command is /api-run.",
-      "subject": "process:exposure-snapshot/snapshot-api"
+      "subject": "process:exposure-snapshot/snapshot-api",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2332,7 +2436,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation is packaged as its own container image; its entry command is /runWorkflow.sh.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2352,7 +2457,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2372,7 +2478,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2392,7 +2499,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
       ],
       "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
+      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2412,7 +2520,8 @@
         "root/exposure-snapshot/snapshot-migration"
       ],
       "statement": "exposure-snapshot/snapshot-migration is packaged as its own container image; its entry command is [\"/bin/bash\", \"-e\", \"run-flyway-migrations.sh\"].",
-      "subject": "process:exposure-snapshot/snapshot-migration"
+      "subject": "process:exposure-snapshot/snapshot-migration",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2432,7 +2541,8 @@
         "root/exposure-snapshot/snapshot-smoketest/(files+1)"
       ],
       "statement": "exposure-snapshot/snapshot-smoketest is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-smoketest"
+      "subject": "process:exposure-snapshot/snapshot-smoketest",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2452,7 +2562,8 @@
         "root/exposure-snapshot/snapshot-task-create"
       ],
       "statement": "exposure-snapshot/snapshot-task-create is packaged as its own container image; its entry command is java $JAVA_OPTS /opt/snapshot-task-create.jar.",
-      "subject": "process:exposure-snapshot/snapshot-task-create"
+      "subject": "process:exposure-snapshot/snapshot-task-create",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2472,7 +2583,8 @@
         "root/exposure-snapshot/snapshot-task-delete"
       ],
       "statement": "exposure-snapshot/snapshot-task-delete is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-task-delete"
+      "subject": "process:exposure-snapshot/snapshot-task-delete",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2492,7 +2604,8 @@
         "root/(build+5)"
       ],
       "statement": "(root) is packaged as its own container image; its entry command is [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"].",
-      "subject": "process:managed-sql"
+      "subject": "process:managed-sql",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2512,7 +2625,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "ms-sql-java/downgrade-processor is packaged as its own container image; its entry command is java -jar /opt/downgrade-processor.jar.",
-      "subject": "process:ms-sql-java/downgrade-processor"
+      "subject": "process:ms-sql-java/downgrade-processor",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2532,7 +2646,8 @@
         "root/(build+5)"
       ],
       "statement": "(root) is packaged as its own container image; its entry command is [\"dotnet\", \"/app/RMS.UnifiedStore.Service.Api/RMS.UnifiedStore.Service.Api.dll\"].",
-      "subject": "process:service-api/docker"
+      "subject": "process:service-api/docker",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2552,7 +2667,8 @@
         "root/sql-pool/sql-pool-api/(files+2)"
       ],
       "statement": "sql-pool/sql-pool-api is packaged as its own container image; its entry command is sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml.",
-      "subject": "process:sql-pool/sql-pool-api"
+      "subject": "process:sql-pool/sql-pool-api",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2572,7 +2688,8 @@
         "root/sql-pool/sql-pool-manager/(files+5)"
       ],
       "statement": "sql-pool/sql-pool-manager is packaged as its own container image; its entry command is sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml.",
-      "subject": "process:sql-pool/sql-pool-manager"
+      "subject": "process:sql-pool/sql-pool-manager",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2592,7 +2709,8 @@
         "root/sql-pool/sql-pool-setup/(files+1)"
       ],
       "statement": "sql-pool/sql-pool-setup is packaged as its own container image; its entry command is java -cp \"*\" rms.unifiedstore.sqlpool.setup.SetupApplication.",
-      "subject": "process:sql-pool/sql-pool-setup"
+      "subject": "process:sql-pool/sql-pool-setup",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2612,7 +2730,8 @@
         "root/sql-pool/sql-pool-smoketest"
       ],
       "statement": "sql-pool/sql-pool-smoketest is packaged as its own container image; its entry command is sql-pool-smoketest/bin/sql-pool-smoketest rms.unifiedstore.sqlpool.test.SqlPoolTestSuite.",
-      "subject": "process:sql-pool/sql-pool-smoketest"
+      "subject": "process:sql-pool/sql-pool-smoketest",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2632,7 +2751,8 @@
         "root/exposure-snapshot/snapshot-developer-utils"
       ],
       "statement": "GenerateExposureSchemaFromParquetFiles declares a process entry point in exposure-snapshot/snapshot-developer-utils; it is one of the repository's separately-startable units.",
-      "subject": "GenerateExposureSchemaFromParquetFiles"
+      "subject": "GenerateExposureSchemaFromParquetFiles",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2652,7 +2772,8 @@
         "root/exposure-snapshot/snapshot-task-delete"
       ],
       "statement": "DeleteSnapshotTask declares a process entry point in exposure-snapshot/snapshot-task-delete; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.delete.task.DeleteSnapshotTask"
+      "subject": "com.rms.unifiedstore.delete.task.DeleteSnapshotTask",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2672,7 +2793,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "DowngradeProcessor declares a process entry point in ms-sql-java/downgrade-processor; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.downgrade.DowngradeProcessor"
+      "subject": "com.rms.unifiedstore.downgrade.DowngradeProcessor",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2692,7 +2814,8 @@
         "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)"
       ],
       "statement": "AccountSnapshotEngine declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.entityvariation.engine.AccountSnapshotEngine"
+      "subject": "com.rms.unifiedstore.entityvariation.engine.AccountSnapshotEngine",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2712,7 +2835,8 @@
         "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)"
       ],
       "statement": "PortfolioSnapshotEngine declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.entityvariation.engine.PortfolioSnapshotEngine"
+      "subject": "com.rms.unifiedstore.entityvariation.engine.PortfolioSnapshotEngine",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2732,7 +2856,8 @@
         "root/exposure-snapshot/entity-variation-task/src/main/(constants+9)"
       ],
       "statement": "SnapshotEngine declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.entityvariation.engine.SnapshotEngine"
+      "subject": "com.rms.unifiedstore.entityvariation.engine.SnapshotEngine",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2752,7 +2877,8 @@
         "root/exposure-snapshot/entity-variation-task/(files+8)"
       ],
       "statement": "ExposureBundleServiceIT declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.entityvariation.integration.ExposureBundleServiceIT"
+      "subject": "com.rms.unifiedstore.entityvariation.integration.ExposureBundleServiceIT",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2772,7 +2898,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
       ],
       "statement": "SnapshotPartitionTask declares a process entry point in exposure-snapshot/snapshot-legacy/snapshot-legacy-partition; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.partition.SnapshotPartitionTask"
+      "subject": "com.rms.unifiedstore.partition.SnapshotPartitionTask",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2792,7 +2919,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "APIApplication declares a process entry point in exposure-snapshot/snapshot-api; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.snapshot.api.APIApplication"
+      "subject": "com.rms.unifiedstore.snapshot.api.APIApplication",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2812,7 +2940,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "GetS2STokenApp declares a process entry point in exposure-snapshot/snapshot-api; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.snapshot.api.GetS2STokenApp"
+      "subject": "com.rms.unifiedstore.snapshot.api.GetS2STokenApp",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2832,7 +2961,8 @@
         "root/exposure-snapshot/snapshot-task-create"
       ],
       "statement": "SnapshotApplication declares a process entry point in exposure-snapshot/snapshot-task-create; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.snapshot.task.create.SnapshotApplication"
+      "subject": "com.rms.unifiedstore.snapshot.task.create.SnapshotApplication",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2852,7 +2982,8 @@
         "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)"
       ],
       "statement": "AutomationDebugTool declares a process entry point in client-java/uds-client-integration-tests; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.test.automation.AutomationDebugTool"
+      "subject": "com.rms.unifiedstore.test.automation.AutomationDebugTool",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2872,7 +3003,8 @@
         "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)"
       ],
       "statement": "PipelineTestRunner declares a process entry point in client-java/uds-client-integration-tests; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.test.automation.PipelineTestRunner"
+      "subject": "com.rms.unifiedstore.test.automation.PipelineTestRunner",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2892,7 +3024,8 @@
         "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
       ],
       "statement": "TransformEdmTask declares a process entry point in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.transform.TransformEdmTask"
+      "subject": "com.rms.unifiedstore.transform.TransformEdmTask",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2912,7 +3045,8 @@
         "root/exposure-snapshot/(files+1)"
       ],
       "statement": "exposure-snapshot/domain-data-migration declares a process entry point in exposure-snapshot; it is one of the repository's separately-startable units.",
-      "subject": "exposure-snapshot/domain-data-migration"
+      "subject": "exposure-snapshot/domain-data-migration",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2932,7 +3066,8 @@
         "root/(build+5)"
       ],
       "statement": "managed-sql declares a process entry point in (root); it is one of the repository's separately-startable units.",
-      "subject": "managed-sql"
+      "subject": "managed-sql",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2952,7 +3087,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "winrm_script declares a process entry point in ms-sql-java/downgrade-processor; it is one of the repository's separately-startable units.",
-      "subject": "ms-sql-java.downgrade-processor.scripts.winrm_script"
+      "subject": "ms-sql-java.downgrade-processor.scripts.winrm_script",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2972,7 +3108,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "SqlPoolApplication declares a process entry point in sql-pool/sql-pool-api; it is one of the repository's separately-startable units.",
-      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication"
+      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication",
+      "verdict": "entailed"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -2997,7 +3134,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "DELETE /v1/reservations/{reservation_id} is served by ReservationResource#deleteReservation in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}/{reservation_id}).",
-      "subject": "route:DELETE /v1/reservations/{reservation_id}"
+      "subject": "route:DELETE /v1/reservations/{reservation_id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3022,7 +3160,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "DELETE /v1/servers/{id} is served by ServerResource#unRegister in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}).",
-      "subject": "route:DELETE /v1/servers/{id}"
+      "subject": "route:DELETE /v1/servers/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3047,7 +3186,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /health is served by SqlPoolHealthCheckResource#health in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_HEALTH_PATH}).",
-      "subject": "route:GET /health"
+      "subject": "route:GET /health",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3072,7 +3212,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/pools is served by PoolConfigResource#getPoolConfigurations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}).",
-      "subject": "route:GET /v1/pools"
+      "subject": "route:GET /v1/pools",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3097,7 +3238,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/pools/{id} is served by PoolConfigResource#getPoolConfig in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}).",
-      "subject": "route:GET /v1/pools/{id}"
+      "subject": "route:GET /v1/pools/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3122,7 +3264,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/reservations is served by ReservationResource#getReservations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}).",
-      "subject": "route:GET /v1/reservations"
+      "subject": "route:GET /v1/reservations",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3147,7 +3290,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/reservations/{id} is served by ReservationResource#findReservation in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}/{id}).",
-      "subject": "route:GET /v1/reservations/{id}"
+      "subject": "route:GET /v1/reservations/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3172,7 +3316,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/servers is served by ServerResource#getAvailableServers in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}).",
-      "subject": "route:GET /v1/servers"
+      "subject": "route:GET /v1/servers",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3197,7 +3342,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/servers/{id} is served by ServerResource#getServer in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}).",
-      "subject": "route:GET /v1/servers/{id}"
+      "subject": "route:GET /v1/servers/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3222,7 +3368,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "GET /v1/servers/{id}/logs is served by ServerResource#getServerStatusLogs in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}/logs).",
-      "subject": "route:GET /v1/servers/{id}/logs"
+      "subject": "route:GET /v1/servers/{id}/logs",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3247,7 +3394,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
       ],
       "statement": "GET v1/{tenantId}/exposures is served by EntityVariationResource#getEntityVariations in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}).",
-      "subject": "route:GET v1/{tenantId}/exposures"
+      "subject": "route:GET v1/{tenantId}/exposures",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3277,7 +3425,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
       ],
       "statement": "GET v1/{tenantId}/exposures//{entityName}/variationjobs/{variationJobId} is served by EntityVariationResource#getEntityVariationJob in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}/${ApiConstants.VARIATION_JOBS_PATH}).",
-      "subject": "route:GET v1/{tenantId}/exposures//{entityName}/variationjobs/{variationJobId}"
+      "subject": "route:GET v1/{tenantId}/exposures//{entityName}/variationjobs/{variationJobId}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3302,7 +3451,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "PATCH /v1/pools/{id} is served by PoolConfigResource#updatePoolConfig in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_CONFIG_PATH}/{id}).",
-      "subject": "route:PATCH /v1/pools/{id}"
+      "subject": "route:PATCH /v1/pools/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3327,7 +3477,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "PATCH /v1/reservations/{id} is served by ReservationResource#updateReservation in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}/{id}).",
-      "subject": "route:PATCH /v1/reservations/{id}"
+      "subject": "route:PATCH /v1/reservations/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3352,7 +3503,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "PATCH /v1/servers/{id} is served by ServerResource#updateServer in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}/{id}).",
-      "subject": "route:PATCH /v1/servers/{id}"
+      "subject": "route:PATCH /v1/servers/{id}",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3377,7 +3529,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "POST /v1/reservations is served by ReservationResource#makeReservations in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_RESERVATION_PATH}).",
-      "subject": "route:POST /v1/reservations"
+      "subject": "route:POST /v1/reservations",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3402,7 +3555,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "POST /v1/servers is served by ServerResource#register in sql-pool/sql-pool-api (declared via the constant ${ApiConstants.SQL_POOL_SERVER_PATH}).",
-      "subject": "route:POST /v1/servers"
+      "subject": "route:POST /v1/servers",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3427,7 +3581,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
       ],
       "statement": "POST v1/{tenantId}/exposures is served by EntityVariationResource#postEntityVariation in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}).",
-      "subject": "route:POST v1/{tenantId}/exposures"
+      "subject": "route:POST v1/{tenantId}/exposures",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3457,7 +3612,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
       ],
       "statement": "POST v1/{tenantId}/exposures//live-variations is served by EntityVariationResource#postLiveEntityVariations in exposure-snapshot/snapshot-api (declared via the constant ${ApiConstants.SNAPSHOT_PATH}/${ApiConstants.LIVE_VARIATION_PATH}).",
-      "subject": "route:POST v1/{tenantId}/exposures//live-variations"
+      "subject": "route:POST v1/{tenantId}/exposures//live-variations",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3476,7 +3632,8 @@
         "root/sql-pool"
       ],
       "statement": "The build's root project is named 'spm', which appears in no directory name; every module directory is '?...'. Build logs, metrics and the OpenAPI title use 'spm'.",
-      "subject": "build:rootProject.name"
+      "subject": "build:rootProject.name",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3505,7 +3662,8 @@
         "1 source files declare a package whose text and directory path do not correspond (e.g. directory 'com/rms/unifiedstore/snapshot/common/constants' declares 'package com.rms.unifiedstore.constants'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible.",
         "75 source files declare a package whose text and directory path differ only in case (e.g. directory 'RMS/UnifiedStore/sqlpool/api/errorhandling' declares 'package rms.unifiedstore.sqlpool.api.errorhandling'). Any path-to-package inference produces names that match nothing; on a case-insensitive filesystem this is invisible."
       ],
-      "subject": "package-path-divergence"
+      "subject": "package-path-divergence",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3530,7 +3688,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql"
       ],
       "statement": "The schema for 'CountrySchemeMap' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:CountrySchemeMap"
+      "subject": "table:CountrySchemeMap",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3555,7 +3714,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql"
       ],
       "statement": "The schema for 'DBScriptHistory' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:DBScriptHistory"
+      "subject": "table:DBScriptHistory",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3590,7 +3750,8 @@
         "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations"
       ],
       "statement": "The schema for 'IF' is owned by catalog-service/RMS.UnifiedStore.Service.Catalog.Common, defined across 4 migration(s).",
-      "subject": "table:IF"
+      "subject": "table:IF",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3625,7 +3786,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql"
       ],
       "statement": "The schema for 'Lookup' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 6 migration(s).",
-      "subject": "table:Lookup"
+      "subject": "table:Lookup",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3660,7 +3822,8 @@
         "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations"
       ],
       "statement": "The schema for 'catalog.catalog_' is owned by catalog-service/RMS.UnifiedStore.Service.Catalog.Common, defined across 22 migration(s).",
-      "subject": "table:catalog.catalog_"
+      "subject": "table:catalog.catalog_",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3685,7 +3848,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'company' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:company"
+      "subject": "table:company",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3710,7 +3874,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'cyber.Policy' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:cyber.Policy"
+      "subject": "table:cyber.Policy",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3745,7 +3910,8 @@
         "root/ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts"
       ],
       "statement": "The schema for 'dbo' is owned by ms-sql-java/downgrade-processor, service-api/RMS.UnifiedStore.Service.Api, defined across 21 migration(s).",
-      "subject": "table:dbo"
+      "subject": "table:dbo",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3770,7 +3936,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql"
       ],
       "statement": "The schema for 'dbo.' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo."
+      "subject": "table:dbo.",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3795,7 +3962,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.FRDET' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.FRDET"
+      "subject": "table:dbo.FRDET",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3820,7 +3988,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.Property' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.Property"
+      "subject": "table:dbo.Property",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3850,7 +4019,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.dbattribute' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 3 migration(s).",
-      "subject": "table:dbo.dbattribute"
+      "subject": "table:dbo.dbattribute",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3875,7 +4045,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.eqdet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.eqdet"
+      "subject": "table:dbo.eqdet",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3910,7 +4081,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.exposure_metrics' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 4 migration(s).",
-      "subject": "table:dbo.exposure_metrics"
+      "subject": "table:dbo.exposure_metrics",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3935,7 +4107,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.fldet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.fldet"
+      "subject": "table:dbo.fldet",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3970,7 +4143,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.hudet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 4 migration(s).",
-      "subject": "table:dbo.hudet"
+      "subject": "table:dbo.hudet",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -3995,7 +4169,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql"
       ],
       "statement": "The schema for 'dbo.regioncountrymap' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.regioncountrymap"
+      "subject": "table:dbo.regioncountrymap",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4020,7 +4195,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.riskscore' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.riskscore"
+      "subject": "table:dbo.riskscore",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4045,7 +4221,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'dbo.todet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:dbo.todet"
+      "subject": "table:dbo.todet",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4075,7 +4252,8 @@
         "root/exposure-snapshot/domain-data-migration/migrations"
       ],
       "statement": "The schema for 'domain_data.' is owned by exposure-snapshot, defined across 3 migration(s).",
-      "subject": "table:domain_data."
+      "subject": "table:domain_data.",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4100,7 +4278,8 @@
         "root/exposure-snapshot/domain-data-migration/migrations"
       ],
       "statement": "The schema for 'domain_data.entity' is owned by exposure-snapshot, defined across 2 migration(s).",
-      "subject": "table:domain_data.entity"
+      "subject": "table:domain_data.entity",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4125,7 +4304,8 @@
         "root/exposure-snapshot/domain-data-migration/migrations"
       ],
       "statement": "The schema for 'domain_data.entityattributes' is owned by exposure-snapshot, defined across 2 migration(s).",
-      "subject": "table:domain_data.entityattributes"
+      "subject": "table:domain_data.entityattributes",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4150,7 +4330,8 @@
         "root/exposure-snapshot/domain-data-migration/migrations"
       ],
       "statement": "The schema for 'domain_data.entitytype' is owned by exposure-snapshot, defined across 2 migration(s).",
-      "subject": "table:domain_data.entitytype"
+      "subject": "table:domain_data.entitytype",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4175,7 +4356,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'fldet' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 2 migration(s).",
-      "subject": "table:fldet"
+      "subject": "table:fldet",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4210,7 +4392,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'internal' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 5 migration(s).",
-      "subject": "table:internal"
+      "subject": "table:internal",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4245,7 +4428,8 @@
         "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql"
       ],
       "statement": "The schema for 'type' is owned by service-api/RMS.UnifiedStore.Service.Api, defined across 4 migration(s).",
-      "subject": "table:type"
+      "subject": "table:type",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4266,7 +4450,8 @@
         "root/automation/api-automation/src/main/java/com/rms/uds/tests"
       ],
       "statement": "automation/api-automation makes outbound HTTP calls, across 1 site(s).",
-      "subject": "automation/api-automation:http_out"
+      "subject": "automation/api-automation:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4297,7 +4482,8 @@
         "root/client-java/client-core"
       ],
       "statement": "client-java/client-core makes outbound HTTP calls, across 3 site(s).",
-      "subject": "client-java/client-core:http_out"
+      "subject": "client-java/client-core:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4328,7 +4514,8 @@
         "root/client-java/eih-client"
       ],
       "statement": "client-java/eih-client makes outbound HTTP calls, across 4 site(s).",
-      "subject": "client-java/eih-client:http_out"
+      "subject": "client-java/eih-client:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4359,7 +4546,8 @@
         "root/client-java/uds-client-integration-tests/(files+5)"
       ],
       "statement": "client-java/uds-client-integration-tests makes outbound HTTP calls, across 6 site(s).",
-      "subject": "client-java/uds-client-integration-tests:http_out"
+      "subject": "client-java/uds-client-integration-tests:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4390,7 +4578,8 @@
         "root/client-java/uds-client/src/main/java/com/rms/unifiedstore/(files)"
       ],
       "statement": "client-java/uds-client makes outbound HTTP calls, across 47 site(s).",
-      "subject": "client-java/uds-client:http_out"
+      "subject": "client-java/uds-client:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4411,7 +4600,8 @@
         "root/exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/(files)"
       ],
       "statement": "exposure-snapshot/entity-variation-task makes outbound HTTP calls, across 1 site(s).",
-      "subject": "exposure-snapshot/entity-variation-task:http_out"
+      "subject": "exposure-snapshot/entity-variation-task:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4432,7 +4622,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
       ],
       "statement": "exposure-snapshot/snapshot-api makes outbound HTTP calls, across 1 site(s).",
-      "subject": "exposure-snapshot/snapshot-api:http_out"
+      "subject": "exposure-snapshot/snapshot-api:http_out",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4463,7 +4654,8 @@
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-api emits metrics to an observability sink, across 7 site(s).",
-      "subject": "exposure-snapshot/snapshot-api:metric_emit"
+      "subject": "exposure-snapshot/snapshot-api:metric_emit",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4484,7 +4676,8 @@
         "root/exposure-snapshot/snapshot-common/(files+5)"
       ],
       "statement": "exposure-snapshot/snapshot-common emits metrics to an observability sink, across 1 site(s).",
-      "subject": "exposure-snapshot/snapshot-common:metric_emit"
+      "subject": "exposure-snapshot/snapshot-common:metric_emit",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4515,7 +4708,8 @@
         "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
       "statement": "ms-sql-java/downgrade-processor reads from the database, across 4 site(s).",
-      "subject": "ms-sql-java/downgrade-processor:read"
+      "subject": "ms-sql-java/downgrade-processor:read",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4551,7 +4745,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "SqlPoolApplication and RegenerateSchemaBaseline and SqlPoolQuartzJobsApplication are separate deployable units that exchange data through shared storage (13 shared target(s), including pool_config, reservation, reservation_metadata, server). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call.",
-      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication <-> rms.unifiedstore.sqlpool.integrationtest.support.schema.RegenerateSchemaBaseline <-> rms.unifiedstore.sqlpool.manager.SqlPoolQuartzJobsApplication"
+      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication <-> rms.unifiedstore.sqlpool.integrationtest.support.schema.RegenerateSchemaBaseline <-> rms.unifiedstore.sqlpool.manager.SqlPoolQuartzJobsApplication",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4582,7 +4777,8 @@
         "root/sql-pool/sql-pool-api/src/main/java"
       ],
       "statement": "sql-pool/sql-pool-api emits metrics to an observability sink, across 4 site(s).",
-      "subject": "sql-pool/sql-pool-api:metric_emit"
+      "subject": "sql-pool/sql-pool-api:metric_emit",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4613,7 +4809,8 @@
         "root/sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/(exceptions+3)"
       ],
       "statement": "sql-pool/sql-pool-common emits metrics to an observability sink, across 5 site(s).",
-      "subject": "sql-pool/sql-pool-common:metric_emit"
+      "subject": "sql-pool/sql-pool-common:metric_emit",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4644,7 +4841,8 @@
         "root/sql-pool/sql-pool-common/(files+4)"
       ],
       "statement": "sql-pool/sql-pool-common runs commands on remote hosts over SSH, across 4 site(s).",
-      "subject": "sql-pool/sql-pool-common:ssh_exec"
+      "subject": "sql-pool/sql-pool-common:ssh_exec",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4675,7 +4873,8 @@
         "root/sql-pool/sql-pool-dal"
       ],
       "statement": "sql-pool/sql-pool-dal reads from the database, across 6 site(s).",
-      "subject": "sql-pool/sql-pool-dal:read"
+      "subject": "sql-pool/sql-pool-dal:read",
+      "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
@@ -4706,7 +4905,8 @@
         "root/sql-pool/sql-pool-manager/src/main/(healthcheck+3)"
       ],
       "statement": "sql-pool/sql-pool-manager emits metrics to an observability sink, across 6 site(s).",
-      "subject": "sql-pool/sql-pool-manager:metric_emit"
+      "subject": "sql-pool/sql-pool-manager:metric_emit",
+      "verdict": "consistent"
     }
   ],
   "count": 1278,

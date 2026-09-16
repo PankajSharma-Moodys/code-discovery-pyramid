@@ -89,10 +89,13 @@ class HookTest(unittest.TestCase):
         A hook nagging about an index that does not describe the working tree is
         worse than no hook.
         """
-        inventory_path = self.repo / ".cdp" / "inventory.json"
-        inventory = json.loads(inventory_path.read_text())
+        from cdp.store import SqliteStore
+
+        backend = SqliteStore(self.repo / ".cdp" / "index.db")
+        inventory = backend.read_artifact("inventory")
         inventory["head"] = "0" * 40
-        inventory_path.write_text(json.dumps(inventory))
+        backend.write_artifact("inventory", inventory)
+        backend.close()
         self.assertIsNone(self.fire())
 
     def test_noop_after_a_commit_moves_head(self) -> None:

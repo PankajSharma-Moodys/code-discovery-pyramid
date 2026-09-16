@@ -14,7 +14,7 @@ clones of the same repo resolve to one identity and a moved repo keeps its own.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, List, Set, Tuple
 
 from .store.registry import repo_identity
 from .util import run_git, stable_hash
@@ -48,3 +48,18 @@ def resolve_snapshot(repo: Path, head: str) -> Tuple[str, str, bool]:
     if is_dirty(repo):
         return repo_id, "%s+dirty:%s" % (head, _tree_hash(repo)), True
     return repo_id, head, False
+
+
+def snapshots_to_keep(snapshots: List[Dict], repo_id: str, head_sha: str, cited_shas: Set[str]) -> Set[int]:
+    """M3.6/0.10: a snapshot is kept iff HEAD, pinned, or cited by a live
+    claim's `anchor_verified_at`/`claim_reviewed_at` -- one sentence, fully
+    determining (`PHASE/phase_3_plan.md`). The plan's own wording names a
+    `last_verified` field that does not exist in this schema; `cited_shas` is
+    the caller's union of both real freshness fields (D8, `PHASE/FINDINGS.md`),
+    since either can be the reason an old snapshot is still load-bearing.
+    """
+    return {
+        s["id"] for s in snapshots
+        if s.get("repo_id") == repo_id
+        and (s.get("commit_sha") == head_sha or s.get("pinned") or s.get("commit_sha") in cited_shas)
+    }

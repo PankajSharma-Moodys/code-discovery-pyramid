@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "61966ec12d47592a01e6167cbaac7f1a6e30496d72975d2760453c26188327b8",
+    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
     "repo": "tree",
     "state_version": 1
   },
@@ -9,23 +9,35 @@
   "by_node": {
     "root": [
       {
+        "needs": "needs_human",
+        "needs_migrated": true,
         "question": "What contract does automation actually publish?",
         "source_node": "root",
+        "status": "open",
         "why_unresolved": "42 of its 44 files are untracked and generated at build time, so its public surface cannot be read from the repository."
       },
       {
+        "needs": "needs_human",
+        "needs_migrated": true,
         "question": "What contract does client-java actually publish?",
         "source_node": "root",
+        "status": "open",
         "why_unresolved": "417 of its 420 files are untracked and generated at build time, so its public surface cannot be read from the repository."
       },
       {
+        "needs": "needs_human",
+        "needs_migrated": true,
         "question": "What contract does exposure-snapshot/snapshot-legacy actually publish?",
         "source_node": "root",
+        "status": "open",
         "why_unresolved": "57 of its 58 files are untracked and generated at build time, so its public surface cannot be read from the repository."
       },
       {
+        "needs": "needs_human",
+        "needs_migrated": true,
         "question": "What contract does sql-pool actually publish?",
         "source_node": "root",
+        "status": "open",
         "why_unresolved": "457 of its 477 files are untracked and generated at build time, so its public surface cannot be read from the repository."
       }
     ]

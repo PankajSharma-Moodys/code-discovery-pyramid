@@ -11,6 +11,11 @@
     "node":   { "type": "string", "description": "State-tree path, e.g. root/sql-pool-api" },
     "run_id": { "type": "string" },
     "status": { "enum": ["complete", "invalid", "failed", "pending"] },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Phase 3 (M3.4): 1-based attempt count for this node in the patch log, stamped at append time. `fold` keeps only the highest-generation `complete` patch per node, so re-running a node replaces its claims rather than accumulating them. Absent on patches written before M3.4; treated as 1."
+    },
     "error":  { "type": "string", "description": "Attached when status is failed or invalid (section 3.5)" },
     "author_kind": {
       "enum": ["python", "llm", "human"],
@@ -83,6 +88,18 @@
         "anchor_verified_at": {
           "type": ["string", "null"],
           "description": "Phase 3 (0.8): commit sha at which this claim's anchors were last machine-verified to resolve. Free, and bumped by every fold that re-verifies against a repo."
+        },
+        "verdict": {
+          "enum": ["entailed", "consistent", "contradicted"],
+          "description": "Phase 4 (6.1): assigned by `fold` (`cdp/entail.py`) against this commit's `io_edges`/`defines`, never by an agent. Never present on a patch as authored -- only on a claim inside `state.json`."
+        },
+        "author_kind": {
+          "enum": ["python", "llm", "human"],
+          "description": "Phase 4 (M4.4, R11): per-claim, unlike the patch-level field of the same name -- `cdp answer` is the one producer that sets this today. `entail.py` reads it to turn a `contradicted` human claim into `contested` rather than silently accepting it (humans outrank models on interpretation, never on structure)."
+        },
+        "author": {
+          "type": "string",
+          "description": "Phase 4 (M4.4): the identity behind `author_kind=human` -- `cdp answer`'s `--author`, or a `git config user.name <email>` fallback. Not present for `python`/`llm` claims."
         }
       }
     },
@@ -96,7 +113,37 @@
         "why_unresolved": { "type": "string", "minLength": 4 },
         "anchor":         { "$ref": "#/$defs/anchor" },
         "demoted_from":   { "type": "string", "description": "claim.id, when this entry is a demoted claim" },
-        "source_node":    { "type": "string" }
+        "source_node":    { "type": "string" },
+        "subject":        { "type": "string", "description": "Phase 4 (M4.2, gate 1/2): what this question is about, if it names something concrete. Optional -- absent means a scope-level gap (e.g. a structural unknown), which passes gates 1/2 unconditionally. When present, must resolve to a `defines[]` fqn, an `io_edge` source/target, or a real scope node, or the unknown is rejected in `collect`." },
+        "channel":        { "$ref": "#/$defs/channel", "description": "Phase 4 (M4.2, gate 2): the channel this question concerns, if any. Together with `subject`, checked against this commit's `io_edges` -- a match means extraction can already answer the question, and the unknown is rejected in `collect`, citing the edge." },
+        "provenance_state": {
+          "enum": ["unexamined", "unknown", "abandoned"],
+          "description": "Phase 4 (M4.2, gate 3): assigned in `collect`, never by an agent. Read from `snapshot_task` (0.12) -- `unexamined` when no task ran for this node, `unknown` when the agent ran and this is its honest gap, `abandoned` when the node failed 3 attempts without completing."
+        },
+        "cluster_id": {
+          "type": "string",
+          "description": "Phase 4 (M4.2, gate 4): assigned by `fold` (`cdp/gates.py`), never authored. Unknowns whose `question` and `why_unresolved` both match another unknown's share this id -- one systemic gap, not N findings."
+        },
+        "cluster_size": {
+          "type": "integer",
+          "description": "Phase 4 (M4.2, gate 4): how many unknowns share `cluster_id`. Present only when >= 2."
+        },
+        "needs": {
+          "$ref": "#/$defs/needs",
+          "description": "Phase 4 (M4.3, R12): from a closed vocabulary, what would resolve this unknown. Enforced in `collect` (`cdp/gates.py` gate_needs_valid), not here, so an already-logged pre-M4.3 unknown is not rejected retroactively -- `fold` grandfathers it as `needs_human` with `needs_migrated: true` instead."
+        },
+        "needs_migrated": {
+          "type": "boolean",
+          "description": "Phase 4 (M4.3): set by `fold` when `needs` was absent and had to be grandfathered. Never present on a patch as authored."
+        },
+        "status": {
+          "enum": ["open", "resolved", "moot"],
+          "description": "Phase 4 (M4.3, R12 ratchet): assigned by `fold` (`cdp/gates.py` discharge_unknowns), never by an agent. `resolved` only when a currently-adjudicated claim answers the same (subject, channel) -- silence never discharges. `moot` when the subject no longer exists at all -- a different outcome from `resolved`, kept separate for audit."
+        },
+        "resolved_by": {
+          "$ref": "#/$defs/resolved_by",
+          "description": "Phase 4 (M4.3, R12): present only when status is `resolved`."
+        }
       }
     },
 
@@ -175,8 +222,25 @@
     },
 
     "confidence": {
-      "description": "Canonical definition. Sections 4.3, 5.5, 5.7 and 6.7 are uses of this enum, not redefinitions. 'contested' is set only by the merge operator (section 5.5 step 3), never by an agent.",
+      "description": "Canonical definition. Sections 4.3, 5.5, 5.7 and 6.7 are uses of this enum, not redefinitions. 'contested' is set only by the merge operator (section 5.5 step 3) or, per R11 (Phase 4 M4.4), by `entail.py` when a human claim is contradicted by extraction -- never by an agent either way.",
       "enum": ["high", "medium", "low", "contested"]
+    },
+
+    "needs": {
+      "description": "Phase 4 (M4.3), R12's countermeasure to the perverse incentive an unknown creates (cheap to emit, impossible to falsify): it must state what would resolve it, from a closed vocabulary.",
+      "enum": ["needs_runtime", "needs_external_doc", "needs_human", "needs_wider_scope", "needs_other_repo"]
+    },
+
+    "resolved_by": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "author_kind", "at_snapshot"],
+      "description": "Phase 4 (M4.3), R12: attribution for an unknown's discharge -- who decided, when, on what basis. Assigned by `fold`, never authored.",
+      "properties": {
+        "claim_id":    { "type": "string" },
+        "author_kind": { "enum": ["python", "llm", "human"] },
+        "at_snapshot": { "type": "string", "description": "The commit sha the discharging claim was reviewed/verified at (D8: a commit, never a timestamp)." }
+      }
     }
   }
 }

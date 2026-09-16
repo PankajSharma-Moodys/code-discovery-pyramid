@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from .extract import MAX_PARSE_BYTES, _sorted
 from .lang import extract_file
-from .util import normalise_ws, read_lines, run_git
+from .util import normalise_ws, read_lines, run_git, stable_hash
 
 
 class HistoryUnavailable(Exception):
@@ -93,6 +93,42 @@ def classify_changes(
         edited.add(path)
 
     return rename_map, edited, added, deleted
+
+
+def scope_hash(repo: Path, scope: Dict) -> str:
+    """Content fingerprint of one partition scope (M3.4).
+
+    Sorted `(path, content)` pairs, so a rename with no content change (or a
+    diff to a *different* scope) does not move this scope's hash, and any
+    added/removed/edited file within it does. This is the cache key `refresh`
+    compares across a commit to decide which scopes actually need re-dispatch
+    -- "unchanged hash -> reuse the claim, skip the agent".
+    """
+    repo = Path(repo)
+    parts = []
+    for path in sorted(scope["files"]):
+        parts.append(path)
+        parts.extend(read_lines(repo / path))
+    return stable_hash(parts)
+
+
+def annotate_scope_hashes(repo: Path, partition: Dict) -> None:
+    """Mutates `partition["scopes"]` in place, adding `scope_hash` to each."""
+    for scope in partition["scopes"]:
+        scope["scope_hash"] = scope_hash(repo, scope)
+
+
+def changed_scopes(old_partition: Optional[Dict], new_partition: Dict) -> Set[str]:
+    """Node names whose `scope_hash` moved (or is new) between two partitions.
+
+    A node absent from `old_partition` (new scope, or a scope that changed
+    shape entirely) counts as changed -- there is nothing to reuse for it.
+    """
+    old_hashes = {s["node"]: s.get("scope_hash") for s in (old_partition or {}).get("scopes", [])}
+    return {
+        s["node"] for s in new_partition["scopes"]
+        if old_hashes.get(s["node"]) != s.get("scope_hash")
+    }
 
 
 def incremental_extract(

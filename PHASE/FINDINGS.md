@@ -314,6 +314,139 @@ that as an argument, not a re-run result, until the next gate confirms it.
 
 ---
 
+## F12 — `refresh` writes into a snapshot no other command ever reads back
+
+**Severity:** high — every one of `refresh`'s writes became invisible to a
+fresh `query`/`status`/`docs`/`fold`/`collect`/`rollback` process the moment a
+second snapshot existed. **Status: fixed, in the same session that found it
+(Phase 3, M3.8).**
+
+**Found by:** M3.8's own real-input exercise (`PHASE/EXECUTION_RULES.md`
+R-E7) — a git hook running `cdp refresh`, then a *separate* `cdp status`
+process reading the result, which is the exact composition the hooks exist
+to automate and which no prior phase's exercises had performed (each trusted
+`refresh`'s own printed summary rather than re-querying afterward).
+
+**Root cause, in two parts, both introduced by the "D3 resolved" session
+(`PHASE/FINDINGS.md`, the entry above `F12`) that made `SqliteStore` the
+CLI's default — neither was exercised there because every check in that
+session ran a single command against a store holding exactly one snapshot:**
+
+1. `SqliteStore._snapshot_id()` lazily defaults to a hardcoded `id=1` unless
+   something already called `begin_snapshot`. `scan`/`refresh`/`rollback`/`gc`
+   all call it explicitly; `query`, `status`, `docs`, `fold`, `collect` never
+   did, so once a `refresh` created a *second* snapshot row, those six
+   commands kept reading snapshot 1 forever, in any later process.
+2. `claim_patch` rows are correctly, deliberately scoped per-snapshot
+   (`tests/test_store_sqlite.py`
+   `test_two_commits_produce_two_snapshots_and_both_stay_queryable` --
+   pre-existing, untouched, still green). `refresh` selects a brand-new
+   snapshot for the new commit via `begin_snapshot`, which starts with an
+   *empty* patch log -- so even once (1) is fixed, `state.fold` over that
+   empty log produces zero claims, contradicting D10's account that refresh
+   "re-verifies the *existing* patch log".
+
+**Fix:**
+
+- `SqliteStore.use_latest_snapshot()` (new) points the backend at the most
+  recently *touched* snapshot. `query.Store.__init__` calls it whenever the
+  backend supports it -- one choke point that covers `query`/`status`/`docs`/
+  `fold`/`collect`/`rollback`/`diff`, all of which construct a `Store`.
+  "Touched" is a new monotonic `snapshot_meta.touch_seq` column (`SCHEMA_V4`),
+  bumped by every `begin_snapshot` call including a *reuse* -- not a
+  timestamp: two `begin_snapshot` calls inside the same wall-clock second
+  (routine for a `post-commit` immediately followed by a `post-checkout`)
+  would tie under `_now()`'s second precision, and `id DESC` alone picks
+  creation order, which is wrong the moment a checkout moves *back* to an
+  earlier, already-scanned commit (reusing its lower-numbered row).
+- `SqliteStore.copy_patches_from(source_snapshot_id)` (new): `cmd_refresh`
+  captures the prior snapshot's id (via the new `snapshot_id()` public
+  accessor) before calling `begin_snapshot` for the new commit, and if the
+  new snapshot's log is empty, copies every patch row over verbatim
+  (`seq`/`label`/`content_hash`/`payload`/`is_derived` preserved) -- keeping
+  M2.4's per-snapshot isolation test intact while giving `refresh` a full
+  log to re-verify, exactly D10's stated contract.
+- Incidental second bug in the same function, same root cause: `cmd_refresh`'s
+  `before_demoted` count read `store.state` *after* `begin_snapshot` had
+  already moved the backend's selection to the new (not-yet-written)
+  snapshot, always reading 0. Reordered to read before the switch.
+
+**Verified:** the full fixture suite (296 tests, `unittest discover`) and the
+new `tests/test_githooks.py` `RealHookFiringTest` -- real `git commit`/
+`git checkout` subprocesses, not a direct `cdp refresh` call -- pass,
+including the exact repro that found this (`cdp status` in a fresh process
+correctly reporting a commit a hook-triggered `refresh` had already moved to,
+and correctly reporting a checkout *back* to an earlier commit whose
+snapshot already existed). `make check TARGET_REPO=...` is the target-scale
+confirmation (see `PHASE/TARGET.md`).
+
+**Not touched:** `cmd_gc` (already resolves its own snapshot explicitly, does
+not use `query.Store`) and `cmd_scan` (calls `begin_snapshot` before any read,
+so nothing to resolve).
+
+---
+
+## Phase 3 (M3.8) — git hooks, and the shared-hooks-directory caveat
+
+Scoped to M3.8 only this session -- the last milestone in `phase_3_plan.md`;
+M3.1-M3.7 were already complete (prior sessions, see the entries above).
+
+**Design (`cdp/githooks.py`, new module; `cdp githook install|uninstall` in
+`cli.py`).** `post-commit` always runs `cdp refresh --repo <repo> --quiet`;
+`post-checkout` runs it only when git's own `$3` flag is `1` (a branch/ref
+move) -- `git checkout -- <path>` (`$3=0`) is a file-level restore, not a
+`HEAD` move, and must not fire (the plan's acceptance line, verified with real
+`git checkout`/`git checkout -b`/`git checkout -- <path>` sequences in
+`tests/test_githooks.py`, not a simulated flag). Both the interpreter
+(`sys.executable`) and the repo path are embedded as absolute paths at
+install time, per the plan (GUI git clients and CI often run hooks with an
+unrelated `PATH`/cwd). Every installed script carries a `MARKER` comment;
+`install` refuses to overwrite a hook lacking it (never clobbers a foreign
+hook -- the operator is told to chain manually), and `uninstall` only removes
+a file that has it, leaving a foreign hook untouched. The hook fails open
+(always exits 0, on both a git-blocking and non-blocking hook name) --
+neither `post-commit` nor `post-checkout` gates the operation it fires after,
+so a nonzero exit buys nothing; `refresh`'s own `cdp: <message>` on stderr
+(never scanned yet, dirty tree) is left unsuppressed rather than silenced,
+unlike the PreToolUse hook (`hook.py`), because this one fires once per
+commit/checkout, not once per file read.
+
+**D19 -- a git hooks directory is shared across every worktree of a
+repository; `cdp githook install` run inside one worktree installs into all
+of them.** This is real git behaviour (`git rev-parse --git-path hooks`
+resolves to the common `.git/hooks/`, not a per-worktree directory, unless
+`core.hooksPath` is set), not a bug in `hooks_dir()` -- but it means a
+`cdp githook install --repo <worktree>` is not scoped to that worktree the
+way `--state-dir`/`--in-repo` are for state. **Confirmed live, and by
+necessity carefully:** installing against a detached worktree of
+`$TARGET_REPO` (`sql-pool/sql-pool-api`, pinned commit) placed the hooks in
+`/Users/sharmp49/git/unified-store/.git/hooks/` -- the real target's actual
+shared hooks directory, since this session's own working copy
+(`/Users/sharmp49/git/code_scanner`) is itself a linked worktree of that same
+repository (`git -C .../code_scanner rev-parse --git-path hooks` resolves to
+the identical path). `cdp githook uninstall` against the same worktree path
+was run immediately after and confirmed, by listing the directory afterward,
+to have removed exactly those two files and nothing else -- `git status
+--porcelain` on the real repo was empty before and after. Not documented
+anywhere the user would see it before this session; worth a line in the
+`githook install` output itself in a follow-up (not done here -- out of this
+session's scope).
+
+**Real-scale exercise (R-E7), scoped for safety by D19.** Given the shared-
+directory finding above, the "hook actually fires and moves state" acceptance
+criterion (commit triggers refresh; branch switch triggers refresh; file
+checkout does not) is proven with real `git commit`/`git checkout`
+subprocesses against the **fixture**, not `$TARGET_REPO` -- installing into a
+worktree of the live target for a firing test would touch the same shared
+hooks directory just confirmed above, for a real, currently-used repository.
+What *was* exercised directly against `$TARGET_REPO`: `hooks_dir()`'s
+worktree-aware resolution (`git rev-parse --git-path hooks`, correctly
+following the shared common dir rather than assuming
+`<repo>/.git/hooks`) and a full install/uninstall roundtrip leaving zero
+trace, both described above.
+
+---
+
 ## Phase 2 — decisions the plan left open
 
 `PHASE/phase_2_plan.md` specifies schema and behaviour precisely in most
@@ -502,3 +635,798 @@ caching / supersession), M3.5 (`cdp diff`), M3.6 (`gc`/retention), M3.7
 for a shallow clone is covered by `freshness.file_churned_between` returning
 `None` (never asserts "not stale" from missing data) but was exercised only by
 reasoning about `run_git`'s failure mode, not a constructed shallow clone.
+
+---
+
+## Phase 3 (M3.4) — scope-hash caching and the supersession fix
+
+Scoped to M3.4 only this session, by explicit user choice (M3.5–M3.8 remain
+deferred; M3.8 in particular needs its own session — installing/firing real
+git hooks is more invasive than the others).
+
+**The confirmed defect** (`ARCHITECTURE.md`'s sharp-edges table, `state.py`):
+`state.fold` accumulated claims from *every* `complete` patch for a node, so
+re-running a node (e.g. a retried agent, or a future `refresh`-triggered
+re-dispatch) produced two generations of claims side by side rather than the
+second superseding the first. Confirmed live before fixing it: `state.py`'s
+claim loop appended from each complete patch unconditionally; nothing kept
+only the latest.
+
+**Fix, in two parts:**
+
+1. **`generation`** — a new optional integer field on `patch` (schema
+   additive, `schema/patch-1.0.0.json`), stamped once at append time
+   (`cli.py` `_next_generation`, called from both `cmd_scan`'s root patch and
+   `cmd_collect`'s per-node accepted patches) as `1 + max(prior generations
+   for that node already in the log)`. Because it is data on the patch and
+   not a position in the list, `state.fold` can pick the highest-generation
+   `complete` patch per node and remain order-independent by construction —
+   the same argument that already justifies `node_status`'s STATUS_RANK
+   precedence just above it in the same function. A tie (two complete
+   patches, equal or absent generation) breaks on `stable_hash`, not
+   insertion order, for the same reason. **Acceptance met**: re-running one
+   node twice now yields exactly one generation's claims, verified both
+   directly and under `check_order_independence`-style shuffles
+   (`tests/test_scope_hash.py` `SupersessionTest`).
+
+2. **`scope_hash`** (`cdp/refresh.py`) — a content fingerprint of a scope's
+   file set (sorted `(path, lines)` pairs, `stable_hash`'d), stamped onto
+   every scope in `partition.json` at both `scan` (`cmd_scan`) and `refresh`
+   (`cmd_refresh`) via `annotate_scope_hashes`. `changed_scopes(old_partition,
+   new_partition)` diffs two partitions' hashes by node and names exactly the
+   scopes whose content moved; a node absent from the old partition counts as
+   changed (nothing to reuse). `cdp refresh` now prints a `scopes N/M changed
+   (dispatch needed for N, M-N reuse the prior claim)` line.
+
+**Real-scale exercise (R-E7), not just the fixture:** scanned
+`$TARGET_REPO`'s `sql-pool/sql-pool-api` (2 scopes) into a scratch state dir
+via a detached worktree at the pinned commit, edited exactly one `.java` file
+in the 38-file scope, committed, and ran `cdp refresh`:
+
+    scopes    1/2 changed (dispatch needed for 1, 1 reuse the prior claim)
+
+The untouched 11-file scope's hash did not move; the edited scope's did. This
+is the concrete form of the milestone's own acceptance line ("a commit
+touching 2 of 17 scopes dispatches 2 scopes, not 17") against real content,
+not a synthetic count. Worktree removed after the exercise; main checkout's
+`git status --porcelain` was empty before and after.
+
+**What M3.4 does *not* wire up, and why.** The plan's other half — "skip the
+agent" — is a dispatch-time decision that belongs to `cdp run`, which does not
+exist in this codebase yet (Phase 4/5 territory: no orchestration loop spawns
+per-scope agents here today). `scope_hash`/`changed_scopes` are the primitive
+a future `run --stale-only` needs to make that decision; this session builds
+and proves the primitive and wires it into the one place that already
+computes both old and new partitions (`refresh`), rather than inventing a
+dispatch loop to consume it.
+
+**Golden baseline re-blessed, same as Phase 2's M2.3.** The first
+`make check` run (after freeze, per R-E3) found 15 differing artifacts on
+both the fixture and `$TARGET_REPO`, all `fold_hash`-only or the new
+`scope_hash`/`generation` fields directly (`partition.json` gains
+`scope_hash` per scope; `patches/0000-derived.json` gains `generation: 1`) --
+an intended content change, not a regression. Re-blessed with
+`python3 scripts/fixture_gate.py bless` and
+`cdp selftest --golden $TARGET_REPO --bless`; `git diff` on the baseline
+confirms the diff is confined to exactly those additions plus their
+downstream `fold_hash`/`state.json` consequences. Second `make check` run,
+after the re-bless, is the one reported green below.
+
+**Cost, stated rather than assumed away.** `annotate_scope_hashes` re-reads
+every scoped file's content once per `scan`/`refresh`, on top of the read
+`extract_file` already does — roughly doubling file I/O (not re-normalisation;
+`stable_hash` runs once per scope, not per anchor, so this is not F6's
+quadratic shape). Not measured against the full `$TARGET_REPO` this session
+(`make check` is the only full-target run this budget allows, launched after
+freeze); flagged as headroom to revisit if a future full-target timing shows
+it matters, the same posture F9 already takes toward `run_extract`'s single
+threading.
+
+---
+
+## Phase 3 (M3.5-M3.6) — `cdp diff` and `cdp gc`, and the multi-snapshot gap they surface
+
+Scoped to M3.5 (`cdp diff`) and M3.6 (retention/`gc`) only this session, by
+explicit user choice (M3.7 rollback/`--as-of` and M3.8 git hooks remain
+deferred — M3.8 in particular still needs its own session per the prior
+entry).
+
+**D13 — a real, pre-existing architectural gap, not a new defect: `FileStore`
+cannot hold two snapshots, and the CLI never uses `SqliteStore`.** Both
+milestones as the plan states them ("typed structural deltas between two
+snapshots"; "a store with 5 snapshots") assume a store that keeps multiple
+snapshots' artifacts around simultaneously. `store/__init__.py`'s own
+docstring already says this plainly: `FileStore` no-ops `begin_snapshot`
+because it is one directory, always overwritten (confirmed: `cmd_refresh`,
+`cmd_scan` and every other command construct `FileStore(paths.state)`
+directly — `grep -n "FileStore("` finds zero uses of `SqliteStore` anywhere in
+`cli.py`, matching D3's account exactly). Only `SqliteStore`'s `snapshot_meta`
+table actually holds N coexisting snapshots. Two consequences, both taken
+rather than deferred:
+
+- **`cdp diff`** takes two independently-scanned `FileStore` state
+  *directories* as its two "snapshots" (positional `old_state`/`new_state`),
+  not two commits of one store — the same shape the M3.1-M3.4 real-target
+  exercises already used (two scratch dirs, or one worktree scanned twice).
+  This sidesteps the gap rather than closing it: `cdp diff` never reads
+  `SqliteStore` snapshot lineage, so it works today, on the backend the CLI
+  actually uses.
+- **`cdp gc`** cannot sidestep it the same way — retention is inherently a
+  question about *one store holding several snapshots* — so it is wired
+  directly to `SqliteStore` via a new `--db <path>` flag that bypasses
+  `_paths()`/the registry entirely (per D3: "the SQLite backend is fully
+  usable today by constructing `SqliteStore` directly; only the CLI's own
+  choice of backend is unmade"). No `scan`/`refresh` path writes into a
+  `SqliteStore` today, so `cdp gc` has no real corpus to operate on until that
+  changes — proven this session by populating one directly (below), not by a
+  scan.
+
+**D14 — "pinned" is not an existing concept anywhere in this codebase; it had
+to be added as a column before the retention rule could be expressed at all.**
+`grep -rn "pinned"` before this session found the word only in prose (this
+plan, `TARGET.md`, golden-baseline naming) — no schema column, no CLI verb.
+Added `snapshot_meta.pinned` (`SCHEMA_V3`, additive migration,
+`sqlite_backend.py`) plus `SqliteStore.set_pinned`/`list_snapshots`, and
+`cdp gc --pin SHA`/`--unpin SHA` to set it before computing retention in the
+same invocation. Nothing marks a snapshot pinned automatically — there is no
+feature yet with an opinion about which commits are worth preserving forever
+— so this is representable, not yet automatic, the same posture D4 already
+takes toward `.cdp.toml`.
+
+**D15 — the plan's retention rule names a `last_verified` field that does not
+exist; `snapshots_to_keep` uses the two fields that actually do.** M3.1
+(`freshness.py`) established `anchor_verified_at`/`claim_reviewed_at` as this
+system's two real dates (D8) — there is no third `last_verified` field
+anywhere in a claim. `cmd_gc` treats "cited" as the union of both: either one
+naming an old commit is a real reason that snapshot cannot be dropped.
+`snapshot.snapshots_to_keep(snapshots, repo_id, head_sha, cited_shas)` is the
+one-sentence rule from the plan, reproduced literally
+(`tests/test_snapshot.py` `TestSnapshotsToKeep`, including the plan's own "5
+snapshots, claims citing 2, keeps HEAD + those 2" acceptance line verbatim).
+
+**Real-scale exercise (R-E7), not just the fixture.** Same worktree pattern as
+the M3.1-M3.4 exercises: `sql-pool/sql-pool-api` scanned at the pinned commit
+and at the current tip (`bab4ea0dce85`, ~8 months later) into two separate
+scratch `FileStore` dirs.
+
+    cdp diff <old-scan-dir> <new-scan-dir>
+    diff      0 module(s) added, 0 removed
+              0 declared edge(s) +/-0/0, 0 observed edge(s) +/-0/0
+              0 route(s) added, 0 removed
+              0 claim(s) added, 0 removed, 0 anchor(s) moved
+
+Zero deltas — consistent with, and a cross-check on, the M3.1-M3.3 finding
+that this module's 41 structural claims all verified live across the same
+commit range: a real diff of zero is the expected answer when nothing
+structural moved, not a vacuous run. The eight positive cases (module/edge/
+route/claim added-removed, anchor moved, undeclared-dependency-appeared,
+coverage regression) are exercised on synthetic dicts shaped like the real
+`graph`/`xref`/`state` schemas (`tests/test_diffs.py`) — real content never
+produced any of those eight shapes in this pair, so they could not be
+exercised on `$TARGET_REPO` within this session's budget without engineering a
+commit pair that changes structure, which was not attempted.
+
+For `cdp gc`, since no scan path populates a `SqliteStore`, one was built
+directly, keyed by this target's real `repo_id`
+(`github.com/moodys-ma-platform/unified-store`) and the two real commit shas
+above: an old snapshot cited by a (synthetic) live claim's `claim_reviewed_at`,
+an orphan snapshot cited by nothing, and a head snapshot. `cdp gc --db ...
+--repo /tmp/diff_wt/sql-pool/sql-pool-api` (real CLI invocation, real
+`repo_identity`/git-HEAD resolution) correctly dropped only the orphan and
+kept the cited old snapshot and HEAD — verified by reading `list_snapshots()`
+back, not by trusting the printed summary line. `--dry-run` reported the same
+plan without deleting anything, checked first.
+
+**Out of scope this session, unchanged from the prior entry:** M3.7
+(`rollback`/`--as-of`) and M3.8 (git hooks).
+
+---
+
+## Phase 4 (M4.1) — entailment validation, and the `source_nodes` bug it found
+
+Scoped to M4.1 only this session, by explicit user choice: the plan's four
+milestones (entailment, unknown gates, `needs_*`/R12 ratchet, `cdp answer`)
+were judged comparable in size to all of Phase 3, which ran as five separate
+sessions. M4.2-M4.4 remain unimplemented.
+
+**What shipped.** `cdp/entail.py` (new): `entail_claims(claims, extraction)`
+assigns each claim a `verdict` -- `entailed` when an `io_edge` already states
+the same `(subject, channel)` fact, `contradicted` when a `definition` for
+the subject exists and disagrees on a discrete field (`visibility` is the
+only one checked; no other claim field has a comparable structural
+counterpart today), `consistent` otherwise. Matching is over structure only
+(subject/channel/visibility), never the claim's own wording --
+`test_no_statement_text_matching` pins this. `state.fold` gains an optional
+`extraction` parameter (this commit's `io_edges`/`defines`, from
+`store.extraction`/`store.read_artifact("extract")`) threaded through all 5
+call sites in `cli.py` plus `check_fold`; `fold_hash` gains the same
+parameter, appended last so every pre-existing 3-argument call (tests
+included) hashes exactly what it always did. Folded state gains
+`entailment` (counts, `rate_contradicted`, per-node `entailed_ratio` --
+`CDP_CLI_SCOPE.md`'s tiering question) and `contradictions` (the full
+contradicted claims, not just a count -- "the contradicted bucket is gold").
+Contradicted claims are **not** removed from `claims[]`: the plan's own
+stress-test row says measure the rate before rejecting, and this session
+only measures it (see below). `schema/patch-1.0.0.json`'s claim gains an
+optional `verdict` enum, documented as fold-assigned, never present on a
+patch as authored.
+
+**Deliberately narrow, and why.** The plan's stress-test table asks for
+entailment "over structure, not strings" and warns against inventing a
+scoring rule with no calibration. `visibility` is the only claim field
+checked for contradiction because it is the only one with both (a) a
+same-shape counterpart in `definitions[]` and (b) a closed enum, so a
+mismatch is unambiguous. `channel`-only matching for `entailed` is
+similarly conservative: it says "this fact is already structural," not
+"this claim is fully correct." Extending contradiction detection to
+`side_effect_type`, `kind`, or route/config claims is real, undone work for
+whoever picks up M4.1's remainder or M4.2.
+
+**Bug found and fixed in the same session, by exercising on real target
+output (`PHASE/EXECUTION_RULES.md` R-E7), not the fixture.** The first
+scratch scan of `$TARGET_REPO/sql-pool/sql-pool-api` showed every claim's
+per-node entailment bucketed under the single key `"?"` -- `merge.py:225-226`
+renames a claim's `source_node` (singular) to `source_nodes` (plural, a
+list, set post-merge because one claim can be attributed to several
+converging leaves) and pops the singular field. `entail.summarize` read the
+now-absent singular field on every claim, so the per-scope ratio the plan
+explicitly asks for ("emit the per-scope ratio now so Phase 6's tiering has
+data to reason from") was silently non-functional from the first commit of
+this milestone. Fixed to read `source_nodes` when present (falling back to
+the pre-merge singular field for callers that fold a single patch's own
+claims directly), counting a claim toward every node it is attributed to.
+Re-verified on the same scratch scan: per-node ratios now key on real node
+names (`root/(files+2)`, `root/src/main/java`), not `"?"`.
+
+**Contradiction rate on `$TARGET_REPO`, measured as the plan's exit
+criterion requires.** One module first (`sql-pool/sql-pool-api`'s 41 derived
+claims): 2 `entailed`, 39 `consistent`, 0 `contradicted`. Then the full
+target, read from the blessed golden `state.json` after `make check`
+(1,278 derived claims, zero model calls): **1,243 `consistent`, 35
+`entailed`, 0 `contradicted` -- `rate_contradicted: 0.0` at full scale**,
+matching M4.1's acceptance line exactly. `entailed_ratio` per scope ranges
+from 0.0 (most SQL-migration and C#-only scopes, which set no `channel`) to
+1.0 (a handful of small scopes whose only claims are process-entrypoint/
+config-read facts already backed by an `io_edge`); `sql-pool-manager`'s
+0.74 is the highest non-trivial ratio, concentrated in a scope with several
+side-effect claims. This is the residue signal `CDP_CLI_SCOPE.md §N` asks
+for, not yet consumed by anything (Phase 6).
+
+**Real-scale exercise (R-E7):** one scratch scan of
+`$TARGET_REPO/sql-pool/sql-pool-api` (not the fixture) into
+`/tmp/m41_scratch`, plus a `cdp fold` re-run after the `source_nodes` fix,
+both read back through `sqlite3` directly against `index.db`'s
+`snapshot_artifact` table rather than trusting a printed summary line.
+Scratch directory is disposable, outside the repo.
+
+**Second bug, found by the gate itself, same session.** The first
+`make check TARGET_REPO=...` run (after the freeze above) failed
+`test_check_fold_reads_the_ledger_so_a_rolled_back_state_still_verifies`:
+`check_fold` and `_fold_and_write` read `store.read_artifact("extract", {})`
+to get `extraction`, intending "`{}` when this store never wrote one." But
+`WorkspaceStore.read_artifact`'s own contract (`file_backend.py:29-34`)
+treats a `None` *default* as "raise if missing," and treats any other
+default, including `{}`, as "return it if missing" -- so passing `{}`
+silently succeeded where the original code's callers had never supplied a
+default at all. The result: a store with no `extract` artifact (this test's
+`FileStore` fixture, and read via `check_fold`) got `extraction={}`, while
+the original `fold()` call that wrote `state.json` in the same test had been
+called directly with no `extraction` argument at all (`extraction=None`,
+the parameter's own default) -- and `fold_hash`'s `if extraction is not
+None` guard means `{}` and `None` hash *differently*, so `check_fold`
+reported a permanent, spurious `fold_hash mismatch` for any store that
+never had extract data, independent of rollback. Fixed to
+`store.read_artifact("extract") if store.has_artifact("extract") else None`
+at both call sites (`cdp/state.py` `check_fold`, `cdp/cli.py`
+`_fold_and_write`), so "no extract artifact" and "extraction argument
+omitted" hash identically, restoring the property `fold_hash` already
+promised (same bytes for the same logical inputs) rather than a promise
+`fold_hash`'s signature made but two of its own callers broke. Re-verified:
+`tests/test_rollback.py` (9 tests), `test_pipeline.py` (22),
+`test_entail.py` (8) all green; vendored copy re-synced via
+`cdp install --self` before the gate's second run.
+
+**Test coverage.** `tests/test_entail.py` (new, 8 tests): matching io_edge is
+`entailed`; no structural counterpart is `consistent`; visibility mismatch is
+`contradicted`; matching visibility is not; a claim whose wording has nothing
+to do with a matching edge still entails (the "no statement text matching"
+stress test, directly); missing `extraction` degrades to all-`consistent`
+rather than crashing; `summarize`'s counts and per-node ratio; and one
+fold-level integration test asserting a contradicted claim survives in
+`claims[]` and is mirrored into `contradictions[]`.
+
+**Out of scope this session, unimplemented:** M4.2 (the four unknown gates:
+subject-exists, negative entailment applied to unknowns, provenance state
+via the `tasks` table, clustering), M4.3 (`needs_*` vocabulary, the R12
+ratchet, the grandfathering migration decision for existing unknowns), M4.4
+(`cdp answer`, R11's human-outranks-on-interpretation-never-on-structure
+rule, the `RetryPolicy.execute` decay scenario). None of the plan's
+`tasks`-table precondition work (Phase 2 left `snapshot_run`/`snapshot_task`
+schema-only, "created here, driven in Phase 5") was touched -- M4.2's
+"provenance state" gate has no data source yet and is real, undone work for
+whoever picks this phase back up.
+
+---
+
+## Phase 3 (M3.7) — `rollback` and `query --as-of`
+
+Scoped to M3.7 only this session, by explicit user choice (M3.8 git hooks
+remains deferred — it needs its own session, per the standing note above).
+
+**D16 — exclusion is a ledger, not a mutation.** R5 forbids rewriting or
+deleting a patch. "Excluded patches are marked `superseded_by_rollback`,
+never deleted" (`phase_3_plan.md` M3.7) is implemented as a new append-only
+artifact, `rollback.json` (`cdp/rollback.py`), naming excluded `run_id`s.
+`state.fold` gained an `excluded_run_ids` parameter that drops those patches
+before anything else runs — as if never appended, without the patch file
+itself ever being touched. `check_fold` reads the ledger so a rolled-back
+state still verifies (the same class of gap D11 already named for
+`rename_map`: recomputing from the raw log without the same exclusion would
+flag a correct rollback as drift). `_fold_and_write` and `cmd_refresh` both
+read the ledger too, so the exclusion holds across every future `scan` /
+`collect` / `fold` / `refresh`, not just the rollback that created it.
+
+**D17 — the ordering axis for `--to-snapshot` is log append order, not time.**
+Patches carry no timestamp by construction (D8), so "up to S" is defined as
+"through `S`'s run's last patch in the log's own append order"
+(`FileStore.load_patches()`'s sorted-filename order). `--to-run R` is a
+different, narrower operation: it excludes only `R`'s patches, wherever they
+sit, leaving later runs untouched — a targeted undo of one bad run, not a
+time-travel cut. Both accept either a bare commit sha or a `cdp-<sha12>` run
+id (`rollback.resolve_run_id`), since a run's identity is already the commit
+it examined (`cli._run_id`).
+
+**D18 — `query --as-of` supports a commit, not a wall-clock time, and does not
+re-verify anchors or rebuild `xref`/`graph`.** This is the finding the plan
+itself anticipated: *"if it is not nearly free, the fold is not as pure as
+Phase 2 believes."* A time-based cut would need a timestamp invented for this
+feature alone, reopening exactly what D8 rejected for the reproducibility
+gate. What `--as-of <commit>` does is cheap and exact: replay `fold` over the
+patch log truncated to that commit's run, against the *current* `xref`/
+`partition` (no repo checkout, no re-extraction) and with `repo=None` (no
+anchor re-verification — that op belongs to `refresh`, which operates at a
+tree, not a log position). `query`'s `as_of` block gains `patch_log_as_of`
+when a cut was applied, naming that only the claim log is historical, not the
+structural view.
+
+**Real-scale exercise (R-E7), not just the fixture.** `sql-pool/sql-pool-api`
+scanned into a scratch dir at the pinned commit (41 claims). A synthetic bad
+run (`cdp-badbad000001`, node `root`, reusing a real anchor from the module's
+own derived patch) was appended and folded — because it shared the derived
+patch's node, M3.4's generation-based supersession picked one winner and the
+fold showed **1** claim, not 42, which is itself the correct behavior under
+that rule, not a rollback defect. `cdp rollback --to-run cdp-badbad000001`
+excluded it and re-folded to exactly the original **41** claims; `fold --check`
+passed against the ledger; `cdp query claims --as-of <root-run-id>` reproduced
+the same 41-claim answer read-only, without touching `state.json` on disk.
+Scratch directory removed after the exercise.
+
+**Golden baseline re-blessed, same pattern as every prior Phase 3 milestone.**
+`state.json` gained one field, `"rollback": null`, on both the fixture and
+`$TARGET_REPO` baselines (present, and null, whenever no rollback has ever
+been recorded) — an intended additive shape change, not a regression.
+Re-blessed with `python3 scripts/fixture_gate.py bless` and
+`cdp selftest --golden $TARGET_REPO --bless`; `make check` re-run clean
+afterward.
+
+**Out of scope this session, by explicit user choice:** M3.8 (git hooks) —
+still needs its own session per the standing note in the M3.5-M3.6 entry
+above.
+
+---
+
+## D3 resolved — `SqliteStore` is now the CLI's actual default backend
+
+Scoped to closing D3 only this session (`PHASE/FINDINGS.md`'s own account:
+"the CLI's actual default backend is still `FileStore`... this is deferred
+rather than rushed"). The path convention was already decided
+(`CDP_CLI_SCOPE.md` 2.3, `phase_2_plan.md`: `./.cdp/index.db`) and
+`tests/test_store_conformance.py`'s `SqliteStoreConformance.make_store`
+already used it — this session wires the CLI to actually construct that
+backend, rather than inventing a new convention.
+
+**What changed.** Every `FileStore(paths.state)` construction in `cli.py`
+(`scan`, `prompts`, `collect`, `fold`, `refresh`, `docs`, `status`, `rollback`,
+`query`) now goes through one helper, `_open_store(state_dir) ->
+SqliteStore(state_dir / "index.db")`. `query.Store`'s bare-`Path` constructor
+(used by `cdp diff`'s two positional state directories, and any external
+caller) now auto-detects: `index.db` present -> `SqliteStore`, else the
+legacy raw-JSON directory -> `FileStore`, so `cdp diff` needed no changes at
+its own call site.
+
+**D16's rollback ledger needed zero changes.** `cdp/rollback.py` already went
+through `store.read_artifact("rollback", ...)` / `write_artifact(...)`
+generically rather than touching the filesystem directly, so it became a row
+in `snapshot_artifact` automatically the moment the CLI's default backend
+flipped — exactly the outcome the user anticipated going into this session.
+
+**Three real defects found while wiring this up, not anticipated by D3's own
+text, all fixed:**
+
+1. **The reproducibility gate (`check_determinism`) would have false-positived
+   on every scan.** It compared two scans' state directories byte-for-byte
+   including `index.db`. A SQLite file's on-disk bytes are not guaranteed
+   stable across two independent writes of identical logical content (page
+   allocation is not just a function of the rows inserted) — the gate that
+   exists specifically to catch non-determinism would have flagged the
+   sqlite file as differing on every run, a permanent false alarm. Fixed by
+   splitting `check_determinism` in two: `_state_files` now excludes
+   `index.db` and keeps comparing genuine filesystem output (`docs/`,
+   `prompts/`) byte for byte as before; `_store_snapshot` reads `index.db`
+   back through the store API and compares canonical JSON per
+   artifact/report/the patch log, the same technique `collect_artifacts`
+   (below) uses. Confirmed live: `test_minirepo_scans_reproducibly` (a real
+   scan, not a stub) passes against the new default backend.
+
+2. **`hook.find_state` would have littered a `.cdp/index.db` at every parent
+   directory it probed, on every watched tool call.** The hook's existence
+   check (`FileStore(state).has_artifact("inventory")`) is side-effect-free
+   for `FileStore` (a plain `Path.is_file()` check) but constructing
+   `SqliteStore` unconditionally creates its db file and parent directory as
+   a side effect of merely opening it — and `find_state` walks every parent
+   of every file a watched tool touches, the overwhelming majority of which
+   were never scanned. Fixed with a new `store.has_scanned(state_dir)`, a
+   pure filesystem check (`index.db` or legacy `inventory.json` present) that
+   never constructs a backend. `install_hook`'s own "has this repo been
+   scanned" check had the identical bug and got the identical fix.
+
+3. **Golden capture (`collect_artifacts`) walked the state directory's raw
+   bytes**, which is meaningless for a single binary `index.db`. Rewritten to
+   read every `ARTIFACTS`/`REPORTS` name and the patch log back through the
+   store API and re-serialise with `golden_mod.canonical`, so capture is a
+   function of content, not of the backend's on-disk format (the same fix
+   as #1, applied to the golden gate instead of the determinism gate).
+   `WorkspaceStore` gained `read_report` (symmetric with `write_report`,
+   implemented on both backends) to make this possible — reports were
+   write-only before.
+
+**Golden baseline shape changed, both targets re-blessed.**
+`scan/patches/0000-derived.json` (one file per patch, `FileStore`'s own
+naming) became a single `scan/patches.json` (the canonical patch list) —
+unavoidable, since `SqliteStore` has no per-patch filename to name a golden
+path after. Every entry in `REPORTS` (`verify`, `conflicts`, `prompts`,
+`rejected`) is now always captured, defaulting to `{}` when a report was
+never written (`cdp scan` alone never runs `collect`/`prompts`) — a
+deliberate choice: a report name always present, `{}` or populated, over one
+silently absent depending on which commands happened to run before capture.
+Re-blessed with `python3 scripts/fixture_gate.py bless` (fixture) and `cdp
+selftest --golden $TARGET_REPO --bless` (target, run as part of this
+session's `make check`).
+
+**Real-scale exercise (R-E7), not just the fixture.** `cdp scan` /
+`query stats` / `fold --check` / `docs` / `prompts` / `status` all run
+against one real module (`$TARGET_REPO/sql-pool/sql-pool-api`, scratch state
+dir): `index.db` is a real, openable SQLite file (`file(1)` confirms), every
+command reads it correctly, and no stray top-level `*.json` artifact is
+written alongside it. `hook.find_state` against a freshly `git init`'d,
+never-scanned scratch directory returns `None` and creates no `.cdp/` at all
+(confirmed by `rglob`).
+
+**Cost, stated rather than assumed away.** Two long-lived test fixtures
+(`tests/test_budget.py`, `tests/test_trace.py`) construct one
+`query.Store(state)` per test class and reuse it across every test method;
+neither closed it, which was invisible under `FileStore` (no connection to
+leak) and surfaced as a `ResourceWarning: unclosed database` under the new
+default. Fixed with `cls.store.close()` in each `tearDownClass`, the same
+fix F8 already applied to `tests/test_store_sqlite.py`/
+`test_store_conformance.py`. Every CLI command that opens a store now closes
+it on its success-path `return` (not wrapped in `try/finally` — an error
+path aborts the process anyway, and this codebase's own `FileStore` has
+never had a `close()` method at all, so strict resource discipline on every
+exception path is not this codebase's existing convention).
+
+### Follow-up in the same session — every remaining `FileStore` fallback removed
+
+The above left three dual-path fallbacks in place for backward compatibility
+with the pre-flip, raw-JSON layout: `query.Store`'s bare-`Path` constructor,
+`hook.decide`'s backend selection, and `SqliteStore`'s internal reuse of
+`FileStore` for the inbox directory. Told explicitly to remove all of them —
+*"everything go via db... nothing shall point to filestore"* — so:
+
+- **`query.Store.__init__`** no longer falls back to `FileStore` for a bare
+  directory. It requires `<dir>/index.db`; anything else is "no CDP state at
+  <path>", the same message as before, just no longer trying a second
+  backend. `cdp diff`'s two positional state directories needed no change —
+  both are always produced by `cdp scan --state-dir`, which always writes
+  `index.db` now.
+- **`hook.decide`** always constructs `SqliteStore(state / "index.db")`
+  directly (no ternary). Safe because `find_state` already confirmed
+  `has_scanned(state)` — i.e. `index.db` exists — before `decide` ever opens
+  it, so this never hits the side-effecting "file doesn't exist yet" case
+  `has_scanned` exists to avoid (previous entry, point 2).
+- **`SqliteStore`'s inbox** no longer constructs a `FileStore` internally.
+  `ensure_inbox`/`read_inbox`/`clear_inbox` are inlined directly against
+  `<db_path's dir>/patches/inbox/`, the exact same layout, same behaviour —
+  this was pure code reuse, not a second backend, so inlining it changes
+  nothing observable, it just means `FileStore` is never constructed by any
+  path this session's D3 work touches.
+- **`cdp gc --db` is now optional**, defaulting to `_paths(args).state /
+  "index.db"` — the same resolved store every other command already writes
+  to by default. Before this, `gc` was the one command that could not use
+  the default resolution at all (it needed `SqliteStore` back when nothing
+  else produced one); now that every command does, `gc` needs no special
+  setup step for the common case. `--db` remains as an explicit override.
+
+`FileStore` the class is unchanged and still exported from `store/`: it
+remains the reference implementation the backend-conformance suite
+(`tests/test_store_conformance.py`) checks `SqliteStore` against, and
+`test_store_sqlite.TestBackendEquivalence` still folds identically over
+either backend. Deleting it would remove that cross-check for no
+behavioural gain — a `grep -rn "FileStore(" cdp/` after this pass finds it
+constructed nowhere outside `cdp/store/file_backend.py` itself.
+
+**Re-verified:** full `make check TARGET_REPO=...` re-run green after this
+follow-up (both golden baselines already re-blessed under the prior entry
+needed no further re-bless — this pass changed backend *selection*, not
+`state.json`/`partition.json`/any artifact's content).
+
+---
+
+## Phase 4 (M4.2) — the four unknown gates
+
+Scoped to M4.2 only this session, by explicit user choice: `phase_4_plan.md`'s
+own remaining milestones (M4.2-M4.4) were judged comparable in size to all of
+Phase 3 (five separate sessions), the same account M4.1's entry above already
+gives. M4.3 (`needs_*`/R12 ratchet) and M4.4 (`cdp answer`) remain
+unimplemented.
+
+**What shipped.** `cdp/gates.py` (new): `build_extraction_index(extraction)`
+reuses the same structural index `entail.py` builds for claims (defined fqns,
+io_edge subjects, `(subject, channel) -> edge`). Four gates:
+
+- **Gate 1, subject exists** (`gate_subject_exists`) — an unknown's optional
+  `subject` field must resolve to a `defines[]` fqn, an io_edge source/target,
+  or a real scope node. No `subject` at all passes unconditionally (see D20
+  below).
+- **Gate 2, negative entailment** (`gate_negative_entailment`) — requires
+  both `subject` and `channel`; if `(subject, channel)` already matches an
+  io_edge, the unknown is rejected citing that edge's file:line.
+- **Gate 3, provenance state** (`provenance_state`) — reads `snapshot_task`
+  (0.12) rows, keyed by scope hash, to assign `unexamined` / `unknown` /
+  `abandoned`. See D21: this table has no writer yet, so every real call
+  today resolves `unexamined`.
+- **Gate 4, clustering** (`cluster_unknowns`) — annotates (never rejects or
+  merges) `cluster_id`/`cluster_size` on unknowns whose `question` *and*
+  `why_unresolved` both match another's, exactly.
+
+Gates 1-3 run in `cmd_collect`, per accepted patch, before its `unknowns[]`
+is appended to the log — the same point schema validation already runs at,
+and for the same reason: a rejection needs a specific, cited reason attached,
+not a silent drop. Rejected unknowns never enter the log; they are recorded
+in a new `reports/unknown_gates.json` (`REPORTS` gained this name) alongside
+the existing `rejected` report for schema-invalid patches. Gate 4 runs inside
+`state.fold`, over the fully deduped `unknowns[]`, because cluster membership
+is a property of the *whole current set* and must stay current as unknowns
+come and go across folds — it needs no ledger entry since it only annotates.
+`schema/patch-1.0.0.json`'s `unknown` def gained five optional fields:
+`subject`, `channel` (author-suppliable, checked by gates 1/2),
+`provenance_state`, `cluster_id`, `cluster_size` (gate-assigned, never
+present on a patch as authored — the same posture `verdict` already has on
+`claim`).
+
+**D20 — `subject`/`channel` are optional on `unknown`, not required.** The
+plan's gate 1 wording ("names a subject present in `defines[]`/`io_edges`")
+reads as if every unknown must name one, but requiring it would break every
+existing unknown producer with no migration path: `_structural_unknowns`'s
+module-naming question, the "node not successfully examined" gap `state.fold`
+emits for a superseded node, and any already-collected historical patch. That
+is the exact shape of problem M4.3 is scoped to solve properly for `needs_*`
+(schema change + required + grandfathering decision) — inventing a second,
+smaller version of that migration inside M4.2 would preempt M4.3's own design
+work. Chosen instead: `subject` absent means "this is a scope-level gap," and
+gates 1/2 pass it unconditionally. This is also the plan's own stress-test
+answer ("allow a scope-level subject") generalised one step further: a
+*missing* subject is the limit case of a scope-level one.
+
+**D21 — gate 3's data source does not exist yet; the read path is wired, not
+the writer.** `snapshot_task` (`sqlite_backend.py:121-132`) was created
+schema-only in Phase 2, "driven in Phase 5" per its own comment — no dispatch
+loop in this codebase writes to it. Added `SqliteStore.task_states(run_id)`
+(a plain `SELECT ... WHERE run_id=?`, keyed by `scope_hash`) as the minimal
+read primitive gate 3 needs; `cmd_collect` calls it once per distinct
+`run_id` in a batch (cached) and looks up each patch's node via
+`partition.json`'s `scope_hash` (M3.4). Until Phase 5 populates the table,
+every real call returns `{}` and every node's `provenance_state` is
+`unexamined` — an honest gap, verified directly (below), not assumed.
+
+**Real-scale exercise (R-E7), not just the fixture.** `sql-pool/sql-pool-api`
+scanned fresh into `/tmp/m42_scratch`. A hand-written inbox patch for its one
+non-empty scope (`root/(files+2)`) carried three unknowns: a legitimate
+scope-level one ("why is there no retry here?", `subject` = the scope node
+itself), one already answered by a real `config_read` io_edge in that scope
+(`subject`/`channel` set to match it), and one naming a fabricated subject.
+`cdp collect` against that scratch state:
+
+```
+gates     2 unknown(s) rejected
+  REJECTED unknown (root/(files+2)): already answered by io_edge config-file:.../dropwizard-service-config.yml -> config:logging.type (config_read) at src/main/resources/dropwizard-service-config.yml:21
+  REJECTED unknown (root/(files+2)): subject 'Nonexistent.FakeSubject' names nothing in defines[]/io_edges and is not a scope
+```
+
+Both real defects M4.2's acceptance criteria name are demonstrated with a
+cited reason on real target data; the legitimate scope-level unknown survived
+into `state.json` with `provenance_state: "unexamined"` (D21's expected
+answer, given no task writer exists). Scratch directory outside the repo,
+removed after the exercise.
+
+**Test coverage.** `tests/test_gates.py` (new, 16 tests): each gate in
+isolation (subject in `defines`/io_edges/scope-node passes; no subject passes;
+a bogus subject is rejected; an answered `(subject, channel)` is rejected
+citing the edge; an unanswered one passes; all three `provenance_state`
+outcomes; a mixed batch splitting kept/rejected correctly), the clustering
+stress test from the plan's own table (identical question+reason clusters;
+*shared phrasing with different reasons does not* — the 40-distinct-unknowns
+false-positive class named explicitly), and one end-to-end test driving the
+real `collect` CLI against a freshly scanned fixture repo with a hand-written
+inbox patch, asserting the rejection reasons and the surviving unknown's
+`provenance_state` through `reports/unknown_gates.json` and `state.json`.
+Fixture suite (`test_gates`, `test_pipeline`, `test_entail`,
+`test_store_sqlite`, `test_store_conformance`, 97 tests) green before the
+target-scale exercise above; no defect found this session (unlike M4.1,
+which found two).
+
+**Golden baseline re-blessed, same pattern as every prior phase.**
+`REPORTS` gaining `unknown_gates` changes every scan's captured report set
+(now always includes `unknown_gates: {}` when `collect` never ran, same
+convention `rejected` already established). Re-blessed with
+`python3 scripts/fixture_gate.py bless` and
+`cdp selftest --golden $TARGET_REPO --bless`; `make check` is the gate run
+reported in `PHASE/TARGET.md`.
+
+**Out of scope this session, unimplemented:** M4.3 (`needs_*` required
+vocabulary, the full R12 ratchet including rollback-restores-unknowns and
+`moot` vs `resolved`, the grandfathering migration decision D20 explicitly
+declines to improvise) and M4.4 (`cdp answer`, R11, the `RetryPolicy.execute`
+decay scenario end to end).
+
+---
+
+## Phase 4 (M4.3-M4.4) -- needs_*/R12 ratchet, and `cdp answer`
+
+Scoped to M4.3 and M4.4 in one session (M4.1/M4.2 were already done going
+in). Both milestones landed; the plan's own stress-test table is what's
+tested in `tests/test_gates.py`'s new classes and `tests/test_answer.py`.
+
+**F13 -- a real defect found and fixed: unknowns silently vanished across a
+node's re-run, which is exactly what R12 forbids.** Before this session,
+`state.fold` took claims *and* unknowns from only the highest-generation
+`complete` patch per node (M3.4's supersession, correct for claims, applied
+unmodified to unknowns too). A later patch for the same node that simply
+didn't restate an earlier question made it disappear from `state.json` --
+"a later patch that simply omits it does not resolve it" is R12's own
+wording for the failure this reproduced exactly. Fixed in `cdp/state.py`:
+unknowns now accumulate across *every* `complete` patch for a node (claims
+still take only the best generation); `_dedupe_unknowns` already collapses an
+exact repeat, so this costs nothing for the common case and only matters when
+a re-run's patch omits a question a prior one asked.
+
+**What shipped.**
+- `cdp/gates.py`: `NEEDS_VALUES` (the closed vocabulary), `gate_needs_valid`
+  (per-unknown, alongside gates 1-3 in `gate_patch_unknowns` -- a 4th
+  rejection reason, same report), `grandfather_needs` (missing `needs` ->
+  `needs_human` + `needs_migrated: true`), `discharge_unknowns` (the R12
+  ratchet itself: `open` / `resolved` / `moot`, `resolved_by` attribution).
+- `cdp/state.py`: wires `grandfather_needs` -> `discharge_unknowns` ->
+  `cluster_unknowns` into the fold pipeline, using the same
+  `build_extraction_index` `entail.py`/`gates.py` already share. The
+  fold-internal "node not examined" unknown now carries `needs: needs_human`
+  directly (not grandfathered -- it's a live view, not legacy data).
+- `cdp/entail.py` (R11): a `contradicted` claim with `author_kind=human`
+  gets `confidence: "contested"` -- the same value `merge.py` already uses
+  for a cross-agent conflict, reused here for a claim-vs-extraction one.
+  `verdict` itself stays `contradicted`; only `confidence` is downgraded, so
+  the structural signal survives alongside the "not accepted" marker.
+- `cdp/cli.py` `cmd_answer` (`cdp answer <scope> --subject --kind --claim
+  --anchor --channel --confidence --author --mode`): builds one claim,
+  reads the real anchor text via `anchor.build_anchor` (a human is not
+  exempt from the same span-growing/qualification rule as an agent),
+  validates against the schema, appends a `complete`, `author_kind=human`
+  patch, and folds -- the exact `validate -> verify -> entail -> fold` path
+  `cmd_collect` already runs, no second code path. `--author` defaults to
+  `git config user.name <user.email>` in the target repo.
+- Schema (`schema/patch-1.0.0.json`): `$defs.needs` (the 5-value enum),
+  `$defs.resolved_by` (`claim_id`/`author_kind`/`at_snapshot`, required
+  together), `unknown.needs`/`needs_migrated`/`status`/`resolved_by` (all
+  optional -- enforced by the gate, not `required`, so a pre-M4.3 patch in
+  the log is never retroactively invalid), `claim.author_kind`/`claim.author`
+  (per-claim, distinct from the existing patch-level `author_kind`).
+- `cdp/helpdoc.py`: a `"unknowns, honestly"` guidance section states the
+  completeness-of-unknowns-is-out-of-scope-permanently position in `cdp
+  help`, per the plan's own instruction that this belongs in user-facing
+  docs, not only design notes.
+
+**D22 -- `needs` is enforced by a gate in `collect`, not `required` in the
+JSON schema, despite the plan's "`needs_*` becomes required" wording.** A
+hard schema `required` would reject the *entire* patch -- claims included --
+the moment one unknown lacked it, which is a much bigger blast radius than
+"this one unknown is malformed," and every unknown-producing test and
+fold-internal unknown (the superseded-node gap) would need updating in
+lockstep with no room to grandfather gradually. Treating `needs` the same
+way `subject`/`channel`/`provenance_state` already are (D20: schema-optional,
+gate-enforced) keeps one migration discipline for the whole `unknown` object
+instead of two, and still satisfies the plan's exit criterion literally: "An
+unknown without `needs_*` is rejected" -- in `collect`, with a cited reason,
+exactly like gates 1-3.
+
+**D23 -- grandfathering runs in `fold`, unconditionally, not as a one-time
+backfill command.** Every unknown that reaches `discharge_unknowns` --
+whether logged before this session or emitted fresh by `fold`'s own
+superseded-node path -- passes through `grandfather_needs` first. This means
+`needs_migrated` is recomputed every fold rather than written once, which is
+consistent with the fold invariant (`state.py`'s own docstring: nothing may
+enter `state.json` that isn't derivable from the log) -- a one-time backfill
+would itself be an undocumented write to the log.
+
+**D24 -- R11 is implemented at the entailment layer (human-vs-extraction),
+not inside `merge.py`'s cross-claim precedence (human-vs-model).** The
+plan's own stress-test row ("human contradicted by extraction: contested")
+is exactly the entailment case, and it's what `entail.py`'s new check
+covers. The *other* half R11's CDP_CLI_SCOPE.md wording implies --
+"humans outrank models on interpretation" as a merge-time precedence rule,
+for when a human claim and a model claim about the same subject conflict --
+is not touched: `merge.py`'s conflict resolution (`_resolve`) has no notion
+of `author_kind` today, and no scenario in this corpus produces a human-vs-
+model merge conflict to prove a fix against. Rewiring `_resolve`'s precedence
+order is real, separate work with its own blast radius on `merge.py`'s
+existing ownership/evidence-count resolution and the golden baseline; flagged
+here rather than improvised, per R-E13.
+
+**D25 -- `cdp answer --kind` uses the existing closed `claim_kind` enum, not
+`ARCHITECTURE.md`'s illustrative `--kind rationale`.** `rationale` is not one
+of `claim_kind`'s ten values and was never meant to extend the vocabulary --
+`_parser()` now loads `schema/patch-1.0.0.json`'s `$defs.claim_kind`/
+`$defs.channel` directly for `--kind`/`--channel`'s `choices`, so this can't
+drift from the schema. R11 says humans outrank models on interpretation,
+never on structure, and a closed vocabulary is exactly the structure a human
+does not get to bypass either -- the demonstration below uses `--kind naming`
+in place of the prose example's `rationale`.
+
+**Real-scale exercise (R-E7), on `$TARGET_REPO/sql-pool/sql-pool-api`
+(scratch state dir, removed after):**
+
+```
+$ cdp answer "root/(files+2)" --subject Dockerfile.JDK_JAVA_OPTIONS \
+    --kind naming --claim "..." --anchor Dockerfile:17
+answer    human.a0000fcd013c02a1  verdict=consistent  confidence=high
+
+$ cdp answer "root/(files+2)" --subject Fake.Thing --kind naming \
+    --claim "..." --anchor Dockerfile:99999
+cdp: no citable anchor at Dockerfile:99999 -- humans are not exempt from
+anchor verification either                                    (exit 2)
+
+$ cdp collect   # hand-written unknown with no `needs`
+gates     1 unknown(s) rejected
+  REJECTED unknown (root/(files+2)): needs None is not one of
+    ['needs_external_doc', 'needs_human', 'needs_other_repo',
+     'needs_runtime', 'needs_wider_scope']
+```
+
+`query unknowns --json` on the same scratch scan shows the real,
+pre-existing "What is this module called?" structural unknown grandfathered
+correctly: `"needs": "needs_human", "needs_migrated": true, "status": "open"`
+-- exercised on live target data, not a synthetic dict.
+
+**Test coverage.** `tests/test_gates.py` gained `NeedsGateTest` (3),
+`GrandfatherNeedsTest` (2), `DischargeUnknownsTest` (5, covering the plan's
+own table: scope-level always open, subject-gone is moot not resolved,
+matching claim resolves with attribution, a contradicted claim does not
+discharge, no match with a live subject stays open); two existing tests
+(`test_mixed_batch_splits_kept_and_rejected`,
+`test_collect_rejects_bad_unknowns_and_keeps_the_legitimate_one`) needed one
+line each adding `needs_human` to their previously-kept unknowns -- expected
+fallout of turning the gate on, not a defect. `tests/test_entail.py` gained
+the R11 pair (human-contradicted -> contested; llm-contradicted -> unchanged
+confidence). `tests/test_answer.py` (new, 3 tests, end-to-end through the
+real CLI on the fixture repo): a claim is kept and discharges a matching
+unknown with attribution; a fabricated anchor is rejected; editing the
+anchored file and running `refresh` clears `claim_reviewed_at` and relocates
+the anchor -- the `ARCHITECTURE.md` `RetryPolicy.execute` decay scenario,
+reproduced end to end. Full suite: 335 tests (up from 320), all green;
+vendored copy re-synced via `cdp install --self`.
+
+**Out of scope, unimplemented:** R11's merge-precedence half (D24); a
+`--visibility`/other-discrete-field flag on `cdp answer` (only `naming`-style
+claims with no comparable discrete field were exercised, so a human-authored
+contradiction was proven at the unit level, not through the live CLI);
+Phase 6/8/9's consumers of `needs_wider_scope`/`needs_other_repo`/the
+`contradicted` bucket, unchanged from M4.1/M4.2's own account.

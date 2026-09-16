@@ -125,19 +125,19 @@ def find_state(start: Path) -> Optional[Path]:
     path) dissolves that: `scan`'s default run registers where it wrote state,
     and this looks it up the same way.
     """
-    from .store import FileStore
+    from .store import has_scanned
     from .store import registry
 
     current = start if start.is_dir() else start.parent
     for candidate in [current] + list(current.parents):
         state = candidate / STATE_DIRNAME
-        if FileStore(state).has_artifact("inventory"):
+        if has_scanned(state):
             return state
 
     for candidate in [current] + list(current.parents):
         if (candidate / ".git").exists():
             registered = registry.lookup(registry.repo_identity(candidate))
-            if registered is not None and FileStore(registered).has_artifact("inventory"):
+            if registered is not None and has_scanned(registered):
                 return registered
             break
     return None
@@ -208,17 +208,20 @@ def decide(event: Dict) -> Optional[str]:
     if state is None:
         return None  # no-op 1 and 3: no `.cdp/` reachable from here
 
-    from .store import FileStore
+    from .store import SqliteStore
     from .util import CdpError
 
     try:
-        backend = FileStore(state)
+        # `find_state` already confirmed `has_scanned(state)`, i.e. `index.db`
+        # exists -- opening it here never creates it as a side effect.
+        backend = SqliteStore(state / "index.db")
         inventory = backend.read_artifact("inventory")
         # `state.parent` is the repo only under the in-repo layout
         # (`<repo>/.cdp`); once state can live anywhere (M2.6's registry), the
         # manifest's own `repo` field is the only reliable source.
         manifest_repo = backend.read_artifact("manifest", {}).get("repo")
         repo = Path(manifest_repo) if manifest_repo else state.parent
+        backend.close()
     except (OSError, ValueError, CdpError):
         return None
 
