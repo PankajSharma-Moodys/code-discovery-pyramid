@@ -30,10 +30,10 @@ answer a question about a different vocabulary.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, FrozenSet, Iterable, List, Optional, Sequence
 
 from .merge import merge_claims
-from .util import stable_hash
+from .util import git_head, stable_hash
 from .verify import STRICT, verify_all
 
 if TYPE_CHECKING:
@@ -52,6 +52,8 @@ def fold(
     partition: Optional[Dict] = None,
     repo: Optional[Path] = None,
     mode: str = STRICT,
+    rename_map: Optional[Dict[str, str]] = None,
+    edited_files: Optional[FrozenSet[str]] = None,
 ) -> Dict:
     """The whole of state derivation. Deterministic: same inputs, same bytes out.
 
@@ -63,6 +65,15 @@ def fold(
     That is what makes re-verification against a *different* commit (Phase 3's
     `refresh`) a fold argument instead of a rewrite.
 
+    `rename_map`/`edited_files` are Phase 3's rename-awareness (`cdp/refresh.py`
+    M3.3): threaded straight through to `verify_all` so a `git mv` never mass-
+    demotes a corpus (`verify.py:43-46`'s landmine) and R9's review-invalidation
+    rule is applied without ever mutating a patch already in the log (R5).
+    `head_sha` for the two freshness dates (0.8) is read from `repo` itself,
+    not passed in and not the wall clock: two folds of the same commit must
+    still be byte-identical (`cli.py` `_run_id`'s same argument), and this
+    system's own notion of "when" is already `(repo_id, commit_sha)`.
+
     Verification is a per-patch, independent map over the log — it never reads
     another patch or the merge result — so composing it in front of the
     existing order-independent merge cannot introduce order-dependence; the
@@ -73,7 +84,10 @@ def fold(
     verification = None
     verified_patches = raw_patches
     if repo is not None:
-        verified_patches, verification = verify_all(Path(repo), raw_patches, mode)
+        head_sha = git_head(Path(repo))
+        verified_patches, verification = verify_all(
+            Path(repo), raw_patches, mode, head_sha, rename_map, edited_files
+        )
 
     claims: List[Dict] = []
     unknowns: List[Dict] = []

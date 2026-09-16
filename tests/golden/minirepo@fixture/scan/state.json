@@ -1,7 +1,9 @@
 {
   "claims": [
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -19,7 +21,9 @@
       "subject": "config:MINI_DB_URL"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "persist",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "medium",
       "evidence": [
         {
@@ -37,7 +41,9 @@
       "subject": "entity:com.example.mini.core.WidgetEntity"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "persist",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -55,6 +61,8 @@
       "subject": "table:widget"
     },
     {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -77,7 +85,9 @@
       "subject": "web -> core"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -95,7 +105,9 @@
       "subject": "process:root"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -113,7 +125,9 @@
       "subject": "com.example.mini.web.WebApplication"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -131,7 +145,9 @@
       "subject": "root"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -154,7 +170,9 @@
       "subject": "route:GET /v1/widgets"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -177,6 +195,8 @@
       "subject": "route:GET /v1/widgets/{id}"
     },
     {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -194,6 +214,8 @@
       "subject": "build:rootProject.name"
     },
     {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -211,7 +233,9 @@
       "subject": "package-path-divergence"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "schema_own",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -229,7 +253,9 @@
       "subject": "table:widget"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -273,7 +299,7 @@
     "root": "complete"
   },
   "provenance": {
-    "fold_hash": "ded17b2dde8286939e9f23ecc82016bfb3cf651ed90661429d4205ea399a2de3",
+    "fold_hash": "bbc97090d908f3320fe5efe9e63bac048c238acef0a9301a1f71b2de3a449c44",
     "patch_count": 1
   },
   "schema_version": "1.0.0",

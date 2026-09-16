@@ -405,3 +405,100 @@ case, never committed.** A repo with no remote and no `.cdp-id` gets a UUID
 written inside `.git/`, which survives a `mv` of the repo but not a fresh
 `git clone` (a clone with no remote is treated as a new, unrelated tree — the
 plan's own "survives a move" acceptance criterion, read literally).
+
+---
+
+## F11 — path-scoped `git log` reports a pure rename as churn
+
+**Severity:** high for M3.1's staleness signal specifically — it would have
+reported every `git mv` as a stale claim. **Status: fixed, in the same
+milestone that introduced it (Phase 3, M3.1/`cdp/freshness.py`).**
+
+Found by the fixture smoke test this milestone's own execution rules require
+(`PHASE/EXECUTION_RULES.md` R-E7): `git log <since>..<head> --numstat -- path`,
+run against a file's path *after* a pure `git mv`, shows one commit adding N
+lines at that path — git's single-path history simplification does not apply
+rename detection to its own path filter, so the rename commit looks identical
+to a genuine N-line addition. `git log --follow -M100% ... -- path` fixes it:
+the same commit's numstat line reads `0  0  {old => new}`, and it is the
+*numstat numbers*, not "a commit exists", that `freshness.file_churned_between`
+now checks — matching the plan's own wording ("computed from `git log
+--numstat`") more literally than the first pass did.
+
+---
+
+## Phase 3 (M3.1-M3.3) — decisions the plan left open
+
+**D8 — both freshness dates are commit shas, not timestamps**, despite the
+plan's own wording ("two dates"). `cli.py`'s `_run_id` already established why:
+*"a timestamp in the run id would leak into every patch and defeat the
+reproducibility gate."* `claim_reviewed_at`/`anchor_verified_at` live inside
+`claims[]`, which is neither `manifest.json` (the one file allowed a real
+timestamp) nor covered by `VOLATILE_FIELDS`. A wall-clock value there would
+make two scans of the same commit diverge in `state.json` and `fold_hash`.
+Since this system's own notion of "when" is already `(repo_id, commit_sha)`
+(`snapshot.py`), both fields hold a commit sha instead: free to compare, and
+deterministic per commit by construction. See `cdp/freshness.py`'s docstring
+for the full argument.
+
+**D9 — incremental extract (M3.2) re-derives at module granularity, not file
+granularity.** `declared_deps`/`module_notes` are aggregated per module in the
+stored `extract.json` with no per-file attribution kept, so carrying a module
+forward while re-deriving only one of its changed files would silently drop
+whichever file's manifest-derived entries weren't re-run. Re-deriving every
+file in a module that has at least one changed file makes
+`incremental_extract`'s output provably equal to a full `run_extract` (the
+milestone's acceptance test, `tests/test_refresh.py`
+`IncrementalExtractEquivalenceTest`) at the cost of being incremental at
+module rather than file granularity — still a large reduction for any commit
+that does not touch most modules.
+
+**D10 — `refresh` never appends a new derived-claims patch.** M3.4 (scope-hash
+caching) is explicitly out of this session's scope (see below), and
+`PHASE/FINDINGS.md`'s own account of the state (`state.py:44` docstring; the
+plan's M3.4 section) is that re-running a node today *accumulates* rather than
+replaces — two `complete` patches for the same node, neither superseding the
+other. Appending a fresh structural-claims patch on every `refresh` would hit
+that defect immediately. Instead `refresh` re-verifies the *existing* patch
+log against the new commit (rename-aware, via `rename_map`/`edited_files`
+threaded into `state.fold` -- `verify.py`) and rebuilds only the
+non-claim-bearing views (`graph`/`xref`/`dataflow`/`partition`) fresh. This
+matches the milestone table in `phase_3_plan.md` exactly (relocate / demote /
+invalidate over the log that exists), and defers "what does a *new* structural
+fact look like after a refresh" to M3.4, where supersession is actually solved.
+
+**D11 — `check_fold`/`fold --check` does not thread `rename_map`/`edited_files`
+through.** After a `refresh` that involved a rename, `fold --check` recomputes
+without the rename map and would find `state.json`'s relocated anchors
+"undeliverable from patches/ + xref.json" -- a false positive. Not fixed this
+session: no scan-then-refresh sequence is on `make check`'s path (it runs one
+scan of `$TARGET_REPO` at its pinned commit), so the gap is real but not
+exercised by the gate. Owner: whichever phase makes `refresh` part of the
+regular gate loop.
+
+**D12 — `cmd_status`'s staleness bucket compares against the *last scanned*
+head (`store.inventory["head"]`), not the repo's live git HEAD.** Deliberate:
+`status` reports what CDP's own state currently reflects, and if a commit has
+landed since the last `scan`/`refresh`, CDP does not yet know its content
+exists (`graph`/`xref` are still built from the old tree) — `refresh` is the
+operation that catches state up, not `status` inspecting the working tree on
+the side.
+
+**Real-scale exercise, not just the fixture (R-E7):** `cdp refresh` was run
+against one worktree of `$TARGET_REPO`'s `sql-pool/sql-pool-api` module,
+scanned at the pinned commit and refreshed to the live tip roughly eight months
+later (544 files changed: 18 renamed, 527 edited, 17 added, 444 deleted) --
+zero crashes, zero demotions, ~12s, zero model calls. Confirmed the pinned
+commit is **not an ancestor** of the current tip (history was rewritten
+somewhere in between); `git diff --name-status -M` between two arbitrary,
+still-present commit shas works regardless of ancestry, so this did not
+exercise the `HistoryUnavailable` fallback path -- that path is only proven at
+fixture scale (`tests/test_determinism.py`-style: a synthetic sha that does not
+exist). See `PHASE/TARGET.md` for the full readout.
+
+**Out of scope this session, by explicit user choice:** M3.4 (scope-hash
+caching / supersession), M3.5 (`cdp diff`), M3.6 (`gc`/retention), M3.7
+(`rollback`/`--as-of`), M3.8 (git hooks). `phase_3_plan.md`'s stress-test row
+for a shallow clone is covered by `freshness.file_churned_between` returning
+`None` (never asserts "not stale" from missing data) but was exercised only by
+reasoning about `run_git`'s failure mode, not a constructed shallow clone.

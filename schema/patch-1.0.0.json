@@ -75,6 +75,14 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Set by the merge operator (section 5.5 step 3) when a subject could not be resolved."
+        },
+        "claim_reviewed_at": {
+          "type": ["string", "null"],
+          "description": "Phase 3 (0.8): commit sha at which a model (or, for structural claims, the deterministic deriver) last affirmed this claim's evidence. A commit, not a timestamp, so two scans of the same commit stay byte-identical (cdp/freshness.py). Null means never reviewed since this field existed -- the 'anchored but unreviewed' bucket (R9)."
+        },
+        "anchor_verified_at": {
+          "type": ["string", "null"],
+          "description": "Phase 3 (0.8): commit sha at which this claim's anchors were last machine-verified to resolve. Free, and bumped by every fold that re-verifies against a repo."
         }
       }
     },

@@ -31,12 +31,14 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import dataflow as dataflow_mod
 from . import docs as docs_mod
+from . import freshness as freshness_mod
 from . import golden as golden_mod
 from . import graph as graph_mod
 from . import helpdoc
 from . import inventory as inventory_mod
 from . import partition as partition_mod
 from . import query as query_mod
+from . import refresh as refresh_mod
 from . import resolve as resolve_mod
 from . import schedule as schedule_mod
 from . import snapshot as snapshot_mod
@@ -150,6 +152,11 @@ def _parser() -> argparse.ArgumentParser:
     f.add_argument("--check", action="store_true", help="verify the invariant instead of writing")
     f.set_defaults(func=cmd_fold)
 
+    r = add("refresh", "re-verify every live claim against HEAD, zero model calls")
+    r.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
+    r.add_argument("--quiet", action="store_true")
+    r.set_defaults(func=cmd_refresh)
+
     st = add("status", "waves, node statuses and coverage")
     st.set_defaults(func=cmd_status)
 
@@ -234,6 +241,17 @@ def _run_id(head: str) -> str:
     return "cdp-" + (head[:12] if head and head != "unpinned" else stable_hash(head)[:12])
 
 
+def _stamp_claims(claims: List[Dict], head: str) -> None:
+    """First `claim_reviewed_at` for a freshly authored claim (0.8): the commit
+    it was authored against, not a timestamp -- see `cdp/freshness.py` for why
+    a wall-clock date here would break the determinism gate. `refresh`
+    (`cdp/refresh.py`) is what carries this forward or clears it on later
+    commits; scan/collect only ever set it once, at birth.
+    """
+    for claim in claims:
+        claim.setdefault("claim_reviewed_at", head)
+
+
 # ------------------------------------------------------------------- scan
 
 
@@ -286,6 +304,7 @@ def cmd_scan(args) -> int:
     # the same log every agent patch does, so the fold invariant holds from the
     # first commit rather than being retrofitted once agents exist.
     derived = derive_claims(paths.repo, inventory, extraction, graph, xref, part, flow)
+    _stamp_claims(derived, inventory["head"])
     run_id = _run_id(inventory["head"])
     patch = {
         "schema_version": "1.0.0",
@@ -602,6 +621,7 @@ def cmd_collect(args) -> int:
     # `fold`, against `paths.repo`, not here — see `cli.py` `cmd_scan`.
     for patch in accepted:
         patch.setdefault("author_kind", "llm")
+        _stamp_claims(patch.get("claims") or [], store.inventory["head"])
         backend.append_patch(patch, str(patch.get("node", "leaf")))
         backend.clear_inbox(str(patch.get("node", "")))
 
@@ -653,6 +673,106 @@ def cmd_fold(args) -> int:
     return 0
 
 
+# --------------------------------------------------------------- refresh
+
+
+def cmd_refresh(args) -> int:
+    """M3.3: re-verify every live claim against HEAD, zero model calls.
+
+    Re-derives nothing: the patch log is untouched (R5). What moves is the
+    *view* -- incremental extraction (M3.2) for `xref`/`graph`/`dataflow`, and
+    rename-aware re-verification for the claims already in the log, via the
+    same `rename_map`/`edited_files` arguments `state.fold` now accepts.
+    """
+    paths = _paths(args)
+    backend = FileStore(paths.state)
+    store = query_mod.Store(backend)
+    say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
+
+    if snapshot_mod.is_dirty(paths.repo):
+        raise CdpError("refresh requires a clean working tree (dirty trees are ephemeral, "
+                       "never a refresh target)")
+    prev_head = store.inventory.get("head")
+    new_head = _git_head_or_raise(paths.repo)
+    if prev_head in (None, "unpinned"):
+        raise CdpError("no prior scan to refresh from -- run `cdp scan` first")
+    if new_head == prev_head:
+        say("refresh   HEAD unchanged (%s); nothing to do" % new_head[:12])
+        return 0
+
+    history_ok = True
+    try:
+        rename_map, edited, added, deleted = refresh_mod.classify_changes(paths.repo, prev_head, new_head)
+    except refresh_mod.HistoryUnavailable:
+        history_ok = False
+        rename_map, edited, added, deleted = {}, set(), set(), set()
+
+    new_inventory = inventory_mod.build_inventory(paths.repo)
+    if history_ok:
+        changed = set(rename_map.values()) | edited | added
+    else:
+        changed = {e["path"] for e in new_inventory["files"]}
+    new_extraction = refresh_mod.incremental_extract(paths.repo, new_inventory, store.extraction, changed)
+
+    new_graph = graph_mod.build_graph(new_inventory, new_extraction)
+    new_xref = resolve_mod.build_xref(new_inventory, new_extraction, new_graph)
+    budgets = store.manifest.get("budgets", {})
+    new_part = partition_mod.partition(
+        new_inventory,
+        budgets.get("max_leaf_files", partition_mod.DEFAULT_MAX_FILES),
+        budgets.get("max_leaf_loc", partition_mod.DEFAULT_MAX_LOC),
+    )
+    new_flow = dataflow_mod.build_dataflow(
+        new_extraction, new_xref, new_graph, budgets.get("max_hops", dataflow_mod.DEFAULT_MAX_HOPS)
+    )
+
+    backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"]))
+    backend.write_artifact("inventory", new_inventory)
+    backend.write_artifact("extract", new_extraction)
+    backend.write_artifact("graph", new_graph)
+    backend.write_artifact("partition", new_part)
+    backend.write_artifact("xref", new_xref)
+    backend.write_artifact("dataflow", new_flow)
+
+    before_demoted = len(store.state.get("unknowns", []))
+    folded = state_mod.fold(
+        backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=args.mode,
+        rename_map=rename_map, edited_files=frozenset(edited),
+    )
+    backend.write_artifact("state", folded)
+    backend.write_artifact(
+        "manifest",
+        dict(store.manifest, head=new_inventory["head"],
+             generated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")),
+    )
+
+    buckets = freshness_mod.bucket_counts(folded["claims"], paths.repo, new_head)
+    after_demoted = len(folded.get("unknowns", []))
+    say("refresh   %s -> %s" % (prev_head[:12], new_head[:12]))
+    if not history_ok:
+        say("          history unavailable for that range (rebase/shallow) -- full "
+            "re-extract, staleness reported as unknown rather than assumed live")
+    say("extract   %d file(s) changed (renamed/edited/added), %d total parsed"
+        % (len(changed), new_extraction["totals"]["parsed_files"]))
+    say("rename    %d file(s) renamed, %d edited, %d added, %d deleted"
+        % (len(rename_map), len(edited), len(added), len(deleted)))
+    say("verify    %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn "
+        "(%d newly demoted), zero model calls"
+        % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
+           buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN],
+           after_demoted - before_demoted))
+    return 0
+
+
+def _git_head_or_raise(repo: Path) -> str:
+    from .util import git_head
+
+    head = git_head(repo)
+    if head is None:
+        raise CdpError("`%s` is not a git repository HEAD could be read from" % repo)
+    return head
+
+
 # ----------------------------------------------------------------- status
 
 
@@ -666,6 +786,14 @@ def cmd_status(args) -> int:
     print("coverage  %.1f%% (%d/%d tracked files)"
           % (100 * state["coverage"]["fraction"], state["coverage"]["files_complete"],
              state["coverage"]["files_total"]))
+    head = store.inventory.get("head")
+    if head and head != "unpinned" and state.get("claims"):
+        # 0.9/3.6: three buckets over live claims, none a subset of the others --
+        # "anchored but unreviewed" is what `run --stale-only` (Phase 5) targets.
+        buckets = freshness_mod.bucket_counts(state["claims"], paths.repo, head)
+        print("freshness %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn"
+              % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
+                 buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN]))
     for wave in sched["waves"]:
         done = sum(1 for n in wave["nodes"] if statuses.get(n) == "complete")
         print("wave %-2d L%s  %d/%d complete  %d files, %d loc"

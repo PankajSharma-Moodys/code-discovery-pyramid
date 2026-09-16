@@ -258,3 +258,41 @@ content-addressing, snapshot lineage (`begin_snapshot`/`mark_durable`), and
 `store.registry`'s identity chain (`declared id -> origin remote -> UUID`)
 all read as implemented, matching both the plan and `PHASE/FINDINGS.md`
 D1-D7's own account of what was deliberately deferred.
+
+## Phase 3 (M3.1-M3.3) — `cdp refresh` exercised on a real module, real history
+
+Scoped to M3.1-M3.3 only this session (`PHASE/FINDINGS.md` records why the
+other five milestones were deferred). Exercised on `$TARGET_REPO` via a
+detached `git worktree` (never touching the main checkout):
+
+    git worktree add --detach /tmp/refresh_target_wt 7e10575adf69a193da7f547aed088f7409f1f7c4
+    cdp scan --repo /tmp/refresh_target_wt/sql-pool/sql-pool-api --state-dir <scratch>
+    git -C /tmp/refresh_target_wt checkout -q bab4ea0dc   # current tip, ~8 months later
+    cdp refresh --repo /tmp/refresh_target_wt/sql-pool/sql-pool-api --state-dir <scratch>
+
+```
+refresh   7e10575adf69 -> bab4ea0dce85
+extract   544 file(s) changed (renamed/edited/added), 49 total parsed
+rename    18 file(s) renamed, 527 edited, 17 added, 444 deleted
+verify    41 live, 0 stale, 0 anchored-but-unreviewed, 0 unknown-churn (0 newly demoted), zero model calls
+```
+
+~12s wall time for an 8-month span of real history over one module. Zero
+demotions across a real rename set (18 files), zero crashes, and the 41
+structural claims from the original scan all verified live — plausible, since
+this module's derived claims (declares a process entry point, persists an
+entity, etc.) tend to anchor on lines that outlive a typical refactor.
+
+**One negative result, recorded rather than hidden:** the pinned commit is
+**not an ancestor** of the current tip (`git merge-base --is-ancestor` fails
+both directions), meaning this repository's history was rewritten (rebase or
+force-push) sometime in the roughly eight months between them. `git diff
+--name-status -M <old> <new>` succeeded anyway — git diffs two arbitrary,
+still-present commits regardless of ancestry — so `HistoryUnavailable` (the
+fallback for a truly unreachable/pruned commit, e.g. a shallow clone's
+boundary) was never triggered here. That path is proven only at fixture scale
+with a synthetic nonexistent sha; it has not been exercised against a real
+shallow clone or a truly garbage-collected commit.
+
+Worktree removed after the exercise (`git worktree remove --force`); the main
+checkout's `git status --porcelain` was empty before and after.

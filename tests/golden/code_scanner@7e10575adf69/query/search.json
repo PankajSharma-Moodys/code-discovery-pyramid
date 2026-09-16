@@ -1,14 +1,16 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "d33c1604de0a5b1226dcb5060de46af019e84b6013fabe4d639411e171534783",
+    "fold_hash": "61966ec12d47592a01e6167cbaac7f1a6e30496d72975d2760453c26188327b8",
     "repo": "tree",
     "state_version": 1
   },
   "budget": 200,
   "claims": [
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -26,7 +28,9 @@
       "subject": "config:CORRELATION_ID"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -44,7 +48,9 @@
       "subject": "config:DEBIAN_FRONTEND"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -72,7 +78,9 @@
       "subject": "config:FLYWAY_CMD_VERSION"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -90,7 +98,9 @@
       "subject": "config:HOME"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -108,7 +118,9 @@
       "subject": "config:JACKSON_VERSION"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -126,7 +138,9 @@
       "subject": "config:JAVA_ARGS"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -149,7 +163,9 @@
       "subject": "config:JAVA_TOOL_OPTIONS"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -172,7 +188,9 @@
       "subject": "config:JDK_JAVA_OPTIONS"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -195,7 +213,9 @@
       "subject": "config:LANG"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -218,7 +238,9 @@
       "subject": "config:LANGUAGE"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -241,7 +263,9 @@
       "subject": "config:LC_ALL"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -259,7 +283,9 @@
       "subject": "config:MAVEN_REPO"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -277,7 +303,9 @@
       "subject": "config:USER"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -295,7 +323,9 @@
       "subject": "config:WORKINGDIR"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -323,7 +353,9 @@
       "subject": "config:com"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "persist",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "medium",
       "evidence": [
         {
@@ -341,7 +373,9 @@
       "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -359,7 +393,9 @@
       "subject": "rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -377,7 +413,9 @@
       "subject": "rms.unifiedstore.sqlpool.api.model.mappers.PoolConfigMapper -> library:org.mapstruct.Mapper"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -395,7 +433,9 @@
       "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigDetailedOutput"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -413,7 +453,9 @@
       "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigOutput"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -431,7 +473,9 @@
       "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.dal.entities.EPoolConfig"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -449,7 +493,9 @@
       "subject": "rms.unifiedstore.sqlpool.dal.entities.EPoolConfig -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "map",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -467,7 +513,9 @@
       "subject": "rms.unifiedstore.sqlpool.service.mappers.DPoolConfigMapper -> library:org.mapstruct.Mapper"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "persist",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -485,7 +533,9 @@
       "subject": "table:pool_config"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -503,7 +553,9 @@
       "subject": "process:sql-pool/sql-pool-api"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -521,7 +573,9 @@
       "subject": "process:sql-pool/sql-pool-manager"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -544,7 +598,9 @@
       "subject": "route:GET /v1/pools"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -567,7 +623,9 @@
       "subject": "route:GET /v1/pools/{id}"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -590,7 +648,9 @@
       "subject": "route:PATCH /v1/pools/{id}"
     },
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "medium",
       "evidence": [
         {

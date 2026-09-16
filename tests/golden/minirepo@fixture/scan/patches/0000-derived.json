@@ -3,6 +3,7 @@
   "claims": [
     {
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -19,6 +20,7 @@
     },
     {
       "channel": "persist",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "medium",
       "evidence": [
         {
@@ -35,6 +37,7 @@
     },
     {
       "channel": "persist",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -50,6 +53,7 @@
       "subject": "table:widget"
     },
     {
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -71,6 +75,7 @@
     },
     {
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -87,6 +92,7 @@
     },
     {
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -103,6 +109,7 @@
     },
     {
       "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -119,6 +126,7 @@
     },
     {
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -140,6 +148,7 @@
     },
     {
       "channel": "http_in",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -160,6 +169,7 @@
       "subject": "route:GET /v1/widgets/{id}"
     },
     {
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -175,6 +185,7 @@
       "subject": "build:rootProject.name"
     },
     {
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -191,6 +202,7 @@
     },
     {
       "channel": "schema_own",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -207,6 +219,7 @@
     },
     {
       "channel": "read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {

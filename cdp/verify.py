@@ -23,7 +23,7 @@ criteria, and why only the second is a real test of whether this works.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from .anchor import verify_anchor
 from .util import read_lines
@@ -46,7 +46,14 @@ class FileCache:
         return self._cache[rel]
 
 
-def verify_patch(patch: Dict, cache: FileCache, mode: str = STRICT) -> Tuple[Dict, Dict]:
+def verify_patch(
+    patch: Dict,
+    cache: FileCache,
+    mode: str = STRICT,
+    head_sha: Optional[str] = None,
+    rename_map: Optional[Dict[str, str]] = None,
+    edited_files: Optional[FrozenSet[str]] = None,
+) -> Tuple[Dict, Dict]:
     """Verify one patch in place, returning `(patch, stats)`.
 
     Failed claims are moved to `unknowns[]` with `demoted_from` and the reason
@@ -55,10 +62,20 @@ def verify_patch(patch: Dict, cache: FileCache, mode: str = STRICT) -> Tuple[Dic
     anyway or quietly omit it, and the second is worse because it destroys the
     signal. An explicit unknown is a precise statement of where tribal knowledge
     still lives in someone's head.
+
+    `rename_map`/`edited_files` are Phase 3's `refresh` (`cdp/refresh.py`)
+    threading rename-awareness through the same verify pass rather than
+    rewriting the immutable patch log (R5): `rename_map` redirects which file
+    on disk an anchor is checked against without touching the anchor recorded
+    in the log, and `edited_files` (real edits, not pure renames or
+    normalise_ws-identical reformats) is what R9 uses to invalidate
+    `claim_reviewed_at` on the *output* claim, again without mutating the input.
     """
     out = dict(patch)
     kept: List[Dict] = []
     unknowns: List[Dict] = list(patch.get("unknowns") or [])
+    rename_map = rename_map or {}
+    edited_files = edited_files or frozenset()
     stats = {
         "claims_in": 0,
         "claims_kept": 0,
@@ -77,18 +94,24 @@ def verify_patch(patch: Dict, cache: FileCache, mode: str = STRICT) -> Tuple[Dic
         stats["claims_in"] += 1
         good: List[Dict] = []
         failures: List[Tuple[Dict, str]] = []
+        touches_edited = False
         for anchor in claim.get("evidence") or []:
             stats["anchors_checked"] += 1
-            lines = cache.lines(str(anchor.get("file")))
+            raw_file = str(anchor.get("file"))
+            read_file = rename_map.get(raw_file, raw_file)
+            if read_file in edited_files:
+                touches_edited = True
+            lines = cache.lines(read_file)
             if not lines:
                 failures.append((anchor, "anchor_not_found"))
                 continue
             ok, line, reason = verify_anchor(lines, anchor)
             if ok:
                 stats["anchors_ok"] += 1
-                if line != anchor.get("line"):
+                if line != anchor.get("line") or read_file != raw_file:
                     stats["anchors_relocated"] += 1
                 fixed = dict(anchor)
+                fixed["file"] = read_file
                 fixed["line"] = line
                 good.append(fixed)
             else:
@@ -98,6 +121,14 @@ def verify_patch(patch: Dict, cache: FileCache, mode: str = STRICT) -> Tuple[Dic
         if survives:
             kept_claim = dict(claim)
             kept_claim["evidence"] = good
+            if head_sha:
+                kept_claim["anchor_verified_at"] = head_sha
+            if touches_edited:
+                # R9: any real edit (not a pure rename, not a normalise_ws-identical
+                # reformat -- refresh.py already excluded those from `edited_files`)
+                # to the anchored file invalidates the review, even though the
+                # anchor text itself still resolved.
+                kept_claim["claim_reviewed_at"] = None
             kept.append(kept_claim)
             stats["claims_kept"] += 1
         else:
@@ -130,7 +161,14 @@ def _describe(failures: Sequence[Tuple[Dict, str]]) -> str:
     return "; ".join(parts) or "no evidence supplied"
 
 
-def verify_all(repo: Path, patches: Sequence[Dict], mode: str = STRICT) -> Tuple[List[Dict], Dict]:
+def verify_all(
+    repo: Path,
+    patches: Sequence[Dict],
+    mode: str = STRICT,
+    head_sha: Optional[str] = None,
+    rename_map: Optional[Dict[str, str]] = None,
+    edited_files: Optional[FrozenSet[str]] = None,
+) -> Tuple[List[Dict], Dict]:
     cache = FileCache(repo)
     verified: List[Dict] = []
     totals = {
@@ -146,7 +184,7 @@ def verify_all(repo: Path, patches: Sequence[Dict], mode: str = STRICT) -> Tuple
         "by_node": {},
     }
     for patch in patches:
-        out, stats = verify_patch(patch, cache, mode)
+        out, stats = verify_patch(patch, cache, mode, head_sha, rename_map, edited_files)
         verified.append(out)
         for key in ("claims_in", "claims_kept", "claims_demoted", "anchors_checked",
                     "anchors_ok", "anchors_relocated", "would_survive_lenient"):

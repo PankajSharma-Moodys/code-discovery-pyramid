@@ -1,14 +1,16 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "ded17b2dde8286939e9f23ecc82016bfb3cf651ed90661429d4205ea399a2de3",
+    "fold_hash": "bbc97090d908f3320fe5efe9e63bac048c238acef0a9301a1f71b2de3a449c44",
     "repo": "tree",
     "state_version": 1
   },
   "budget": 200,
   "claims": [
     {
+      "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
+      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {

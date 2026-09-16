@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "d33c1604de0a5b1226dcb5060de46af019e84b6013fabe4d639411e171534783",
+    "fold_hash": "61966ec12d47592a01e6167cbaac7f1a6e30496d72975d2760453c26188327b8",
     "repo": "tree",
     "state_version": 1
   },
@@ -11,7 +11,9 @@
     {
       "claims": [
         {
+          "anchor_verified_at": "<HEAD>",
           "channel": "process_boundary",
+          "claim_reviewed_at": "<HEAD>",
           "confidence": "high",
           "evidence": [
             {
