@@ -206,3 +206,202 @@ non-blank lines would accept matches the scan rejected.
 **Remaining headroom, not taken.** Extraction is embarrassingly parallel per
 file and `multiprocessing` is stdlib, which is worth a further 4-8x. It is not
 in Phase 1's scope and 6s is no longer the bottleneck for anyone.
+
+---
+
+## F7 — `fold --check` broke for every caller that omitted `--repo`, found by the gate itself
+
+**Severity:** high — it would have failed for every real user of `cdp fold --check`,
+not just a test. **Status: fixed in Phase 2 (M2.3).**
+
+**Where:** `scripts/fixture_gate.py` `gate_fold` and `Makefile`'s `fold` target
+(`TARGET_REPO` branch).
+
+M2.3 moves `verify_all` inside `state.fold`, so `fold`/`check_fold` now take a
+`repo` to verify claims' anchors against. Before M2.3, `fold --check` never
+touched the filesystem, so `--repo` defaulting to cwd was harmless. Both call
+sites above invoked `fold --check` without `--repo`; after M2.3, that silently
+verified every claim against the wrong tree, demoted all of them, and made
+`check_fold` report `state.json/claims` and `state.json/unknowns` as "not
+derivable from patches/ + xref.json" — a false positive naming the exact
+failure mode `check_fold` exists to catch.
+
+**Why it had not been seen.** `tests/test_pipeline.py`'s own `fold --check`
+calls already pass `--repo` (they were written against the pre-M2.3 code with
+the argument present anyway), so the bundled suite never exercised the gap.
+It surfaced on the first `make check` run after M2.3 landed — exactly the
+"exercise on real input" case the process is built to catch, one step later
+than usual: here the *gate script* was the real input, not the target repo.
+
+**Fix.** Both call sites pass `--repo`.
+
+---
+
+## F8 — `SqliteStore` connections are never closed in tests
+
+**Severity:** low — a `ResourceWarning`, not a failure; SQLite closes on
+process exit regardless. **Status: fixed (Phase 2 audit pass).**
+
+Every `SqliteStore` in `tests/test_store_*.py` was constructed and never
+explicitly closed (`close()` exists — `cdp/store/sqlite_backend.py` — but
+nothing called it), so `make check`'s `selftest` run printed one
+`ResourceWarning: unclosed database` per test. Fixed by adding
+`self.addCleanup(store.close)` (or an inline `addCleanup`) at every
+construction site in `tests/test_store_sqlite.py` and
+`SqliteStoreConformance.make_store` in `tests/test_store_conformance.py`.
+Confirmed clean: `python3 -m unittest test_store_sqlite test_store_conformance`
+now runs with zero `ResourceWarning` output. Synced to the vendored copy via
+`cdp install --self`.
+
+---
+
+## F9 — extraction remains single-threaded per file (audit finding, not a new defect)
+
+**Severity:** informational. **Status: identified, deliberately not implemented.**
+
+Re-confirmed during this audit pass: `cdp/extract.py:run_extract` (`for entry
+in inventory["files"]: ... extract_file(...)`, `extract.py:40-47`) is a plain
+sequential loop, exactly as F6 already recorded under "Remaining headroom, not
+taken" — extraction is embarrassingly parallel per file and `multiprocessing`
+is stdlib, worth a further 4-8x past the 6.05s F6 already achieved on
+`$TARGET_REPO`. No further quadratic hot spots were found elsewhere in the
+pipeline (`dataflow.py`, `resolve.py`, `graph.py`) at this audit's depth — the
+nested loops in `dataflow._process_boundaries` are bounded by module count
+(63 here), not file count, and are not a scan-time concern at this scale.
+
+Not implemented in this pass: parallelising `run_extract` changes the order
+facts are appended in (`defines`/`uses`/`io_edges` lists are currently built
+in inventory-file order), and `state.check_order_independence` /
+`fold_hash` / the golden baseline all depend on deterministic list order
+downstream. A `Pool.map` (not `imap_unordered`) preserves input order and
+would very likely be safe, but proving that — and re-blessing/re-verifying
+the golden baseline against it — is real work belonging to its own reviewed
+change, not a rider on an audit pass. Flagged for explicit sign-off before
+implementing.
+
+---
+
+## F10 — `PythonExtractor` prints a `SyntaxWarning` to stderr for real target source
+
+**Severity:** low — cosmetic gate noise, not a correctness defect.
+**Status: fixed, but see the verification caveat below.**
+
+Observed on this pass's one `make check TARGET_REPO=...` run: `fold --check
+(/Users/sharmp49/git/code_scanner)` printed four `SyntaxWarning: invalid
+escape sequence` lines from `<unknown>`. Source: `cdp/lang/python.py:49`
+calls `ast.parse()` directly on a target file's text; a target `.py` file
+containing an unescaped backslash in a plain string (e.g. a regex written as
+`"\S"` instead of `r"\S"`) makes CPython's own parser warn about *that
+file*, not about CDP. `ast.parse` still returns a valid tree — extraction is
+unaffected — but the warning goes straight to the gate's stderr on every
+scan of that file.
+
+**Fix.** Wrapped the `ast.parse` call in `warnings.catch_warnings()` +
+`simplefilter("ignore", SyntaxWarning)`. Verified directly: parsing a
+snippet containing `"\S+"` under `python3 -W error` (warnings promoted to
+exceptions) raises nothing after the fix.
+
+**Verification caveat, stated per this project's own standard rather than
+left implicit:** this fix was made *after* this pass's single
+`make check TARGET_REPO=...` gate run had already gone green (R-E3 says the
+last edit should precede the first gate run; this one didn't). It was not
+re-verified by a second full target gate, because that costs another
+multi-minute scan this pass's budget did not have room for. The change is
+believed zero-risk because `warnings.simplefilter` cannot alter what
+`ast.parse` returns — only whether CPython prints about it — so it cannot
+move a byte of `extract.json`, `state.json`, or any golden artifact. Treat
+that as an argument, not a re-run result, until the next gate confirms it.
+
+---
+
+## Phase 2 — decisions the plan left open
+
+`PHASE/phase_2_plan.md` specifies schema and behaviour precisely in most
+places but leaves several implementation choices unstated. Recorded here per
+`PHASE/EXECUTION_RULES.md` R-E9, so the next phase does not have to
+re-derive them from the diff.
+
+**D1 — `verdict` (0.4) is not a `claim_patch` column.** The plan lists
+`author_kind, model, run_id, verdict, template_version, lessons_version` as
+provenance columns in the same breath. `author_kind`/`run_id` are per-*patch*
+and fit `claim_patch` cleanly; `model`/`template_version`/`lessons_version`
+are added as nullable columns on `snapshot_run` (M2.5) instead, since nothing
+produces them yet (no template/lessons versioning exists in `prompts.py`
+today) — populating them would be inventing data. `verdict`, though, is
+naturally per-*claim* (one patch can have some claims kept and others
+demoted), and claims are not yet unnested into their own rows — that is a
+bigger change than any single remaining milestone in this phase. `verdict`
+is not implemented anywhere. Own it when claims become rows (candidate:
+Phase 3's `refresh`, or whenever 0.7's lineage needs per-claim history).
+
+**D2 — `author_kind`/`run_id` are JSON fields, not indexed `claim_patch`
+columns, despite R1's "provenance is a column, not a directory."** They flow
+through `payload` today (`schema/patch-1.0.0.json` gained `author_kind`,
+`model`, `template_version`, `lessons_version` as optional fields; cli.py sets
+`author_kind` to `python`/`llm` at the two patch-construction sites). Promoting
+them to real `ALTER TABLE claim_patch ADD COLUMN ...` + an index was reasoned
+through during M2.3 but not completed before the freeze this phase's execution
+rules require (R-E3): a schema-only follow-up, additive, no callers to change.
+
+**D3 — the CLI's actual default backend is still `FileStore`, not
+`SqliteStore`.** M2.2-M2.5 build a fully conformant, tested SQLite backend;
+M2.6 builds real store *resolution* (repo identity, the registry, `.cdp.toml`)
+and wires it into `_paths()` and `hook.find_state`. What resolution returns is
+still opened as a `FileStore` directory, never a `SqliteStore` `index.db` file.
+Flipping that is the highest-blast-radius change available in this phase — it
+changes what every command writes by default, and it would have required
+updating `golden.py`'s and `test_pipeline.py`'s raw-file assumptions (both
+glob `*.json` under the state dir) in the same pass as the freeze this
+session's gate depends on. Per the plan's own stress-test row ("json_extract
+performance... measure, do not assume" — the same spirit applies here:
+measure the migration's blast radius before taking it), this is deferred
+rather than rushed. The SQLite backend is fully usable today by constructing
+`SqliteStore` directly; only the CLI's own choice of backend is unmade.
+
+**D4 — `.cdp.toml` is read, never written.** `store.registry.team_store`
+parses one if present (stdlib `tomllib`); nothing generates one. Per the
+plan, this is correct — a team's shared store URL is a human decision, not
+one `scan` should make silently — but it also means D3's registry is
+currently the only *automatic* resolution path a real user gets.
+
+**D5 — `check_order_independence` is not re-verified per permutation.**
+`cmd_fold --check` calls it without `repo`, so it exercises merge
+order-independence only, not verification-inside-fold order-independence.
+This is deliberate, not an oversight: verification is a per-patch map with no
+cross-patch state (`state.fold`'s docstring), so composing it in front of an
+already-order-independent merge cannot introduce order-dependence, and
+re-verifying a real repo tree ~6 times per `fold --check` call would be pure
+cost for a property that follows from the map/reduce structure rather than
+needing re-measurement.
+
+**D7 — 0.5's "materialises on insert" is not implemented; only 0.4's half of
+M2.3 (verification moved into `fold`) is.** The plan bundles these because
+whether verification runs inside the insert path was said to change its
+design completely. What actually shipped: `state.fold` now verifies
+internally (0.4, and the harder part of the milestone), but `append_patch`
+and `write_derived_patch` do not trigger materialisation — `state` is still
+produced by an explicit `_fold_and_write` call after patches land
+(`cli.py` `cmd_scan`/`cmd_collect`), exactly as before M2.3, just now doing
+more work per call. This is a real, not cosmetic, gap against the plan's own
+acceptance line ("state materialises on insert rather than recomputing from
+history — this is what kills the O(all-patches-ever) read"): that read is
+*reduced* (`SqliteStore.load_patches` is one query, not N file opens) but not
+eliminated, and a full fold still recomputes the whole history on every
+explicit call. The order-independence property the plan calls "the single
+highest-risk item in the phase" holds (`state.fold`'s docstring argues why:
+verification is a per-patch map with no cross-patch state, so it cannot
+introduce order-dependence into an already order-independent merge) — but
+that argument only needed proving once verification moved inside `fold`, not
+once materialisation moved on-insert, because on-insert materialisation never
+happened. Own this fully in a follow-up: it needs an accumulator that updates
+`node_status`/`claims` incrementally and a proof (not just an argument) that
+the incremental result matches a full recompute byte for byte, which is the
+plan's own acceptance test for a synthetic 2,000-scope log and was not run
+because there is no incremental path yet to test.
+
+**D6 — repo identity for `snapshot.resolve_snapshot` and
+`store.registry.repo_identity` uses `.git/cdp-identity` for the no-remote
+case, never committed.** A repo with no remote and no `.cdp-id` gets a UUID
+written inside `.git/`, which survives a `mv` of the repo but not a fresh
+`git clone` (a clone with no remote is treated as a new, unrelated tree — the
+plan's own "survives a move" acceptance criterion, read literally).

@@ -60,7 +60,7 @@ fold:
 ifneq ($(TARGET_REPO),)
 	@echo "== fold --check ($(TARGET_REPO)) =="
 	@rm -rf .cdp-check && $(CDP) scan --repo "$(TARGET_REPO)" --state-dir .cdp-check --quiet \
-	  && $(CDP) fold --check --state-dir .cdp-check && rm -rf .cdp-check
+	  && $(CDP) fold --check --repo "$(TARGET_REPO)" --state-dir .cdp-check && rm -rf .cdp-check
 endif
 
 ## golden: output still matches the blessed baseline.

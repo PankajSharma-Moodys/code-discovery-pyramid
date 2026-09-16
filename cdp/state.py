@@ -30,12 +30,14 @@ answer a question about a different vocabulary.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Sequence
 
 from .merge import merge_claims
-from .util import CdpError, read_json, stable_hash, write_json
+from .util import stable_hash
+from .verify import STRICT, verify_all
 
-PATCH_GLOB = "*.json"
+if TYPE_CHECKING:
+    from .store import WorkspaceStore
 
 # Status precedence for retry supersession. A successful attempt outranks a
 # failed one whichever order they were written in; nothing below `complete`
@@ -44,78 +46,41 @@ PATCH_GLOB = "*.json"
 STATUS_RANK = {"pending": 1, "failed": 2, "invalid": 3, "complete": 4}
 
 
-def patches_dir(state_dir: Path) -> Path:
-    return Path(state_dir) / "patches"
+def fold(
+    patches: Sequence[Dict],
+    xref: Dict,
+    partition: Optional[Dict] = None,
+    repo: Optional[Path] = None,
+    mode: str = STRICT,
+) -> Dict:
+    """The whole of state derivation. Deterministic: same inputs, same bytes out.
 
+    `repo` is optional so every existing caller that folds a synthetic or
+    already-verified patch list keeps working unchanged. When given, it is
+    `PHASE/phase_2_plan.md` M2.3's move: the log holds raw agent output, and
+    `fold` re-verifies every claim's anchors against `repo` before merging,
+    rather than `cmd_collect`/`cmd_scan` verifying before the log is written.
+    That is what makes re-verification against a *different* commit (Phase 3's
+    `refresh`) a fold argument instead of a rewrite.
 
-def load_patches(state_dir: Path) -> List[Dict]:
-    """Read the append-only patch log.
-
-    Sorted by filename so the log has a canonical reading order, but nothing
-    downstream may depend on that order: `fold` must produce the same result
-    under any permutation, and `check_order_independence` proves it does.
+    Verification is a per-patch, independent map over the log — it never reads
+    another patch or the merge result — so composing it in front of the
+    existing order-independent merge cannot introduce order-dependence; the
+    property `check_order_independence` tests continues to hold for the same
+    reason it always did.
     """
-    directory = patches_dir(state_dir)
-    if not directory.is_dir():
-        return []
-    out = []
-    for path in sorted(directory.glob(PATCH_GLOB)):
-        try:
-            out.append(read_json(path))
-        except ValueError as exc:
-            raise CdpError("corrupt patch %s: %s" % (path, exc))
-    return out
+    raw_patches = list(patches)
+    verification = None
+    verified_patches = raw_patches
+    if repo is not None:
+        verified_patches, verification = verify_all(Path(repo), raw_patches, mode)
 
-
-DERIVED_PATCH = "0000-derived.json"
-
-
-def append_patch(state_dir: Path, patch: Dict, label: str) -> Path:
-    """Append one patch. Never rewrites an existing file.
-
-    The log is the audit trail: for any fact in a final document you can trace
-    which agent asserted it, in which patch, citing what. Compaction would
-    destroy that, so there is deliberately no compaction path here.
-
-    Numbering is `max existing index + 1` rather than `count`, so that removing
-    or overwriting slot 0000 cannot make a later append collide with a patch
-    that already exists.
-    """
-    directory = patches_dir(state_dir)
-    directory.mkdir(parents=True, exist_ok=True)
-    used = []
-    for path in directory.glob(PATCH_GLOB):
-        head = path.name.split("-", 1)[0]
-        if head.isdigit():
-            used.append(int(head))
-    index = max(used) + 1 if used else 1
-    safe = label.replace("/", "__").replace(" ", "_")
-    return write_json(directory / ("%04d-%s.json" % (index, safe)), patch)
-
-
-def write_derived_patch(state_dir: Path, patch: Dict) -> Path:
-    """Write the deterministic claims into the log's reserved first slot.
-
-    `scan` is re-runnable, and re-running it must not destroy work: an earlier
-    version cleared `patches/` wholesale, which discarded every leaf patch
-    already collected and every prompt result waiting in the inbox. Since the
-    derived claims are a pure function of the commit, overwriting one fixed slot
-    is both correct and idempotent — the log keeps its audit trail and a rescan
-    costs nothing.
-    """
-    directory = patches_dir(state_dir)
-    directory.mkdir(parents=True, exist_ok=True)
-    return write_json(directory / DERIVED_PATCH, patch)
-
-
-def fold(patches: Sequence[Dict], xref: Dict, partition: Optional[Dict] = None) -> Dict:
-    """The whole of state derivation. Pure: same inputs, same bytes out."""
     claims: List[Dict] = []
     unknowns: List[Dict] = []
     node_status: Dict[str, str] = {}
     node_errors: Dict[str, str] = {}
 
-    for patch in patches:
+    for patch in verified_patches:
         node = str(patch.get("node", "?"))
         status = str(patch.get("status", "pending"))
         # A node's status is the BEST of its attempts, not the last one in the
@@ -172,9 +137,10 @@ def fold(patches: Sequence[Dict], xref: Dict, partition: Optional[Dict] = None) 
         "nodes": dict(sorted(node_status.items())),
         "node_errors": dict(sorted(node_errors.items())),
         "coverage": coverage,
+        "verification": verification,
         "provenance": {
-            "patch_count": len(patches),
-            "fold_hash": fold_hash(patches, xref, partition),
+            "patch_count": len(raw_patches),
+            "fold_hash": fold_hash(raw_patches, xref, partition),
         },
     }
 
@@ -232,17 +198,24 @@ def _dedupe_unknowns(unknowns: Sequence[Dict]) -> List[Dict]:
 # ------------------------------------------------------------- invariants
 
 
-def check_fold(state_dir: Path, xref: Dict, partition: Optional[Dict] = None) -> List[str]:
-    """Recompute the fold and compare it to `state.json` on disk.
+def check_fold(
+    store: "WorkspaceStore",
+    xref: Dict,
+    partition: Optional[Dict] = None,
+    repo: Optional[Path] = None,
+    mode: str = STRICT,
+) -> List[str]:
+    """Recompute the fold and compare it to the materialised `state` artifact.
 
     Returns a list of violations. Any non-empty result means something wrote to
-    the materialized view that the log does not support.
+    the materialized view that the log does not support. This is also Phase
+    7's `verify --full` mechanism: a full recompute against `repo` re-verifies
+    every claim from the raw log rather than trusting the last materialisation.
     """
-    path = Path(state_dir) / "state.json"
-    if not path.exists():
-        return ["state.json does not exist; nothing has been folded yet"]
-    on_disk = read_json(path)
-    recomputed = fold(load_patches(state_dir), xref, partition)
+    if not store.has_artifact("state"):
+        return ["state does not exist; nothing has been folded yet"]
+    on_disk = store.read_artifact("state")
+    recomputed = fold(store.load_patches(), xref, partition, repo=repo, mode=mode)
     problems = []
     if on_disk.get("provenance", {}).get("fold_hash") != recomputed["provenance"]["fold_hash"]:
         problems.append("fold_hash mismatch: the log has changed since state.json was written")

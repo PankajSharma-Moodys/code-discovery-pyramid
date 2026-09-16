@@ -12,6 +12,13 @@
     "run_id": { "type": "string" },
     "status": { "enum": ["complete", "invalid", "failed", "pending"] },
     "error":  { "type": "string", "description": "Attached when status is failed or invalid (section 3.5)" },
+    "author_kind": {
+      "enum": ["python", "llm", "human"],
+      "description": "Phase 2 (0.4) provenance: who produced this patch. `python` for deterministic derivation (`cmd_scan`), `llm` for an agent-collected leaf patch (`cmd_collect`), `human` reserved for a hand-authored one."
+    },
+    "model":            { "type": "string", "description": "Phase 2 (0.4) provenance. Not yet populated by any producer." },
+    "template_version":  { "type": "string", "description": "Phase 2 (0.4) provenance. Not yet populated by any producer." },
+    "lessons_version":   { "type": "string", "description": "Phase 2 (0.4) provenance. Not yet populated by any producer." },
     "claims":    { "type": "array", "items": { "$ref": "#/$defs/claim" } },
     "unknowns":  { "type": "array", "items": { "$ref": "#/$defs/unknown" } },
     "defines":   { "type": "array", "items": { "$ref": "#/$defs/definition" } },

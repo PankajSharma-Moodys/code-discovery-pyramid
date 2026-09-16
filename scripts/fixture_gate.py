@@ -43,7 +43,11 @@ def gate_fold(repo: Path, tmp: Path) -> int:
     code = main(["scan", "--repo", str(repo), "--state-dir", str(state), "--quiet"])
     if code:
         return code
-    return main(["fold", "--check", "--state-dir", str(state)])
+    # M2.3: verification now runs inside `fold`, against `--repo` -- omitting
+    # it here used to be harmless (fold never touched the filesystem) and is
+    # now a real bug: without it, `--repo` defaults to cwd and every claim's
+    # anchor is checked against the wrong tree and demoted.
+    return main(["fold", "--check", "--repo", str(repo), "--state-dir", str(state)])
 
 
 def gate_golden(repo: Path, bless: bool) -> int:

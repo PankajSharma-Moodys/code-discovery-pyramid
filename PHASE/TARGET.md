@@ -191,3 +191,70 @@ Verify with:
 
     cdp selftest --golden $TARGET_REPO
     cdp selftest --determinism $TARGET_REPO
+
+## Phase 2 — re-blessed for the store boundary
+
+M2.3 moves verification into `fold`, which adds a `verification` block to
+`state.json` and an `author_kind` field to every logged patch — a real,
+intended content change, not drift. Re-blessed with the command above;
+`git diff --stat` on the baseline shows exactly 14 files (12 query outputs'
+`fold_hash`, the derived patch, `state.json`), the same shape as the fixture's
+own re-bless. `claims`/`unknowns`/`conflicts` are byte-identical to before:
+1,279/1,279 claims still kept, 0 demoted, 1,428/1,428 anchors ok, 0 relocated —
+this target's derived claims have exact anchors by construction (they come
+from the same extraction pass verification checks against), so moving
+verification into the fold changed *when* it runs, not its answer here.
+
+### M2.6 exercised live, not just on the fixture
+
+Store resolution and the registry (`cdp/store/registry.py`) were run against
+this target with `HOME` and the scan `cwd` both redirected to scratch
+directories (never touching the real `~/.cdp/config.toml`):
+
+    cd /tmp/scratch-a && HOME=/tmp/fake-home cdp scan --repo $TARGET_REPO --quiet
+    cd /tmp/scratch-b && HOME=/tmp/fake-home cdp query stats --repo $TARGET_REPO
+
+The first command (no `--in-repo`, no `--state-dir`) wrote state to
+`scratch-a/.cdp`, today's exact default, and registered
+`github.com/moodys-ma-platform/unified-store -> scratch-a/.cdp` (the target's
+real, normalised origin remote) in the fake registry. The second command, run
+from an unrelated `cwd`, resolved to `scratch-a`'s store via the registry and
+answered from the already-scanned state — `scratch-b/.cdp` was never created.
+This is the concrete form of two of M2.6's acceptance criteria ("same repo ...
+resolves to one store", "a second scan doesn't silently clobber the first")
+against a real repository rather than a synthetic one.
+
+This same exercise is what found **F7** (`PHASE/FINDINGS.md`): `fold --check`
+invoked without `--repo` (both `scripts/fixture_gate.py` and the `Makefile`'s
+`TARGET_REPO` branch did this) silently demoted every claim once verification
+moved inside `fold`, because `--repo` defaults to cwd. Caught by the gate
+itself on the first post-M2.3 `make check` run, not by a bespoke test.
+
+## Post-M2.6 audit pass — defect sweep, no schema/behaviour changes
+
+A follow-up pass (this repository's `store/`, `snapshot.py`, `registry.py` had
+landed uncommitted; nothing further from `phase_2_plan.md`'s milestones was
+implemented here) read every new module end to end looking for defects and
+algorithmic headroom, not new scope. `make check TARGET_REPO=...` — all
+gates green: `selftest` (248 tests), `determinism` (fixture + target),
+`fold --check` (fixture + target, order-independence included), `golden`
+(fixture + target, byte-identical).
+
+Found and fixed: **F8** (unclosed `SqliteStore` connections in tests — every
+construction site now has `addCleanup(store.close)`) and **F10** (`ast.parse`
+on target Python source printing `SyntaxWarning` to the gate's stderr — see
+`PHASE/FINDINGS.md` for both, including F10's verification caveat: it landed
+after this pass's one gate run and was not re-verified by a second full
+target scan).
+
+Identified, not implemented: **F9**, `cdp/extract.py:run_extract`'s
+per-file loop is still single-threaded — the same "remaining headroom, not
+taken" F6 already named. Not attempted here because parallelising it risks
+the ordering `check_order_independence`/`fold_hash`/the golden baseline
+depend on, and proving that risk is unfounded is its own reviewed change.
+
+No other defects found in the store boundary itself: `SqliteStore`'s
+content-addressing, snapshot lineage (`begin_snapshot`/`mark_durable`), and
+`store.registry`'s identity chain (`declared id -> origin remote -> UUID`)
+all read as implemented, matching both the plan and `PHASE/FINDINGS.md`
+D1-D7's own account of what was deliberately deferred.

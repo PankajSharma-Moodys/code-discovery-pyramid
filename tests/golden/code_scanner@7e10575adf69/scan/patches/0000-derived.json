@@ -1,4 +1,5 @@
 {
+  "author_kind": "python",
   "claims": [
     {
       "channel": "config_read",

@@ -109,12 +109,14 @@ class HookTest(unittest.TestCase):
         self.assertIsNone(self.fire())
 
     def test_noop_when_state_is_not_resolvable_from_the_repo(self) -> None:
-        """No-op 3: an out-of-repo state directory is invisible to the hook.
+        """No-op 3 (of the two still live): an out-of-repo state directory is
+        invisible to the hook when nothing registered it there.
 
-        This is why the milestone is `--in-repo` only, and why
-        `cdp install --hook` says so rather than installing a hook that no-ops
-        on every invocation — which looks identical, from outside, to a hook
-        that is working and finding nothing worth saying.
+        `store.registry` (M2.6) only gets an entry from the *default*
+        resolution path (`cli.py` `cmd_scan`, when neither `--in-repo` nor
+        `--state-dir` was given) -- an explicit `--state-dir` like this one is
+        not registered, on the reasoning that an explicit choice does not need
+        the registry's help to be found again by the same invocation style.
         """
         with tempfile.TemporaryDirectory() as other:
             elsewhere = Path(other) / "clean"
@@ -125,6 +127,34 @@ class HookTest(unittest.TestCase):
 
             shutil.rmtree(self.repo / ".cdp")
             self.assertIsNone(self.fire())
+
+    def test_fires_via_the_registry_when_state_lives_outside_the_repo(self) -> None:
+        """The M2.6 win named in the module docstring: a hook can now find a
+        default-location scan even though it lives outside the repo, because
+        `cmd_scan`'s default path registers it (`store.registry`) and
+        `find_state` now consults the registry, not only the directory walk.
+        """
+        from cdp.store import registry
+
+        orig_path = registry.REGISTRY_PATH
+        with tempfile.TemporaryDirectory() as other:
+            registry.REGISTRY_PATH = Path(other) / "config.toml"
+            try:
+                elsewhere = Path(other) / "outside" / ".cdp"
+                repo_id = registry.repo_identity(self.repo)
+                main(["scan", "--repo", str(self.repo), "--state-dir",
+                      str(elsewhere), "--quiet"])
+                registry.register(repo_id, elsewhere)
+
+                import shutil
+
+                shutil.rmtree(self.repo / ".cdp")  # the walk-up path finds nothing now
+
+                found = hook_mod.find_state(self.repo / self.source)
+                self.assertEqual(found, elsewhere.resolve())
+                self.assertIsNotNone(self.fire(session="registry-session"))
+            finally:
+                registry.REGISTRY_PATH = orig_path
 
     # ------------------------------------------------------------ role scoping
 
@@ -217,7 +247,10 @@ class InstallHookTest(unittest.TestCase):
             self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob")
             self.assertEqual(len(groups[0]["hooks"]), 1, "duplicated on re-install")
 
-    def test_install_states_the_in_repo_constraint(self) -> None:
+    def test_install_states_no_scan_yet_without_requiring_in_repo(self) -> None:
+        # M2.6: the hook is no longer `--in-repo` only (`store.registry`
+        # dissolves the constraint), but installing against a repo that has
+        # never been scanned must still say so rather than silently no-op.
         import contextlib
         import io
 
@@ -228,8 +261,9 @@ class InstallHookTest(unittest.TestCase):
             with contextlib.redirect_stdout(buf):
                 main(["install", str(target), "--hook"])
             out = buf.getvalue()
-            self.assertIn("--in-repo", out)
+            self.assertIn("no scan of", out)
             self.assertIn("no-op", out)
+            self.assertNotIn("--in-repo", out)
 
     def test_install_preserves_existing_settings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

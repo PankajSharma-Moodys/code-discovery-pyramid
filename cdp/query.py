@@ -30,29 +30,34 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
-from .util import CdpError, read_json, truncate
+from .store import FileStore, WorkspaceStore
+from .util import CdpError, truncate
 
 
 class Store:
-    """Lazily-loaded view over a state directory."""
+    """Lazily-loaded view over a workspace store.
 
-    def __init__(self, state_dir: Path) -> None:
-        self.dir = Path(state_dir)
-        if not self.dir.is_dir():
-            raise CdpError("no CDP state at %s — run `scan` first" % self.dir)
+    Accepts a `WorkspaceStore` directly, or a `Path`/`str` for backward
+    compatibility — a bare directory is wrapped in a `FileStore`. Reading and
+    writing state itself is `store/`'s job (R1); this class only caches rows
+    and exposes the properties every renderer and query reads.
+    """
+
+    def __init__(self, backend: Union["WorkspaceStore", Path, str]) -> None:
+        if isinstance(backend, WorkspaceStore):
+            self.backend = backend
+        else:
+            path = Path(backend)
+            if not path.is_dir():
+                raise CdpError("no CDP state at %s — run `scan` first" % path)
+            self.backend = FileStore(path)
         self._cache: Dict[str, Any] = {}
 
     def _load(self, name: str, default: Any = None) -> Any:
         if name not in self._cache:
-            path = self.dir / (name + ".json")
-            if not path.exists():
-                if default is None:
-                    raise CdpError("missing %s — run `scan` first" % path)
-                self._cache[name] = default
-            else:
-                self._cache[name] = read_json(path)
+            self._cache[name] = self.backend.read_artifact(name, default)
         return self._cache[name]
 
     inventory = property(lambda self: self._load("inventory"))

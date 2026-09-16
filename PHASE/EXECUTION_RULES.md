@@ -72,10 +72,22 @@ Smoke-testing four CLI invocations is one `Bash` call with `;` between them, not
 four. Same for `grep` verification sweeps. Phase 1 made roughly twice the tool
 calls it needed.
 
+> **Recurred in Phase 2.** Written down after Phase 1 and violated anyway —
+> knowing the rule isn't enough friction. If a message is about to contain two
+> or more independent read-only checks (grep, ls, cat), that is the signal to
+> stop and combine them into one call before sending, not a thing to remember
+> to do next time.
+
 ### R-E5 — Run the narrow test module while iterating, the suite once at the end
 
 `python3 -m unittest test_budget` is 0.2s. `discover` is 11s and prints 185
 lines. Use the narrow one until the milestone is green.
+
+> **Recurred in Phase 2.** `discover` was run roughly six times across the
+> session instead of once at the end, each one re-printing 240+ lines back
+> into context. The forcing function: before running `discover`, name what new
+> failure it could catch that the narrow module just run did not. If the
+> answer is "none, I just want reassurance," don't run it.
 
 ### R-E6 — One fetch for an external contract; then design for the uncertainty
 
@@ -101,3 +113,60 @@ The Edit tool errors if the match fails. Re-reading to confirm is pure cost.
 
 They are pure prose and depend on nothing the gate produces except its verdict.
 Dead time during a 10-minute gate is the only free time in a phase.
+
+## Phase 2 postscript
+
+Phase 2 (`phase_2_plan.md`, six milestones, run in one continuous pass) took
+far longer than Phase 1 despite F6 already having fixed the scan-time
+bottleneck that dominated Phase 1's cost. The cost centers were different this
+time: not scan time, but scope held too large and rework caught too late.
+Four rules follow, plus the two amendments above.
+
+### R-E10 — One milestone per turn; checkpoint before the next
+
+Six milestones with genuine unstated design forks in them (snapshot identity,
+what "incremental fold" means, whether the CLI's default backend flips)
+executed as one unbroken session is how a defect becomes a
+caught-at-the-final-gate defect (F7) instead of a caught-at-its-own-milestone
+defect. Post a one-line status — what shipped, what's next — after each
+milestone, before starting the next, even under an instruction to run the
+whole phase. It costs one message. It buys the option to stop, redirect, or
+catch a problem while its blast radius is one milestone wide instead of six.
+
+### R-E11 — Before declaring a milestone done, grep every caller of what it changed
+
+F7: `state.fold`'s signature grew a required-for-real-verification `repo`
+argument. Every test calling it already passed `--repo` (written that way from
+the start), so the bundled suite stayed green throughout — but two real call
+sites (`scripts/fixture_gate.py`, the `Makefile`) had not been touched, and
+silently broke, surfacing only at the final gate. **"The test suite is green"
+is not "every caller was checked."** After changing a function's contract,
+`grep -rn` for every call site — scripts and Makefiles included, not only the
+ones the test suite happens to exercise — before moving to the next milestone.
+
+### R-E12 — New code gets a one-line comment; FINDINGS entries are bullet facts
+
+Every new module in Phase 2 got a paragraph-length docstring in the project's
+own literary register, and every FINDINGS/decision entry ran 150-300 words.
+That register is right for the user-facing design documents
+(`RESEARCH_GRAPHIFY.md`, `ARCHITECTURE.md`) and wrong to default to for
+internal comments and process logs: none of that prose changes behavior, and
+all of it is read back into context on every later turn of the same phase.
+Default to CLAUDE.md's own house style (no comment unless the WHY is
+non-obvious, one line when it is) even inside a codebase whose *existing* code
+is written discursively. Reserve full-paragraph justification for the one or
+two decisions per phase that genuinely need the argument spelled out.
+
+### R-E13 — Surface a design fork before implementing it, not after
+
+Phase 2's FINDINGS recorded seven decisions the plan had left open (does
+`verdict` get a column and on which table, does the CLI's default backend
+become SQLite, what "incremental" concretely means) — all resolved
+unilaterally, mid-implementation, and written up only afterward. Writing the
+justification after the fact costs the same tokens as asking before, but
+forecloses the chance to be redirected while the work is still cheap to
+redirect. When a plan names a feature without fully specifying its shape (a
+column list with no owning table; a behavior word like "incremental" with no
+stated algorithm), that is the moment to ask which of the 2-3 reasonable
+readings is wanted — not the moment to pick one and defend it in the
+retrospective.

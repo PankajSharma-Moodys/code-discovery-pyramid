@@ -23918,7 +23918,7 @@
     "root": "complete"
   },
   "provenance": {
-    "fold_hash": "4221f095ad396ca3e435111a511c2d795cee0d8b95e59a0e07166b6aad12a0c0",
+    "fold_hash": "d33c1604de0a5b1226dcb5060de46af019e84b6013fabe4d639411e171534783",
     "patch_count": 1
   },
   "schema_version": "1.0.0",
@@ -23943,5 +23943,24 @@
       "source_node": "root",
       "why_unresolved": "457 of its 477 files are untracked and generated at build time, so its public surface cannot be read from the repository."
     }
-  ]
+  ],
+  "verification": {
+    "anchors_checked": 1428,
+    "anchors_ok": 1428,
+    "anchors_relocated": 0,
+    "by_node": {
+      "root": {
+        "demoted": 0,
+        "in": 1279,
+        "kept": 1279
+      }
+    },
+    "claims_demoted": 0,
+    "claims_in": 1279,
+    "claims_kept": 1279,
+    "demotion_rate": 0.0,
+    "mode": "strict",
+    "reasons": {},
+    "would_survive_lenient": 0
+  }
 }

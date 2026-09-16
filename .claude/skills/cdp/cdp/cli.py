@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import re
 import shutil
 import sys
@@ -38,7 +39,10 @@ from . import partition as partition_mod
 from . import query as query_mod
 from . import resolve as resolve_mod
 from . import schedule as schedule_mod
+from . import snapshot as snapshot_mod
 from . import state as state_mod
+from .store import FileStore
+from .store import registry as registry_mod
 from .derive import derive_claims
 from .extract import run_extract
 from .prompts import build_prompt
@@ -52,7 +56,7 @@ from .util import (
     write_text,
 )
 from .inventory import ROOT_MODULE as ROOT_MODULE_LABEL
-from .verify import STRICT, verify_all
+from .verify import STRICT
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 
@@ -190,6 +194,12 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _paths(args) -> "Paths":
+    """`--in-repo` / `--state-dir` are an explicit override and win outright.
+    Otherwise M2.6's order applies: `CDP_STORE` -> `.cdp.toml` walking up ->
+    the registry (`~/.cdp/config.toml`, keyed by repo identity, not path) ->
+    `cwd/.cdp` (today's default, unchanged for a repo scanned for the first
+    time or from an environment with no registry entry yet).
+    """
     repo = Path(getattr(args, "repo", ".")).expanduser().resolve()
     state_dir = getattr(args, "state_dir", None)
     if getattr(args, "in_repo", False):
@@ -197,7 +207,7 @@ def _paths(args) -> "Paths":
     elif state_dir:
         state = Path(state_dir).expanduser().resolve()
     else:
-        state = Path.cwd() / ".cdp"
+        state = registry_mod.resolve_store(repo, env=os.environ.get("CDP_STORE"))
     return Paths(repo=repo, state=state)
 
 
@@ -231,6 +241,13 @@ def cmd_scan(args) -> int:
     paths = _paths(args)
     say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
 
+    # M2.6: only the resolved-by-default case needs registering -- an explicit
+    # `--in-repo`/`--state-dir` already tells every future command where to
+    # look, and never touching the registry then keeps a test (or a user who
+    # always passes `--state-dir`) from writing to `~/.cdp/config.toml` at all.
+    if not getattr(args, "in_repo", False) and not getattr(args, "state_dir", None):
+        registry_mod.register(registry_mod.repo_identity(paths.repo), paths.state)
+
     inventory = inventory_mod.build_inventory(paths.repo)
     say("\n".join(inventory_mod.summarise(inventory)))
 
@@ -255,14 +272,15 @@ def cmd_scan(args) -> int:
     say("\n".join(dataflow_mod.summarise(flow)))
 
     state_dir = paths.state
-    state_dir.mkdir(parents=True, exist_ok=True)
-    write_json(state_dir / "inventory.json", inventory)
-    write_json(state_dir / "extract.json", extraction)
-    write_json(state_dir / "graph.json", graph)
-    write_json(state_dir / "partition.json", part)
-    write_json(state_dir / "schedule.json", sched)
-    write_json(state_dir / "xref.json", xref)
-    write_json(state_dir / "dataflow.json", flow)
+    store = FileStore(state_dir)
+    store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"]))
+    store.write_artifact("inventory", inventory)
+    store.write_artifact("extract", extraction)
+    store.write_artifact("graph", graph)
+    store.write_artifact("partition", part)
+    store.write_artifact("schedule", sched)
+    store.write_artifact("xref", xref)
+    store.write_artifact("dataflow", flow)
 
     # The derived claims are appended as patch 0000. They enter state through
     # the same log every agent patch does, so the fold invariant holds from the
@@ -273,6 +291,7 @@ def cmd_scan(args) -> int:
         "schema_version": "1.0.0",
         "node": "root",
         "run_id": run_id,
+        "author_kind": "python",
         "status": "complete",
         "claims": derived,
         "unknowns": _structural_unknowns(inventory, xref, graph),
@@ -282,25 +301,25 @@ def cmd_scan(args) -> int:
     if errors:
         raise CdpError("derived claims failed their own schema:\n  " + "\n  ".join(errors[:10]))
 
-    verified, verify_stats = verify_all(paths.repo, [patch], STRICT)
+    # M2.3: the log holds `patch` exactly as derived, unverified. Verification
+    # runs inside `fold`, against `paths.repo`, so it is re-runnable at a
+    # different commit without mutating the log (`cdp/state.py` `fold`).
+    store.write_derived_patch(patch)
+    store.ensure_inbox()
+
+    st = _fold_and_write(store, xref, part, repo=paths.repo)
+    verify_stats = st["verification"]
     say("verify    %d/%d derived claims anchored (%d demoted, rate %.3f)"
         % (verify_stats["claims_kept"], verify_stats["claims_in"],
            verify_stats["claims_demoted"], verify_stats["demotion_rate"]))
-
-    state_mod.write_derived_patch(state_dir, verified[0])
-    (state_dir / "patches" / "inbox").mkdir(parents=True, exist_ok=True)
-
-    _fold_and_write(state_dir, xref, part)
-    st = read_json(state_dir / "state.json")
     say("merge     %d claims over %d subjects, %d conflicts, %d near-misses"
         % (len(st["claims"]), st["merge_stats"]["groups"],
            len(st["conflicts"]), len(st["near_misses"])))
 
-    write_json(state_dir / "reports" / "verify.json", verify_stats)
-    write_json(state_dir / "reports" / "conflicts.json",
-               {"conflicts": st["conflicts"], "near_misses": st["near_misses"]})
-    write_json(
-        state_dir / "manifest.json",
+    store.write_report("verify", verify_stats)
+    store.write_report("conflicts", {"conflicts": st["conflicts"], "near_misses": st["near_misses"]})
+    store.write_artifact(
+        "manifest",
         {
             "cdp_version": CDP_VERSION,
             "run_id": run_id,
@@ -331,7 +350,7 @@ def cmd_scan(args) -> int:
     # was invisible until someone remembered to run `cdp docs`. Rendering here
     # is the default; `--no-docs` opts out.
     if getattr(args, "docs", True):
-        written = _render_docs(query_mod.Store(state_dir), state_dir / "docs")
+        written = _render_docs(query_mod.Store(store), state_dir / "docs")
         say("docs      %d file(s) -> %s" % (len(written), state_dir / "docs"))
 
     if paths.inside_repo():
@@ -415,10 +434,12 @@ def _ensure_gitignore(repo: Path) -> None:
     write_text(path, (existing.rstrip("\n") + "\n" if existing else "") + entry)
 
 
-def _fold_and_write(state_dir: Path, xref: Dict, part: Dict) -> Dict:
-    patches = state_mod.load_patches(state_dir)
-    folded = state_mod.fold(patches, xref, part)
-    write_json(state_dir / "state.json", folded)
+def _fold_and_write(
+    store: FileStore, xref: Dict, part: Dict, repo: Optional[Path] = None, mode: str = STRICT
+) -> Dict:
+    patches = store.load_patches()
+    folded = state_mod.fold(patches, xref, part, repo=repo, mode=mode)
+    store.write_artifact("state", folded)
     return folded
 
 
@@ -495,14 +516,15 @@ def cmd_docs(args) -> int:
 
 def cmd_prompts(args) -> int:
     paths = _paths(args)
-    store = query_mod.Store(paths.state)
+    backend = FileStore(paths.state)
+    store = query_mod.Store(backend)
     sched = store._load("schedule")
     run_id = store.manifest.get("run_id", "cdp")
     prior = list(store.state.get("claims", []))
 
     out_dir = paths.state / "prompts"
     out_dir.mkdir(parents=True, exist_ok=True)
-    (paths.state / "patches" / "inbox").mkdir(parents=True, exist_ok=True)
+    backend.ensure_inbox()
 
     written: List[Dict] = []
     for scope in store.partition["scopes"]:
@@ -520,7 +542,7 @@ def cmd_prompts(args) -> int:
         stats["wave"] = sched["node_wave"].get(node)
         written.append(stats)
 
-    write_json(paths.state / "reports" / "prompts.json", {"prompts": written})
+    backend.write_report("prompts", {"prompts": written})
     fired = [w for w in written if w["budget_fired"]]
     print("wrote %d prompt(s) to %s" % (len(written), out_dir))
     for row in written:
@@ -544,50 +566,49 @@ def cmd_collect(args) -> int:
     which is the only place that can ask the agent to try again.
     """
     paths = _paths(args)
-    store = query_mod.Store(paths.state)
-    inbox = paths.state / "patches" / "inbox"
-    if not inbox.is_dir():
-        raise CdpError("no inbox at %s — run `cdp prompts` first" % inbox)
+    backend = FileStore(paths.state)
+    store = query_mod.Store(backend)
+    inbox = backend.read_inbox()
 
     validator = Validator.load(schema_path(SKILL_ROOT))
     scope_nodes = {s["node"] for s in store.partition["scopes"]}
     accepted: List[Dict] = []
     rejected: List[Dict] = []
 
-    for path in sorted(inbox.glob("*.json")):
-        try:
-            patch = read_json(path)
-        except ValueError as exc:
-            rejected.append({"file": path.name, "errors": ["not valid JSON: %s" % exc]})
+    for name, patch in inbox:
+        if isinstance(patch, ValueError):
+            rejected.append({"file": name, "errors": ["not valid JSON: %s" % patch]})
             continue
         errors = validate_patch(patch, validator)
         node = str(patch.get("node", ""))
         if node not in scope_nodes:
             errors.append("/node: %r is not a scope in partition.json" % node)
         if errors:
-            rejected.append({"file": path.name, "node": node, "errors": errors[:12]})
-            state_mod.append_patch(
-                paths.state,
+            rejected.append({"file": name, "node": node, "errors": errors[:12]})
+            backend.append_patch(
                 {
                     "schema_version": "1.0.0",
-                    "node": node or path.stem,
+                    "node": node or Path(name).stem,
                     "run_id": str(patch.get("run_id", store.manifest.get("run_id", "cdp"))),
                     "status": "invalid",
                     "error": "; ".join(errors[:6]),
                 },
-                (node or path.stem) + "-invalid",
+                (node or Path(name).stem) + "-invalid",
             )
             continue
         accepted.append(patch)
 
-    verified, stats = verify_all(paths.repo, accepted, args.mode)
-    for patch in verified:
-        state_mod.append_patch(paths.state, patch, str(patch.get("node", "leaf")))
-        (inbox / (str(patch.get("node", "")).replace("/", "__") + ".json")).unlink(missing_ok=True)
+    # M2.3: append the raw, unverified patch. Verification runs inside
+    # `fold`, against `paths.repo`, not here — see `cli.py` `cmd_scan`.
+    for patch in accepted:
+        patch.setdefault("author_kind", "llm")
+        backend.append_patch(patch, str(patch.get("node", "leaf")))
+        backend.clear_inbox(str(patch.get("node", "")))
 
-    folded = _fold_and_write(paths.state, store.xref, store.partition)
-    write_json(paths.state / "reports" / "verify.json", stats)
-    write_json(paths.state / "reports" / "rejected.json", {"rejected": rejected})
+    folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=args.mode)
+    stats = folded["verification"]
+    backend.write_report("verify", stats)
+    backend.write_report("rejected", {"rejected": rejected})
 
     print("accepted  %d patch(es), rejected %d" % (len(accepted), len(rejected)))
     if stats["claims_in"]:
@@ -611,11 +632,12 @@ def cmd_collect(args) -> int:
 
 def cmd_fold(args) -> int:
     paths = _paths(args)
-    store = query_mod.Store(paths.state)
+    backend = FileStore(paths.state)
+    store = query_mod.Store(backend)
     if args.check:
-        problems = state_mod.check_fold(paths.state, store.xref, store.partition)
+        problems = state_mod.check_fold(backend, store.xref, store.partition, repo=paths.repo)
         problems += state_mod.check_order_independence(
-            state_mod.load_patches(paths.state), store.xref, store.partition
+            backend.load_patches(), store.xref, store.partition
         )
         if problems:
             for problem in problems:
@@ -624,7 +646,7 @@ def cmd_fold(args) -> int:
         print("ok    state.json = fold(merge, patches/, xref.json)")
         print("ok    merge is order-independent under reordering of the log")
         return 0
-    folded = _fold_and_write(paths.state, store.xref, store.partition)
+    folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo)
     print("folded %d patch(es) -> %d claims, %d unknowns, coverage %.1f%%"
           % (folded["provenance"]["patch_count"], len(folded["claims"]),
              len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
@@ -768,7 +790,7 @@ def cmd_install(args) -> int:
     if getattr(args, "hook", False):
         for line in install_hook(target, dest):
             print(line)
-    print("try       python3 %s scan --in-repo --repo %s"
+    print("try       python3 %s scan --repo %s"
           % (dest / "run.py", target))
     return 0
 
@@ -781,28 +803,28 @@ HOOK_MATCHER = "Read|Grep|Glob"
 def install_hook(target: Path, dest: Path) -> List[str]:
     """Register the PreToolUse nudge in `<target>/.claude/settings.json`.
 
-    **States the constraint rather than installing something that never fires.**
-    The hook discovers state by walking up from the file being read
-    (`hook.find_state`), so it can only ever see an *in-repo* `.cdp/`. CDP's
-    default writes state to `cwd/.cdp`, outside the analysed repository, by
-    deliberate design (see this module's docstring). Installing the hook against
-    that default produces a hook that no-ops on every single invocation — which
-    looks identical, from the outside, to a hook that is working and finding
-    nothing worth saying. Phase 2's store resolution (2.3) removes the
-    constraint; until then it is printed, loudly, at install time.
+    Before M2.6 (`PHASE/phase_2_plan.md` 2.3) this stated a hard constraint:
+    the hook discovers state by walking up from the file being read
+    (`hook.find_state`), so it could only ever see an *in-repo* `.cdp/`, and
+    CDP's default writes state *outside* the repo (this module's docstring).
+    `hook.find_state` now also consults the registry (`store.registry`), which
+    `scan`'s default run populates, so a default-location scan is discoverable
+    too. What is still true unconditionally: the hook cannot see a scan that
+    has never happened, so that case is still named here rather than left to
+    a silent no-op.
     """
     import json as json_mod
 
     notes: List[str] = []
-    state = target / ".cdp"
-    if not (state / "inventory.json").is_file():
+    registered = registry_mod.lookup(registry_mod.repo_identity(target))
+    has_state = FileStore(target / ".cdp").has_artifact("inventory") or (
+        registered is not None and FileStore(registered).has_artifact("inventory")
+    )
+    if not has_state:
         notes.append(
-            "note      no %s yet, so the hook will no-op until you run:\n"
-            "            python3 %s scan --in-repo --repo %s\n"
-            "          The hook is only coherent under --in-repo: it finds state by\n"
-            "          walking up from the file being read, and the default state\n"
-            "          location (cwd/.cdp) is outside the analysed repository."
-            % (state, dest / "run.py", target)
+            "note      no scan of %s yet, so the hook will no-op until you run:\n"
+            "            python3 %s scan --repo %s"
+            % (target, dest / "run.py", target)
         )
 
     settings_path = target / ".claude" / "settings.json"
@@ -1043,7 +1065,7 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
                 encoding="utf-8", errors="replace"
             )
 
-        head = read_json(state / "inventory.json").get("head")
+        head = FileStore(state).read_artifact("inventory").get("head")
 
         # `docs` is driven through the CLI so the golden set covers the command
         # a user runs, not an internal function it happens to call today.

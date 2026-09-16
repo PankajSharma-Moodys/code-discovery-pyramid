@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import re
+import warnings
 from typing import Dict, List, Optional, Tuple
 
 from .base import (
@@ -46,7 +47,13 @@ class PythonExtractor(Extractor):
         facts.primary = primary
 
         try:
-            tree = ast.parse("\n".join(ctx.lines))
+            # A target file's own string literals (e.g. a regex written as
+            # "\S" instead of r"\S") make CPython's parser emit a
+            # `SyntaxWarning` — real about that file, irrelevant to whether
+            # extraction succeeds, and otherwise noise on every scan's stderr.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", SyntaxWarning)
+                tree = ast.parse("\n".join(ctx.lines))
         except SyntaxError as exc:
             facts.notes.append("parse_error:line=%s" % getattr(exc, "lineno", "?"))
             return facts

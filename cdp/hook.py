@@ -14,20 +14,21 @@ README.md"* is `role == "docs"` and never triggers it.
 
 **Three hard no-ops, all mandatory** (`PHASE/phase_1_plan.md` M1.6):
 
-    1. `.cdp/` missing                     -- nothing to point at
+    1. no state resolvable for this repo   -- nothing to point at
     2. `inventory.head != git HEAD`        -- the index does not describe the
                                               working tree, and a hook nagging
                                               about a stale index is worse than
                                               no hook at all
-    3. state not resolvable from the repo  -- see below
+    3. (retired by M2.6, see below)
 
-The third is why this milestone is `--in-repo` only. CDP writes state to
+Through Phase 1, condition 1 was `--in-repo` only: CDP writes state to
 `./.cdp` *outside* the analysed repository by deliberate design (`cli.py:14-17`:
 "a tool that leaves a directory behind in someone else's checkout has made a
-decision that was not its to make"). A hook installed in the target cannot find
-state under that default, so `cdp install --hook` refuses rather than installing
-something that silently never fires. Phase 2's store resolution (2.3) dissolves
-this.
+decision that was not its to make"), and a directory walk from a file being
+read could never reach a `.cdp/` outside the repo. `PHASE/phase_2_plan.md`
+M2.6's store registry (`store.registry`) dissolves this: `find_state` walks up
+for an in-repo `.cdp/` first, and failing that, resolves the repo's identity
+and looks it up in the registry that a default-location `scan` populated.
 
 **Not strict mode.** Blocking a read is out of scope here and lands in Phase 9
 gated on `state.coverage.fraction`, because blocking against an index below its
@@ -113,17 +114,32 @@ def target_path(tool_name: str, tool_input: Dict) -> Optional[str]:
 
 
 def find_state(start: Path) -> Optional[Path]:
-    """Walk up from `start` looking for an in-repo `.cdp/inventory.json`.
+    """Walk up from `start` looking for an in-repo `.cdp/`; failing that,
+    resolve the enclosing repo's identity and consult the registry.
 
-    No-op condition 3. Only an in-repo install is discoverable this way, which
-    is the constraint `cdp install --hook` states up front instead of leaving
-    the user to discover that their hook never fires.
+    Before M2.6 (`PHASE/phase_2_plan.md` 2.3) this was in-repo only: CDP's
+    default state location is *outside* the repo, so a directory walk from a
+    file being read could never reach it, and `cdp install --hook` refused
+    outside `--in-repo` rather than installing a hook that would silently
+    never fire. The registry (`store.registry`, keyed by repo identity, not
+    path) dissolves that: `scan`'s default run registers where it wrote state,
+    and this looks it up the same way.
     """
+    from .store import FileStore
+    from .store import registry
+
     current = start if start.is_dir() else start.parent
     for candidate in [current] + list(current.parents):
         state = candidate / STATE_DIRNAME
-        if (state / "inventory.json").is_file():
+        if FileStore(state).has_artifact("inventory"):
             return state
+
+    for candidate in [current] + list(current.parents):
+        if (candidate / ".git").exists():
+            registered = registry.lookup(registry.repo_identity(candidate))
+            if registered is not None and FileStore(registered).has_artifact("inventory"):
+                return registered
+            break
     return None
 
 
@@ -191,11 +207,19 @@ def decide(event: Dict) -> Optional[str]:
     state = find_state(anchor) or find_state(cwd)
     if state is None:
         return None  # no-op 1 and 3: no `.cdp/` reachable from here
-    repo = state.parent
+
+    from .store import FileStore
+    from .util import CdpError
 
     try:
-        inventory = json.loads((state / "inventory.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        backend = FileStore(state)
+        inventory = backend.read_artifact("inventory")
+        # `state.parent` is the repo only under the in-repo layout
+        # (`<repo>/.cdp`); once state can live anywhere (M2.6's registry), the
+        # manifest's own `repo` field is the only reliable source.
+        manifest_repo = backend.read_artifact("manifest", {}).get("repo")
+        repo = Path(manifest_repo) if manifest_repo else state.parent
+    except (OSError, ValueError, CdpError):
         return None
 
     indexed = str(inventory.get("head") or "")
