@@ -93,12 +93,12 @@ class ProvenanceStateTest(unittest.TestCase):
     def test_no_task_row_is_unexamined(self):
         self.assertEqual(provenance_state("core", {}), UNEXAMINED)
 
-    def test_complete_task_is_unknown(self):
-        rows = {"core": {"state": "complete", "attempts": 1}}
+    def test_folded_task_is_unknown(self):
+        rows = {"core": {"state": "folded", "attempts": 1}}
         self.assertEqual(provenance_state("core", rows), UNKNOWN)
 
-    def test_three_failed_attempts_is_abandoned(self):
-        rows = {"core": {"state": "failed", "attempts": 3}}
+    def test_abandoned_task_is_abandoned(self):
+        rows = {"core": {"state": "abandoned", "attempts": 3}}
         self.assertEqual(provenance_state("core", rows), ABANDONED)
 
 

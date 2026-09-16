@@ -231,6 +231,37 @@ class TestRunsAndTasks(unittest.TestCase):
         }
         self.assertEqual(before, after)
 
+    def test_get_run_returns_none_then_the_row_once_begun(self):
+        self.assertIsNone(self.store.get_run("r1"))
+        self.store.begin_run("r1", "hash-a")
+        row = self.store.get_run("r1")
+        self.assertEqual(row, {"run_id": "r1", "partition_hash": "hash-a", "status": "running"})
+
+    def test_reclaim_expired_moves_only_dispatched_past_lease(self):
+        self.store.begin_run("r1", "hash-a")
+        self.store.upsert_task("r1", "h-dispatched-expired", state="dispatched",
+                                lease_until="2000-01-01T00:00:00+00:00")
+        self.store.upsert_task("r1", "h-dispatched-live", state="dispatched")
+        self.store.acquire_lease("r1", "h-dispatched-live", 3600)  # live, far-future lease
+        self.store.upsert_task("r1", "h-folded", state="folded")
+        reclaimed = self.store.reclaim_expired("r1")
+        self.assertEqual(reclaimed, ["h-dispatched-expired"])
+        states = self.store.task_states("r1")
+        self.assertEqual(states["h-dispatched-expired"]["state"], "expired")
+        self.assertEqual(states["h-dispatched-live"]["state"], "dispatched")
+        self.assertEqual(states["h-folded"]["state"], "folded")
+
+    def test_copy_folded_tasks_only_copies_folded_rows(self):
+        self.store.begin_run("r1", "hash-a")
+        self.store.upsert_task("r1", "h-folded", state="folded", attempts=2, last_error=None)
+        self.store.upsert_task("r1", "h-abandoned", state="abandoned", attempts=3)
+        self.store.begin_run("r2", "hash-b")
+        self.store.copy_folded_tasks("r1", "r2", ["h-folded", "h-abandoned", "h-never-seen"])
+        states = self.store.task_states("r2")
+        self.assertEqual(set(states), {"h-folded"})
+        self.assertEqual(states["h-folded"]["state"], "folded")
+        self.assertEqual(states["h-folded"]["attempts"], 2)
+
 
 class TestBackendEquivalence(MiniRepoTest):
     """M2.2's golden-diff acceptance, without a full `cdp scan` subprocess:

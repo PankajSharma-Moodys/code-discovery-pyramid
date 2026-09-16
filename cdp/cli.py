@@ -23,11 +23,12 @@ import argparse
 import datetime
 import os
 import re
+import shlex
 import shutil
 import sys
 from contextlib import contextmanager as contextlib_contextmanager
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from . import anchor as anchor_mod
 from . import dataflow as dataflow_mod
@@ -45,13 +46,16 @@ from . import query as query_mod
 from . import refresh as refresh_mod
 from . import resolve as resolve_mod
 from . import rollback as rollback_mod
+from . import runner as runner_mod
 from . import schedule as schedule_mod
 from . import snapshot as snapshot_mod
 from . import state as state_mod
+from . import supervisor as supervisor_mod
 from .store import ARTIFACTS, REPORTS, SqliteStore, WorkspaceStore, has_scanned
 from .store import registry as registry_mod
 from .derive import derive_claims
 from .extract import run_extract
+from . import prompts as prompts_mod
 from .prompts import build_prompt
 from .schema import Validator, schema_path, validate_patch
 from .util import (
@@ -153,6 +157,9 @@ def _parser() -> argparse.ArgumentParser:
     pr = add("prompts", "write one leaf prompt per scope, for the wave loop")
     pr.add_argument("--wave", type=int, default=None, help="only this wave")
     pr.add_argument("--node", default=None, help="only this node")
+    pr.add_argument("--measure", action="store_true",
+                     help="print a per-section token estimate (M5.6, 4.9) instead of "
+                          "the usual per-scope summary -- chars/4, not a real tokenizer")
     pr.set_defaults(func=cmd_prompts)
 
     c = add("collect", "validate, verify and append leaf patches from the inbox")
@@ -167,6 +174,31 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
     r.add_argument("--quiet", action="store_true")
     r.set_defaults(func=cmd_refresh)
+
+    rn = add("run", "dispatch -> collect -> adjudicate -> fold, wave by wave")
+    rn_target = rn.add_mutually_exclusive_group(required=True)
+    rn_target.add_argument("--wave", type=int, help="dispatch only this wave")
+    rn_target.add_argument("--wave-all", action="store_true", help="every wave, in order")
+    rn_target.add_argument("--stale-only", action="store_true",
+                            help="only scopes owning a stale/anchored-but-unreviewed "
+                                 "claim (the M3.1 freshness bucket), across every wave")
+    rn_target.add_argument("--scope", help="one node, by name (e.g. root/gateway)")
+    rn.add_argument("--runner-cmd", default=None, metavar="CMD",
+                     help="shell command for SubprocessRunner, given prompt and patch "
+                          "paths as its last two arguments (default: FileRunner -- "
+                          "wait for a human/external process to drop the patch file)")
+    rn.add_argument("--timeout", type=float, default=300.0,
+                     help="seconds before a task's runner call is treated as failed "
+                          "(SubprocessRunner) or abandoned (FileRunner's poll deadline)")
+    rn.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
+    rn.add_argument("--resume", action="store_true",
+                     help="reclaim past-lease tasks and continue this run_id if the "
+                          "partition is unchanged; otherwise open a new run inheriting "
+                          "unchanged scopes (M5.5)")
+    rn.add_argument("--max-attempts", type=int, default=supervisor_mod.MAX_ATTEMPTS,
+                     help="retries per scope before it is abandoned (default %d)"
+                          % supervisor_mod.MAX_ATTEMPTS)
+    rn.set_defaults(func=cmd_run)
 
     st = add("status", "waves, node statuses and coverage")
     st.set_defaults(func=cmd_status)
@@ -677,6 +709,10 @@ def cmd_prompts(args) -> int:
         written.append(stats)
 
     backend.write_report("prompts", {"prompts": written})
+    if args.measure:
+        _print_token_report(written)
+        backend.close()
+        return 0
     fired = [w for w in written if w["budget_fired"]]
     print("wrote %d prompt(s) to %s" % (len(written), out_dir))
     for row in written:
@@ -687,6 +723,33 @@ def cmd_prompts(args) -> int:
         print("\ninherited-sigma budget never fired; the 200-claim default is not binding here.")
     backend.close()
     return 0
+
+
+def _print_token_report(written: List[Dict]) -> None:
+    """M5.6 (4.9): sum every leaf's per-section chars and report the
+    fixed/variable split `CDP_CLI_SCOPE.md` says to measure before deciding on
+    batching. `header`+`task` do not grow with scope size -- they are the
+    part of the cost that scales with *scope count*, which is the shape a
+    wrong cost curve would have."""
+    if not written:
+        print("no scopes matched -- nothing to measure")
+        return
+    section_totals: Dict[str, int] = {}
+    for row in written:
+        for name, chars in row["section_chars"].items():
+            section_totals[name] = section_totals.get(name, 0) + chars
+    total_tokens = sum(row["tokens_est"] for row in written)
+    fixed_tokens = sum(row["fixed_tokens_est"] for row in written)
+    n = len(written)
+    print("measured  %d leaf prompt(s), chars/%d token estimate (not a real tokenizer)"
+          % (n, prompts_mod.CHARS_PER_TOKEN_EST))
+    for name, chars in sorted(section_totals.items(), key=lambda kv: -kv[1]):
+        print("  %-10s %8d chars  (%d/leaf avg)" % (name, chars, chars // n))
+    print("total     %d tokens_est (%d/leaf avg)" % (total_tokens, total_tokens // n))
+    print("fixed     %d tokens_est (%d/leaf avg) -- header+task, independent of scope content"
+          % (fixed_tokens, fixed_tokens // n))
+    print("variable  %d tokens_est (%d/leaf avg) -- files/structure/inherited/gaps"
+          % (total_tokens - fixed_tokens, (total_tokens - fixed_tokens) // n))
 
 
 # ---------------------------------------------------------------- collect
@@ -946,6 +1009,186 @@ def _git_head_or_raise(repo: Path) -> str:
     return head
 
 
+# -------------------------------------------------------------------- run
+
+
+def _build_runner(args):
+    if args.runner_cmd:
+        return runner_mod.SubprocessRunner(shlex.split(args.runner_cmd), timeout_s=args.timeout)
+    return runner_mod.FileRunner(timeout_s=args.timeout)
+
+
+def _stale_nodes(store: "query_mod.Store", repo: Path) -> List[str]:
+    """Nodes owning at least one non-`live` claim (M3.1's freshness bucket) --
+    the set `--stale-only` re-reviews, per `ARCHITECTURE.md`'s own worked
+    example ('cdp run --stale-only re-reviews just those 11 scopes')."""
+    head = store.inventory.get("head")
+    if not head or head == "unpinned":
+        return []
+    cache: freshness_mod.ChurnCache = {}
+    nodes = set()
+    for claim in store.state.get("claims", []):
+        if freshness_mod.claim_bucket(claim, repo, head, cache) != freshness_mod.LIVE:
+            owners = claim.get("source_nodes") or ([claim["source_node"]] if claim.get("source_node") else [])
+            nodes.update(owners)
+    return sorted(nodes)
+
+
+def _apply_wave_results(backend, store, results: List[Dict], run_id: str, mode: str, paths: "Paths") -> Dict:
+    """The terminal outcome of one wave: append a `complete` patch for every
+    scope that validated, a `status: failed` patch (no claims) for every one
+    abandoned -- `state.fold`'s existing superseded-node handling turns the
+    latter into an honest unknown (R6) with no further code here -- then one
+    fold for the whole wave, and bump `validated` tasks to `folded`."""
+    log_so_far = backend.load_patches()
+    def_fqns, edge_subjects, edges_by_key = gates_mod.build_extraction_index(store.extraction)
+    scope_nodes = {s["node"] for s in store.partition["scopes"]}
+    node_to_hash = {s["node"]: s.get("scope_hash") for s in store.partition["scopes"]}
+    task_rows = backend.task_states(run_id)
+    for row in results:
+        node = row["node"]
+        if row["state"] == supervisor_mod.VALIDATED and row["patch"] is not None:
+            patch = dict(row["patch"])
+            patch["node"] = node
+            patch["run_id"] = run_id
+            patch["status"] = "complete"
+            patch.setdefault("author_kind", "llm")
+            patch["generation"] = _next_generation(log_so_far, node)
+            log_so_far.append(patch)
+            _stamp_claims(patch.get("claims") or [], store.inventory["head"])
+            kept, _rejected = gates_mod.gate_patch_unknowns(
+                patch.get("unknowns") or [], node, def_fqns, edge_subjects, edges_by_key,
+                scope_nodes, {node: task_rows.get(node_to_hash.get(node))},
+            )
+            patch["unknowns"] = kept
+            backend.append_patch(patch, node)
+            backend.clear_inbox(node)
+        elif row["state"] == supervisor_mod.ABANDONED:
+            backend.append_patch(
+                {"schema_version": "1.0.0", "node": node, "run_id": run_id, "status": "failed",
+                 "error": row["last_error"] or "abandoned after %d attempts" % row["attempts"]},
+                node + "-abandoned",
+            )
+    folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=mode)
+    supervisor_mod.mark_folded(backend, run_id, results)
+    return folded
+
+
+def _next_run_id(backend, base_run_id: str) -> str:
+    """First `<base_run_id>-rN` (N starting at 2) not already a run in this
+    store -- the new run `--resume` opens when the partition has drifted."""
+    n = 2
+    while backend.get_run("%s-r%d" % (base_run_id, n)) is not None:
+        n += 1
+    return "%s-r%d" % (base_run_id, n)
+
+
+def cmd_run(args) -> int:
+    """M5.3: `read schedule -> dispatch a wave -> collect -> adjudicate ->
+    fold -> next wave`. `prompts`/`collect` still work standalone (M5.1's
+    protocol doc); this drives them through `supervisor.py`'s state machine
+    (M5.2) instead of a human running the loop from `SKILL.md`.
+
+    `--resume` (M5.5, 4.6): `runs.partition_hash` (a `stable_hash` of every
+    scope's `(node, scope_hash)`, computed fresh from *this* invocation's
+    partition) decides which of two things happened since the run named by
+    `manifest.run_id` last touched this store:
+
+      unchanged  -- the same run continues. Any task still `dispatched` past
+                    its lease is reclaimed as `expired` (the supervisor that
+                    held it is presumed dead) and re-attempted; `folded` tasks
+                    are left alone -- untouched and unpaid-for again.
+      differs    -- a file changed the partition since this run started
+                    (Phase 3's open interaction: a `refresh` landing mid-run).
+                    Folding stale work against a changed partition is exactly
+                    what R6/the merge operator must not do, so this opens a
+                    *new* run (`<run_id>-rN`) rather than continuing the old
+                    one, inheriting every scope whose own `scope_hash` did not
+                    move (nothing to redo) and re-queuing the rest.
+
+    Without `--resume`, a second invocation behaves as before M5.5: it
+    reuses the existing run row (`begin_run` is idempotent) and redispatches
+    everything asked for, from a fresh `--max-attempts` budget -- correct, but
+    not resume-aware.
+    """
+    paths = _paths(args)
+    backend = _open_store(paths.state)
+    store = query_mod.Store(backend)
+    sched = store._load("schedule")
+    run_id = str(store.manifest.get("run_id", "cdp"))
+    validator = Validator.load(schema_path(SKILL_ROOT))
+    runner = _build_runner(args)
+
+    partition_hash = stable_hash(
+        sorted((s["node"], s.get("scope_hash")) for s in store.partition["scopes"])
+    )
+    skip_hashes: Set[str] = set()
+    existing = backend.get_run(run_id)
+    if existing is None:
+        backend.begin_run(run_id, partition_hash)
+    elif not args.resume:
+        backend.begin_run(run_id, partition_hash)  # idempotent no-op; pre-M5.5 behaviour
+    elif existing["partition_hash"] == partition_hash:
+        reclaimed = backend.reclaim_expired(run_id)
+        if reclaimed:
+            print("resume    run %s: partition unchanged, reclaimed %d task(s) past lease"
+                  % (run_id, len(reclaimed)))
+        skip_hashes = {sh for sh, row in backend.task_states(run_id).items() if row["state"] == "folded"}
+    else:
+        old_run_id = run_id
+        old_folded = {sh for sh, row in backend.task_states(old_run_id).items() if row["state"] == "folded"}
+        new_hashes = {s.get("scope_hash") for s in store.partition["scopes"]}
+        unchanged = old_folded & new_hashes
+        run_id = _next_run_id(backend, old_run_id)
+        backend.begin_run(run_id, partition_hash)
+        backend.copy_folded_tasks(old_run_id, run_id, unchanged)
+        skip_hashes = set(unchanged)
+        print("resume    partition changed since run %s -- opened new run %s, "
+              "inherited %d unchanged scope(s), %d re-queued"
+              % (old_run_id, run_id, len(unchanged), len(new_hashes) - len(unchanged)))
+
+    if args.stale_only:
+        stale = _stale_nodes(store, paths.repo)
+        if not stale:
+            print("stale-only  zero scopes need review")
+            backend.finish_run(run_id, "complete")
+            backend.close()
+            return 0
+        wave_groups = [("stale", stale)]
+    elif args.scope:
+        if args.scope not in {s["node"] for s in store.partition["scopes"]}:
+            raise CdpError("%r is not a scope in partition.json" % args.scope)
+        wave_groups = [("scope", [args.scope])]
+    elif args.wave is not None:
+        wave = next((w for w in sched["waves"] if w["wave"] == args.wave), None)
+        if wave is None:
+            raise CdpError("no wave %d (schedule has %d)" % (args.wave, len(sched["waves"])))
+        wave_groups = [(args.wave, wave["nodes"])]
+    else:  # --wave-all
+        wave_groups = [(w["wave"], w["nodes"]) for w in sched["waves"]]
+
+    for label, nodes in wave_groups:
+        results = supervisor_mod.run_wave(
+            nodes, store, backend, runner, paths, run_id, validator, sched, args.mode,
+            max_attempts=args.max_attempts, skip_hashes=skip_hashes,
+        )
+        _apply_wave_results(backend, store, results, run_id, args.mode, paths)
+        counts: Dict[str, int] = {}
+        for row in results:
+            counts[row["state"]] = counts.get(row["state"], 0) + 1
+        print("wave %-6s %2d scope(s)  %s" % (label, len(results),
+              ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "nothing to dispatch"))
+        for row in results:
+            if row["state"] != supervisor_mod.VALIDATED:
+                print("  %-9s %-40s attempts %d  %s"
+                      % (row["state"], row["node"], row["attempts"], row["last_error"] or ""))
+        store = query_mod.Store(backend)  # re-read state.json: next wave inherits this wave's claims
+
+    backend.finish_run(run_id, "complete")
+    backend.close()
+    return 0
+
+
 # ----------------------------------------------------------------- status
 
 
@@ -974,6 +1217,21 @@ def cmd_status(args) -> int:
                  wave["file_count"], wave["loc"]))
         for node in wave["nodes"]:
             print("    %-9s %s" % (statuses.get(node, "pending"), node))
+
+    # M5.2: `cdp run`'s per-run task table -- `snapshot_task`, not `nodes[]`
+    # above (that is the patch log's own status; this is the supervisor's
+    # dispatch bookkeeping for the run named on the first line).
+    task_getter = getattr(store.backend, "task_rows", None)
+    run_id = str(store.manifest.get("run_id", "cdp"))
+    rows = task_getter(run_id) if callable(task_getter) else []
+    if rows:
+        node_of_hash = {s.get("scope_hash"): s["node"] for s in store.partition["scopes"]}
+        print("\ntasks     run %s" % run_id)
+        for row in rows:
+            node = node_of_hash.get(row["scope_hash"], row["scope_hash"])
+            print("    %-14s %-40s attempts %d%s"
+                  % (row["state"] or "pending", node, row["attempts"] or 0,
+                     "  %s" % row["last_error"] if row["last_error"] else ""))
     store.close()
     return 0
 

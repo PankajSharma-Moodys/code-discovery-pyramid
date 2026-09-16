@@ -31,6 +31,11 @@ from .util import truncate
 
 MAX_STRUCTURE_ROWS = 120
 
+#: crude chars/token estimate for `cdp prompts --measure` (M5.6, 4.9) -- no
+#: real tokenizer is stdlib, and this is only meant to size the fixed/variable
+#: split, not to predict a real model's count.
+CHARS_PER_TOKEN_EST = 4
+
 
 def build_prompt(
     scope: Dict,
@@ -50,13 +55,26 @@ def build_prompt(
     inherited, elided = _inherit(prior_claims, imported, module, schedule, max_inherited)
     structure = _structure(extraction, scope_files)
 
-    sections: List[str] = []
-    sections.append(_header(node, module, scope, run_id))
-    sections.append(_files_section(inventory, scope))
-    sections.append(_structure_section(structure))
-    sections.append(_inherited_section(inherited, elided, max_inherited))
-    sections.append(_gaps_section(xref, scope_files))
-    sections.append(_task_section(node, run_id))
+    named_sections: List[Tuple[str, str]] = [
+        ("header", _header(node, module, scope, run_id)),
+        ("files", _files_section(inventory, scope)),
+        ("structure", _structure_section(structure)),
+        ("inherited", _inherited_section(inherited, elided, max_inherited)),
+        ("gaps", _gaps_section(xref, scope_files)),
+        ("task", _task_section(node, run_id)),
+    ]
+
+    # M5.6 (4.9): `CDP_CLI_SCOPE.md` marks per-leaf fixed overhead
+    # "unverified -- measure first". `header`/`task` are the two sections
+    # whose size is a function of `node`/`run_id` only, not of the scope's
+    # content -- the part of the prompt that scales with *scope count*, not
+    # code size, which is exactly what a wrong cost curve would look like.
+    # `CHARS_PER_TOKEN_EST` is the crude chars/4 estimate (`cdp prompts --measure`'s
+    # own docstring says so) -- close enough to size the fixed/variable split,
+    # not a claim about any real tokenizer's output.
+    section_chars = {name: len(text) for name, text in named_sections}
+    fixed_chars = section_chars["header"] + section_chars["task"]
+    total_chars = sum(section_chars.values())
 
     stats = {
         "node": node,
@@ -67,8 +85,13 @@ def build_prompt(
         "inherited_claims": len(inherited),
         "elided_claims": len(elided),
         "budget_fired": bool(elided),
+        "section_chars": section_chars,
+        "total_chars": total_chars,
+        "fixed_chars": fixed_chars,
+        "tokens_est": total_chars // CHARS_PER_TOKEN_EST,
+        "fixed_tokens_est": fixed_chars // CHARS_PER_TOKEN_EST,
     }
-    return "\n\n".join(s for s in sections if s), stats
+    return "\n\n".join(text for _name, text in named_sections if text), stats
 
 
 # ---------------------------------------------------------------- sigma

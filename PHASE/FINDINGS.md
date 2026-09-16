@@ -1430,3 +1430,392 @@ claims with no comparable discrete field were exercised, so a human-authored
 contradiction was proven at the unit level, not through the live CLI);
 Phase 6/8/9's consumers of `needs_wider_scope`/`needs_other_repo`/the
 `contradicted` bucket, unchanged from M4.1/M4.2's own account.
+
+## Phase 5 (M5.1) — runner protocol, exercised on a real prompt/patch pair
+
+Scoped to M5.1 only this session; M5.2-M5.6 deferred to later turns (the
+phase's own concurrency/crash-simulation content does not compress into one
+sitting — see the budget flag raised before starting).
+
+**D26 -- the protocol lives as `cdp/runner.py`'s module docstring, not a
+separate doc file.** ~50 lines, matching M5.1's acceptance line exactly; kept
+next to the two reference implementations so it can't drift from them
+unnoticed. `RunResult` is a 4-field dataclass (`ok`, `wall_ms`, `tokens`,
+`error`) -- `tokens` is `Optional[int]` since a subprocess runner often
+can't see it, per the plan's own text.
+
+**D27 -- a runner-level failure (non-zero exit, timeout, OSError) is
+`ok=False`; a well-formed-but-empty patch is not the runner's problem.**
+Schema/yield-collapse classification is `cdp run`'s job (M5.2), not the
+runner's -- kept the boundary exactly where the docstring's own "Output"
+section draws it, rather than have `runner.py` start guessing about patch
+content.
+
+`tests/test_runner.py` (6 tests, new): a stdlib-only-imports check via
+`ast.parse` (AST walk, not the file's text, so it can't be fooled by a
+comment); one shared conformance pair (`_assert_success`/`_assert_failure`)
+driven against both `SubprocessRunner` and `FileRunner` for success,
+non-zero-exit, and timeout -- the timeout cases prove rule 1 (no exception
+escapes `run()`) rather than just asserting it in prose.
+
+**Real-target exercise (R-E7):** `sql-pool/sql-pool-api` scanned fresh into
+a scratch dir (0.34s), `cdp prompts` run for real (`root/(files+2)`,
+`root/src/main/java` -- both node names contain `/`, and one contains `(`
+and `+`, a real adversarial case for the `__`-replacement inbox-naming
+convention). `SubprocessRunner` driven against the real
+`prompts/root__(files+2).md` file, writing a real patch to the exact
+`patches/inbox/root__(files+2).json` convention `cdp prompts`' own docstring
+specifies; `cdp collect` then accepted it (`accepted 1, rejected 0`,
+`41/41 claims kept`) with no modification to either command -- the
+file-handoff contract holds against real node names, not just a synthetic
+tmp path. Scratch dir removed after.
+
+**Out of scope, unimplemented:** M5.2 (task state machine), M5.3
+(`cdp run` itself), M5.4 (leases), M5.5 (`--resume`/partition-drift guard),
+M5.6 (overhead measurement) -- all deferred, none started.
+
+## Phase 5 (M5.2-M5.3) -- the task state machine and `cdp run`
+
+Scoped to M5.2 and M5.3 only this session, by explicit user choice: the
+remaining five milestones could not fit this session's budget with the same
+rigor prior phases used (M5.4's lease atomicity and M5.5's crash/resume both
+carry real concurrency-simulation weight of their own). M5.4-M5.6 remain
+unimplemented.
+
+**What shipped.** `cdp/supervisor.py` (new): the state machine
+(`pending -> dispatched -> returned -> validated -> folded`, with
+`expired`/`invalid`/`anchors_failed`/`empty` retrying up to `MAX_ATTEMPTS`
+(3) before `abandoned`) plus `dispatch_scope` (one scope's full retry loop),
+`run_wave` (dispatches every scope in a set of nodes, sequentially -- see
+D29), and `mark_folded` (bumps a wave's validated tasks to `folded` once its
+fold has run). `SqliteStore` gains `begin_run`/`finish_run`/`upsert_task`/
+`task_rows` (`store/sqlite_backend.py`) -- `snapshot_run`/`snapshot_task`
+were schema-only since Phase 2 ("created here, driven in Phase 5"); this is
+that driver. `cli.py` gains `cdp run --wave N|--wave-all|--stale-only|--scope`,
+wired to a `--runner-cmd` (shells out via `SubprocessRunner`) or, by default,
+`FileRunner` (today's manual loop, waited on automatically). `status` gains
+the per-run task table M5.2's acceptance line asks for.
+
+**D28 -- a runner-level failure (`RunResult.ok=False`) is classified
+`expired`, not a fifth failure category.** The plan names four failure
+states and says what each *means* (`invalid` = schema violation,
+`anchors_failed` = fabricated/moved anchor, `empty` = yield collapse,
+`expired` = the supervisor died) but the plan's own vocabulary has no name
+for "the runner crashed, timed out, or returned non-zero" -- a real,
+frequent case `runner.py`'s `SubprocessRunner`/`FileRunner` both produce.
+Chosen: `expired` covers all three, since the operational fact is identical
+in every case -- the task did not return a usable result within its
+allotted time -- and the remedy is identical too (redispatch). The specific
+cause is never lost: `last_error` carries the runner's own message
+(`result.error`), only the *bucket* is shared. This also means `expired` is
+real-world reachable **now**, inside a single `cdp run` process, well before
+M5.4's supervisor-heartbeat mechanism exists to detect an actual supervisor
+death -- proven by `tests/test_supervisor.py`
+`test_expired_invalid_empty_then_abandoned`, which forces a `SubprocessRunner`-
+style `ok=False` on the first attempt and confirms `expired` is written to
+`snapshot_task` before the retry loop continues.
+
+**D29 -- `run_wave` dispatches every scope in a wave sequentially, not
+concurrently, despite `runner.py`'s own M5.1 rule that a runner "must
+tolerate concurrent calls... a wave dispatches in parallel."** Real parallel
+dispatch needs the atomic lease acquisition M5.4 provides (`upsert_task`'s
+insert-or-update today has no protection against two processes racing the
+same `(run_id, scope_hash)` row -- fine for one supervisor, wrong for the
+"two supervisors, same run" stress test M5.4 owns). M5.3's own acceptance
+line only asks that `cdp run --wave-all` "completes... and matches what the
+manual `SKILL.md` loop produces for the same scopes" -- sequential dispatch
+satisfies that literally, at the cost of not yet buying wall-clock
+parallelism. Flagged rather than raced against M5.4's real job.
+
+**D30 -- `cdp run`'s dispatch `run_id` is the scan's own `run_id`
+(`store.manifest["run_id"]`), not a separately invented dispatch-session
+id.** `snapshot_run`/`snapshot_task` are keyed by `run_id`, and so is every
+patch's own `run_id` field (`cmd_scan`/`cmd_collect` already stamp
+`store.manifest.get("run_id", "cdp")` onto every patch) and `cdp rollback
+--to-run`'s target. Reusing the same value means a `cdp run`-dispatched
+patch is indistinguishable in provenance from a manually-collected one, and
+`cdp rollback --to-run <this-commit's-run>` addresses exactly what `cdp run`
+produced, with no second identifier space to reconcile.
+
+**D31 -- gate 3's `provenance_state` (`cdp/gates.py`, M4.2) is updated to
+read the real state names `dispatch_scope` now writes.** Before this
+session it checked `state == "complete"` (-> `unknown`) and
+`attempts >= 3` (-> `abandoned`), both placeholders guessed before any real
+writer existed. Now it checks `state == "folded"` (-> `unknown`: the scope
+was actively, successfully examined and this question still stands) and
+`state == "abandoned"` (-> `abandoned`, M5.2's own terminal name) directly.
+`tests/test_gates.py`'s two placeholder-era tests
+(`test_complete_task_is_unknown`, `test_three_failed_attempts_is_abandoned`)
+are renamed and updated to the real vocabulary
+(`test_folded_task_is_unknown`, `test_abandoned_task_is_abandoned`).
+
+**R6 held with no new fold-side code.** An `abandoned` scope needs to
+surface as an honest `unknown`, never a silent gap. `state.fold` already
+synthesises exactly that unknown ("What does %s contain? Its scope was not
+successfully examined.") for any node whose best patch status is not
+`complete` (`cdp/state.py:178-197`, Phase 1). `_apply_wave_results` (`cli.py`)
+appends a `status: "failed"` patch (no claims) for every abandoned scope --
+reusing the *existing* `failed` status value `STATUS_RANK` already ranks --
+so the existing fold logic does the rest. Verified directly in
+`tests/test_supervisor.py`'s real-target exercise: 100% coverage held with
+both scopes `complete`, and separately (fixture-level, via the state-machine
+unit tests) an abandoned scope's synthesized unknown was inspected, not
+assumed.
+
+**Real-target exercise (R-E7), not just the fixture.** `sql-pool/sql-pool-api`
+scanned fresh into a scratch dir; a fake runner (a 6-line external script,
+driven through the real `--runner-cmd` / `SubprocessRunner` path, not an
+in-process stub) always contributes a scope-level unknown and no claims:
+
+```
+$ cdp run --repo .../sql-pool-api --wave-all --runner-cmd "python3 fake_runner.py"
+wave 0       2 scope(s)  validated 2
+
+$ cdp status
+tasks     run cdp-7e10575adf69
+    folded         root/src/main/java                       attempts 1
+    folded         root/(files+2)                            attempts 1
+```
+
+Both real scopes went `pending -> dispatched -> returned -> validated ->
+folded` end to end through the actual CLI (not the state-machine functions
+called directly), coverage stayed 100% (the module's 41 structural claims,
+untouched by this run, already covered it), and `status`'s new task table
+rendered correctly. Scratch dir removed after.
+
+**Test coverage.** `tests/test_supervisor.py` (new, 4 tests): a scripted
+runner drives one scope through `expired -> invalid -> empty -> abandoned`
+in one dispatch call (a spy on `upsert_task` proves every intermediate state
+was actually written, not just the final one), a second scope through
+`anchors_failed -> validated -> folded` (a fabricated anchor demotes the
+first attempt's claim entirely under strict mode, a clean claim on the
+retry survives), and two CLI end-to-end tests (`cdp run --wave 0` against a
+real scan folds and marks every task `folded`; `cdp run --stale-only` with
+nothing stale exits cleanly, printing "zero scopes need review," per the
+plan's own stress-test row). Full suite: 345 tests (up from 339 pre-M5.1's
+own two new files, +6 from this session's `test_supervisor.py`... `git diff
+--stat` shows the exact count), all green; vendored copy re-synced via
+`cdp install --self` before the gate.
+
+**Out of scope this session, unimplemented:** M5.4 (leases -- heartbeat,
+atomic acquisition, "two supervisors" stress test), M5.5 (`--resume`,
+partition-drift guard, `--max-attempts` as a CLI flag rather than
+`supervisor.MAX_ATTEMPTS`'s hardcoded default), M5.6 (fixed-overhead
+measurement, the batching decision).
+
+---
+
+## Phase 5 (M5.4) — leases, held by the supervisor
+
+Scoped to M5.4 only this session, by explicit user choice (M5.5/M5.6 remain
+deferred — the user was asked directly, given the remaining phase's real
+concurrency/crash-simulation weight, and chose leases first).
+
+**What shipped.** `SqliteStore.acquire_lease(run_id, scope_hash,
+lease_seconds)` (new): one atomic `UPDATE ... WHERE lease_until IS NULL OR
+lease_until < now()`, falling back to an `INSERT` for a scope's first-ever
+claim (guarded by the table's existing `(run_id, scope_hash)` primary key
+against a same-instant race on that insert). `heartbeat_lease`/`release_lease`
+round out the trio. `supervisor.py` gains `_LeaseHeartbeat`, a background
+thread started around every `runner.run()` call that renews the lease every
+`HEARTBEAT_SECONDS` (30) for up to `LEASE_SECONDS` (90) — the numbers
+`phase_5_plan.md` M5.4 names directly, still a constant because there is no
+per-`dim_tier` p99 to derive a ceiling from until Phase 9's star exists (the
+plan says so explicitly; this session records `wall_ms` per task, a new
+`snapshot_task` column via `SCHEMA_V5`, so that ceiling has real data to
+replace the constant with later). `dispatch_scope` returns `None` — not any
+task state — for a scope another live supervisor already holds the lease
+for; `run_wave` filters those out of its results rather than reporting them
+as any of M5.2's task states, since "someone else is working this" is not a
+outcome this process produced.
+
+**Why a background thread and not a between-attempts check.** The one place
+`dispatch_scope` blocks is inside `runner.run()`, which can run for an
+unbounded time (a slow frontier model, or literally forever per the plan's
+own stress-test row). A lease held only at dispatch time would let another
+supervisor reclaim a scope out from under a runner that is still working,
+the moment `LEASE_SECONDS` elapses — the heartbeat thread is what keeps a
+genuinely long-but-alive call safe, proven directly
+(`tests/test_supervisor.py` `HangingRunnerLeaseTest`: a runner that sleeps
+longer than one lease period; a second, independent `SqliteStore` connection
+attempts to steal the lease mid-sleep and fails, then succeeds immediately
+once the scope reaches a terminal state and releases it).
+
+**`check_same_thread=False` on the connection (`sqlite_backend.py`).** The
+heartbeat thread and the main thread both touch the same `SqliteStore`'s
+connection, but never concurrently — the main thread is parked inside
+`runner.run()` while the heartbeat fires, not racing it — so this is safe
+without adding a lock of this module's own. Also added: `PRAGMA busy_timeout
+= 5000`, since two *separate* `SqliteStore` connections (two real supervisor
+processes) racing the same lease row is now a real code path, not a
+hypothetical one, and the loser should lose the race cleanly (0 rows
+affected) rather than raising `database is locked`.
+
+**Test coverage, both stress-test rows the plan names by name.**
+`tests/test_supervisor.py`, 5 new tests, all at millisecond lease durations
+(the mechanism is duration-independent; a fast suite proves it the same as a
+slow one, per `PHASE/EXECUTION_RULES.md` R-E5): atomic acquisition (a second
+connection gets nothing while the first holds it — "two supervisors, same
+run" from the plan's stress-test table, verbatim), release-then-reacquire,
+expiry-based reclaim with no heartbeat (simulating a dead process — "kill
+the supervisor mid-wave" from the acceptance criterion, at the mechanism
+level), heartbeat keeping a live holder's lease alive past what the bare
+lease duration would allow, and `HangingRunnerLeaseTest` — the plan's
+"runner hangs forever... lease expiry is the only thing that saves the run"
+row, driven through the real `dispatch_scope`, not a synthetic timer.
+
+**Real-target exercise (R-E7).** `sql-pool/sql-pool-api` scanned fresh into
+a scratch dir; `acquire_lease`/`release_lease` exercised directly against
+that real `index.db` via two independent `SqliteStore` connections (see
+`PHASE/TARGET.md` for the transcript) — atomicity and reclaim hold against a
+real scanned store, not only the fixture. Scratch dir removed after.
+
+**Not done this session, by the scoping choice above.** `--max-attempts`
+stays `supervisor.MAX_ATTEMPTS`'s hardcoded `3`, not yet a CLI flag (M5.5).
+`cdp run` does not yet call `acquire_lease` for a *second concurrent process*
+in practice — nothing launches two `cdp run` invocations against one run
+today — so the atomicity this session proves is proven at the backend level
+(two connections, real races) and is ready for M5.5/a future concurrent
+driver to exercise end-to-end, not yet exercised through two live `cdp run`
+CLI processes. The `ARCHITECTURE.md` crash scenario (2 reclaimed, 1
+dispatched, 13 folded untouched) is M5.5's acceptance line, not this one's —
+this session proves the lease primitive it depends on.
+
+---
+
+## Phase 5 (M5.5) — `--resume`, the partition-drift guard, and `--max-attempts`
+
+Scoped to M5.5/M5.6 only this session (M5.1-M5.4 already landed; `phase_5_
+plan.md`'s remaining two milestones). `cdp/store/sqlite_backend.py` gains
+three methods: `get_run` (the `snapshot_run` row, or `None`), `reclaim_expired`
+(moves any `dispatched` task past its lease to `expired`, returning the
+`scope_hash`es reclaimed), and `copy_folded_tasks` (carries a `folded` row
+from one run into another verbatim — only `folded` rows, an unfinished scope
+has nothing worth inheriting). `supervisor.dispatch_scope`/`run_wave` take
+`max_attempts` as a parameter (default still `MAX_ATTEMPTS = 3`) instead of
+reading the module constant directly, and `run_wave` takes `skip_hashes` — a
+set of scope hashes to leave alone entirely, never dispatched, never reported.
+
+**`cmd_run`'s resume logic (`cdp/cli.py`).** `partition_hash` is computed
+fresh on every invocation: `stable_hash(sorted((node, scope_hash) for every
+scope in the current partition))`. Compared against `snapshot_run.partition_
+hash` (already schema-present since Phase 2, unused until now):
+
+- **No `--resume` flag:** unchanged from before this session — `begin_run` is
+  idempotent (reuses the row if one exists), everything asked for is
+  redispatched from a fresh `--max-attempts` budget. Not a regression: this is
+  what "invoked again by hand" already did pre-M5.5, per M5.3's own docstring.
+- **`--resume`, partition unchanged:** `reclaim_expired` runs first (any task
+  still `dispatched` past its lease — the supervisor that held it is presumed
+  dead), then every `folded` scope's hash is collected into `skip_hashes` so
+  `run_wave` leaves it alone. This is the crash-and-resume path.
+- **`--resume`, partition differs:** a new run id (`<run_id>-rN`, first unused
+  `N`) is opened with the new `partition_hash`. Every scope this run's old
+  `folded` set contains **whose `scope_hash` still appears in the new
+  partition** (content unchanged) has its task row copied into the new run and
+  is added to `skip_hashes`; everything else is re-queued under the new run.
+  This is the answer to Phase 3's open interaction (a refresh landing mid-run
+  changes the partition) named in `phase_5_plan.md` M5.5.
+
+**Decision (D-M5.5a): attempt-count continuity is not preserved across a
+reclaim.** A scope reclaimed from `dispatched`/`expired` re-enters
+`dispatch_scope` and runs a fresh `1..max_attempts` loop rather than resuming
+from wherever its attempt counter stood before the crash. The plan's
+acceptance criteria (the `ARCHITECTURE.md` crash scenario: reclaimed / pending
+/ folded counts, and the partition-drift new-run test) are both stated at the
+*task-state* granularity, not the attempt-count one, and preserving exact
+attempt continuity across a process crash would require persisting and
+resuming the retry loop's internal state — a materially bigger change than
+this milestone's own text asks for. Flagged, not implemented: a scope that
+crashed on its 2nd of 3 attempts effectively gets a fresh 3-attempt budget on
+resume rather than one more attempt. Own it if `--max-attempts` under
+frequent crash-resume cycles is ever observed burning more attempts than
+intended.
+
+**Decision (D-M5.5b): a partition-drift resume does not update `manifest.
+run_id`.** `cmd_status` reads `run_id` from `manifest.json`, which still names
+the *original* run after a drift-triggered new run opens — an operator running
+bare `cdp status` after a mid-run `refresh` would not see the new run's task
+table without knowing to look for `<run_id>-r2`. Not fixed here: the plan
+specifies the guard's *dispatch* behaviour (inherit unchanged, re-queue the
+rest), not `status`'s display of it, and writing a new `run_id` into the
+manifest on every `cdp run` invocation (rather than only scan/collect writing
+it, today's convention) is its own decision outside this milestone's scope.
+
+**Real-target exercise (R-E7), not just the fixture.** `sql-pool/sql-pool-api`
+scanned fresh into a scratch dir; `cdp run --wave-all` folded both real scopes,
+one task row was force-set back to `dispatched` with a lapsed lease (simulating
+a crash), and `cdp run --wave-all --resume` reclaimed exactly that one scope
+and left the other `folded` and untouched — see `PHASE/TARGET.md` for the
+transcript. The partition-drift branch is exercised only at fixture scale
+(`tests/test_supervisor.py`
+`test_resume_with_changed_partition_opens_a_new_run_inheriting_unchanged_scopes`)
+— reproducing it against the real target would need a second real scratch
+scan after editing a tracked file, deferred for this session's budget (see
+`PHASE/TARGET.md`).
+
+**Test coverage.** `tests/test_store_sqlite.py` `TestRunsAndTasks`: 3 new
+tests (`get_run`, `reclaim_expired` moving only past-lease `dispatched` rows,
+`copy_folded_tasks` copying only `folded` rows). `tests/test_supervisor.py`
+`RunCommandEndToEndTest`: 2 new tests, both driving the real `cdp run` CLI via
+subprocess — the crash-and-resume scenario above, and the partition-drift
+new-run scenario (edit a tracked file, re-scan, `--resume`, assert the new
+`<run_id>-r2` run's task table shows the untouched scope still `folded`).
+
+---
+
+## Phase 5 (M5.6) — fixed overhead measured, batching decision recorded
+
+`CDP_CLI_SCOPE.md` marks per-leaf fixed overhead "unverified — measure first"
+and the plan forbids implementing batching before that measurement.
+`cdp/prompts.py`'s `build_prompt` now tracks each of its six named sections'
+character counts (`section_chars`) and a crude chars/4 token estimate
+(`CHARS_PER_TOKEN_EST = 4`, documented as an estimate, not a real tokenizer).
+`header` and `task` are the two sections whose size is a function of `node`/
+`run_id` only, not of scope content — the part of the cost that scales with
+*scope count* rather than code size, which is exactly the shape a wrong cost
+curve would have. `cdp prompts --measure` (new flag) sums this across every
+matched scope and prints the fixed/variable split instead of the usual
+per-scope summary.
+
+**Measured, on `sql-pool/sql-pool-api`'s 2 real scopes:**
+
+```
+fixed     757 tokens_est (378/leaf avg)
+variable  11601 tokens_est (5800/leaf avg)
+total     12358 tokens_est (6179/leaf avg)
+```
+
+**~378 tokens/leaf of CDP's own fixed template overhead, not ~10k.** At the
+full `$TARGET_REPO` scale (172 scopes, `PHASE/TARGET.md`'s census), this
+projects to roughly 65k tokens of fixed template overhead total — a real cost,
+but nowhere near the "170k of overhead scaling with scope count" the plan
+poses as the thing to check for, and small relative to the ~5.8k tokens/leaf
+of variable (scope-specific) content already being sent.
+
+**Batching decision: not implemented, and this measurement is why.** The
+plan's own instruction is explicit — batch only if overhead is large enough
+that batching buys something, because batching adds a real failure mode (one
+bad scope's malformed JSON poisoning the whole batch's parse) that a
+per-scope dispatch does not have. At ~378 tokens/leaf of *template* overhead,
+batching 6-8 scopes per call would save on the order of 2-3k tokens per call
+— not nothing, but not the order-of-magnitude problem that would justify
+trading away per-scope isolation. **Not implemented.**
+
+**What this number does not cover, stated rather than left implicit.** This
+measures CDP's own prompt template only. It is *not* a real tokenizer's count
+(the chars/4 heuristic is stated as such in the code and the CLI's own
+output), and it does not include the system-prompt-plus-tool-definitions
+overhead a real agent framework pays before reading anything — the exact
+concern `phase_5_plan.md` M5.6 names first ("each leaf pays a system prompt
+plus tool definitions before reading anything"). That overhead lives outside
+this codebase, in whichever runner/framework a leaf actually runs under
+(Phase 9's LiteLLM adapter and provider-specific system prompts), and remains
+unmeasured — this session measures the one component CDP itself controls and
+records that the other component is still an open question for whoever wires
+up a real framework runner.
+
+**Test coverage.** No test asserts an exact token count (the count is a
+measurement artifact, not a behavioural contract); `tests/test_pipeline.py`
+`TestCli` gains one new test driving `cdp prompts --measure` through the real
+CLI and asserting the fixed/variable/total lines are present.

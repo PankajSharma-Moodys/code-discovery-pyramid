@@ -86,16 +86,20 @@ def gate_negative_entailment(unknown: Dict, edges_by_key: Dict[Tuple[str, str], 
 
 
 def provenance_state(node: str, task_rows: Optional[Dict[str, Dict]]) -> str:
-    """Gate 3. Reads `snapshot_task` (0.12) -- schema-only today, since no
-    dispatch loop exists to write it before Phase 5. `task_rows` is therefore
-    `{}` for every real caller right now, and every node resolves to
-    `unexamined`; the gate is wired so a future writer needs no change here."""
+    """Gate 3. Reads `snapshot_task` (0.12), written since M5.2 by
+    `supervisor.dispatch_scope` -- `task_rows` is `{}` only for a node no run
+    has touched yet, or for any store predating a real writer. A `folded` row
+    means the scope was actively, successfully examined and this question
+    still stands -- genuinely `unknown`. An `abandoned` row (M5.2's own
+    terminal failure state, after `supervisor.MAX_ATTEMPTS`) means CDP tried
+    and could not resolve it."""
     row = (task_rows or {}).get(node)
     if row is None:
         return UNEXAMINED
-    if row.get("state") == "complete":
+    state = row.get("state")
+    if state == "folded":
         return UNKNOWN
-    if int(row.get("attempts") or 0) >= 3:
+    if state == "abandoned":
         return ABANDONED
     return UNEXAMINED
 

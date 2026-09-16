@@ -539,3 +539,126 @@ appended and folded; `cdp rollback --to-run <bad-run>` excluded it and
 restored exactly 41 claims; `fold --check` passed against the new ledger;
 `cdp query claims --as-of <root-run>` reproduced the same 41-claim answer
 read-only. Scratch directory removed after the exercise.
+
+## Phase 5 (M5.1) — runner protocol exercised on a real prompt/patch pair
+
+Scoped to M5.1 only this session (`PHASE/FINDINGS.md` D26-D27 have the
+design; M5.2-M5.6 deferred — the phase's remaining milestones carry real
+concurrency/crash-simulation weight that does not compress into one
+sitting). `sql-pool/sql-pool-api` scanned fresh into a scratch dir (0.34s);
+`cdp prompts` produced two real scope prompts, one (`root/(files+2)`) with a
+node name containing `/`, `(` and `+` — a real case for the inbox
+`__`-replacement convention, not a synthetic one. `SubprocessRunner` (M5.1's
+reference runner) was pointed at that real prompt file and wrote a real
+patch to the exact `patches/inbox/root__(files+2).json` path `cdp prompts`'
+own docstring specifies; `cdp collect` accepted it unmodified (`accepted 1,
+rejected 0`, `41/41 claims kept`) — the file-handoff contract holds against
+real node names. Scratch directory removed after the exercise.
+
+## Phase 5 (M5.2-M5.3) — the task state machine and `cdp run`, exercised on a real module
+
+Scoped to M5.2/M5.3 only this session (`PHASE/FINDINGS.md` D28-D31 have the
+design; M5.4-M5.6 deferred). `sql-pool/sql-pool-api` scanned fresh into a
+scratch dir; `cdp run --wave-all` driven through a real external `--runner-cmd`
+script (not an in-process stub) that always contributes a scope-level unknown
+and no claims:
+
+```
+$ cdp run --wave-all --runner-cmd "python3 fake_runner.py"
+wave 0       2 scope(s)  validated 2
+
+$ cdp status
+tasks     run cdp-7e10575adf69
+    folded         root/src/main/java                       attempts 1
+    folded         root/(files+2)                            attempts 1
+```
+
+Both real scopes went `pending -> dispatched -> returned -> validated ->
+folded` end to end through the actual CLI, coverage held at 100% (the
+module's 41 pre-existing structural claims), and `status`'s new per-run task
+table rendered correctly. Scratch directory removed after the exercise.
+
+`make check TARGET_REPO=...` (selftest 345 tests, determinism x2,
+fold --check x2, golden x2): **all gates green, golden baseline byte-identical,
+no re-bless needed** — `cdp run`/`supervisor.py` are additive and untouched by
+`scan`/`fold --check`/`golden`'s own pipeline (`make check` never invokes
+`cdp run`), so nothing in `state.json`'s shape moved.
+
+## Phase 5 (M5.4) — leases, exercised on a real scratch scan of `sql-pool-api`
+
+Scoped to M5.4 only this session (`PHASE/FINDINGS.md` has the full account;
+M5.5/M5.6 deferred to their own sessions, per the user's explicit scoping
+choice this session — the remaining milestones carry independent
+crash/measurement weight that does not compress into one sitting). A fresh
+scan of `sql-pool/sql-pool-api` into `/tmp/m54_scratch` (removed after the
+exercise) was used to exercise the new `SqliteStore.acquire_lease`/
+`heartbeat_lease`/`release_lease` directly against real target state, via two
+independent connections to the same `index.db`:
+
+```
+acquire (A):                                              True
+acquire (B), same live lease:                              False
+acquire (B) after release:                                 True
+acquire (A) after B's lease expired (simulated death):      True
+```
+
+Atomic acquisition, no double-claim across two live connections, and
+expiry-based reclaim all hold against a real scanned store, not just the
+fixture-scale unit tests (`tests/test_supervisor.py` `LeaseTest`,
+`HangingRunnerLeaseTest` — 5 new tests, all passing at millisecond lease
+durations so the suite stays fast; the real 90s/30s constants are exercised
+only by construction, not by a real-time wait, per `PHASE/EXECUTION_RULES.md`
+R-E2/R-E5).
+
+`make check TARGET_REPO=...` (below) is the full-target confirmation that
+nothing about `scan`/`fold --check`/`golden`'s own pipeline moved — leases are
+additive `snapshot_task` bookkeeping (`wall_ms` column, SCHEMA_V5) that
+`cmd_run` alone writes, and `make check` never invokes `cdp run`.
+
+## Phase 5 (M5.5-M5.6) — `--resume` and the fixed-overhead measurement, on a real scratch scan
+
+Scoped to M5.5/M5.6 only this session (M5.1-M5.4 already landed). `sql-pool/
+sql-pool-api` scanned fresh into `/tmp/m55_scratch` (removed after the
+exercise). `cdp run --wave-all` (fake runner) folded both real scopes, then a
+crash was simulated by force-setting one already-`folded` task back to
+`dispatched` with a lapsed lease directly in `index.db`:
+
+```
+$ cdp run --wave-all --resume --runner-cmd "python3 fake_runner.py"
+resume    run cdp-7e10575adf69: partition unchanged, reclaimed 1 task(s) past lease
+wave 0       1 scope(s)  validated 1
+```
+
+Exactly one scope redispatched (the reclaimed one); the other stayed `folded`
+and untouched — the concrete form of "leave folded tasks untouched and
+unpaid-for again" against real target state, not a synthetic count. The
+partition-drift path (file edit -> new `scope_hash` -> new run opening,
+inheriting the unchanged scope) is exercised at fixture scale only
+(`tests/test_supervisor.py` `RunCommandEndToEndTest`
+`test_resume_with_changed_partition_opens_a_new_run_inheriting_unchanged_scopes`)
+— reproducing it against this target would need a second real scratch scan
+after editing a tracked file, which this session's budget did not allot
+alongside the crash-scenario exercise above.
+
+`cdp prompts --measure` on the same scratch scan (M5.6, 4.9 — `CDP_CLI_SCOPE.md`
+marks this "unverified, measure first"):
+
+```
+measured  2 leaf prompt(s), chars/4 token estimate (not a real tokenizer)
+  structure     26122 chars  (13061/leaf avg)
+  inherited     11713 chars  (5856/leaf avg)
+  files          5457 chars  (2728/leaf avg)
+  gaps           3115 chars  (1557/leaf avg)
+  task           2446 chars  (1223/leaf avg)
+  header          585 chars  (292/leaf avg)
+total     12358 tokens_est (6179/leaf avg)
+fixed     757 tokens_est (378/leaf avg) -- header+task, independent of scope content
+variable  11601 tokens_est (5800/leaf avg)
+```
+
+**The measured number is ~378 tokens/leaf, not ~10k.** See `PHASE/FINDINGS.md`
+for the batching decision this number drives, and the caveat about what it
+does and does not cover (CDP's own prompt template only — not a real model's
+tokenizer, and not the system-prompt/tool-definition overhead a real agent
+framework adds on top, which lives outside this codebase and Phase 9's
+runner adapters).

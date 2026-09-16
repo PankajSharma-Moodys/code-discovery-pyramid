@@ -325,6 +325,26 @@ class TestCli(unittest.TestCase):
             self.assertIn("read these files and only these files", text)
             self.assertIn("Structure already extracted", text)
 
+    def test_prompts_measure_reports_fixed_and_variable_tokens(self):
+        """M5.6 (4.9): `--measure` prints the fixed/variable split instead of
+        the usual per-scope summary."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            state = Path(tmp) / "state"
+            subprocess.run(
+                [sys.executable, str(RUN_PY), "scan", "--repo", str(repo),
+                 "--state-dir", str(state), "--quiet"], check=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(RUN_PY), "prompts", "--repo", str(repo),
+                 "--state-dir", str(state), "--measure"],
+                check=True, capture_output=True, text=True,
+            )
+            self.assertIn("measured", result.stdout)
+            self.assertIn("fixed", result.stdout)
+            self.assertIn("variable", result.stdout)
+            self.assertIn("total", result.stdout)
+            self.assertNotIn("BUDGET FIRED", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
