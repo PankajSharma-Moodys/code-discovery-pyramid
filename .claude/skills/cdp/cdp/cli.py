@@ -43,6 +43,7 @@ from . import golden as golden_mod
 from . import graph as graph_mod
 from . import helpdoc
 from . import inventory as inventory_mod
+from . import link as link_mod
 from . import partition as partition_mod
 from . import query as query_mod
 from . import refresh as refresh_mod
@@ -71,6 +72,7 @@ from .util import (
     write_json,
     write_text,
 )
+import json
 from .inventory import ROOT_MODULE as ROOT_MODULE_LABEL
 from .verify import STRICT
 
@@ -238,6 +240,72 @@ def _parser() -> argparse.ArgumentParser:
     df.add_argument("new_state", help="state directory of the later snapshot")
     df.add_argument("--json", action="store_true")
     df.set_defaults(func=cmd_diff)
+
+    lk = add("link", "who calls this service / what publishes to this topic, "
+                      "across modules and across snapshots (Phase 8, M8.1-M8.2)")
+    lk_sub = lk.add_subparsers(dest="link_command")
+    lks = lk_sub.add_parser("scan", help="match channel edges within and across scanned "
+                                          "state directories -- read-only, writes no snapshot")
+    lks.add_argument("state_dirs", nargs="+", metavar="STATE_DIR",
+                      help="one or more scanned state directories. Each is exploded by its "
+                           "edges' own `module` tag before matching, so one whole-monorepo "
+                           "scan already surfaces cross-module links; passing several state "
+                           "dirs additionally matches across snapshots (5.5: a link is "
+                           "between snapshots, not repos)")
+    lks.add_argument("--json", action="store_true")
+    lks.add_argument("--db", default=None,
+                      help="also persist this scan's links/unmatched calls into the "
+                           "link.* namespace of the store resolved the same way every "
+                           "other command's does (`.cdp.toml` -> registry -> cwd/.cdp, "
+                           "default sqlite, D3) -- replaces prior contents, since link "
+                           "data is fully derived (R3). Pass an explicit path to persist "
+                           "into a store other than the one this invocation resolves to")
+    lks.set_defaults(func=cmd_link_scan)
+
+    lkq = lk_sub.add_parser("query", help="who calls a service / what it calls that "
+                                           "is not registered anywhere -- from the last "
+                                           "persisted `link scan --db`")
+    lkq.add_argument("--db", default=None,
+                      help="read from this SqliteStore's link.* namespace instead of "
+                           "the one this invocation resolves to (same default-resolution "
+                           "rule as every other command, `.cdp.toml`/registry/cwd, D3)")
+    lkq.add_argument("--service", required=True, help="repo name/identifier to query, "
+                                                        "as it appears in a scanned manifest's `repo` field")
+    lkq.add_argument("--json", action="store_true")
+    lkq.set_defaults(func=cmd_link_query)
+
+    lkp = lk_sub.add_parser("prompts", help="write one prompt per ambiguous (heuristic) "
+                                             "link, from a prior `link scan --db` (M8.3, 5.2)")
+    lkp.add_argument("--db", default=None,
+                      help="read from / write back into this SqliteStore's link.* "
+                           "namespace instead of the one this invocation resolves to")
+    lkp.add_argument("--out", required=True, help="directory to write tasks/, tasks.json, "
+                                                    "inbox/ into")
+    lkp.add_argument("--runner-cmd", default=None,
+                      help="if set, immediately run each task's prompt through this "
+                           "command via runner.SubprocessRunner (same protocol `cdp run` "
+                           "uses) and write its patch into --out/inbox/")
+    lkp.set_defaults(func=cmd_link_prompts)
+
+    lkc = lk_sub.add_parser("collect", help="validate+verify+entail+fold every patch "
+                                             "left in a `link prompts --out`'s inbox/ (M8.3)")
+    lkc.add_argument("--db", default=None,
+                      help="read from / write back into this SqliteStore's link.* "
+                           "namespace instead of the one this invocation resolves to")
+    lkc.add_argument("--in", dest="in_dir", required=True,
+                      help="the directory a prior `link prompts --out` wrote")
+    lkc.set_defaults(func=cmd_link_collect)
+
+    lkr = lk_sub.add_parser("refresh", help="re-verify a prior `link scan --db`'s contracts "
+                                             "against freshly scanned state directories (M8.4, 5.3)")
+    lkr.add_argument("state_dirs", nargs="+", metavar="STATE_DIR",
+                      help="freshly scanned state directories for the repo(s) being refreshed "
+                           "-- a repo not named here is left byte-identical in the persisted report")
+    lkr.add_argument("--json", action="store_true")
+    lkr.add_argument("--db", default=None,
+                      help="the store holding the prior `link scan --db` to refresh, resolved "
+                           "the same way every other command's is if omitted")
+    lkr.set_defaults(func=cmd_link_refresh)
 
     gc = add("gc", "drop snapshots not kept by the retention rule")
     gc.add_argument("--db", default=None,
@@ -1513,6 +1581,234 @@ def cmd_diff(args) -> int:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print("\n".join(diffs_mod.summarise(result)))
+    return 0
+
+
+# -------------------------------------------------------------------- link
+
+
+def cmd_link_scan(args) -> int:
+    """M8.1: read-only across N already-scanned state directories -- N may be
+    1, since `link.scan_links` explodes each state dir's pooled edges by
+    their own `module` tag before matching, so a single whole-monorepo scan
+    already yields cross-module links. R3 -- `link scan` never opens a store
+    for writing and never touches `snapshot.*`/`claim.*`; it only reads each
+    store's `dataflow.json` and `manifest.json` (for the `(repo, head)`
+    identity 5.5 requires).
+    """
+    snapshots = []
+    stores = []
+    try:
+        for d in args.state_dirs:
+            store = query_mod.Store(Path(d).expanduser().resolve())
+            stores.append(store)
+            snapshots.append(
+                {
+                    "repo": store.manifest.get("repo", d),
+                    "head": store.manifest.get("head", "?"),
+                    "dataflow": store.dataflow,
+                }
+            )
+        report = link_mod.scan_links(snapshots)
+    finally:
+        for store in stores:
+            store.close()
+    paths = _paths(args)
+    db_store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    try:
+        if not db_store.supports_link_edges():
+            raise CdpError(
+                "%s cannot back `cdp link scan --db` -- needs the sqlite backend "
+                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(db_store).__name__
+            )
+        db_store.write_link_edges(report)
+    finally:
+        db_store.close()
+    if args.json:
+        print(__import__("json").dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print("\n".join(link_mod.summarise(report)))
+    return 0
+
+
+def _read_link_report(store) -> Dict:
+    edges = store.read_link_edges()
+    return {
+        "links": [e["data"] for e in edges if e["kind"] == "link"],
+        "unmatched": [e["data"] for e in edges if e["kind"] == "unmatched"],
+    }
+
+
+def cmd_link_prompts(args) -> int:
+    """M8.3 (5.2): the LLM tier fires only on ambiguous (`heuristic`) matches
+    a prior `link scan --db` already persisted. Writes one prompt per
+    distinct ambiguous caller target (`link.build_tasks` groups candidates so
+    "three concatenations" become one question), plus `tasks.json` --
+    `link collect`'s own validation reference for what each task actually
+    showed the model, so a resolution's citation can be checked against it.
+
+    Reuses `runner.py`'s protocol wholesale (5.2, "mirrors the core loop
+    exactly"): with `--runner-cmd`, each task's prompt/patch pair is run
+    through the exact same `SubprocessRunner` `cdp run` uses, no
+    link-specific dispatch code.
+    """
+    paths = _paths(args)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    try:
+        if not store.supports_link_edges():
+            raise CdpError(
+                "%s cannot back `cdp link prompts` -- needs the sqlite backend "
+                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(store).__name__
+            )
+        report = _read_link_report(store)
+    finally:
+        store.close()
+
+    tasks = link_mod.build_tasks(report)
+    out_dir = Path(args.out).expanduser().resolve()
+    (out_dir / "tasks").mkdir(parents=True, exist_ok=True)
+    (out_dir / "inbox").mkdir(parents=True, exist_ok=True)
+    write_json(out_dir / "tasks.json", tasks)
+
+    runner = runner_mod.SubprocessRunner(args.runner_cmd.split()) if args.runner_cmd else None
+    ran = 0
+    for task in tasks:
+        prompt_path = out_dir / "tasks" / (task["task_id"] + ".md")
+        write_text(prompt_path, link_mod.render_task_prompt(task))
+        if runner is not None:
+            patch_path = out_dir / "inbox" / (task["task_id"] + ".json")
+            result = runner.run(prompt_path, patch_path)
+            print("  %-20s %s%s" % (task["task_id"], "ok" if result.ok else "FAILED",
+                                     "" if result.ok else ": %s" % result.error))
+            ran += 1
+    print("link prompts  %d ambiguous task(s) -> %s%s"
+          % (len(tasks), out_dir, "  (ran %d via --runner-cmd)" % ran if runner else ""))
+    return 0
+
+
+def cmd_link_collect(args) -> int:
+    """M8.3 (5.2): validate -> verify -> entail -> fold, for link-task
+    patches only -- `link.validate_task_patch` is the validate+verify+entail
+    step (closed verdict vocabulary, no fabricated citation), matching
+    `cmd_collect`'s own shape for the single-repo case one function up, not
+    the same function, since a link task's patch is a handful of fields
+    against a cross-repo candidate set rather than a scope's full claim
+    schema. Accepted resolutions attribute onto their link by `link_id`
+    (never touching `match_kind`, M8.1's own closed vocabulary) and are
+    persisted back the same way `link scan --db` writes -- R3 still holds,
+    nothing here touches `snapshot.*`/`claim.*`.
+    """
+    in_dir = Path(args.in_dir).expanduser().resolve()
+    tasks = {t["task_id"]: t for t in read_json(in_dir / "tasks.json")}
+
+    paths = _paths(args)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    try:
+        if not store.supports_link_edges():
+            raise CdpError(
+                "%s cannot back `cdp link collect` -- needs the sqlite backend "
+                "(pass --db, or set \"backend = \\\"sqlite\\\"\" in .cdp.toml)" % type(store).__name__
+            )
+        report = _read_link_report(store)
+        run_id = "cdp-link"
+        accepted = 0
+        rejected = []
+        folded = 0
+        for patch_path in sorted((in_dir / "inbox").glob("*.json")):
+            try:
+                patch = json.loads(patch_path.read_text(encoding="utf-8"))
+            except ValueError as exc:
+                rejected.append((patch_path.name, ["not valid JSON: %s" % exc]))
+                continue
+            task = tasks.get(patch.get("task_id"))
+            if task is None:
+                rejected.append((patch_path.name, ["/task_id: %r is not a known task" % patch.get("task_id")]))
+                continue
+            errors = link_mod.validate_task_patch(patch, task)
+            if errors:
+                rejected.append((patch_path.name, errors))
+                continue
+            accepted += 1
+            folded += link_mod.fold_resolutions(report, task, patch, run_id)
+        store.write_link_edges(report)
+    finally:
+        store.close()
+
+    print("link collect  accepted %d, rejected %d, %d resolution(s) folded"
+          % (accepted, len(rejected), folded))
+    for name, errors in rejected:
+        print("  REJECTED %s: %s" % (name, "; ".join(errors[:4])))
+    return 0
+
+
+def cmd_link_refresh(args) -> int:
+    """M8.4 (5.3): re-verify a prior `link scan --db`'s contracts against
+    freshly scanned state directories for the repo(s) named here, mirroring
+    Phase 3's refresh semantics (D10) -- an endpoint that still exists
+    carries forward re-anchored; one that vanished decays with a stated
+    reason. R3 still holds: nothing here touches `snapshot.*`/`claim.*`, and
+    a repo not named in `state_dirs` is left byte-identical in the persisted
+    report (5.5).
+    """
+    snapshots = []
+    stores = []
+    try:
+        for d in args.state_dirs:
+            store = query_mod.Store(Path(d).expanduser().resolve())
+            stores.append(store)
+            snapshots.append(
+                {
+                    "repo": store.manifest.get("repo", d),
+                    "head": store.manifest.get("head", "?"),
+                    "dataflow": store.dataflow,
+                }
+            )
+    finally:
+        for store in stores:
+            store.close()
+
+    paths = _paths(args)
+    db_store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    try:
+        if not db_store.supports_link_edges():
+            raise CdpError(
+                "%s cannot back `cdp link refresh` -- needs the sqlite backend "
+                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(db_store).__name__
+            )
+        old_report = _read_link_report(db_store)
+        report = link_mod.refresh_links(old_report, snapshots)
+        db_store.write_link_edges(report)
+    finally:
+        db_store.close()
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print("\n".join(link_mod.summarise_refresh(report)))
+    return 0
+
+
+def cmd_link_query(args) -> int:
+    """M8.2 (5.6): reads back the `link.*` rows a prior `link scan --db`
+    persisted and renders what touches one service -- links either direction,
+    and that service's own unmatched outbound calls as a named deliverable
+    rather than an absence.
+    """
+    paths = _paths(args)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    try:
+        if not store.supports_link_edges():
+            raise CdpError(
+                "%s cannot back `cdp link query` -- needs the sqlite backend "
+                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(store).__name__
+            )
+        edges = store.read_link_edges()
+    finally:
+        store.close()
+    result = link_mod.query_service(edges, args.service)
+    if args.json:
+        print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    else:
+        print("\n".join(link_mod.summarise_query(result)))
     return 0
 
 

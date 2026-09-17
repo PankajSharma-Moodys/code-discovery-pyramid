@@ -285,6 +285,31 @@ class SqliteStore(WorkspaceStore):
         if cur.rowcount == 0:
             raise CdpError("no snapshot for commit %s in %s" % (commit_sha, self.db_path))
 
+    # ------------------------------------------------------- link.* (M8.2)
+
+    def supports_link_edges(self) -> bool:
+        return True
+
+    def write_link_edges(self, report: Dict) -> None:
+        """Replaces `link_edge`'s contents with one row per link and one per
+        unmatched outbound call from `report` (`link.scan_links`'s return
+        value). `link.*` is fully derived from a fresh `link scan` -- there is
+        no history to append to, so each call is a full replace, not an
+        insert (R3: link data is disposable, unlike `snapshot.*`/`claim.*`).
+        """
+        self._conn.execute("DELETE FROM link_edge")
+        entries = [{"kind": "link", "data": l} for l in report["links"]]
+        entries += [{"kind": "unmatched", "data": u} for u in report["unmatched"]]
+        self._conn.executemany(
+            "INSERT INTO link_edge (payload) VALUES (?)",
+            [(json.dumps(e, sort_keys=True),) for e in entries],
+        )
+        self._conn.commit()
+
+    def read_link_edges(self) -> List[Dict]:
+        rows = self._conn.execute("SELECT payload FROM link_edge ORDER BY id").fetchall()
+        return [json.loads(r[0]) for r in rows]
+
     def delete_snapshot(self, snapshot_id: int) -> None:
         """Drops a snapshot and everything scoped to it. Never called for the
         snapshot `gc`'s own retention rule keeps (`snapshot.snapshots_to_keep`)."""

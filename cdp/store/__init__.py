@@ -182,6 +182,30 @@ class WorkspaceStore(ABC):
             % type(self).__name__
         )
 
+    # --------------------------------------------------------- link.* (M8.2)
+
+    def supports_link_edges(self) -> bool:
+        """Whether this backend can back `cdp link scan --db`/`cdp link
+        query` (Phase 8). `False` by default -- `FileStore` has no
+        `link_edge` table, and `PostgresStore` deliberately doesn't carry
+        `link.*` either (same posture as `link_run`/`link_task`, per
+        `postgres_backend.py`)."""
+        return False
+
+    def write_link_edges(self, report: Dict) -> None:
+        raise CdpError(
+            "%s cannot back `cdp link scan --db` -- needs the sqlite backend"
+            % type(self).__name__
+        )
+
+    def read_link_edges(self) -> List[Dict]:
+        """Honest empty, not a raise -- same posture as `list_snapshots`/
+        `task_states`: `supports_link_edges()` is what the CLI checks up
+        front for a clear refusal (`write_link_edges` raises there for the
+        same reason `compact` does), so a caller that got this far already
+        knows this backend has nothing to say."""
+        return []
+
     def dump_archive(self, partition: Optional[Dict] = None) -> List[Dict]:
         """M7.5: raw archived rows for `cdp export --format archive`. Same
         capability gate as `compact` -- a backend that cannot archive has

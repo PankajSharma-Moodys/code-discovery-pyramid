@@ -949,3 +949,168 @@ sqlite backend genuinely supports the capability.
 completes — see below) is the confirmation that adding `export`/
 `dump_archive` changed nothing about the existing `scan`/`fold`/`golden`
 pipeline, since no existing command calls the new code paths.
+
+## Phase 8 (M8.1 only) — `cdp link scan`, two real modules standing in for two repos
+
+Scoped to M8.1 only (`PHASE/FINDINGS.md` has the full account, including
+F-link1, a real matcher defect the exercise below found and fixed).
+`sql-pool/sql-pool-api` and `service-api` each scanned fresh into their own
+scratch state dir; `cdp link scan` run across both:
+
+```
+link      2 snapshot(s), 2697 link(s) (2697 exact, 0 heuristic), 1396 unmatched
+```
+
+All 2,697 matches are self-links (a module persisting to a table its own
+migration owns); 0 cross-repo matches between this specific pair (they share
+no table names); 1,396 unmatched `persist`/EF-Core-entity edges are a real,
+named boundary of what's mapped, not a matcher failure. `$TARGET_REPO` has no
+route-path or topic-carrying edges anywhere (Finding T1: no JS/TS files, and
+no extractor in this codebase emits a topic-specific event edge), so the
+plan's own "at least one route and one topic" acceptance line is unmet by
+real data — stated as a finding, not worked around with a fixture pair.
+Scratch directories removed after the exercise.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (475 tests,
+determinism fixture+target, `fold --check` fixture+target, golden
+fixture+target): **all gates green, byte-identical, no re-bless needed** —
+`link` is additive and untouched by the `scan`/`fold`/`golden` pipeline.
+
+### Follow-up — `link scan` on a single whole-repo scan, cross-module links confirmed real
+
+`PHASE/FINDINGS.md` has the account of the gap (link scan couldn't see
+cross-module edges within one snapshot) and the fix (explode by each edge's
+own `module` tag). Re-verified directly: one full `cdp scan --repo
+$TARGET_REPO` (5.97s) fed straight to `cdp link scan` with no other
+argument — 60 modules exploded, 3,330 `persist`↔`schema_own` matches, 350
+cross-module. Filtering out the known F2 `table:dbo` extractor artifact
+still leaves 84 real cross-module matches on distinct table names
+(`Property`, `Address`, `policyconditions`, `loccvg`, `FLDET`, ...) shared
+between `ms-sql-java/downgrade-processor`, `service-api`, `catalog-service`,
+and `exposure-snapshot` — a real answer to "what touches this table across
+services," from one ordinary scan of this target. Scratch state dir removed
+after the exercise. `make check TARGET_REPO=...` (478 tests, determinism
+fixture+target, `fold --check` fixture+target, golden fixture+target): all
+gates green, byte-identical, no re-bless needed.
+
+## Phase 8 (M8.2 only) — `link.*` persistence and `link query --service`, exercised on two real modules
+
+Scoped to M8.2 only this session (`PHASE/FINDINGS.md` has the full account;
+M8.3-M8.5 remain unstarted). `sql-pool/sql-pool-api` and `service-api` each
+scanned fresh into their own scratch state dir:
+
+```
+$ cdp link scan /tmp/m82_a /tmp/m82_b --db /tmp/m82_db/index.db
+link      2 snapshot(s), 5 module(s), 2697 link(s) (2697 exact, 0 heuristic), 1396 unmatched
+
+$ cdp link query --db /tmp/m82_db/index.db --service <service-api's repo path>
+link query <service-api>: 2697 link(s), 1396 unmatched outbound call(s)
+```
+
+Querying `sql-pool-api`'s own repo path returned 0 unmatched — confirmed
+directly against the persisted rows (every unmatched row's `outbound.repo`
+is `service-api`), so the empty section is the honest answer for a service
+with nothing unmatched, not a query bug. A nonexistent service name returned
+`{"links": [], "unmatched": []}` rather than erroring. Scratch directories
+(both state dirs and the link `index.db`) removed after the exercise.
+
+`make check TARGET_REPO=...` (launched after freeze, result recorded once it
+completes — see below) is the confirmation that `link_edge`'s two new
+methods and the `link scan --db`/`link query` CLI surface changed nothing
+about the existing `scan`/`fold`/`golden` pipeline, since no existing
+command calls the new code paths.
+
+**`--db` corrected to match D3's resolution order, not left as a wrongly
+mandatory flag** (`PHASE/FINDINGS.md` has the full account). `--db` is now
+optional on both `link scan` and `link query`, defaulting through the exact
+same `.cdp.toml` -> registry -> `cwd/.cdp` chain every other command uses,
+gated by a new `supports_link_edges()` capability check
+(`FileStore`/`PostgresStore` refuse by name, `SqliteStore` supports it).
+Re-verified live: a fresh scratch git repo, `cdp --repo <it> link scan <a>
+<b>` (no `--db`) persisted correctly into `<it>/.cdp/index.db`; `cdp --repo
+<it> link query --service <s>` read it back; forcing `backend = "file"` in
+that repo's `.cdp.toml` produced the intended named refusal rather than a
+silent empty result. Full 482-test suite green after re-syncing the
+vendored copy (`cdp install --self` -- required after touching `cdp/store/
+__init__.py`/`sqlite_backend.py`).
+
+## Phase 8 (M8.3 only) — `link prompts`/`link collect`, exercised against a real persisted store
+
+Scoped to M8.3 only this session (`PHASE/FINDINGS.md` has the full account,
+including D42 -- a real defect the exercise below found and fixed: `link_id`
+computed as a mutation side effect rather than recomputed from content,
+which silently folded zero resolutions the first time `prompts` and
+`collect` ran as separate process invocations against the same real store).
+
+`sql-pool/sql-pool-api` and `service-api` scanned fresh, `link scan --db`
+persisted into a real `index.db`: 2,697 links, **0 heuristic** -- the same
+real finding M8.1 already recorded, so `link prompts` against that exact
+persisted data correctly produced 0 tasks rather than a fixture-only
+workaround. One synthetic heuristic link (`/orders/{id}` vs `/orders/:id`)
+was written directly into that same real `index.db` to exercise the
+adjudication path end to end: `link prompts` named both candidates; a valid
+patch folded (`accepted 1, rejected 0, 1 resolution(s) folded`, confirmed by
+reading `read_link_edges()` back, not the summary line); a patch with a
+fabricated anchor was rejected with a specific reason; `--runner-cmd`
+invoked a real subprocess (`runner.SubprocessRunner`, unmodified) whose
+citation-parsing bug produced a wrong anchor, and `link collect` rejected it
+rather than trusting subprocess output by default. Scratch state dirs and
+the scratch `index.db` removed after the exercise.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+freeze, per R-E3): **487 tests green, determinism (fixture+target), `fold
+--check` (fixture+target), golden (fixture+target) all green, byte-identical,
+no re-bless needed** -- `link prompts`/`link collect` are additive and
+untouched by the existing `scan`/`fold`/`golden` pipeline, since no existing
+command calls the new code paths.
+
+## Phase 8 (M8.4 only) — `link refresh`, exercised on real scratch scans and a real worktree edit
+
+Scoped to M8.4 only this session (`PHASE/FINDINGS.md` has the full account,
+including the negative finding this exercise produced). `sql-pool/sql-pool-api`
+and `service-api` each scanned fresh, `link scan --db` persisted (2,697 links,
+matching M8.1/M8.2). A detached worktree of `service-api` at the pinned commit
+had one migration file deleted (`Resources/RollbackScripts/Rollback_V21_to_V18.sql`,
+a real `persist` edge's anchor) and committed; a fresh scan of the worktree at
+the new commit fed to `cdp link refresh <new-scan> --db <db>`:
+
+```
+$ cdp link refresh /tmp/m84_b3 --db /tmp/m84_db2/index.db
+link refresh  refreshed <service-api> -- 5359 link(s) (5359 exact, 0 heuristic, 0 decayed), 1384 unmatched
+```
+
+Ran end to end against real persisted link data with no crash, but **0 decayed
+is a real negative result, not the expected demonstration** — see
+`PHASE/FINDINGS.md`'s M8.4 entry for why: every real `persist` self-link this
+pair of modules produces matches on the `table:dbo` key (F-link1's known
+collision — dozens of distinct migration files all normalise to the same
+key), so removing one file's edge does not remove the key itself, and
+`refresh_links`'s per-key "is this endpoint still present" check reports the
+side as still present via a different file's edge sharing that key. The
+milestone's own acceptance line (route removed -> demoted contract with a
+reason) is proven on synthetic data with a unique key
+(`tests/test_link.py::RefreshTest`, all 4 new tests green, including the
+untouched-third-repo and untouched-unmatched cases) but **not reproduced
+against this target's real data**, because this target has no
+uniquely-keyed cross-repo or self persist/http/event edge to remove. Worktree
+and all scratch directories removed after the exercise; main checkout's
+`git status --porcelain` was empty before and after.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **491 tests green
+(up from 487), determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed** —
+confirming `link refresh`/`refresh_links` changed nothing about the existing
+`scan`/`fold`/`golden` pipeline, since no existing command calls the new code
+path.
+
+## Phase 8 (M8.5) — non-entanglement test, already green against fully-populated tables
+
+`tests/test_store_sqlite.py::TestRunsAndTasks::test_dropping_every_link_row_leaves_snapshot_and_claim_untouched`
+inserts one row into each of `link_run`, `link_task` and `link_edge` before
+dropping all three and comparing `snapshot_run`/`snapshot_task`/
+`snapshot_artifact`/`claim_patch` before and after — this is already the
+"fully populated" version M8.5 asks for (M2.5's version, superseded, ran the
+same comparison against empty link tables). No new code needed; verified
+green in isolation this session, and it is part of the same `unittest
+discover` `make check`'s `selftest` gate already runs, so it is enforced in
+CI on every later phase without further wiring.

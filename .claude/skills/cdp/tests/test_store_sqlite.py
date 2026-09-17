@@ -431,5 +431,39 @@ class TestBackendEquivalence(MiniRepoTest):
             )
 
 
+class TestLinkEdgePersistence(unittest.TestCase):
+    """M8.2: `link_edge` round-trips a `link scan --db`'s links/unmatched
+    calls, and a second `write_link_edges` fully replaces the first rather
+    than accumulating -- `link.*` is fully re-derived on every scan (R3),
+    there is no history to append to.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.store = SqliteStore(Path(self._tmp.name) / "index.db")
+        self.addCleanup(self.store.close)
+
+    def test_write_then_read_round_trips(self):
+        report = {
+            "links": [{"protocol": "http_out", "match_kind": "exact", "self_link": False,
+                       "caller": {"repo": "billing", "target": "x"},
+                       "callee": {"repo": "orders", "target": "y"}}],
+            "unmatched": [{"protocol": "http_out", "outbound": {"repo": "billing", "target": "z"}}],
+        }
+        self.store.write_link_edges(report)
+        rows = self.store.read_link_edges()
+        self.assertEqual(len(rows), 2)
+        kinds = sorted(r["kind"] for r in rows)
+        self.assertEqual(kinds, ["link", "unmatched"])
+
+    def test_second_write_replaces_the_first(self):
+        self.store.write_link_edges({"links": [{"a": 1}], "unmatched": []})
+        self.store.write_link_edges({"links": [], "unmatched": [{"b": 2}]})
+        rows = self.store.read_link_edges()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["kind"], "unmatched")
+
+
 if __name__ == "__main__":
     unittest.main()
