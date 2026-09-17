@@ -24,10 +24,12 @@ admits is a guess.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .partition import DEFAULT_MAX_INHERITED
-from .util import truncate
+from .tiering import compute_tier
+from .util import CdpError, sha256_text, truncate
 
 MAX_STRUCTURE_ROWS = 120
 
@@ -35,6 +37,12 @@ MAX_STRUCTURE_ROWS = 120
 #: real tokenizer is stdlib, and this is only meant to size the fixed/variable
 #: split, not to predict a real model's count.
 CHARS_PER_TOKEN_EST = 4
+
+#: M6.3 (4.2): per-file cap on the digest section, chars not tokens (same
+#: crude estimate as everywhere else in this module). A file over the cap is
+#: exactly the case `unknowns[]`'s "escalation" instruction exists for --
+#: the digest says so rather than silently truncating.
+MAX_DIGEST_CHARS_PER_FILE = 6000
 
 
 def build_prompt(
@@ -46,6 +54,9 @@ def build_prompt(
     prior_claims: Sequence[Dict],
     run_id: str,
     max_inherited: int = DEFAULT_MAX_INHERITED,
+    digest_mode: bool = False,
+    repo_root: Optional[Path] = None,
+    symbol_index: Optional[Tuple[Dict[str, List[str]], Dict[str, List[str]]]] = None,
 ) -> Tuple[str, Dict]:
     node = scope["node"]
     module = scope["module"]
@@ -57,12 +68,16 @@ def build_prompt(
 
     named_sections: List[Tuple[str, str]] = [
         ("header", _header(node, module, scope, run_id)),
-        ("files", _files_section(inventory, scope)),
+        ("files", _files_section(inventory, scope, digest_mode)),
         ("structure", _structure_section(structure)),
         ("inherited", _inherited_section(inherited, elided, max_inherited)),
         ("gaps", _gaps_section(xref, scope_files)),
-        ("task", _task_section(node, run_id)),
     ]
+    digest_fingerprint = None
+    if digest_mode:
+        digest_text, digest_fingerprint = _digest_section(scope, repo_root)
+        named_sections.append(("digest", digest_text))
+    named_sections.append(("task", _task_section(node, run_id, digest_mode)))
 
     # M5.6 (4.9): `CDP_CLI_SCOPE.md` marks per-leaf fixed overhead
     # "unverified -- measure first". `header`/`task` are the two sections
@@ -90,7 +105,13 @@ def build_prompt(
         "fixed_chars": fixed_chars,
         "tokens_est": total_chars // CHARS_PER_TOKEN_EST,
         "fixed_tokens_est": fixed_chars // CHARS_PER_TOKEN_EST,
+        "digest_mode": digest_mode,
+        "digest_fingerprint": digest_fingerprint,
     }
+    if symbol_index is not None:
+        symbol_owner, namespace_owner = symbol_index
+        module_set = {m["name"] for m in inventory["modules"]}
+        stats["tiering"] = compute_tier(scope, extraction, module_set, symbol_owner, namespace_owner)
     return "\n\n".join(text for _name, text in named_sections if text), stats
 
 
@@ -179,19 +200,76 @@ def _header(node: str, module: str, scope: Dict, run_id: str) -> str:
     )
 
 
-def _files_section(inventory: Dict, scope: Dict) -> str:
+def _files_section(inventory: Dict, scope: Dict, digest_mode: bool = False) -> str:
     by_path = {f["path"]: f for f in inventory["files"]}
     rows = []
     for path in scope["files"]:
         entry = by_path.get(path, {})
         rows.append("- `%s` (%s, %s, %d loc)" % (path, entry.get("language", "?"), entry.get("role", "?"), entry.get("loc", 0)))
+    if digest_mode:
+        reading_note = (
+            "\n\nTheir full text is in the **Digest** section below -- you do not need Read/Grep "
+            "to see it. Reading one of these files directly is an escalation (see Your task)."
+        )
+    else:
+        reading_note = ""
     return (
         "## Your scope — read these files and only these files\n\n"
         + "\n".join(rows)
+        + reading_note
         + "\n\nIf you encounter a reference to something outside this list, record it and move on. "
         "Do not open it. Out-of-scope references are completed by a deterministic resolve pass "
         "that holds the global symbol table you do not have, so reporting a boundary never costs a fact."
     )
+
+
+def _digest_section(scope: Dict, repo_root: Optional[Path]) -> Tuple[str, str]:
+    """M6.3 (4.2): the leaf's input becomes this text, not a filesystem.
+
+    Full file text, capped per file at `MAX_DIGEST_CHARS_PER_FILE` -- a
+    truncation is stated, never silent, because a silently-elided line is
+    exactly how a claim the digest could not support gets asserted anyway.
+    `digest_fingerprint` is a hash of what the leaf was actually shown, so a
+    later audit can tell whether two runs saw the same input without diffing
+    the whole prompt.
+    """
+    if repo_root is None:
+        raise CdpError(
+            "digest mode needs repo_root to read file content -- "
+            "pass --repo (it is not safe to silently degrade to empty digests)"
+        )
+    parts = [
+        "## Digest — full text of every in-scope file\n",
+        "This *is* your input; there is no separate read step for these files.\n",
+    ]
+    pieces: List[str] = []
+    for path in sorted(scope["files"]):
+        try:
+            text = (repo_root / path).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise CdpError(
+                "digest mode could not read %r under --repo %s: %s -- "
+                "this is almost always a wrong or stale --repo, the same failure "
+                "mode named in FINDINGS.md F16" % (path, repo_root, exc)
+            ) from exc
+        truncated = False
+        if len(text) > MAX_DIGEST_CHARS_PER_FILE:
+            text = text[:MAX_DIGEST_CHARS_PER_FILE]
+            truncated = True
+        numbered = "\n".join(
+            "%5d| %s" % (i, line) for i, line in enumerate(text.splitlines(), start=1)
+        )
+        pieces.append(numbered)
+        parts.append("### `%s`\n```\n%s\n```" % (path, numbered))
+        if truncated:
+            parts.append(
+                "> **truncated at %d chars.** If the claim you need depends on what's past "
+                "this point, that is an escalation -- read the rest of `%s` directly and say so."
+                % (MAX_DIGEST_CHARS_PER_FILE, path)
+            )
+    fingerprint = sha256_text("\n".join(pieces))
+    parts.append("\n`digest_fingerprint`: `%s`" % fingerprint)
+    return "\n".join(parts), fingerprint
 
 
 def _structure_section(structure: Dict) -> str:
@@ -280,13 +358,28 @@ def _gaps_section(xref: Dict, scope_files: Set[str]) -> str:
     )
 
 
-def _task_section(node: str, run_id: str) -> str:
+def _task_section(node: str, run_id: str, digest_mode: bool = False) -> str:
+    if digest_mode:
+        discover = (
+            "1. **Discover** — read the Digest section above, not the files themselves. It is your "
+            "input. Look for what the structure section cannot say: why a module exists, what a type "
+            "is *for*, which representation is authoritative, what a test reveals about intended "
+            "behaviour, what a name does not mean.\n"
+            "   - **Escalation.** If the digest is truncated where your claim needs it, or you "
+            "genuinely cannot ground a claim from the digest alone, you may use Read on that one "
+            "file. Set `\"escalated\": true` on any claim built that way -- it is not a violation, "
+            "it is a logged, expected fallback the escalation-rate metric depends on being honest.\n"
+        )
+    else:
+        discover = (
+            "1. **Discover** — read every file in scope. Look for what the structure above cannot say: "
+            "why a module exists, what a type is *for*, which representation is authoritative, what a "
+            "test reveals about intended behaviour, what a name does not mean.\n"
+        )
     return (
         "## Your task\n\n"
         "Follow the DVG contract in your agent definition. In short:\n\n"
-        "1. **Discover** — read every file in scope. Look for what the structure above cannot say: "
-        "why a module exists, what a type is *for*, which representation is authoritative, what a "
-        "test reveals about intended behaviour, what a name does not mean.\n"
+        + discover +
         "2. **Ground** — emit a schema-valid patch where every claim carries at least one anchor "
         "of at least 12 characters that occurs at most three times in its file. An anchor may span "
         "consecutive lines; prefer a span when a single line is too short or too common.\n"

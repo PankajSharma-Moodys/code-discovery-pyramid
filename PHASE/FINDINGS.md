@@ -2228,3 +2228,709 @@ the exact original failure (`cdp run` from this tool's repo, no `--repo`,
 against a `$TARGET_REPO`-scanned state) -- now fails immediately with the
 new error, no leaf call spent. `make check TARGET_REPO=...` green against
 the *existing* blessed baseline, confirming nothing serialized changed.
+
+---
+
+## M6.3 — Digest-first leaves (4.2), scoped down to prompts.py + schema only
+
+**Status:** shipped behind `--digest`, fixture- and real-target-verified. **Not
+done this session:** re-running `doctor` and the M6.2 benchmark in both modes
+(M6.2 itself is not built yet — that acceptance criterion cannot be met until
+it is), and the `runner.py`/`store/` pieces the plan's "Modules touched" list
+names (escalation signalling at the runner layer, tier columns on `tasks`).
+Recorded here rather than silently dropped, per the plan's own out-of-scope
+discipline.
+
+**What shipped.** `cdp prompts --digest`: `prompts.py`'s `build_prompt` gains
+`digest_mode`/`repo_root`. In digest mode, a leaf's prompt inlines the full,
+line-numbered text of every in-scope file (capped at
+`MAX_DIGEST_CHARS_PER_FILE` = 6000 chars/file, truncation stated in-prompt,
+never silent) instead of instructing the leaf to `Read` them; the leaf's tools
+are unchanged (still `Read,Grep,Glob,Write`), so reading a file directly is
+still possible and is now framed as an explicit **escalation** the leaf
+self-reports via a new optional `claim.escalated` boolean (schema addition,
+`schema/patch-1.0.0.json` and its `.claude/skills/cdp/` copy, kept in sync by
+hand — no symlink exists between them). `digest_fingerprint` (sha256 of the
+concatenated digest text) is recorded in `cdp prompts`' stats and printed in
+the prompt itself, so two runs' inputs can be compared without diffing the
+whole prompt.
+
+**Escalation rate**, the plan's named new metric: `cli._escalation_rate`,
+fraction of claims across an accepted batch with `escalated: true`. Returns
+`None` (not `0.0`) when the batch has no claims at all, so "nothing escalated"
+is never confused with "the question doesn't apply." Printed by `cdp collect`
+and stored in the `verify` report. **Known gap:** the rate is computed over
+whatever batch `cdp collect` sees regardless of whether that batch was
+produced in digest mode — a non-digest run's claims simply never set
+`escalated`, so its rate prints as `0.000` rather than the more honest `None`.
+Not fixed this session; `cmd_collect` would need to know which mode produced
+the batch, which the patch schema does not currently carry.
+
+**Anchors are not references into the digest.** The plan's stated determinism
+win ("fabrication structurally impossible rather than merely detectable") is
+NOT delivered by this slice — anchors are still model-typed strings verified
+by re-opening the real file (`verify.py`, unchanged). Making anchors digest-
+relative would mean the verifier resolves against the digest's line numbers
+instead of the live file, which is a real redesign of `verify.py`/`anchor.py`
+this session's budget did not include. Recorded as the gap between what M6.3
+claims and what shipped.
+
+**Verified, not assumed:** `tests/test_digest.py` (6 tests) — default mode
+unchanged (no digest section, byte-identical prompt shape to before), digest
+mode inlines real file text and a deterministic fingerprint, `_escalation_rate`
+pure-function cases, and an end-to-end CLI run (`cdp scan` + `cdp prompts
+--digest` on the fixture) confirming the flag actually reaches `build_prompt`
+and the written `.md` file carries a `## Digest` section. `python3 -m
+unittest test_digest test_schema test_pipeline` green (35+6 tests).
+
+**Real-target exercise (R-E7), not fixture-only:** `cdp prompts --digest`
+against a full scan of `$TARGET_REPO` (170 scopes, 5.7s scan — F6's fix still
+holds) measured digest at 3219 chars/leaf average across the whole repo, but
+a single real scope (`root/sql-pool/sql-pool-smoketest`, 12 files) showed
+digest as the *dominant* section (38,916 chars, `structure` 4,974) with one
+real truncation firing and stating itself in-prompt — the repo-wide average
+being small is an artifact of many near-empty scaffolding/config scopes
+dragging the mean down, not the mechanism failing to include real content.
+**Caught live, fixed before the freeze (F17):** the first attempt (no `--repo`
+flag) silently defaulted `--repo` to this tool's own cwd -- the exact F16
+failure class, in a spot F16's own five-command guard list did not cover,
+because `cmd_prompts` had no prior reason to read `--repo`'s file content and
+digest mode gives it one. Every in-scope digest came back empty (`OSError`
+caught and swallowed to `""`) until `--repo` was passed explicitly -- silent,
+plausible-looking, wrong. Fixed in the same session, before declaring the
+milestone frozen (the fixture-correctness freeze had not yet been declared
+when this was found): `_digest_section` now raises `CdpError` on a missing
+`repo_root` or an unreadable path instead of degrading, and `cmd_prompts`
+calls `_check_repo_matches_manifest` when `--digest` is set, extending F16's
+guard to a sixth call site. Regression test:
+`test_digest_mode_refuses_a_mismatched_repo`. This is the one point in this
+session's work where a live exercise fed back into the frozen code, which is
+why the freeze declaration below is the second one, not the first.
+
+---
+
+## Phase 6, M6.4 only — tiering v1, exercised on this target and with one real T2/T3 sample
+
+User explicitly scoped this session to M6.4 after M6.2 (graded benchmark) was
+flagged as incompatible with the session budget (25-40 questions, an
+independent judge, dozens of live model calls — `phase_6_plan.md`'s own
+estimate, confirmed against this session's ~20-minute ceiling before any code
+was written). M6.2 remains not started.
+
+**What shipped.** `cdp/tiering.py` (new): the plan's literal v1 rule —
+everything is T2; a scope escalates to T3 only when it has an unresolved
+import (pre-dispatch, free — `scope_unresolved_imports` reuses
+`graph.build_symbol_index`/`owners_of`/`_looks_third_party`, scoped to one
+scope's own files rather than the whole repository) or its T2 leaf's own
+claims self-report `escalated: true` (post-dispatch, M6.3's existing flag).
+Wired into `prompts.py` (`build_prompt` gained an optional `symbol_index`
+param, computes `stats["tiering"]` when given one) and `cli.py`: `cmd_prompts`
+builds the symbol index once (not per scope — quadratic otherwise), writes
+`reports/tiering.json`, and prints the T3 rate; `cmd_collect` reads that
+report back, applies `leaf_escalated` upgrades from the batch's accepted
+patches, and reports which scopes were upgraded. `tiering` added to
+`store.REPORTS` (present, `{}`, on any scan that never ran `prompts`, same
+convention `unknown_gates` already established).
+
+**D — tiering is computed only at `cdp prompts` time, not inside `cdp
+run`/`cdp doctor`'s own internal `build_prompt` calls.** `grep -n
+"build_prompt("` found three other call sites (`supervisor.py`, `doctor.py`,
+plus the new `tests/test_digest.py`); none pass `symbol_index`, so none gets
+a `tiering` stats key. This is the same posture `TARGET.md`'s M6.3 entry
+already recorded for `runner.py` escalation signalling — v1 threads the
+signal only into the surface where a human currently decides what to
+dispatch (`cdp prompts`), not into the two automated dispatch loops, which
+is a real, stated gap rather than a silent one.
+
+**Exercised on a real module first (R-E7), which found a real confound in
+the rule's own inputs.** A scratch scan of `$TARGET_REPO/sql-pool/sql-pool-api`
+alone (one module) reported **2/2 scopes T3**, both for `unresolved_imports`
+— read literally, this looked like the stress-test's feared "T3 escalation
+fires everywhere" outcome. Inspecting the actual unresolved fqns showed it
+was not the rule collapsing: scanning one module in isolation makes every
+real *inter-module* import (`rms.unifiedstore.sqlpool.common.*`, a real
+sibling module never in this scan's `module_set`) look unresolved, and
+`org.mapstruct.*`/`com.rms.auth.framework.*` — real third-party/internal-org
+packages — are not recognised by `graph._looks_third_party`'s hardcoded
+list. Re-run as a **full scan of `$TARGET_REPO`** (170 scopes, 5.8s scan,
+2.8s prompts build, all modules present so cross-module imports resolve):
+**117/170 scopes (69%) T3**, all `unresolved_imports`. Still a real majority,
+but not "everywhere," and not an artifact of scan scope — this is the honest
+number the stress test asked for.
+
+**One real T2/T3 sample, on a real scope, live model calls, not simulated.**
+Per the plan's M6.4 acceptance line, one T2 scope (`root/automation`, 2
+files, 40 LOC — the smallest T2 scope in the full-target run) was run
+through the actual `scripts/claude_leaf_runner.sh` twice: once against `cdp
+prompts --digest`'s output (T2 shape), once against the same scope's default
+non-digest prompt (T3 shape — full source, no digest section). **Same model
+(haiku) both times, deliberately** — the plan's own T2/T3 distinction bundles
+input mode with model tier, but isolating input mode alone is the cleaner
+measurement of "how much of this scope can Python already explain by
+itself," which is exactly what the deferred residue score (§N) needs signal
+on; a model-tier swap would confound the two.
+
+```
+T2 (digest, haiku)       5 claims, 3 unknowns
+T3 (source-read, haiku)  3 claims, 2 unknowns
+```
+
+**The direction is the opposite of what the residue-score intuition
+predicts, on this one scope: T2 found *more*, not fewer, claims.** Recorded
+rather than smoothed over. n=1, same model both arms, and this is exactly
+the kind of small/config-heavy scope where a fully-inlined digest (this
+scope's digest holds its *entire* 40-LOC content) can plausibly out-perform
+a source-read leaf that has to choose what to open — the opposite of a
+large scope where digest truncation would bite. Not generalised past this
+one pair; this is the labelled sample the plan asks M6.4 to produce as a
+by-product, not a result about tiering's correctness. Anchors in both
+patches were not independently re-verified against the live file this
+session (budget); `cdp collect` was not run against either patch, so neither
+went through real anchor verification.
+
+**Not delivered this session, stated rather than dropped:** the T2/T3
+sample is a single pair, not "a sample of scopes" (plural) the plan's
+acceptance line names — collecting more pairs needs the same per-scope
+live-model cost repeated, which is M6.2-shaped budget, not M6.4-shaped.
+M6.2 itself (the graded benchmark) was not attempted. `runner.py`
+escalation *signalling* (as opposed to the self-reported `escalated` flag
+M6.3 already emits) is still not built.
+
+**Verified:** `tests/test_tiering.py` (new, 10 tests, fixture-only — every
+`scope_unresolved_imports`/`compute_tier`/`apply_leaf_escalation` branch,
+including the "existing T3 reason is not overwritten" case). `python3 -m
+unittest tests.test_tiering` and `cd tests && python3 -m unittest
+test_pipeline` both green (10 and 24 tests respectively — the two existing,
+unrelated cwd conventions this repository's test files already use;
+`tests/test_digest.py` fails under both from a pre-existing `helpers` import
+gap unrelated to this session's change, left as found). `make check
+TARGET_REPO=...` is the full-target confirmation (see below).
+
+---
+
+## Phase 6, M6.2 — design only, execution deferred (budget)
+
+User scoped this session to design-only after the M6.2 acceptance criteria
+(25–40 questions, two model arms, an independent judge, a crossover sweep)
+were sized at dozens of live model calls — structurally past a 20-minute/
+60k-token session, and already deferred twice before for the same reason
+(`PHASE/TARGET.md` M6.3/M6.4 entries). No code written this session.
+
+Full design at `PHASE/M6_2_BENCHMARK_DESIGN.md`: question schema, 6 grounded
+starter questions reusing facts already human-verified by prior sessions
+(F2, F5, T1, T2, and two Phase-3 real-history exercises) rather than newly
+fabricated, the judge/reader-model-separation and expected-failure-question
+stress tests carried over verbatim from `RESEARCH_GRAPHIFY.md §7.2`, the four
+reported numbers' exact definitions, and the crossover-sweep methodology.
+
+**Gap surfaced by writing the question set concretely, not left implicit:**
+zero `table`-category gold facts exist yet — no session has human-verified a
+fact about `$TARGET_REPO`'s 497 SQL files/669k LOC. That category is fully
+unfilled and is called out in the design doc's own caveats section as a
+precondition for execution, not something to paper over with a weaker
+question at run time.
+
+---
+
+## Phase 6, M6.2 — graded benchmark, executed (superseding the "design only, deferred" entry above)
+
+User asked for full execution after the design-only pass. Full account,
+numbers, and caveats are in `BENCHMARKS.md`; this entry is the process
+record. `benchmarks/run_benchmark.py` (new, out of core per the plan's
+"Modules touched" note) drives a real out-of-session harness: `claude -p`,
+haiku reader / sonnet judge, two arms (`Read,Grep,Glob` vs. `+Bash` scoped to
+`cdp.cli`), 25 real questions against a real scratch scan of `$TARGET_REPO`.
+
+**F18 — the first full run's `--allowedTools` pattern silently denied every
+compound `cd ... && cdp.cli ...` Bash call, making the "cdp" arm behave like
+the baseline arm.** `--allowedTools "Bash(python3 -m cdp.cli *)"` is a
+leading-literal match; the model always wrote `cd
+/Users/sharmp49/hackathon/code_scanner && python3 -m cdp.cli ...`, which
+never matches. Caught by reading `permission_denials` in the raw run output,
+not assumed. Fixed to `Bash(*cdp.cli*)` (substring match), verified live with
+a direct smoke test first, then **the entire cdp arm was re-run and
+re-judged** rather than patched over — coverage moved 0.828 → 0.838, a small
+but real change, meaning the pre-fix numbers were close by luck, not by
+correctness. Pre-fix artifact kept at `benchmarks/results/run_v1_broken_cdp_arm.json`
+rather than deleted, so the before/after is auditable.
+
+**Real result, not assumed:** coverage baseline 0.765 → cdp 0.838 (+7.3
+points), concentrated in `trace` (0.50→0.90) and `config` (0.56→0.81) —
+cross-file aggregate questions — while `table` (single-file lookups) hit a
+1.00 ceiling on both arms and `paths` moved the wrong direction (0.44 vs
+0.50, n=4, not investigated further this session).
+
+**A design flaw in the benchmark's own expected-failure question (`q25`)
+found by inspecting its judged verdicts, not assumed correct:** one of its
+two gold facts is a meta-statement about CDP's expected limitation, not a
+codebase fact, so it cannot be meaningfully "covered" by either arm's answer.
+Flagged in `BENCHMARKS.md`'s caveats rather than silently kept in the
+aggregate coverage number's interpretation.
+
+**Crossover, `scan`+`query` path, real measurements:** 44 files → 0.29s, 477
+files → 0.83s, 4,686 files (full target) → 5.36s scan wall time — all
+cheaper than one reader-arm model call (avg 19-24s in this run), so the
+`scan`+`query` crossover is effectively immediate, as the plan predicted
+("scan is free ... CDP's crossover is lower than the peer's ~50 files"). The
+pyramid's crossover was **not** measured live this session (needs a
+per-scope leaf-dispatch cost sweep, separate budget) — recorded as a gap,
+not silently substituted with the scan+query number.
+
+**Not done, stated rather than silently dropped (see `BENCHMARKS.md`
+Caveats for the full list):** n=25 is the low end of the plan's 25-40 range;
+no second independent judge (Graphify's own 90.6%/κ=0.81 cross-check was not
+reproduced); `trace` has only 2 questions against a 3-5 target; the pyramid
+crossover sweep.
+
+---
+
+## Phase 7 (M7.6 only) — Postgres adapter, gated on a real multi-writer
+requirement the user asserted this session
+
+Scoped to M7.6 only (`PHASE/phase_7_plan.md`'s other five milestones — scope
+selector, per-scope materialised state, `compact`, `verify --full`, `export`
+— deferred to their own sessions; M7.1 explicitly picked as the next one).
+The plan's own instruction is to gate this milestone on a real need rather
+than build it speculatively; the user asserted that need exists, so it was
+built rather than deferred.
+
+**D32 — a real Postgres adapter breaks the zero-dependency distribution
+model, surfaced before writing code, not after.** `pyproject.toml`'s
+`dependencies = []` is stated as deliberate and load-bearing (F2's
+resolution: this is why C#/Scala got hand-rolled extractors instead of
+tree-sitter). `SqliteStore` needs only stdlib `sqlite3`; a Postgres client
+needs `psycopg2`, a C extension linking `libpq` — no way around that.
+Resolved as an optional extra: `pyproject.toml` gained
+`[project.optional-dependencies] postgres = ["psycopg2-binary"]`, and
+`cdp/store/postgres_backend.py` imports `psycopg2` lazily inside
+`PostgresStore.__init__`, not at module scope. Verified live:
+`python3 -c "import cdp.store"` succeeds with no `psycopg2` importable
+anywhere on the path — the base install is untouched.
+
+**Verified against a real, live Postgres server, not mocked.** No
+`psycopg2`/`psql`/`docker` exists in the execution sandbox; the user pointed
+at an already-running local Postgres (port 5432, `dbname=postgres
+user=postgres host=localhost`, trust auth). `psycopg2-binary` installed
+clean. `PostgresStoreConformance` (new, `tests/test_store_conformance.py`,
+skipped via `unittest.skipUnless` unless `CDP_TEST_POSTGRES_DSN` is set — the
+same opt-in convention `TARGET_REPO` already uses, so `make check` stays
+hermetic for anyone without a Postgres server) reuses the exact
+`ConformanceMixin` `FileStoreConformance`/`SqliteStoreConformance` already
+pass: **all 17 assertions green against the real server**, isolated per test
+by creating and dropping a dedicated Postgres *schema* per store (the
+per-file-per-store isolation `SqliteStore`'s fresh `index.db` gets, ported to
+"one schema, shared server" instead of "one file").
+
+**A real defect the live exercise found, not the conformance suite (which
+never opens two connections at once): every read-only method left its
+transaction open (`idle in transaction`), which silently blocks DDL against
+the whole schema — the actual failure mode a shared multi-writer store must
+not have.** `psycopg2` connections default to `autocommit=False`, so a bare
+`SELECT` with no following `commit()`/`rollback()` never ends its
+transaction. `load_patches`, `read_artifact`, `has_artifact`, `read_report`,
+`mark_durable`, and `append_patch`'s early-return (already-deduped) path all
+had this bug. Found concretely: a hand-written two-writer exercise (two
+independent `PostgresStore` connections to one schema, each appending a
+different patch, a third fresh connection confirming both are visible) hung
+indefinitely on cleanup; `pg_stat_activity` named the exact blocked session —
+`idle in transaction` holding `SELECT payload FROM claim_patch ...` — and the
+exact blocked statement, `DROP SCHEMA ... CASCADE`. Fixed by committing after
+every read. Re-ran both the conformance suite (51/51, unchanged) and the
+two-writer exercise clean afterward: two independent connections write
+concurrently, a third fresh connection sees both patches immediately — real
+MVCC, not asserted.
+
+**Scope of what "the adapter" means here, stated explicitly.** Only the
+`WorkspaceStore` interface is ported — `read/write_artifact`, `read/
+write_report`, `load_patches`, `append_patch`, `write_derived_patch`,
+`ensure/read/clear_inbox`, `begin_snapshot`, `mark_durable` — because that
+interface, proven by the conformance suite, is the milestone's own stated
+acceptance criterion. `SqliteStore`'s runs/tasks/leases tables (M2.5/M5.2/
+M5.4: `snapshot_run`, `snapshot_task`, lease columns) are dispatch-loop
+bookkeeping for the single-writer CLI supervisor (`cdp run`), not part of
+`WorkspaceStore`, and are not ported. Owner: whichever future phase wires
+`cdp run`'s supervisor to run against a shared team store, if that ever
+becomes a real requirement — not invented speculatively here, same posture
+this milestone's own plan text takes toward the whole adapter.
+
+**Not done, explicitly, in the M7.6 session above:** no CLI wiring — closed
+in the follow-up below, in the same session the user asked "no store should
+be hardcoded."
+
+---
+
+## Follow-up — real backend selection: sqlite (default) / file / postgres,
+none hardcoded
+
+The M7.6 session above shipped `PostgresStore` but explicitly deferred CLI
+wiring, following D3's precedent for `SqliteStore`. Asked directly to audit
+that: `_open_store()` (`cli.py`) was hardcoded to `SqliteStore` at every one
+of ~12 call sites; `grep -rn "FileStore("` in `cli.py` returned zero hits —
+`FileStore` has been fully conformant since Phase 2 (D3) but never
+constructed by the CLI. `cdp run`/`cdp gc` additionally called 18
+`SqliteStore`-only methods (`begin_run`, `upsert_task`, `acquire_lease`,
+`list_snapshots`, etc.) unconditionally, undeclared on `WorkspaceStore` and
+not even stubbed on `FileStore` — selecting a non-sqlite backend for those
+two commands would have `AttributeError`'d deep in `supervisor.py`, not
+raised a clear error.
+
+**Design forks surfaced before implementing, not after (R-E13):**
+
+- **D33 — backend selection lives in `.cdp.toml`, not a CLI flag or env
+  var**, per explicit choice: `backend = "sqlite"|"file"|"postgres"` plus an
+  optional `[postgres]` table (`dsn`, `schema`). `registry.py` gained
+  `team_backend`/`team_postgres_config`, same style as the existing
+  `team_store`/`team_excludes`. No writer added — `.cdp.toml` stays
+  human-authored (existing, deliberate policy).
+- **D34 — `WorkspaceStore` gains the 18 methods as non-abstract, split
+  read/write.** Read-side (`list_snapshots`, `get_run`, `task_states`,
+  `task_rows`, `snapshot_id`, `use_latest_snapshot`) default to an honest
+  empty answer, matching the precedent `task_states`' own docstring already
+  set. Write-side (`begin_run`, `upsert_task`, `acquire_lease`, etc.) default
+  to raising a `CdpError` naming the missing capability. One exception:
+  `copy_patches_from` defaults to a no-op, not a raise — it's only invoked
+  when a fresh snapshot's log is empty, which can't happen on a
+  single-snapshot backend, so raising would break `cdp refresh` against
+  `FileStore`, which otherwise works fine. `SqliteStore` needed no changes;
+  `FileStore` needed none either — it inherits the defaults, which is the
+  whole design.
+- **D35 — chose to extend `WorkspaceStore` and port run/task/lease/retention
+  to `PostgresStore` too**, not just refuse on it (the other option offered).
+  Ported from `SqliteStore`'s `SCHEMA_V2`-`V5` in one additive migration (no
+  Postgres store has shipped yet, so no earlier version to stage through):
+  `snapshot_run`, `snapshot_task` (+ `wall_ms`), `pinned`/`touch_seq` on
+  `snapshot_meta`. `link_run`/`link_task` (Phase 8) deliberately not ported.
+
+**A real concurrency defect the live exercise found, not the conformance
+suite (single-connection tests can't see it): concurrent first-time schema
+creation raced on Postgres's own catalog.** 20 threads constructing
+`PostgresStore` against a not-yet-existing schema simultaneously threw
+`UniqueViolation` on `pg_type` — `CREATE SCHEMA/TABLE IF NOT EXISTS` is not
+safe under true concurrency without an explicit lock. Fixed with a
+session-level `pg_advisory_lock(hashtext(schema))` held only around
+first-time setup (schema creation + migration), released immediately after —
+costs nothing once the schema exists. Re-ran the same 20-thread race after
+the fix: all 20 succeed, exactly one wins the lease.
+
+**A UX defect the live exercise found: `cdp gc` against `FileStore` gave a
+wrong, confusing error.** Because `list_snapshots()`'s honest-empty default
+returns `[]`, `gc`'s "does HEAD have a snapshot" check failed *before* ever
+reaching a write-side method, producing "no snapshot for HEAD — run `cdp
+scan` first" — wrong, since a scan had run; the backend just doesn't track
+snapshots. Fixed with a new `WorkspaceStore.supports_run_tracking() -> bool`
+(`False` default, `True` on Sqlite/Postgres), checked up front by both
+`cmd_run` and `cmd_gc` so the real refusal reason is always what's reported.
+
+**Verified live, not assumed:**
+- Full run/task/lease/retention flow (`begin_run`/`get_run`/`acquire_lease`/
+  `release_lease`/`upsert_task`/`reclaim_expired`/`copy_folded_tasks`/
+  `list_snapshots`/`set_pinned`/`use_latest_snapshot`/`copy_patches_from`)
+  exercised directly against the real Postgres server before writing formal
+  tests — every call behaved as designed.
+- `RunTaskLeaseMixin` (new, `tests/test_store_conformance.py`, ported from
+  `test_store_sqlite.py`'s `TestSnapshotLineage`/`TestRetention`/
+  `TestRunsAndTasks`) parameterized over `SqliteStoreConformance` and
+  `PostgresStoreConformance`: both pass identically (72 conformance tests
+  total, up from 51). `FileStoreRefusesRunTracking` (new) proves the
+  write-side raises and read-side stays honest on `FileStore`.
+- `tests/test_registry.py` (new — none existed before): `team_backend`/
+  `team_postgres_config` parsing.
+- **Real cross-backend exercise on `$TARGET_REPO`** (a detached worktree of
+  `sql-pool/sql-pool-api`, per `PHASE/EXECUTION_RULES.md` R-E7): the same
+  real module scanned three times, once per backend (`.cdp.toml` switching
+  between them), `cdp query stats` output byte-identical across all three —
+  same claims, symbols, routes, confidence. The Postgres-backend scratch
+  directory held only `docs/`/`patches/inbox/` — no `index.db`, no artifact
+  JSON — confirming the data genuinely lives in Postgres, not the local
+  filesystem. `cdp gc --dry-run` and `cdp run` against that same module:
+  sqlite and postgres both dispatch identically through the real supervisor
+  (reaching the same "abandoned after 3 attempts" state via a schema
+  hiccup in the synthetic test runner, identically on both backends — proof
+  the dispatch loop and lease/task tracking run the same real code path
+  against Postgres as against Sqlite); `file` refuses both `gc` and `run`
+  with the new clear error. Worktree removed after the exercise; main
+  checkout's `git status --porcelain` was empty before and after.
+
+**Not done, explicitly:** `cdp run`'s supervisor was proven to *dispatch*
+correctly against Postgres (leases/task-state transitions all fired for
+real), but no run completed to a *folded* claim end-to-end this session —
+the synthetic runner script used for the live exercise didn't emit a
+schema-valid patch (a test-script gap, not a product one; both backends
+failed identically at the same point). `VACUUM`/connection pooling/
+retry-on-serialization-failure for real sustained concurrent load remains
+unexercised beyond the 20-thread race above.
+
+---
+
+## Phase 7 (M7.1) — design session, no code; M7.2 explicitly deferred
+
+M7.1's acceptance criterion ("`query --scope`/`refresh --scope` touch only
+that subtree, provable by instrumenting store reads") presupposes M7.2's
+per-scope storage, which doesn't exist yet — surfaced before writing any
+code (R-E13). `run --scope` already ships (`cli.py:201`, `1305-1308`) but
+only as an in-memory filter over an already-fully-loaded `store.partition`;
+it does not satisfy the read-instrumentation bar either, and was already
+merged before this gap was noticed.
+
+**D36 — reject M7.2 as literally written (physically chunked per-scope
+storage files).** Discussed and rejected in favor of a lighter alternative,
+not yet built:
+
+- Every artifact that is currently one opaque JSON blob per snapshot
+  (`inventory`, `partition`, `xref`, `graph`; `snapshot_artifact` table,
+  `sqlite_backend.py:63-68`) would gain a `node` column and index, the same
+  treatment `claim_patch` already has (`node` extracted via
+  `json_extract(payload, '$.node')`, indexed at `sqlite_backend.py:91`).
+  Scoped queries become `WHERE node LIKE ?` over one table — no chunk
+  files, no compose-and-hope-it-equals-a-full-recompute step, no new write
+  path.
+- `state` stops being pre-folded and stored whole; `fold`/`check_fold`
+  (`state.py:51`, `state.py:287`) get called with a scope filter instead.
+- Genuinely global facts (`coverage` fraction, `contested` in
+  `merge.py:169-188`) stay global, computed as an incrementally-updated
+  running summary rather than a from-scratch walk on every query, audited
+  periodically by the existing `check_fold`/future `verify --full`
+  machinery rather than trusted blindly.
+- The acceptance test becomes a real read-counter (wrap backend reads,
+  assert a scoped query never touches a row outside its `node` prefix) —
+  replacing the vaguer "byte for byte" chunk-composition test the plan
+  proposed.
+
+**Why deferred rather than built this session:** this is still a real
+schema/query-path change across `state.py`, `query.py`, and every
+`snapshot_artifact` writer — not a quick add-on — and the user chose to
+table it explicitly rather than execute mid-design-discussion. Recorded
+here so the next session picks up D36's shape rather than re-deriving it.
+
+**Not done:** no code changed this session. `query --scope`, `refresh
+--scope`, and scoped-coverage labelling (M7.1's own acceptance items) are
+still open, and are now understood to depend on D36 landing first — M7.1
+and M7.2 are not actually separable the way the plan assumed.
+
+---
+
+## Phase 7, M7.3 only — `cdp compact`, exercised on a real scratch scan
+
+Scoped to M7.3 only this session, per explicit instruction (M7.1/M7.2 left
+for later, as recorded above). The cold table itself (`claim_patches_archive`,
+`(scope_hash, run_id)` index) already existed — created in Phase 2 as a
+precondition, unused until now.
+
+**What shipped.** `WorkspaceStore.supports_compaction()` (default `False`,
+same posture as `supports_run_tracking`) and `SqliteStore.compact
+(keep_generations=1, threshold=0.30, dry_run=False)`. Whole-store, not
+scoped to the currently-selected snapshot: generations accumulate per
+`(snapshot_id, node)` across every re-run of a node on one commit, so this
+is a maintenance pass over the whole DB file, mirroring `cdp gc`'s own
+`--db` escape hatch (`cli.py cmd_gc`). Only `complete` patches are
+generations at all — the same definition `state.fold`'s `best_complete`
+already uses (`state.py:144-156`), reused verbatim for the keep/archive
+sort so the row kept hot is provably the same row `state.fold` already
+treats as live. `cdp compact --db <path> --compact-threshold F
+--keep-generations N [--dry-run]`.
+
+**D37 — `--compact-threshold` gates whether `compact` acts at all, not just
+how much it archives.** The plan states the default (30%) and that it is
+"customisable" but not what it does. Read literally against `CDP_CLI_SCOPE.md`
+0.16's stated cost concern (someone treating `--keep-generations` as data
+loss) and the plan's own acceptance line (5 generations, moves 4), the
+natural reading is: below `threshold`, `compact` is a no-op that reports the
+observed ratio and moves nothing — so running it on an already-lean store
+costs a report, not a `VACUUM`. Recorded per R-E13 rather than defended only
+after the fact.
+
+**D38 — the archive's `scope_hash` column is populated from that snapshot's
+own `partition` artifact, not carried on the patch.** A patch only ever
+carries `node` (`schema/patch-1.0.0.json`); `claim_patches_archive`'s index
+is `(scope_hash, run_id)` per the plan (`CDP_CLI_SCOPE.md` 0.16). `compact`
+resolves `node -> scope_hash` per snapshot via `snapshot_artifact`'s stored
+`partition` payload, falling back to the node string itself if the
+partition is missing — never blocking the move on a missing index value.
+
+**Verified, not assumed.** `tests/test_store_sqlite.py::TestCompaction` (6
+new tests, fixture-scale): below-threshold no-op, 5-generations-keep-1-move-4,
+archived rows never deleted (only relocated — R5), `--dry-run` moves
+nothing, the kept generation is the correct (highest) one, and a `pending`
+patch is never treated as a generation. **Exercised on a real scratch scan**
+of `$TARGET_REPO/sql-pool/sql-pool-api`: three synthetic `complete` patches
+appended to the same real node (`root/(files+2)`) via three separate `cdp
+collect` calls, so the node carried four real generations end to end
+through the actual CLI (the original scan's generation-1 patch plus three
+more). `cdp compact --db <path>` moved exactly 2 (of the 3 synthetic
+generations superseding the original), kept 1, and both archived rows'
+`scope_hash` matched the real scope's actual content hash from
+`partition.json` (not the node-string fallback) — confirmed by reading the
+archive table back directly, not trusting the summary line. `cdp query
+stats`/`cdp fold --check` ran against the post-compaction store afterward
+without crashing.
+
+**Found, not a defect: `fold --check`'s hash is expected to diverge after a
+real compaction, and that is exactly the gap M7.4 exists to close.**
+`fold_hash` (`state.py:227-243`) hashes the literal patch list passed to it,
+not the derived claims — so once `compact` relocates superseded rows out of
+`claim_patch`, a `fold --check` that reads only the hot table sees a
+different raw patch set than `state.json` was last computed from, and
+fails with "the log has changed since state.json was written" even though
+the *derived* claims are unaffected (`best_complete` never selected an
+archived row in the first place). This is the literal problem statement
+`CDP_CLI_SCOPE.md` 2.5 names for `cdp verify --full`: re-fold from
+archive-plus-hot and compare to the live hash, which `fold --check` alone
+cannot do post-compaction. Not fixed here — M7.4's own milestone — but
+recorded as confirmed behavior rather than left as a surprise for whoever
+picks up M7.4.
+
+**Scratch scan removed after the exercise.** `make check
+TARGET_REPO=/Users/sharmp49/git/code_scanner`, launched after freeze: **all
+gates green** (459 tests, determinism fixture+target, `fold --check`
+fixture+target, golden fixture+target byte-identical, no re-bless needed)
+— the confirmation that adding `compact` changed nothing about the existing
+`scan`/`fold`/`golden` pipeline, since no command on that path calls it.
+
+**Not done, named rather than silently skipped:** `--compact-threshold`'s
+gating semantics (D37) is a reading, not a spec quote — worth confirming if
+a future session finds it surprising. Postgres has no
+`claim_patches_archive` table yet; `supports_compaction()` defaults `False`
+there via the base class, so `cdp compact --db <postgres-dsn>` fails with a
+named capability error rather than silently no-opping — deferred to
+whichever session gives Postgres real multi-writer traffic that needs it
+(the same gate M7.6 already applies to the adapter as a whole).
+
+## Phase 7, M7.4 only — `cdp verify --full`, exercised on a real scratch scan
+
+Scoped to M7.4 only this session, per explicit instruction. Picks up exactly
+where M7.3 left off: `fold_hash` diverging after a real compaction is not a
+regression, it is the gap this milestone closes.
+
+**What shipped.** `WorkspaceStore.load_patches_full(partition)` and
+`.verify_archive_integrity(partition)`, both with a no-op base implementation
+(`load_patches()` unchanged, `[]`) for backends with no archive (`FileStore`,
+`PostgresStore` — mirroring `supports_compaction()`'s posture). `SqliteStore`
+overrides both: `load_patches_full` unions the hot table with every archived
+row whose `scope_hash` is one of the *current snapshot's own* scopes (read
+from the `partition` argument — the same lookup `compact` itself used to
+write that column, so filtering on it back out is the mirror operation, not
+a new inference); with no partition given, every archived row is included
+unfiltered (matches `compact`'s own node-string fallback when a snapshot's
+partition artifact is absent). `state.check_fold` grew a `full: bool` kwarg:
+`True` runs the archive integrity check first, then re-folds from
+`load_patches_full` instead of `load_patches`. `cdp verify [--full]` is a new
+top-level command — `fold --check` was not reused directly because the
+plan's acceptance criteria name a `verify` command, not a `fold` flag, and
+the two need different exit messaging (`state.json = fold(merge, patches/ +
+archive/, xref.json)` vs. `patches/, xref.json`).
+
+**D39 — a corrupted archive row is caught by a per-row content hash, not
+only by the aggregate fold mismatch it would eventually cause.** The plan's
+acceptance line ("corrupting one archived row makes it fail with the row
+named") is not satisfiable by `check_fold`'s existing comparison alone: that
+comparison only ever reports "claims not derivable" or "fold_hash mismatch"
+at the whole-state level, naming no row. `SCHEMA_V6` adds a `content_hash`
+column to `claim_patches_archive`, populated by `compact` at archive time
+(`stable_hash(payload)`); `verify_archive_integrity` recomputes it per row
+and reports `scope_hash`/`run_id`/`rowid` on mismatch. Pre-`SCHEMA_V6` rows
+(none exist outside this session's own scratch/test runs) have a `NULL`
+`content_hash` and are silently skipped rather than false-failing.
+
+**Verified, not assumed.** `tests/test_store_sqlite.py::TestVerifyFull` (4
+new tests, fixture-scale): `load_patches_full` recovers exactly the
+pre-compaction patch count; a clean archive reports no problems; a
+corrupted row is named by its `rowid`; an uncompacted store's `full` and
+non-`full` reads are identical. **Exercised on a real scratch scan** of
+`$TARGET_REPO/sql-pool/sql-pool-api`: three synthetic `complete` generations
+appended to the real snapshot's real node, `cdp verify` (hot-only) `ok`
+before compaction; `cdp compact --compact-threshold 0` moved 2; `cdp verify
+--full` afterward reproduced the live state hash exactly (`ok` on both the
+fold and the archive-integrity lines) — the concrete form of "provably
+lossless rather than asserted." Directly tampering with one archived row's
+payload (`UPDATE ... json_set(payload, '$.claims[0].claim', 'TAMPERED')`)
+made the next `cdp verify --full` fail with that exact `rowid` named, plus
+the expected downstream `fold_hash mismatch` — both lines, not one.
+Scratch directory removed after the exercise.
+
+**Not done, named rather than silently skipped:** the plan's stress test
+"`verify --full` on a store compacted twice" (two-generation archives) was
+not separately exercised this session — `load_patches_full`'s scope-hash
+filter and `verify_archive_integrity`'s per-row check are both indifferent
+to how many times a row has moved (they read `claim_patches_archive`
+directly, not `compact`'s own accounting), so a second compaction pass is
+expected to compose without a code change, but that expectation is
+unverified rather than proven. Postgres still has no archive table
+(D38/M7.6's own deferral), so `load_patches_full`/`verify_archive_integrity`
+there are the inert base-class defaults — `cdp verify --full` against a
+Postgres-backed store today just re-runs the hot-only fold, silently, since
+nothing marks that fallback as degraded. Worth a named warning if Postgres
+ever gains compaction.
+
+---
+
+## Phase 7, M7.5 only — `cdp export`, four formats, exercised on a real scratch scan
+
+Scoped to M7.5 only this session (M7.1/M7.2 remain deferred per D36; M7.3/
+M7.4/M7.6 already landed in prior sessions). `WorkspaceStore` gained
+`dump_archive` (base: `CdpError`, same refusal shape as `compact`;
+`SqliteStore` override reads `claim_patches_archive` raw) and `cdp/export.py`
+implements the plan's four fixed shapes, wired to a new `cdp export
+--format {json,patches,archive,anonymized} --out DIR [--db PATH]`.
+
+**json** writes every artifact/report a source store has through
+`FileStore`'s own interface, so the destination is a real `FileStore` root
+afterward — R1's "files are an export format, not a storage format" made
+literal, and provable: `canonical(src.read_artifact("state"))` equals
+`canonical(FileStore(dest).read_artifact("state"))` after the round trip
+(`tests/test_export.py`).
+
+**Real bug found by this milestone's own real-target exercise, not the
+fixture:** `WorkspaceStore.read_report`'s contract treats `default=None` as
+"no default, raise if missing" (both backends), not "default value `None`" —
+so the naive `store.read_report(name, default=None)` raised `CdpError` on
+the *first* real scratch scan of `sql-pool/sql-pool-api`, because no
+`collect` had run and several reports were genuinely absent. Fixed by
+passing `default={}` (a real default, so the raise path never fires) and
+still guarding with `except CdpError: continue` for backend variance. Caught
+before the fixture tests were even written, by the R-E7 discipline of
+exercising each milestone on real, non-fixture input as it is built rather
+than only at the end.
+
+**patches** dumps `load_patches()` as one pretty-printed file per patch,
+named `NNNN-<node>.json` — reviewable by a human, never read back by CDP
+(the same asymmetry `docs/` already has with the artifact store).
+
+**archive** requires `supports_compaction()` (the same capability gate
+`compact` uses) and calls the new `dump_archive`; refused with a named
+missing-capability error against `FileStore` (`tests/test_export.py`
+`test_archive_export_refused_on_a_backend_with_no_cold_table`), and against
+the real target scratch scan (0 rows, since nothing had been compacted —
+correctly *not* refused, since the sqlite backend does support the
+capability, just has nothing archived yet).
+
+**anonymized** replaces every field CDP's own schema/merge output uses for a
+subject, a statement, a question, or a node/scope name — enumerated by field
+name (`_TEXT_FIELDS`, `_TEXT_LIST_FIELDS`, `_NODE_FIELDS`,
+`_NODE_LIST_FIELDS` in `cdp/export.py`) rather than inferred from content, so
+an uncovered future field defaults to *kept*, a decision made explicit in
+the module's own comment rather than left implicit. `evidence` (which quotes
+source text verbatim) is dropped outright. **Two real leaks found and fixed
+by the test itself, not anticipated up front:** the first pass covered
+`subject`/`statement` only, per the patch schema — but `fold`'s own output
+adds `source_nodes` (a list of scope names) that a first anonymized export
+of a synthetic distinctive-symbol claim leaked verbatim (`"root"` found in
+the corpus); and `unknown`'s free-text fields are actually named
+`question`/`why_unresolved`, not `statement`. Both added to the field lists
+after the test caught them, not asserted safe from reading the schema alone.
+
+**Real-scale exercise (R-E7), on `sql-pool/sql-pool-api`:** all four formats
+run against one real scratch scan (`/tmp/m75_scratch`, removed after). json:
+11 artifacts/reports written and re-opened as a real `FileStore`. patches: 1
+reviewable file (`0000-root.json`) for the module's one patch. anonymized:
+41 claims / 1 unknown / 0 conflicts scrubbed; `grep -c "sql-pool-api"
+corpus.json` → **0**, confirming the real repo path does not survive.
+archive: 0 rows (nothing compacted on this scratch scan), exit 0 — the
+correct answer, not a false refusal.
+
+**Not built this session, stated rather than silently dropped:** the plan's
+"conformance suite passes on it" line for the json export is proven by the
+round-trip equality test above (`canonical` hash match), not by re-running
+the full `test_store_conformance.py` suite against an exported directory as
+a fifth backend fixture — that would need `FileStore` accepted into the
+conformance harness's own backend list, which is a harness change, not an
+export change, and out of this session's scope.

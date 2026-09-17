@@ -35,6 +35,7 @@ from . import dataflow as dataflow_mod
 from . import diffs as diffs_mod
 from . import doctor as doctor_mod
 from . import docs as docs_mod
+from . import export as export_mod
 from . import freshness as freshness_mod
 from . import gates as gates_mod
 from . import githooks as githooks_mod
@@ -52,7 +53,8 @@ from . import schedule as schedule_mod
 from . import snapshot as snapshot_mod
 from . import state as state_mod
 from . import supervisor as supervisor_mod
-from .store import ARTIFACTS, REPORTS, SqliteStore, WorkspaceStore, has_scanned
+from . import tiering as tiering_mod
+from .store import ARTIFACTS, REPORTS, FileStore, SqliteStore, WorkspaceStore, has_scanned
 from .store import registry as registry_mod
 from .derive import derive_claims
 from . import extract as extract_mod
@@ -171,6 +173,10 @@ def _parser() -> argparse.ArgumentParser:
     pr.add_argument("--measure", action="store_true",
                      help="print a per-section token estimate (M5.6, 4.9) instead of "
                           "the usual per-scope summary -- chars/4, not a real tokenizer")
+    pr.add_argument("--digest", action="store_true",
+                     help="M6.3 (4.2): digest-first mode -- the leaf's input is full file "
+                          "text inlined in the prompt, not a Read/Grep tool. Behind a flag "
+                          "until doctor/benchmark evidence promotes it to default.")
     pr.set_defaults(func=cmd_prompts)
 
     c = add("collect", "validate, verify and append leaf patches from the inbox")
@@ -243,6 +249,33 @@ def _parser() -> argparse.ArgumentParser:
     gc.add_argument("--unpin", action="append", default=[], metavar="SHA")
     gc.add_argument("--dry-run", action="store_true", help="report what would be dropped, drop nothing")
     gc.set_defaults(func=cmd_gc)
+
+    cp = add("compact", "move superseded patch generations to the cold archive")
+    cp.add_argument("--db", default=None,
+                     help="path to a SqliteStore index.db (default: the resolved store's)")
+    cp.add_argument("--compact-threshold", type=float, default=0.30,
+                     help="minimum fraction of superseded rows required to act (default 0.30)")
+    cp.add_argument("--keep-generations", type=int, default=1,
+                     help="generations kept hot per (snapshot, node) -- a performance knob, "
+                          "not a retention decision: nothing is lost, only archived (default 1)")
+    cp.add_argument("--dry-run", action="store_true", help="report what would move, move nothing")
+    cp.set_defaults(func=cmd_compact)
+
+    vf = add("verify", "recompute the fold from the log and compare to state.json; "
+                        "--full also proves the archive, not just the hot table")
+    vf.add_argument("--full", action="store_true",
+                     help="re-fold from the cold archive too (M7.4, 2.5) -- "
+                          "what makes compaction provably lossless rather than asserted")
+    vf.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
+    vf.set_defaults(func=cmd_verify)
+
+    ex = add("export", "canonical JSON / reviewable patches / archive dump / anonymised corpus")
+    ex.add_argument("--format", choices=["json", "patches", "archive", "anonymized"],
+                     default="json")
+    ex.add_argument("--out", required=True, metavar="DIR", help="destination directory")
+    ex.add_argument("--db", default=None,
+                     help="path to a SqliteStore index.db (default: the resolved store's)")
+    ex.set_defaults(func=cmd_export)
 
     rb = add("rollback", "exclude a run's patches from the fold, without deleting them")
     rb_target = rb.add_mutually_exclusive_group(required=True)
@@ -347,13 +380,47 @@ class Paths:
             return False
 
 
-def _open_store(state_dir: Path) -> SqliteStore:
-    """The CLI's actual default backend (D3, `PHASE/FINDINGS.md`): `SqliteStore`
-    at `<state_dir>/index.db`, the path `CDP_CLI_SCOPE.md` 2.3 and
-    `phase_2_plan.md` already name. `state_dir` itself stays a directory --
-    `docs/`, `prompts/` and the inbox are filesystem handoffs regardless of
-    backend (`store/__init__.py`'s module docstring)."""
-    return SqliteStore(state_dir / "index.db")
+def _resolve_backend(repo: Path) -> Tuple[str, Optional[Dict[str, str]]]:
+    """`.cdp.toml`'s `backend` key decides which `WorkspaceStore` `_open_store`
+    constructs -- default `"sqlite"` (D3's default, unchanged for a repo with
+    no `.cdp.toml`, or one that doesn't name a backend)."""
+    kind = registry_mod.team_backend(repo)
+    if kind not in ("sqlite", "file", "postgres"):
+        raise CdpError('unknown backend %r in .cdp.toml (must be "sqlite", "file" or "postgres")' % kind)
+    pg = registry_mod.team_postgres_config(repo) if kind == "postgres" else None
+    if kind == "postgres" and not (pg and pg.get("dsn")):
+        raise CdpError('backend = "postgres" in .cdp.toml needs a [postgres] dsn')
+    return kind, pg
+
+
+def _default_postgres_schema(repo: Path) -> str:
+    """A stable, valid Postgres schema name derived from repo identity, so
+    two repos sharing one Postgres server without an explicit `schema =`
+    in `.cdp.toml` don't collide."""
+    raw = registry_mod.repo_identity(repo)
+    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", raw)
+    if not sanitized or not sanitized[0].isalpha():
+        sanitized = "r_" + sanitized
+    return ("cdp_" + sanitized)[:63]
+
+
+def _open_store(paths: "Paths") -> WorkspaceStore:
+    """No backend is hardcoded here: which `WorkspaceStore` implementation
+    this constructs is `.cdp.toml`'s `backend` key (`_resolve_backend`),
+    defaulting to `SqliteStore` (D3, `PHASE/FINDINGS.md`) at
+    `<state>/index.db` -- the path `CDP_CLI_SCOPE.md` 2.3 and
+    `phase_2_plan.md` already name. `paths.state` itself stays a directory
+    regardless of backend -- `docs/`, `prompts/` and the inbox are filesystem
+    handoffs every backend shares (`store/__init__.py`'s module docstring)."""
+    kind, pg = _resolve_backend(paths.repo)
+    if kind == "file":
+        return FileStore(paths.state)
+    if kind == "postgres":
+        from .store.postgres_backend import PostgresStore
+
+        schema = pg.get("schema") or _default_postgres_schema(paths.repo)
+        return PostgresStore(pg["dsn"], schema, inbox_root=paths.state)
+    return SqliteStore(paths.state / "index.db")
 
 
 def _check_repo_matches_manifest(paths: "Paths", manifest: Dict) -> None:
@@ -451,7 +518,7 @@ def cmd_scan(args) -> int:
     say("\n".join(dataflow_mod.summarise(flow)))
 
     state_dir = paths.state
-    store = _open_store(state_dir)
+    store = _open_store(paths)
     store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"]))
     store.write_artifact("inventory", inventory)
     store.write_artifact("extract", extraction)
@@ -659,7 +726,7 @@ def _apply_as_of(store: "query_mod.Store", commit: str) -> None:
 
 
 def cmd_query(args) -> int:
-    store = query_mod.Store(_open_store(_paths(args).state))
+    store = query_mod.Store(_open_store(_paths(args)))
     if getattr(args, "as_of", None):
         _apply_as_of(store, args.as_of)
     fn = query_mod.QUERIES[args.kind]
@@ -719,7 +786,7 @@ def _render_docs(store: "query_mod.Store", out: Path) -> List[Path]:
 
 def cmd_docs(args) -> int:
     paths = _paths(args)
-    store = query_mod.Store(_open_store(paths.state))
+    store = query_mod.Store(_open_store(paths))
     out = Path(args.out).expanduser().resolve() if args.out else paths.state / "docs"
     for path in _render_docs(store, out):
         print(path)
@@ -732,8 +799,12 @@ def cmd_docs(args) -> int:
 
 def cmd_prompts(args) -> int:
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
+    if args.digest:
+        # M6.3: digest mode reads --repo's file content, unlike the default
+        # prompt build -- the same silent-wrong-repo failure mode as F16.
+        _check_repo_matches_manifest(paths, store.manifest)
     sched = store._load("schedule")
     run_id = store.manifest.get("run_id", "cdp")
     prior = list(store.state.get("claims", []))
@@ -741,6 +812,10 @@ def cmd_prompts(args) -> int:
     out_dir = paths.state / "prompts"
     out_dir.mkdir(parents=True, exist_ok=True)
     backend.ensure_inbox()
+
+    # M6.4 (4.8): built once, not per scope -- `build_symbol_index` scans all
+    # of `extraction`, so per-scope re-building would be quadratic in scope count.
+    symbol_index = tiering_mod.build_symbol_index_for_tiering(store.extraction)
 
     written: List[Dict] = []
     for scope in store.partition["scopes"]:
@@ -750,7 +825,8 @@ def cmd_prompts(args) -> int:
         if args.wave is not None and sched["node_wave"].get(node) != args.wave:
             continue
         text, stats = build_prompt(
-            scope, store.inventory, store.extraction, store.xref, sched, prior, run_id
+            scope, store.inventory, store.extraction, store.xref, sched, prior, run_id,
+            digest_mode=args.digest, repo_root=paths.repo, symbol_index=symbol_index,
         )
         path = out_dir / (node.replace("/", "__") + ".md")
         write_text(path, text)
@@ -759,6 +835,14 @@ def cmd_prompts(args) -> int:
         written.append(stats)
 
     backend.write_report("prompts", {"prompts": written})
+    tiering_report = {row["node"]: row["tiering"] for row in written if "tiering" in row}
+    backend.write_report("tiering", {"tiering": tiering_report})
+    if tiering_report:
+        t3 = {n: r for n, r in tiering_report.items() if r["tier"] == tiering_mod.T3}
+        print("tiering   %d/%d scope(s) T3 (%s)" % (
+            len(t3), len(tiering_report),
+            ", ".join(sorted({r["reason"] for r in t3.values()})) or "none",
+        ))
     if args.measure:
         _print_token_report(written)
         backend.close()
@@ -814,7 +898,7 @@ def cmd_collect(args) -> int:
     which is the only place that can ask the agent to try again.
     """
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
     _check_repo_matches_manifest(paths, store.manifest)
     inbox = backend.read_inbox()
@@ -859,8 +943,7 @@ def cmd_collect(args) -> int:
 
     def _task_rows_for(run_id: str) -> Dict[str, Dict]:
         if run_id not in task_states_cache:
-            getter = getattr(backend, "task_states", None)
-            task_states_cache[run_id] = getter(run_id) if callable(getter) else {}
+            task_states_cache[run_id] = backend.task_states(run_id)
         return task_states_cache[run_id]
 
     # M2.3: append the raw, unverified patch. Verification runs inside
@@ -885,9 +968,25 @@ def cmd_collect(args) -> int:
 
     folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=args.mode)
     stats = folded["verification"]
+    stats["escalation_rate"] = _escalation_rate(accepted)
     backend.write_report("verify", stats)
     backend.write_report("rejected", {"rejected": rejected})
     backend.write_report("unknown_gates", {"rejected": unknown_rejections})
+
+    # M6.4 (4.8): the rule's post-dispatch half. A T2 leaf's own claims may
+    # self-report `escalated: true` (M6.3) -- upgrade that scope's logged
+    # tier in place, reason `leaf_escalated`, rather than only ever deciding
+    # tier before the leaf ran.
+    tiering_report = dict(backend.read_report("tiering", {}).get("tiering", {}))
+    tiering_upgrades = []
+    for patch in accepted:
+        node = str(patch.get("node", "leaf"))
+        if tiering_mod.apply_leaf_escalation(tiering_report, node, patch.get("claims") or []):
+            tiering_upgrades.append(node)
+    if tiering_upgrades:
+        backend.write_report("tiering", {"tiering": tiering_report})
+        print("tiering   %d scope(s) upgraded to T3 (leaf_escalated): %s"
+              % (len(tiering_upgrades), ", ".join(sorted(tiering_upgrades))))
 
     print("accepted  %d patch(es), rejected %d" % (len(accepted), len(rejected)))
     if stats["claims_in"]:
@@ -907,8 +1006,22 @@ def cmd_collect(args) -> int:
         for row in unknown_rejections[:8]:
             print("  REJECTED unknown (%s): %s" % (row["node"], row["reason"]))
     print("coverage  %.1f%%" % (100 * folded["coverage"]["fraction"]))
+    if stats["escalation_rate"] is not None:
+        print("escalation %.3f (M6.3: fraction of claims that needed source beyond the digest)"
+              % stats["escalation_rate"])
     backend.close()
     return 0
+
+
+def _escalation_rate(patches: List[Dict]) -> Optional[float]:
+    """M6.3 (4.2): fraction of claims across this batch self-reporting
+    `escalated: true` -- `None`, not `0.0`, when nothing in the batch used
+    digest mode, so a real 0% escalation run is never confused with "the
+    question doesn't apply here"."""
+    claims = [c for patch in patches for c in (patch.get("claims") or [])]
+    if not claims:
+        return None
+    return sum(1 for c in claims if c.get("escalated")) / len(claims)
 
 
 # ------------------------------------------------------------------- fold
@@ -916,7 +1029,7 @@ def cmd_collect(args) -> int:
 
 def cmd_fold(args) -> int:
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
     _check_repo_matches_manifest(paths, store.manifest)
     if args.check:
@@ -940,6 +1053,30 @@ def cmd_fold(args) -> int:
     return 0
 
 
+def cmd_verify(args) -> int:
+    """M7.4 (2.5): same mechanism as `fold --check`, extended over the cold
+    archive when `--full` is given -- the audit story that makes `compact`
+    provably lossless rather than merely asserted."""
+    paths = _paths(args)
+    backend = _open_store(paths)
+    store = query_mod.Store(backend)
+    _check_repo_matches_manifest(paths, store.manifest)
+    problems = state_mod.check_fold(
+        backend, store.xref, store.partition, repo=paths.repo, mode=args.mode, full=args.full
+    )
+    backend.close()
+    if problems:
+        for problem in problems:
+            print("FAIL  %s" % problem)
+        return 1
+    if args.full:
+        print("ok    state.json = fold(merge, patches/ + archive/, xref.json)")
+        print("ok    archive rows match their recorded content hash")
+    else:
+        print("ok    state.json = fold(merge, patches/, xref.json)")
+    return 0
+
+
 # --------------------------------------------------------------- refresh
 
 
@@ -952,7 +1089,7 @@ def cmd_refresh(args) -> int:
     same `rename_map`/`edited_files` arguments `state.fold` now accepts.
     """
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
     _check_repo_matches_manifest(paths, store.manifest)
     prior_snapshot_id = backend.snapshot_id()
@@ -1165,7 +1302,12 @@ def cmd_run(args) -> int:
     not resume-aware.
     """
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
+    if not backend.supports_run_tracking():
+        raise CdpError(
+            "%s has no run/task tracking -- `cdp run` needs the sqlite or "
+            "postgres backend" % type(backend).__name__
+        )
     store = query_mod.Store(backend)
     _check_repo_matches_manifest(paths, store.manifest)
     sched = store._load("schedule")
@@ -1259,7 +1401,7 @@ def cmd_doctor(args) -> int:
     compatibility table across every model report already on disk.
     """
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
     sched = store._load("schedule")
     run_id = str(store.manifest.get("run_id", "cdp"))
@@ -1319,7 +1461,7 @@ def cmd_doctor(args) -> int:
 
 def cmd_status(args) -> int:
     paths = _paths(args)
-    store = query_mod.Store(_open_store(paths.state))
+    store = query_mod.Store(_open_store(paths))
     sched = store._load("schedule")
     state = store.state
     statuses = state.get("nodes", {})
@@ -1346,9 +1488,8 @@ def cmd_status(args) -> int:
     # M5.2: `cdp run`'s per-run task table -- `snapshot_task`, not `nodes[]`
     # above (that is the patch log's own status; this is the supervisor's
     # dispatch bookkeeping for the run named on the first line).
-    task_getter = getattr(store.backend, "task_rows", None)
     run_id = str(store.manifest.get("run_id", "cdp"))
-    rows = task_getter(run_id) if callable(task_getter) else []
+    rows = store.backend.task_rows(run_id)
     if rows:
         node_of_hash = {s.get("scope_hash"): s["node"] for s in store.partition["scopes"]}
         print("\ntasks     run %s" % run_id)
@@ -1382,15 +1523,19 @@ def cmd_gc(args) -> int:
     """M3.6/0.10: a snapshot is kept iff HEAD, pinned, or cited by a live
     claim's `anchor_verified_at`/`claim_reviewed_at`.
 
-    `--db` defaults to the same resolved store every other command writes
-    (D3, `PHASE/FINDINGS.md`: `SqliteStore` is the CLI's actual default
-    backend), so `gc` needs no separate setup step for the common case --
-    only an override for retention against a store `_paths()` would not
-    resolve to on its own.
+    `--db` is an explicit escape hatch straight to a `SqliteStore` file --
+    for retention against a store `_paths()`/`.cdp.toml` would not resolve to
+    on its own. Without it, `gc` resolves the backend the same way every
+    other command does (`_open_store`), so it now genuinely works against a
+    `.cdp.toml`-configured Postgres backend too, not just the sqlite default.
     """
     paths = _paths(args)
-    db_path = Path(args.db).expanduser().resolve() if args.db else (paths.state / "index.db")
-    store = SqliteStore(db_path)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    if not store.supports_run_tracking():
+        raise CdpError(
+            "%s has no run/task tracking -- `cdp gc` needs the sqlite or "
+            "postgres backend" % type(store).__name__
+        )
     try:
         repo = paths.repo
         repo_id = registry_mod.repo_identity(repo)
@@ -1401,8 +1546,8 @@ def cmd_gc(args) -> int:
         head_sha = args.head_sha or _git_head_or_raise(repo)
         snapshots = [s for s in store.list_snapshots() if s["repo_id"] == repo_id]
         if not any(s["commit_sha"] == head_sha for s in snapshots):
-            raise CdpError("no snapshot for HEAD (%s) in %s -- run `cdp scan` against this store first"
-                            % (head_sha[:12], db_path))
+            raise CdpError("no snapshot for HEAD (%s) in this store -- run `cdp scan` against it first"
+                            % head_sha[:12])
         store.begin_snapshot(repo_id, head_sha)
         head_claims = store.read_artifact("state", {}).get("claims", [])
         cited = {c.get("anchor_verified_at") for c in head_claims} | {c.get("claim_reviewed_at") for c in head_claims}
@@ -1415,6 +1560,67 @@ def cmd_gc(args) -> int:
             print("          drop %s%s" % ((s["commit_sha"] or "?")[:12], " [dry-run]" if args.dry_run else ""))
             if not args.dry_run:
                 store.delete_snapshot(s["id"])
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_compact(args) -> int:
+    """M7.3/2.4: move superseded `complete` generations to the cold archive.
+    `--keep-generations` is a performance knob, never a retention decision --
+    the archive is read by `verify --full` and `export --archive`, never
+    silently dropped."""
+    paths = _paths(args)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    if not store.supports_compaction():
+        raise CdpError(
+            "%s cannot back `cdp compact` -- needs the sqlite backend" % type(store).__name__
+        )
+    try:
+        result = store.compact(
+            keep_generations=args.keep_generations,
+            threshold=args.compact_threshold,
+            dry_run=args.dry_run,
+        )
+        if not result["threshold_met"]:
+            print("compact   %.0f%% superseded (< --compact-threshold %.0f%%) -- nothing moved"
+                  % (result["eligible_ratio"] * 100, args.compact_threshold * 100))
+        else:
+            print("compact   moved %d superseded patch(es) to the archive, kept %d%s"
+                  % (result["moved"], result["kept"], " [dry-run]" if args.dry_run else ""))
+    finally:
+        store.close()
+    return 0
+
+
+# ---------------------------------------------------------------- export
+
+
+def cmd_export(args) -> int:
+    """M7.5 (0.19): four fixed output shapes -- `cdp/export.py` has the full
+    account of each."""
+    paths = _paths(args)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    dest = Path(args.out).expanduser().resolve()
+    try:
+        if args.format == "json":
+            written = export_mod.export_json(store, dest)
+            print("export    json      %d artifact(s)/report(s) -> %s" % (len(written), dest))
+        elif args.format == "patches":
+            n = export_mod.export_patches(store, dest)
+            print("export    patches   %d patch(es) -> %s" % (n, dest))
+        elif args.format == "archive":
+            if not store.supports_compaction():
+                raise CdpError(
+                    "%s has no cold archive -- `cdp export --format archive` needs "
+                    "the sqlite backend" % type(store).__name__
+                )
+            n = export_mod.export_archive(store, dest)
+            print("export    archive   %d row(s) -> %s" % (n, dest))
+        else:
+            counts = export_mod.export_anonymized(store, dest)
+            print("export    anonymized  %d claim(s), %d unknown(s), %d conflict(s) -> %s"
+                  % (counts["claims"], counts["unknowns"], counts["conflicts"], dest))
     finally:
         store.close()
     return 0
@@ -1434,7 +1640,7 @@ def cmd_rollback(args) -> int:
     `refresh`) reads, so the exclusion holds until a future rollback changes it.
     """
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
     patches = backend.load_patches()
 
@@ -1491,7 +1697,7 @@ def cmd_answer(args) -> int:
     silently accepted -- it never changes the gate itself.
     """
     paths = _paths(args)
-    backend = _open_store(paths.state)
+    backend = _open_store(paths)
     store = query_mod.Store(backend)
     _check_repo_matches_manifest(paths, store.manifest)
 
@@ -1791,13 +1997,17 @@ def _state_files(root: Path) -> Dict[str, Path]:
     }
 
 
-def _store_snapshot(root: Path) -> Dict[str, str]:
-    """`<root>/index.db`'s content, canonically serialised through the store
-    API -- comparable across two independently-written stores holding
-    identical content, unlike the file's own bytes (see `_state_files`).
-    `{}` vs `{}` (no differences) when no `index.db` exists at all, e.g. a
-    `check_determinism` test stub that writes raw files directly."""
-    backend = SqliteStore(root / "index.db")
+def _store_snapshot(repo: Path, root: Path) -> Dict[str, str]:
+    """`root`'s store content, canonically serialised through the store API
+    -- comparable across two independently-written stores holding identical
+    content, unlike the file's own bytes (see `_state_files`). Resolved via
+    `_open_store` (`repo`'s `.cdp.toml`, same as the scan that wrote `root`
+    used), not a hardcoded `SqliteStore` -- otherwise this would silently
+    read (or create) the wrong backend for any repo configured to use `file`
+    or `postgres`. `{}` vs `{}` (no differences) when nothing was scanned at
+    all, e.g. a `check_determinism` test stub that writes raw files
+    directly."""
+    backend = _open_store(Paths(repo=repo, state=root))
     try:
         out = {
             "index.db:%s" % name: golden_mod.canonical(backend.read_artifact(name, {}))
@@ -1852,7 +2062,7 @@ def check_determinism(repo: Path, scan: Optional[Callable] = None) -> List[str]:
                 continue
             problems.extend(_volatile_diff(rel, left, right))
 
-        store_a, store_b = _store_snapshot(a), _store_snapshot(b)
+        store_a, store_b = _store_snapshot(repo, a), _store_snapshot(repo, b)
         for rel in sorted(set(store_a) - set(store_b)):
             problems.append("%s: written by the first scan only" % rel)
         for rel in sorted(set(store_b) - set(store_a)):
@@ -1998,12 +2208,15 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
         state = Path(tmp) / "state"
         _scan_into(repo, state)
 
-        # Read back through the store API (D3, `PHASE/FINDINGS.md`), not a raw
-        # filesystem walk: the default backend is `SqliteStore`, one binary
-        # file, which a byte-diff cannot describe. `golden_mod.canonical`
-        # re-serialises every artifact the same way regardless of backend, so
-        # capture is a function of content, not of the storage format.
-        backend = SqliteStore(state / "index.db")
+        # Read back through the store API (D3, `PHASE/FINDINGS.md`) via
+        # `_open_store` -- not a hardcoded `SqliteStore`, and not a raw
+        # filesystem walk: golden capture must resolve the same backend the
+        # scan above actually used (`repo`'s `.cdp.toml`), or this would
+        # silently read the wrong store the moment a repo configures `file`
+        # or `postgres`. `golden_mod.canonical` re-serialises every artifact
+        # the same way regardless of backend, so capture is a function of
+        # content, not of the storage format.
+        backend = _open_store(Paths(repo=repo, state=state))
         for name in ARTIFACTS:
             artifacts["scan/%s.json" % name] = golden_mod.canonical(
                 backend.read_artifact(name, {})

@@ -173,6 +173,131 @@ class TestRetention(unittest.TestCase):
         self.assertEqual(len(self.store.load_patches()), 1)
 
 
+class TestCompaction(unittest.TestCase):
+    """Phase 7, M7.3/2.4: `cdp compact` moves superseded `complete` generations
+    to `claim_patches_archive`, never deletes (R5)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.store = SqliteStore(Path(self._tmp.name) / "index.db")
+        self.addCleanup(self.store.close)
+        self.store.begin_snapshot("repo-a", "commit-1")
+
+    def _append(self, generation, claim_text):
+        self.store.append_patch(
+            {"node": "root/a", "status": "complete", "run_id": "run-%d" % generation,
+             "generation": generation, "claims": [{"claim": claim_text}]},
+            "root/a-%d" % generation,
+        )
+
+    def test_below_threshold_moves_nothing(self):
+        self._append(1, "first")
+        result = self.store.compact(keep_generations=1, threshold=0.30)
+        self.assertFalse(result["threshold_met"])
+        self.assertEqual(result["moved"], 0)
+        self.assertEqual(len(self.store.load_patches()), 1)
+
+    def test_five_generations_keep_one_moves_four(self):
+        for gen in range(1, 6):
+            self._append(gen, "claim-%d" % gen)
+        result = self.store.compact(keep_generations=1, threshold=0.30)
+        self.assertTrue(result["threshold_met"])
+        self.assertEqual(result["moved"], 4)
+        self.assertEqual(result["kept"], 1)
+        remaining = self.store.load_patches()
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["generation"], 5)
+
+    def test_archived_rows_are_never_deleted_only_relocated(self):
+        for gen in range(1, 6):
+            self._append(gen, "claim-%d" % gen)
+        self.store.compact(keep_generations=1, threshold=0.30)
+        archived = self.store._conn.execute(
+            "SELECT run_id, payload FROM claim_patches_archive"
+        ).fetchall()
+        self.assertEqual(len(archived), 4)
+        archived_run_ids = {r[0] for r in archived}
+        self.assertEqual(archived_run_ids, {"run-1", "run-2", "run-3", "run-4"})
+
+    def test_dry_run_moves_nothing(self):
+        for gen in range(1, 6):
+            self._append(gen, "claim-%d" % gen)
+        result = self.store.compact(keep_generations=1, threshold=0.30, dry_run=True)
+        self.assertEqual(result["moved"], 4)
+        self.assertEqual(len(self.store.load_patches()), 5)
+        archived = self.store._conn.execute(
+            "SELECT 1 FROM claim_patches_archive"
+        ).fetchall()
+        self.assertEqual(archived, [])
+
+    def test_hot_query_after_compaction_still_sees_the_kept_generation(self):
+        for gen in range(1, 6):
+            self._append(gen, "claim-%d" % gen)
+        self.store.compact(keep_generations=1, threshold=0.30)
+        remaining = self.store.load_patches()
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["claims"], [{"claim": "claim-5"}])
+
+    def test_pending_patches_are_not_generations_and_are_never_archived(self):
+        self._append(1, "first")
+        self.store.append_patch(
+            {"node": "root/a", "status": "pending", "run_id": "run-pending"},
+            "root/a-pending",
+        )
+        result = self.store.compact(keep_generations=1, threshold=0.0)
+        self.assertEqual(result["moved"], 0)
+        self.assertEqual(len(self.store.load_patches()), 2)
+
+
+class TestVerifyFull(unittest.TestCase):
+    """Phase 7, M7.4/2.5: `verify --full` re-folds from the archive too."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.store = SqliteStore(Path(self._tmp.name) / "index.db")
+        self.addCleanup(self.store.close)
+        self.store.begin_snapshot("repo-a", "commit-1")
+        for gen in range(1, 4):
+            self.store.append_patch(
+                {"node": "root/a", "status": "complete", "run_id": "run-%d" % gen,
+                 "generation": gen, "claims": [{"claim": "claim-%d" % gen}]},
+                "root/a-%d" % gen,
+            )
+
+    def test_load_patches_full_includes_archived_generations(self):
+        before = len(self.store.load_patches_full())
+        self.store.compact(keep_generations=1, threshold=0.0)
+        after_hot = self.store.load_patches()
+        after_full = self.store.load_patches_full()
+        self.assertEqual(len(after_hot), 1)
+        self.assertEqual(len(after_full), before)
+
+    def test_verify_archive_integrity_clean_after_compaction(self):
+        self.store.compact(keep_generations=1, threshold=0.0)
+        self.assertEqual(self.store.verify_archive_integrity(), [])
+
+    def test_verify_archive_integrity_names_a_corrupted_row(self):
+        self.store.compact(keep_generations=1, threshold=0.0)
+        rowid = self.store._conn.execute(
+            "SELECT rowid FROM claim_patches_archive LIMIT 1"
+        ).fetchone()[0]
+        self.store._conn.execute(
+            "UPDATE claim_patches_archive SET payload = "
+            "json_set(payload, '$.claims[0].claim', 'tampered') WHERE rowid=?",
+            (rowid,),
+        )
+        self.store._conn.commit()
+        problems = self.store.verify_archive_integrity()
+        self.assertEqual(len(problems), 1)
+        self.assertIn("rowid %d" % rowid, problems[0])
+
+    def test_uncompacted_store_has_nothing_for_full_to_add(self):
+        self.assertEqual(self.store.load_patches_full(), self.store.load_patches())
+        self.assertEqual(self.store.verify_archive_integrity(), [])
+
+
 class TestRunsAndTasks(unittest.TestCase):
     """M2.5 (0.12/0.13): schema only, driven in Phase 5."""
 

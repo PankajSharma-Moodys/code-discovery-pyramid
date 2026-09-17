@@ -21,7 +21,9 @@ this milestone, since CDP's default state location is *outside* the repo
 (`cli.py`'s module docstring) and a directory walk from inside the repo can
 never reach it. `.cdp.toml` (checked into the repo, for a team) is read here
 too if present, but nothing in this module writes one — that is a human
-decision, not one `scan` should make silently.
+decision, not one `scan` should make silently. See `.cdp.toml.example` at the
+repo root for every field this module reads (`store`, `backend`, `[postgres]`,
+`exclude`), documented and ready to rename and edit.
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ from __future__ import annotations
 import tomllib
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ..util import run_git
 
@@ -113,6 +115,24 @@ def team_excludes(repo: Path) -> List[str]:
     """
     exclude = _read_team_config(repo).get("exclude")
     return [str(x) for x in exclude] if isinstance(exclude, list) else []
+
+
+def team_backend(repo: Path) -> str:
+    """`.cdp.toml`'s `backend` key -- which `WorkspaceStore` implementation
+    `cdp` should construct for this repo. Defaults to `"sqlite"`, today's
+    behaviour for a repo with no `.cdp.toml` or one that doesn't name a
+    backend."""
+    backend = _read_team_config(repo).get("backend", "sqlite")
+    return str(backend)
+
+
+def team_postgres_config(repo: Path) -> Optional[Dict[str, str]]:
+    """`.cdp.toml`'s `[postgres]` table (`dsn`, optional `schema`), or `None`
+    if absent -- only consulted when `team_backend` is `"postgres"`."""
+    pg = _read_team_config(repo).get("postgres")
+    if not isinstance(pg, dict):
+        return None
+    return {"dsn": pg.get("dsn"), "schema": pg.get("schema")}
 
 
 def register(repo_id: str, state_path: Path) -> None:

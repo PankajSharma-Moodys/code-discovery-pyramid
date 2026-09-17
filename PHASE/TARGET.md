@@ -748,3 +748,204 @@ fixture (shape-only change: a new `excluded: {count: 0}` key, no fixture
 file actually excluded) and the target (the real 42-file drop) after
 inspecting each diff for exactly that and nothing else. Full account:
 `PHASE/FINDINGS.md` F15.
+
+## Phase 6, M6.3 only — digest-first leaves, exercised on this target
+
+User explicitly scoped this session to M6.3 (`phase_6_plan.md`'s M6.2 graded
+benchmark and M6.4 tiering rule are far beyond a single turn's budget --
+dozens of live model calls each -- and are deferred, not started).
+
+`cdp prompts --digest` against a full scan of `/Users/sharmp49/git/code_scanner`
+(170 scopes): repo-wide digest averages 3,219 chars/leaf (many near-empty
+scaffolding scopes pull the mean down), but a real scope
+(`root/sql-pool/sql-pool-smoketest`, 12 files) shows digest as the dominant
+prompt section (38,916 of ~54,000 total chars) with a real per-file
+truncation firing and stating itself. Found and fixed live on this target,
+before the milestone was declared frozen: an omitted `--repo` used to
+silently degrade every digest to empty text (F17, same class as F16) --
+`cmd_prompts --digest` now runs `_check_repo_matches_manifest` and
+`_digest_section` raises rather than degrading. Full account: `PHASE/FINDINGS.md`
+"M6.3 — Digest-first leaves".
+
+Not delivered this session (recorded as scope, not silently dropped): anchors
+are not yet references into the digest (still model-typed strings verified
+against the live file -- the plan's structural-fabrication-proof claim is
+unmet); `runner.py` escalation signalling and `store/` tier/escalation columns
+(the plan's other named "Modules touched") were not built -- escalation is
+self-reported on the claim instead; `doctor`/M6.2-benchmark re-runs in digest
+mode (the milestone's stated acceptance criterion) cannot happen until M6.2
+exists.
+
+## Phase 6, M6.4 only — tiering v1 rule, exercised on this target
+
+User scoped this session to M6.4 (M6.2 flagged and deferred as
+budget-incompatible before any code was written -- see `PHASE/FINDINGS.md`).
+`cdp/tiering.py`'s v1 rule (T2 by default; T3 on an unresolved import or a
+leaf's own `escalated: true`) run via `cdp prompts` against two real scans:
+
+| Scan | Scopes | T3 (unresolved_imports) |
+|---|---|---|
+| `sql-pool/sql-pool-api` alone (one module) | 2 | 2/2 (100%) |
+| Full `$TARGET_REPO` (170 scopes, 5.8s scan) | 170 | **117/170 (69%)** |
+
+The single-module number is misleading, not a rule defect: scanning one
+module in isolation makes every real cross-module import to a sibling
+module (`rms.unifiedstore.sqlpool.common.*`) look unresolved because that
+sibling module is absent from the scan's own `module_set`; a few real
+third-party packages (`org.mapstruct.*`, `com.rms.auth.framework.*`) also
+aren't in `graph._looks_third_party`'s hardcoded list. The full-repo number
+-- 69% T3 -- is the honest one the plan's own stress test ("T3 escalation on
+unresolved imports fires everywhere") asked for: a real majority, not a
+collapse.
+
+One real T2/T3 labelled pair (`root/automation`, 2 files, 40 LOC; same model,
+haiku, both arms to isolate input mode from model tier): T2 (digest) found 5
+claims, T3 (source-read) found 3 -- the opposite direction from the
+residue-score intuition, on this one small, fully-inlinable scope. Recorded
+as a single data point, not a general result; the plan's "a sample of scopes"
+(plural) needs repeating this per-scope live-model cost several more times,
+which is M6.2-shaped budget. Full account: `PHASE/FINDINGS.md`.
+
+## Phase 6, M6.2 — graded benchmark, executed against this target
+
+`benchmarks/run_benchmark.py` scanned `$TARGET_REPO` into a scratch state dir
+(5.36s, 4,686 files, 170 scopes, 1,860 claims) and ran 25 real questions
+through two live-model arms (haiku reader, sonnet judge). Full numbers and
+caveats in `BENCHMARKS.md`; `PHASE/FINDINGS.md` has the process record
+including F18 (a harness permission-pattern bug found and fixed mid-run, with
+the cdp arm fully re-run afterward rather than patched over).
+
+Headline: coverage 0.765 (baseline) → 0.838 (cdp), +7.3 points, concentrated
+in cross-file questions (`trace`, `config`); demotion rate on this scratch
+scan 0.0 (1,864/1,864 claims kept); `scan`+`query` crossover confirmed
+effectively immediate on this target (5.36s full scan vs. ~20s per model
+turn). Scratch scan removed after the exercise; main checkout untouched.
+
+## Phase 7 (M7.6 only) — Postgres adapter
+
+Not exercised against `$TARGET_REPO` itself this session — the milestone's
+real-input exercise was a live Postgres server (see `PHASE/FINDINGS.md`),
+which is orthogonal to which repository CDP has scanned; nothing in this
+change reads `$TARGET_REPO`. `make check TARGET_REPO=...` (launched after
+freeze, result recorded once it completes) is the confirmation that adding
+`PostgresStore` changed nothing about the existing `scan`/`fold`/`golden`
+pipeline against this target, since no command constructs it today.
+
+## Follow-up — real backend selection, exercised on a real module of
+`$TARGET_REPO` across all three backends
+
+`sql-pool/sql-pool-api` (a detached worktree at the pinned commit) scanned
+three times, once per `.cdp.toml`-selected backend, into independent scratch
+locations: default (sqlite), `backend = "file"`, and `backend = "postgres"`
+against the live local server. `cdp query stats` output was byte-identical
+across all three — same claims (41), symbols (413), routes (15), confidence
+breakdown, unknowns (1), conflicts (0). The one observed difference (census
+"49/50 on disk" for the `file`/`postgres` runs vs "49/49" for sqlite) was
+traced to the test's own `.cdp.toml` file sitting inside the scanned module
+directory as an untracked file — not a product difference.
+
+`cdp gc --dry-run` and `cdp run --wave-all` against the same module: sqlite
+and postgres both dispatched through the real supervisor identically (same
+wave count, same per-scope lease/task-state progression, same failure point
+in a synthetic test runner that didn't emit a schema-valid patch — identical
+on both backends, confirming the dispatch loop takes the same code path
+against Postgres as against Sqlite); `file` refused both commands immediately
+with the new clear `CdpError` naming the missing capability. Worktree removed
+after the exercise; main checkout's `git status --porcelain` was empty before
+and after.
+
+## Phase 7 (M7.3 only) — `cdp compact`, exercised on a real scratch scan
+
+Scoped to M7.3 only this session (M7.1/M7.2 deferred per D36, recorded in
+`PHASE/FINDINGS.md`). `sql-pool/sql-pool-api` scanned fresh into
+`/tmp/m73_scratch`; three synthetic `complete` patches appended to the same
+real node (`root/(files+2)`) via three separate `cdp collect` calls, giving
+it four real generations end to end through the actual CLI:
+
+```
+$ cdp compact --db /tmp/m73_scratch/index.db
+compact   moved 2 superseded patch(es) to the archive, kept 1
+```
+
+Both archived rows' `scope_hash` matched the real scope's actual content
+hash from `partition.json` (confirmed by reading `claim_patches_archive`
+back directly, not the summary line); the hot `claim_patch` table kept
+exactly the highest-generation patch for that node. `cdp query stats`/`cdp
+fold --check` ran against the post-compaction store without crashing;
+`fold --check` correctly failed on the raw-log hash (expected — see
+`PHASE/FINDINGS.md`'s M7.3 entry for why this is the exact gap `cdp verify
+--full` (M7.4) exists to close, not a regression). Scratch directory
+removed after the exercise.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (459 tests,
+determinism fixture+target, `fold --check` fixture+target, golden
+fixture+target): **all gates green, byte-identical, no re-bless needed** —
+`compact` is additive and untouched by the `scan`/`fold`/`golden` pipeline,
+since no existing command calls it.
+
+## Phase 7 (M7.4 only) — `cdp verify --full`, exercised on a real scratch scan
+
+Scoped to M7.4 only this session (`PHASE/FINDINGS.md` has the full account:
+the `content_hash` column added to `claim_patches_archive`, and D39 — a
+per-row hash check, not just the aggregate fold comparison, is what lets a
+corrupted archive row be named rather than only surfacing as an unexplained
+mismatch). Same real-scratch-scan pattern as M7.3, continued on the same
+scan (`sql-pool/sql-pool-api`, three synthetic generations on the real node
+`root/(files+2)`, real snapshot identity — not a synthetic snapshot):
+
+```
+$ cdp verify
+ok    state.json = fold(merge, patches/, xref.json)
+
+$ cdp compact --db <path> --compact-threshold 0
+compact   moved 2 superseded patch(es) to the archive, kept 1
+
+$ cdp verify --full
+ok    state.json = fold(merge, patches/ + archive/, xref.json)
+ok    archive rows match their recorded content hash
+```
+
+Confirming M7.4's own acceptance line exactly: `verify --full` reproduces
+the live state hash after a real compaction. Directly tampering with one
+archived row's `payload` (`json_set(..., 'TAMPERED')`) made the next `cdp
+verify --full` fail, naming that row's `rowid` explicitly, plus the
+downstream `fold_hash mismatch` — the "corrupting one archived row" stress
+test, against real target-derived data rather than a synthetic dict.
+Scratch directory removed after the exercise.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+freeze, result recorded once it completes — see below) is the confirmation
+that adding `verify`/`SCHEMA_V6` changed nothing about the existing
+`scan`/`fold`/`golden` pipeline, since no existing command calls the new
+code paths.
+
+## Phase 7 (M7.5 only) — `cdp export`, exercised on a real scratch scan
+
+Scoped to M7.5 only this session (`PHASE/FINDINGS.md` has the full account,
+including the `read_report(default=None)` bug this exercise found before the
+fixture tests were even written). `sql-pool/sql-pool-api` scanned fresh into
+`/tmp/m75_scratch` (removed after the exercise):
+
+```
+$ cdp export --format json --out exp-json
+export    json      11 artifact(s)/report(s) -> .../exp-json
+$ cdp export --format patches --out exp-patches
+export    patches   1 patch(es) -> .../exp-patches
+$ cdp export --format anonymized --out exp-anon
+export    anonymized  41 claim(s), 1 unknown(s), 0 conflict(s) -> .../exp-anon
+$ grep -c "sql-pool-api" exp-anon/corpus.json
+0
+$ cdp export --format archive --out exp-archive
+export    archive   0 row(s) -> .../exp-archive
+```
+
+All four formats run cleanly against real target-derived data: the json
+export re-opens as a real `FileStore`; the anonymized corpus contains zero
+occurrences of the real repository path; archive correctly reports zero rows
+(nothing compacted on this scratch scan) rather than refusing, since the
+sqlite backend genuinely supports the capability.
+
+`make check TARGET_REPO=...` (launched after freeze, result recorded once it
+completes — see below) is the confirmation that adding `export`/
+`dump_archive` changed nothing about the existing `scan`/`fold`/`golden`
+pipeline, since no existing command calls the new code paths.

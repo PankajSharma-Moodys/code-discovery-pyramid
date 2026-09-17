@@ -7,12 +7,15 @@ is what makes that addition a subclass rather than a second copy of these tests.
 
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from cdp.store import FileStore, SqliteStore
 from cdp.util import CdpError
+
+POSTGRES_DSN = os.environ.get("CDP_TEST_POSTGRES_DSN")
 
 
 class ConformanceMixin:
@@ -125,6 +128,120 @@ class ConformanceMixin:
         self.assertEqual(store.read_artifact("inventory"), {"head": "deadbeef"})
 
 
+class RunTaskLeaseMixin:
+    """Run/task/lease/retention assertions every *multi-writer-capable*
+    backend must satisfy identically -- ported from `test_store_sqlite.py`'s
+    `TestSnapshotLineage`/`TestRetention`/`TestRunsAndTasks` so `SqliteStore`
+    and `PostgresStore` are proven against the same behaviour, not just
+    Sqlite. Deliberately not mixed into `FileStoreConformance`: `FileStore`
+    inherits `WorkspaceStore`'s default refusal (`test_store_conformance.py`
+    `FileStoreRefusesRunTracking`, below) instead of these."""
+
+    def test_two_commits_produce_two_snapshots_and_both_stay_queryable(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.append_patch({"node": "root", "status": "complete"}, "root")
+        store.write_artifact("inventory", {"head": "commit-1"})
+
+        store.begin_snapshot("repo-a", "commit-2")
+        store.append_patch({"node": "root", "status": "complete"}, "root2")
+        store.write_artifact("inventory", {"head": "commit-2"})
+
+        store.begin_snapshot("repo-a", "commit-1")
+        self.assertEqual(store.read_artifact("inventory"), {"head": "commit-1"})
+        self.assertEqual(len(store.load_patches()), 1)
+
+        store.begin_snapshot("repo-a", "commit-2")
+        self.assertEqual(store.read_artifact("inventory"), {"head": "commit-2"})
+        self.assertEqual(len(store.load_patches()), 1)
+
+    def test_new_snapshot_is_unpinned_by_default(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        rows = store.list_snapshots()
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["pinned"])
+
+    def test_set_pinned_round_trips(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.set_pinned("commit-1", True)
+        self.assertTrue(store.list_snapshots()[0]["pinned"])
+        store.set_pinned("commit-1", False)
+        self.assertFalse(store.list_snapshots()[0]["pinned"])
+
+    def test_set_pinned_on_unknown_commit_raises(self):
+        store = self.make_store()
+        with self.assertRaises(CdpError):
+            store.set_pinned("no-such-commit", True)
+
+    def test_delete_snapshot_never_touches_a_sibling_snapshot(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.append_patch({"node": "root", "status": "complete"}, "root")
+        store.write_artifact("inventory", {"head": "commit-1"})
+        [dropped] = [r for r in store.list_snapshots() if r["commit_sha"] == "commit-1"]
+
+        store.begin_snapshot("repo-a", "commit-2")
+        store.append_patch({"node": "root", "status": "complete"}, "root2")
+        store.write_artifact("inventory", {"head": "commit-2"})
+
+        store.delete_snapshot(dropped["id"])
+
+        remaining = store.list_snapshots()
+        self.assertEqual([r["commit_sha"] for r in remaining], ["commit-2"])
+        store.begin_snapshot("repo-a", "commit-2")
+        self.assertEqual(store.read_artifact("inventory"), {"head": "commit-2"})
+        self.assertEqual(len(store.load_patches()), 1)
+
+    def test_get_run_returns_none_then_the_row_once_begun(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        self.assertIsNone(store.get_run("r1"))
+        store.begin_run("r1", "hash-a")
+        row = store.get_run("r1")
+        self.assertEqual(row, {"run_id": "r1", "partition_hash": "hash-a", "status": "running"})
+
+    def test_reclaim_expired_moves_only_dispatched_past_lease(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.begin_run("r1", "hash-a")
+        store.upsert_task("r1", "h-dispatched-expired", state="dispatched",
+                           lease_until="2000-01-01T00:00:00+00:00")
+        store.upsert_task("r1", "h-dispatched-live", state="dispatched")
+        store.acquire_lease("r1", "h-dispatched-live", 3600)  # live, far-future lease
+        store.upsert_task("r1", "h-folded", state="folded")
+        reclaimed = store.reclaim_expired("r1")
+        self.assertEqual(reclaimed, ["h-dispatched-expired"])
+        states = store.task_states("r1")
+        self.assertEqual(states["h-dispatched-expired"]["state"], "expired")
+        self.assertEqual(states["h-dispatched-live"]["state"], "dispatched")
+        self.assertEqual(states["h-folded"]["state"], "folded")
+
+    def test_copy_folded_tasks_only_copies_folded_rows(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.begin_run("r1", "hash-a")
+        store.upsert_task("r1", "h-folded", state="folded", attempts=2, last_error=None)
+        store.upsert_task("r1", "h-abandoned", state="abandoned", attempts=3)
+        store.begin_run("r2", "hash-b")
+        store.copy_folded_tasks("r1", "r2", ["h-folded", "h-abandoned", "h-never-seen"])
+        states = store.task_states("r2")
+        self.assertEqual(set(states), {"h-folded"})
+        self.assertEqual(states["h-folded"]["state"], "folded")
+        self.assertEqual(states["h-folded"]["attempts"], 2)
+
+    def test_acquire_lease_is_atomic_only_one_of_many_racers_wins(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.begin_run("r1", "hash-a")
+        wins = [store.acquire_lease("r1", "scope1", 30) for _ in range(5)]
+        self.assertEqual(sum(wins), 1)
+
+    def test_supports_run_tracking_is_true(self):
+        self.assertTrue(self.make_store().supports_run_tracking())
+
+
 class FileStoreConformance(ConformanceMixin, unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -134,7 +251,35 @@ class FileStoreConformance(ConformanceMixin, unittest.TestCase):
         return FileStore(Path(self._tmp.name) / ("store-%d" % id(object())))
 
 
-class SqliteStoreConformance(ConformanceMixin, unittest.TestCase):
+class FileStoreRefusesRunTracking(unittest.TestCase):
+    """`FileStore` inherits `WorkspaceStore`'s default refusal for the
+    write-side run/task/lease methods -- `cdp run`/`cdp gc` must fail with a
+    clear `CdpError`, not an `AttributeError` deep in `supervisor.py`."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.store = FileStore(Path(self._tmp.name) / "store")
+
+    def test_begin_run_raises_clearly(self):
+        with self.assertRaises(CdpError):
+            self.store.begin_run("r1")
+
+    def test_acquire_lease_raises_clearly(self):
+        with self.assertRaises(CdpError):
+            self.store.acquire_lease("r1", "s1", 30)
+
+    def test_read_side_defaults_are_honest_empties_not_raises(self):
+        self.assertEqual(self.store.list_snapshots(), [])
+        self.assertIsNone(self.store.get_run("r1"))
+        self.assertEqual(self.store.task_states("r1"), {})
+        self.store.copy_patches_from(1)  # no-op, must not raise
+
+    def test_supports_run_tracking_is_false(self):
+        self.assertFalse(self.store.supports_run_tracking())
+
+
+class SqliteStoreConformance(ConformanceMixin, RunTaskLeaseMixin, unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -145,6 +290,32 @@ class SqliteStoreConformance(ConformanceMixin, unittest.TestCase):
         root = Path(self._tmp.name) / ("db-%d" % self._n)
         store = SqliteStore(root / "index.db")
         self.addCleanup(store.close)
+        return store
+
+
+@unittest.skipUnless(POSTGRES_DSN, "set CDP_TEST_POSTGRES_DSN to run the Postgres conformance suite")
+class PostgresStoreConformance(ConformanceMixin, RunTaskLeaseMixin, unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._n = 0
+        self._stores = []
+        self.addCleanup(self._drop_schemas)
+
+    def _drop_schemas(self):
+        for store in self._stores:
+            store.drop_schema()
+            store.close()
+
+    def make_store(self):
+        from cdp.store.postgres_backend import PostgresStore
+
+        self._n += 1
+        schema = "cdp_test_%d_%d" % (os.getpid(), self._n)
+        store = PostgresStore(
+            POSTGRES_DSN, schema, inbox_root=Path(self._tmp.name) / ("s%d" % self._n)
+        )
+        self._stores.append(store)
         return store
 
 

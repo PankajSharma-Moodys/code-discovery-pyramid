@@ -71,6 +71,11 @@
           "default": false,
           "description": "Set by a leaf whose claim depends on an out-of-scope symbol (section 6.3). Completed or demoted by the resolve phase; never published while true."
         },
+        "escalated": {
+          "type": "boolean",
+          "default": false,
+          "description": "Phase 6 (M6.3): self-reported by a digest-first leaf when this claim required reading source beyond the digest it was handed. Absent or false means the digest alone was sufficient. Not populated by a leaf run outside digest mode."
+        },
         "demoted_reason": {
           "enum": ["anchor_not_found", "ambiguous_anchor", "anchor_too_common",
                    "unresolved_symbol", "child_failed", "inherited_budget_elision"]

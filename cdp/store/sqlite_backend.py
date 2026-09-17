@@ -163,6 +163,12 @@ SCHEMA_V5 = """
 ALTER TABLE snapshot_task ADD COLUMN wall_ms INTEGER;
 """
 
+# M7.4 (2.5): lets `verify --full` detect a corrupted archive row by content,
+# not only by the aggregate fold mismatch it would eventually cause.
+SCHEMA_V6 = """
+ALTER TABLE claim_patches_archive ADD COLUMN content_hash TEXT;
+"""
+
 # M3.8: `id DESC` is creation order, not "most recently selected" -- `refresh`
 # moving *back* to an earlier commit (e.g. a branch checkout) reuses that
 # commit's existing, lower-numbered row (`begin_snapshot`'s reuse branch), so
@@ -180,7 +186,7 @@ ALTER TABLE snapshot_meta ADD COLUMN touch_seq INTEGER;
 
 #: Forward-only migrations, one script per version. Adding a version is
 #: appending here, never editing an earlier entry.
-MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5)
+MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6)
 
 
 def _now() -> str:
@@ -287,6 +293,151 @@ class SqliteStore(WorkspaceStore):
         self._conn.execute("DELETE FROM snapshot_report WHERE snapshot_id=?", (snapshot_id,))
         self._conn.execute("DELETE FROM snapshot_meta WHERE id=?", (snapshot_id,))
         self._conn.commit()
+
+    # ------------------------------------------------------ compact (M7.3, 2.4)
+
+    def supports_compaction(self) -> bool:
+        return True
+
+    def compact(self, keep_generations: int = 1, threshold: float = 0.30,
+                dry_run: bool = False) -> Dict[str, Any]:
+        """Move superseded `complete` generations to `claim_patches_archive`.
+        Nothing is deleted -- only relocated (R5). Whole-store, not scoped to
+        the currently-selected snapshot: generations accumulate per
+        `(snapshot_id, node)` across every re-run of a node on one commit, and
+        this is a maintenance pass over the whole file, not a per-query read.
+
+        Only `complete` patches are generations at all (`state.fold`'s own
+        definition, `state.py:144-156`); a `pending`/`invalid` attempt is
+        never archived. `threshold` gates whether this call acts: below it,
+        nothing moves and nothing is reported as moved -- `--keep-generations`
+        is documented as a performance knob precisely so this threshold isn't
+        mistaken for a retention decision either.
+        """
+        rows = self._conn.execute(
+            "SELECT id, snapshot_id, content_hash, payload FROM claim_patch WHERE is_derived=0"
+        ).fetchall()
+        groups: Dict[Tuple[int, str], List[Tuple[int, str, Dict]]] = {}
+        for row_id, snapshot_id, content_hash, payload_text in rows:
+            payload = json.loads(payload_text)
+            if str(payload.get("status", "pending")) != "complete":
+                continue
+            node = str(payload.get("node", "?"))
+            groups.setdefault((snapshot_id, node), []).append((row_id, content_hash, payload))
+
+        total_complete = sum(len(v) for v in groups.values())
+        to_archive: List[Tuple[int, int, Dict]] = []
+        for (snapshot_id, _node), patches in groups.items():
+            # Same precedence as `state.fold`'s `best_complete` selection
+            # (`state.py:154-156`): highest generation wins, ties broken by
+            # `content_hash` -- so the row kept hot here is exactly the row
+            # `state.fold` already treats as this node's live generation.
+            patches.sort(key=lambda t: (int(t[2].get("generation") or 1), t[1]), reverse=True)
+            for row_id, _content_hash, payload in patches[keep_generations:]:
+                to_archive.append((row_id, snapshot_id, payload))
+
+        eligible_ratio = (len(to_archive) / total_complete) if total_complete else 0.0
+        if eligible_ratio < threshold:
+            return {"moved": 0, "kept": total_complete, "eligible_ratio": eligible_ratio,
+                     "threshold_met": False}
+        if dry_run:
+            return {"moved": len(to_archive), "kept": total_complete - len(to_archive),
+                     "eligible_ratio": eligible_ratio, "threshold_met": True}
+
+        partition_cache: Dict[int, Dict[str, Optional[str]]] = {}
+        for row_id, snapshot_id, payload in to_archive:
+            node = str(payload.get("node", "?"))
+            if snapshot_id not in partition_cache:
+                part_row = self._conn.execute(
+                    "SELECT payload FROM snapshot_artifact WHERE snapshot_id=? AND name='partition'",
+                    (snapshot_id,),
+                ).fetchone()
+                part = json.loads(part_row[0]) if part_row else {}
+                partition_cache[snapshot_id] = {
+                    s["node"]: s.get("scope_hash") for s in part.get("scopes", [])
+                }
+            # A patch carries no `scope_hash` of its own (only `node`); the
+            # cold index's key is the scope's content hash from that
+            # snapshot's own partition, falling back to the node name itself
+            # if the partition artifact is missing or stale (never fails the
+            # move over a missing index value).
+            scope_hash = partition_cache[snapshot_id].get(node) or node
+            payload_text = json.dumps(payload, sort_keys=True)
+            self._conn.execute(
+                "INSERT INTO claim_patches_archive (scope_hash, run_id, payload, content_hash) "
+                "VALUES (?, ?, ?, ?)",
+                (scope_hash, payload.get("run_id"), payload_text, stable_hash(payload)),
+            )
+            self._conn.execute("DELETE FROM claim_patch WHERE id=?", (row_id,))
+        self._conn.commit()
+        self._conn.execute("VACUUM")
+        return {"moved": len(to_archive), "kept": total_complete - len(to_archive),
+                 "eligible_ratio": eligible_ratio, "threshold_met": True}
+
+    # ------------------------------------------------------- verify --full (M7.4, 2.5)
+
+    def _archive_scope_hashes(self, partition: Optional[Dict]) -> Optional[set]:
+        if not partition or not partition.get("scopes"):
+            return None
+        hashes = {s.get("scope_hash") for s in partition["scopes"] if s.get("scope_hash")}
+        return hashes or None
+
+    def load_patches_full(self, partition: Optional[Dict] = None) -> List[Dict]:
+        """`load_patches()` plus every archived generation for this snapshot's
+        own scopes (M7.4). This is what makes `verify --full` a real re-fold
+        from the raw log rather than the hot table alone."""
+        hot = self.load_patches()
+        scope_hashes = self._archive_scope_hashes(partition)
+        if scope_hashes is None:
+            rows = self._conn.execute("SELECT payload FROM claim_patches_archive").fetchall()
+        else:
+            placeholders = ", ".join("?" * len(scope_hashes))
+            rows = self._conn.execute(
+                "SELECT payload FROM claim_patches_archive WHERE scope_hash IN (%s)" % placeholders,
+                tuple(scope_hashes),
+            ).fetchall()
+        return hot + [json.loads(r[0]) for r in rows]
+
+    def verify_archive_integrity(self, partition: Optional[Dict] = None) -> List[str]:
+        """Recompute each archived row's content hash and compare to the one
+        recorded when it was archived. A row corrupted after the move fails
+        here, named by scope and run, rather than surfacing only as an
+        unexplained aggregate fold mismatch."""
+        scope_hashes = self._archive_scope_hashes(partition)
+        rows = self._conn.execute(
+            "SELECT rowid, scope_hash, run_id, payload, content_hash FROM claim_patches_archive"
+        ).fetchall()
+        problems = []
+        for rowid, scope_hash, run_id, payload_text, content_hash in rows:
+            if scope_hashes is not None and scope_hash not in scope_hashes:
+                continue
+            if content_hash is None:
+                continue  # archived before SCHEMA_V6; nothing recorded to check against
+            if stable_hash(json.loads(payload_text)) != content_hash:
+                problems.append(
+                    "archive row corrupted: scope_hash=%s run_id=%s (rowid %d) no longer "
+                    "matches its recorded content hash" % (scope_hash, run_id, rowid)
+                )
+        return problems
+
+    def dump_archive(self, partition: Optional[Dict] = None) -> List[Dict]:
+        """M7.5: every archived row, raw -- `scope_hash`/`run_id` plus the
+        payload and the content hash `verify --full` checks it against."""
+        scope_hashes = self._archive_scope_hashes(partition)
+        rows = self._conn.execute(
+            "SELECT scope_hash, run_id, payload, content_hash FROM claim_patches_archive"
+        ).fetchall()
+        out = []
+        for scope_hash, run_id, payload_text, content_hash in rows:
+            if scope_hashes is not None and scope_hash not in scope_hashes:
+                continue
+            out.append({
+                "scope_hash": scope_hash,
+                "run_id": run_id,
+                "payload": json.loads(payload_text),
+                "content_hash": content_hash,
+            })
+        return out
 
     # ---------------------------------------------------- tasks (M4.2 gate 3)
 
@@ -685,3 +836,6 @@ class SqliteStore(WorkspaceStore):
 
     def close(self) -> None:
         self._conn.close()
+
+    def supports_run_tracking(self) -> bool:
+        return True

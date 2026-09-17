@@ -290,13 +290,14 @@ def check_fold(
     partition: Optional[Dict] = None,
     repo: Optional[Path] = None,
     mode: str = STRICT,
+    full: bool = False,
 ) -> List[str]:
     """Recompute the fold and compare it to the materialised `state` artifact.
 
     Returns a list of violations. Any non-empty result means something wrote to
-    the materialized view that the log does not support. This is also Phase
-    7's `verify --full` mechanism: a full recompute against `repo` re-verifies
-    every claim from the raw log rather than trusting the last materialisation.
+    the materialized view that the log does not support. `full` is Phase 7's
+    `verify --full` (2.5): it re-folds from the archive as well as the hot
+    table, so compaction is proved lossless rather than merely asserted.
     """
     if not store.has_artifact("state"):
         return ["state does not exist; nothing has been folded yet"]
@@ -307,12 +308,15 @@ def check_fold(
     # absence as drift instead of confirming it.
     from .rollback import load_excluded_run_ids
 
+    problems: List[str] = []
+    if full:
+        problems += store.verify_archive_integrity(partition)
+    patches = store.load_patches_full(partition) if full else store.load_patches()
     recomputed = fold(
-        store.load_patches(), xref, partition, repo=repo, mode=mode,
+        patches, xref, partition, repo=repo, mode=mode,
         excluded_run_ids=load_excluded_run_ids(store),
         extraction=store.read_artifact("extract") if store.has_artifact("extract") else None,
     )
-    problems = []
     if on_disk.get("provenance", {}).get("fold_hash") != recomputed["provenance"]["fold_hash"]:
         problems.append("fold_hash mismatch: the log has changed since state.json was written")
     for key in ("claims", "unknowns", "conflicts", "coverage", "entailment", "contradictions"):

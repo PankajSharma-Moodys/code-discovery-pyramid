@@ -18,6 +18,11 @@ requires-python = ">=3.9"
 # added here defeats the property that `cdp install` relies on.
 dependencies = []
 
+# Optional, lazily imported by cdp/store/postgres_backend.py only -- the base
+# install above stays dependency-free. See that module's docstring.
+[project.optional-dependencies]
+postgres = ["psycopg2-binary"]
+
 [project.scripts]
 cdp = "cdp.cli:main"
 

@@ -24,13 +24,15 @@ behind the same `WorkspaceStore` interface; the backend conformance suite in
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from ..util import CdpError
 
 ARTIFACTS = (
     "inventory", "extract", "graph", "partition", "schedule",
     "xref", "dataflow", "state", "manifest",
 )
-REPORTS = ("verify", "conflicts", "prompts", "rejected", "unknown_gates")
+REPORTS = ("verify", "conflicts", "prompts", "rejected", "unknown_gates", "tiering")
 
 
 class WorkspaceStore(ABC):
@@ -100,6 +102,17 @@ class WorkspaceStore(ABC):
         the same result under any permutation (`state.check_order_independence`).
         """
 
+    def load_patches_full(self, partition: Optional[Dict] = None) -> List[Dict]:
+        """`load_patches()` plus anything `compact` moved to the archive
+        (M7.4, 2.5). Base implementation: no archive exists on this backend,
+        so it is exactly `load_patches()`."""
+        return self.load_patches()
+
+    def verify_archive_integrity(self, partition: Optional[Dict] = None) -> List[str]:
+        """Per-row content-hash check over the archive (M7.4). Base
+        implementation: no archive, so nothing to corrupt."""
+        return []
+
     @abstractmethod
     def append_patch(self, patch: Dict, label: str) -> str:
         """Append one patch. Never rewrites an existing slot. Returns its id."""
@@ -132,6 +145,114 @@ class WorkspaceStore(ABC):
     @abstractmethod
     def clear_inbox(self, node: str) -> None:
         """Remove the inbox entry for `node` once its patch has been logged."""
+
+    def close(self) -> None:
+        """No-op default -- only a backend holding a live connection (Sqlite,
+        Postgres) needs to override this."""
+
+    def supports_run_tracking(self) -> bool:
+        """Whether this backend can back `cdp run`/`cdp gc` at all. `False`
+        by default (`FileStore`). Checked by the CLI up front so those
+        commands fail with one clear message naming the missing capability,
+        rather than a `list_snapshots()`-returns-`[]` read-side default
+        cascading into a *different*, more confusing error deeper in (found
+        live: `cdp gc` against `FileStore` reported "no snapshot for HEAD --
+        run `cdp scan` first", which is wrong -- a scan did run; the backend
+        just doesn't track snapshots as a retention concept)."""
+        return False
+
+    # ------------------------------------------- snapshots/runs/tasks/leases
+    # (Phase 7: `cdp run`/`cdp gc` need these; only `SqliteStore` and
+    # `PostgresStore` give them real, multi-writer-safe meaning. Read-side
+    # methods default to an honest empty answer -- the same posture
+    # `task_states`' own history already took ("schema-only... callers get
+    # `{}` today, honestly, rather than a fabricated state"). Write-side
+    # methods default to a clear refusal: a backend with no run/task storage
+    # (`FileStore`) cannot silently pretend to support `cdp run`/`cdp gc`.)
+
+    def supports_compaction(self) -> bool:
+        """Whether this backend can back `cdp compact` (Phase 7, 2.4). `False`
+        by default (`FileStore` has no cold table to move rows into)."""
+        return False
+
+    def compact(self, keep_generations: int = 1, threshold: float = 0.30,
+                dry_run: bool = False) -> Dict[str, Any]:
+        raise CdpError(
+            "%s has no cold archive -- `cdp compact` needs the sqlite backend"
+            % type(self).__name__
+        )
+
+    def dump_archive(self, partition: Optional[Dict] = None) -> List[Dict]:
+        """M7.5: raw archived rows for `cdp export --format archive`. Same
+        capability gate as `compact` -- a backend that cannot archive has
+        nothing to dump."""
+        raise CdpError(
+            "%s has no cold archive -- `cdp export --format archive` needs "
+            "the sqlite backend" % type(self).__name__
+        )
+
+    def list_snapshots(self) -> List[Dict]:
+        return []
+
+    def get_run(self, run_id: str) -> Optional[Dict]:
+        return None
+
+    def task_states(self, run_id: str) -> Dict[str, Dict]:
+        return {}
+
+    def task_rows(self, run_id: str) -> List[Dict]:
+        return []
+
+    def snapshot_id(self) -> int:
+        return 1
+
+    def use_latest_snapshot(self) -> None:
+        """No-op default: a backend with no snapshot lineage has only ever
+        one thing to be 'latest'."""
+
+    def copy_patches_from(self, source_snapshot_id: int) -> None:
+        """No-op default. Only ever invoked (`cmd_refresh`) when a freshly
+        selected snapshot's patch log is empty -- impossible on a
+        single-snapshot backend, where `begin_snapshot` is already a no-op,
+        so the "new" snapshot is the same store whose log is never empty
+        after any scan. Raising here would break `cdp refresh` against
+        `FileStore`, which otherwise works fine without snapshot lineage."""
+
+    def _no_run_tracking(self) -> CdpError:
+        return CdpError(
+            "%s has no run/task tracking -- `cdp run`/`cdp gc` need the "
+            "sqlite or postgres backend" % type(self).__name__
+        )
+
+    def begin_run(self, run_id: str, partition_hash: Optional[str] = None) -> None:
+        raise self._no_run_tracking()
+
+    def finish_run(self, run_id: str, status: str) -> None:
+        raise self._no_run_tracking()
+
+    def upsert_task(self, run_id: str, scope_hash: str, **fields: Any) -> None:
+        raise self._no_run_tracking()
+
+    def acquire_lease(self, run_id: str, scope_hash: str, lease_seconds: float) -> bool:
+        raise self._no_run_tracking()
+
+    def heartbeat_lease(self, run_id: str, scope_hash: str, lease_seconds: float) -> None:
+        raise self._no_run_tracking()
+
+    def release_lease(self, run_id: str, scope_hash: str) -> None:
+        raise self._no_run_tracking()
+
+    def reclaim_expired(self, run_id: str) -> List[str]:
+        raise self._no_run_tracking()
+
+    def copy_folded_tasks(self, old_run_id: str, new_run_id: str, scope_hashes) -> None:
+        raise self._no_run_tracking()
+
+    def set_pinned(self, commit_sha: str, pinned: bool) -> None:
+        raise self._no_run_tracking()
+
+    def delete_snapshot(self, snapshot_id: int) -> None:
+        raise self._no_run_tracking()
 
 
 def has_scanned(state_dir) -> bool:

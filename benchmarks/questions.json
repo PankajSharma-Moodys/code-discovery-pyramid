@@ -1,0 +1,177 @@
+[
+  {
+    "id": "q01",
+    "category": "routes",
+    "question": "What HTTP method and route does AdminDataController#ArchiveSecurableAsync handle?",
+    "gold_facts": ["POST", "securables/{securableId}/archive"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.cs (verified in prior CDP session, F2 revisited)"
+  },
+  {
+    "id": "q02",
+    "category": "trace",
+    "question": "Tracing from the GET /v1/servers route handler, what chain of classes does it flow through, and how many files does the full trace touch?",
+    "gold_facts": ["ServerResource", "ServerService", "EServer", "ServerMapper", "37 files"],
+    "gold_source": "verified live in prior CDP session (FINDINGS.md F5)"
+  },
+  {
+    "id": "q03",
+    "category": "config",
+    "question": "Where in the repo is the config key logging.type actually read (file and line), and what kind of edge is that (e.g. env read, config read, etc.)?",
+    "gold_facts": ["src/main/resources/dropwizard-service-config.yml:21", "config_read"],
+    "gold_source": "verified live in prior CDP session (TARGET.md M4.2 exercise)"
+  },
+  {
+    "id": "q04",
+    "category": "module",
+    "question": "Does this repository's root directory contain a build manifest file that a typical build-tool detector (pom.xml, build.gradle, package.json, *.csproj, etc.) would recognise?",
+    "gold_facts": ["no", "Directory.Build.props", "global.json", "nuget.config", "none of these are recognised manifest names"],
+    "gold_source": "verified by reading repo root directly, this session"
+  },
+  {
+    "id": "q05",
+    "category": "paths",
+    "question": "Is the git commit 7e10575adf69a193da7f547aed088f7409f1f7c4 an ancestor of this repository's current HEAD?",
+    "gold_facts": ["no", "git merge-base --is-ancestor fails both directions", "history was rewritten between them"],
+    "gold_source": "verified live in prior CDP session (TARGET.md Phase 3 M3.1-M3.3)"
+  },
+  {
+    "id": "q06",
+    "category": "symbol",
+    "question": "What C# type is declared at core/RMS.UnifiedStore.Core/ITenant.cs, and what member does it declare?",
+    "gold_facts": ["public interface ITenant", "string TenantId { get; }"],
+    "gold_source": "verified by reading the file directly, this session"
+  },
+  {
+    "id": "q07",
+    "category": "routes",
+    "question": "What HTTP method and route does NotificationController's ProcessDataBridgeNotificationAsync method handle?",
+    "gold_facts": ["POST", "databridge/notify"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/NotificationController.cs:28, verified this session"
+  },
+  {
+    "id": "q08",
+    "category": "symbol",
+    "question": "How many .cs files reference the ITenant interface in this repository (as a rough usage count via a plain text search)?",
+    "gold_facts": ["171 files"],
+    "gold_source": "grep -rln ITenant --include=*.cs . | wc -l, verified this session"
+  },
+  {
+    "id": "q09",
+    "category": "module",
+    "question": "What is the Maven artifactId declared in the automation module's pom.xml?",
+    "gold_facts": ["automation"],
+    "gold_source": "automation/pom.xml, verified this session"
+  },
+  {
+    "id": "q10",
+    "category": "table",
+    "question": "What SQL table is created by the migration script V1.40__MI-67085_LOOK_UP.sql, and in what schema?",
+    "gold_facts": ["PerilNewCauseOfLoss", "dbo"],
+    "gold_source": "service-api/.../Resources/upgrade-lookup/sql/V1.40__MI-67085_LOOK_UP.sql:14, verified this session"
+  },
+  {
+    "id": "q11",
+    "category": "table",
+    "question": "What SQL table is created by the migration script V1.30__LookupDB-UIQ-5908_LOOK_UP.sql, and in what schema?",
+    "gold_facts": ["secondarymodifiers", "dbo"],
+    "gold_source": "service-api/.../Resources/upgrade-lookup/sql/V1.30__LookupDB-UIQ-5908_LOOK_UP.sql:5, verified this session"
+  },
+  {
+    "id": "q12",
+    "category": "table",
+    "question": "In ServiceApiDbContext.cs, what is the EF Core DbSet property name and entity type for the Tenants table?",
+    "gold_facts": ["public DbSet<TenantRecord> Tenants"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/DataLayer/EF/ServiceApiDbContext.cs:385, verified this session"
+  },
+  {
+    "id": "q13",
+    "category": "table",
+    "question": "What class declares the EF Core DbContext for the service-api, and what base class does it extend?",
+    "gold_facts": ["ServiceApiDbContext", "DbContext"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/DataLayer/EF/ServiceApiDbContext.cs:15, verified this session"
+  },
+  {
+    "id": "q14",
+    "category": "table",
+    "question": "What SQL table is created by the migration script V1.39__UIQ-7263_LOOK_UP.sql, and in what schema?",
+    "gold_facts": ["regioncountrymap", "dbo"],
+    "gold_source": "service-api/.../Resources/upgrade-lookup/sql/V1.39__UIQ-7263_LOOK_UP.sql:10, verified this session"
+  },
+  {
+    "id": "q15",
+    "category": "routes",
+    "question": "What is the base route pattern and HTTP method declared on SqlInstancesController's parameterless GET action?",
+    "gold_facts": ["v1/{tenantId}/[controller]", "HttpGet", "no path segment argument beyond the controller-derived route"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/SqlInstancesController.cs:15,31, verified this session"
+  },
+  {
+    "id": "q16",
+    "category": "config",
+    "question": "Name three distinct services under this repo that each have their own appsettings.json (i.e. config is per-service, not centralized).",
+    "gold_facts": ["catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/appsettings.json", "catalog-service/RMS.UnifiedStore.Service.Catalog/appsettings.json", "managed-sql/RMS.UnifiedStore.Service.ManagedSql/appsettings.json"],
+    "gold_source": "find . -iname appsettings*.json, verified this session"
+  },
+  {
+    "id": "q17",
+    "category": "paths",
+    "question": "How many subdirectories at depth <= 2 from the repo root contain their own recognised build manifest (pom.xml, build.gradle, or *.csproj)?",
+    "gold_facts": ["5"],
+    "gold_source": "find . -maxdepth 2 ( -iname pom.xml -o -iname build.gradle -o -iname *.csproj ), verified this session"
+  },
+  {
+    "id": "q18",
+    "category": "paths",
+    "question": "What .NET SDK version does this repository's global.json pin, and what is its rollForward policy?",
+    "gold_facts": ["10.0.102", "latestFeature"],
+    "gold_source": "global.json, verified this session"
+  },
+  {
+    "id": "q19",
+    "category": "module",
+    "question": "What is the Gradle root project name declared in sql-pool/settings.gradle?",
+    "gold_facts": ["spm"],
+    "gold_source": "sql-pool/settings.gradle:1, verified this session"
+  },
+  {
+    "id": "q20",
+    "category": "symbol",
+    "question": "What two route methods does DataBridgeEdmController declare, and what path parameters does each take?",
+    "gold_facts": ["GET {serverName}", "GET {serverName}/{databaseName}"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/DataBridgeEdmController.cs:33,65, verified this session"
+  },
+  {
+    "id": "q21",
+    "category": "routes",
+    "question": "What HTTP method and route does ManagedSqlDatabaseController's quick-connection-string action handle?",
+    "gold_facts": ["POST", "sql-instances/{instanceName}/databases/{databaseName}/quick-connection-string"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/ManagedSqlDatabaseController.cs:27, verified this session"
+  },
+  {
+    "id": "q22",
+    "category": "config",
+    "question": "Which build-tool config file at this repo's root pins a shared MSBuild property across every .NET project (not project-specific), and what is it named?",
+    "gold_facts": ["Directory.Build.props"],
+    "gold_source": "repo root listing, verified this session"
+  },
+  {
+    "id": "q23",
+    "category": "paths",
+    "question": "Which language/toolchain accounts for the largest number of tracked files in this repository, and roughly how many files is that (nearest hundred)?",
+    "gold_facts": ["C#", "2200"],
+    "gold_source": "TARGET.md census, established by a prior CDP session's full scan, human-inspected"
+  },
+  {
+    "id": "q24",
+    "category": "trace",
+    "question": "What interface does NotificationController depend on to process a data-bridge notification event, injected via its constructor?",
+    "gold_facts": ["IDataBridgeNotificationHandler"],
+    "gold_source": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/NotificationController.cs:22, verified this session"
+  },
+  {
+    "id": "q25",
+    "category": "symbol",
+    "question": "Reflection/dynamic-dispatch check: does a plain text/AST search of this repo reliably find every caller of a handler that is invoked only via runtime dependency injection (e.g. an interface implementation registered by name/convention rather than a direct `new` or static call)? Give a concrete example if one exists in core/RMS.UnifiedStore.Core/Clients/ServiceManagement/.",
+    "gold_facts": ["no, not reliably", "DI-registered implementations are not resolvable by grep/AST alone; CDP is expected to score worse here per SKILL.md's own stated limitation"],
+    "gold_source": "expected-failure question by design, per RESEARCH_GRAPHIFY.md §7.2 stress test and phase_6_plan.md's stress-test table"
+  }
+]

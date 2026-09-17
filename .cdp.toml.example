@@ -1,0 +1,40 @@
+# Example `.cdp.toml` -- a team's opt-in, checked-into-the-repo config
+# (`cdp/store/registry.py`). Rename to `.cdp.toml` and edit; CDP never writes
+# this file itself (a shared store URL and backend choice are a human
+# decision, not one `scan` should make silently).
+#
+# Not required: with no `.cdp.toml`, every field below defaults to what CDP
+# already does today (sqlite, no shared store, no extra excludes).
+
+# Where state lives, shared across the team. Read before the per-machine
+# `~/.cdp/config.toml` registry, so a teammate cloning this repo for the
+# first time inherits it rather than getting a fresh, unregistered `./.cdp`.
+# store = "/shared/nfs/path/to/store"
+
+# Which WorkspaceStore backend `cdp` constructs. One of "sqlite" (default),
+# "file", or "postgres".
+#
+#   sqlite    One file (`index.db`) per store. Default; no config needed.
+#   file      Plain JSON files on disk -- an export/debugging format, not a
+#             multi-writer store. `cdp run`/`cdp gc` refuse clearly against
+#             it (no run/task tracking); every other command works.
+#   postgres  A shared, multi-writer store for a team scanning the same
+#             repo concurrently. Needs the `[postgres]` table below and the
+#             optional `postgres` extra: `pip install cdp[postgres]`.
+#
+# backend = "postgres"
+
+[postgres]
+# Required when backend = "postgres". Any libpq connection string psycopg2
+# accepts.
+dsn = "postgresql://user@host:5432/dbname"
+
+# Optional. Defaults to a name derived from this repo's identity (declared
+# id -> origin remote -> UUID; see `repo_identity` in registry.py), so two
+# repos sharing one Postgres server don't collide without you having to pick
+# unique names yourself. Set this to pin a specific schema explicitly.
+# schema = "team_unified_store"
+
+# Directory-name segments excluded from every scan of this repo, in addition
+# to (never instead of) CDP's own DEFAULT_EXCLUDES.
+# exclude = [".idea-shared-notes"]

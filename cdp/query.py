@@ -60,15 +60,11 @@ class Store:
         # most recent snapshot, not whichever one `_snapshot_id()`'s lazy
         # `id=1` fallback happens to land on. See `use_latest_snapshot`'s
         # docstring for the bug this closes.
-        use_latest = getattr(self.backend, "use_latest_snapshot", None)
-        if callable(use_latest):
-            use_latest()
+        self.backend.use_latest_snapshot()
         self._cache: Dict[str, Any] = {}
 
     def close(self) -> None:
-        close = getattr(self.backend, "close", None)
-        if close is not None:
-            close()
+        self.backend.close()
 
     def _load(self, name: str, default: Any = None) -> Any:
         if name not in self._cache:
