@@ -1819,3 +1819,170 @@ up a real framework runner.
 measurement artifact, not a behavioural contract); `tests/test_pipeline.py`
 `TestCli` gains one new test driving `cdp prompts --measure` through the real
 CLI and asserting the fixed/variable/total lines are present.
+
+## Phase 6 (M6.1 only) — `cdp doctor`, scoped down from the full phase 6 plan
+
+Session budget: the full `phase_6_plan.md` (doctor + a 25-40 question graded
+benchmark run out-of-session against two arms + digest-first shipped behind a
+flag + tiering v1, each re-benchmarked) needs dozens of live model calls and
+is hours of work, not the ~20min/60k-token session budget. User chose to scope
+this session to M6.1 (`cdp doctor`) only; M6.2 (graded benchmark), M6.3
+(digest-first) and M6.4 (tiering) are **not started**.
+
+**Shipped.** `cdp/doctor.py` + `cdp doctor` CLI command. Dispatches one
+runner (reusing `SubprocessRunner`, same `--runner-cmd` convention as `cdp
+run`) over every scope of an already-scanned repo and scores each patch on:
+schema validity, anchor survival (`verify.py`), entailment split
+(`entail.py`), recall vs a hand-authored golden set, and false-unknown rate.
+Writes `<state>/doctor/<model-label>.json` per run and prints a compatibility
+table across every model report already on disk.
+
+**Golden set decision (unstated by the plan, resolved here).** The plan says
+"golden set" without saying what one looks like. Implemented as
+`GOLDEN_MINIREPO` in `cdp/doctor.py`: 4 hand-authored facts (2 per module),
+read directly from `tests/fixtures/minirepo` source — not derived from any
+CDP run, so it isn't circular. Matching rule: a claim "hits" a gold fact if
+its `subject` contains a fixed substring AND its `statement` contains a fixed
+keyword. Cheap and deterministic (no model-as-judge), but proven **brittle
+on real model output** (below) — recorded as an open problem for M6.2's
+judge-based grading to actually solve, not for this milestone to patch.
+
+**Runner design fork, found and fixed only by running it for real (R-E7).**
+First cut of `scripts/claude_leaf_runner.sh` piped the prompt into `claude -p`
+with no tools. Against a real target-repo scope (`root/.claude` in
+`/Users/sharmp49/git/code_scanner`) the model didn't fail loudly — it
+fabricated a filesystem it never read ("23 files listed in scope do not
+exist in repository"), because `build_prompt`'s output is a file *list*, not
+file *contents* (`prompts.py`'s own docstring says so); a leaf needs
+Read/Grep/Glob to do its job, matching `.claude/agents/cdp-leaf.md`'s
+`tools:` line. Fixed: the script now takes `MODEL REPO` (not just `MODEL`)
+up front, `cd`s into `REPO`, and runs with `--allowedTools "Read Grep Glob
+Write" --permission-mode acceptEdits`, letting the model `Write` the patch
+to an absolute path instead of printing to stdout. This is the real,
+would-have-shipped-broken defect this milestone's own R-E7 exercise exists to
+catch — invisible on `tests/test_doctor.py`'s fake runners, which never
+touch a real filesystem.
+
+**Live results (real `claude -p`, not fakes).**
+
+- Against `code_scanner/.claude/` (real target, 1 scope, haiku): schema
+  validation caught a genuine conformance defect — the model emitted
+  `kind: "purpose"` and `kind: "authority"`, both outside the closed
+  vocabulary the agent prompt lists verbatim. Doctor's schema-validity metric
+  discriminates for a reason the plan's own "false-unknown" framing didn't
+  anticipate: a capable model can still violate a closed vocabulary the
+  prompt states explicitly.
+- Against `tests/fixtures/minirepo` (2 golden scopes, `--timeout 180-280`):
+
+  | model  | schema_valid | yield_collapse | recall | false_unknown |
+  |--------|---|---|---|---|
+  | haiku  | 100% | 0%  | 0%  | 0% |
+  | sonnet | 33%  | 67% | 25% | 0% |
+  | opus   | 33%  | 67% | 0%  | 0% |
+
+  Haiku's 0% recall is **not** a real recall failure — inspecting its raw
+  patch (`core.config.display_name_indexed_query_hint`, subject
+  `table:widget`) shows it correctly stated "no corresponding custom query
+  method appears in WidgetRepository," the exact fact the golden set wants,
+  attached to a different `subject` than the golden entry's substring
+  expects. Same for the duplicate-FQN fact: haiku's claim states the fact
+  correctly but never uses the literal word "duplicate." **This is the
+  brittleness the golden-set decision above warned about, demonstrated on
+  real output, not hypothesised.** Sonnet and opus both show the identical
+  67% yield-collapse pattern (`root/core`+`root/web` empty even at a 280s
+  timeout for opus) — same two scopes fail for both, which points at an
+  infra artifact in `scripts/claude_leaf_runner.sh` (most likely: the model
+  attempts a tool outside `--allowedTools` and `acceptEdits` hangs on a
+  permission prompt with no TTY to answer it, rather than a model capability
+  difference) and not a model-quality finding. **Not disambiguated this
+  session** — flagged rather than presented as a real capability result.
+- Deviation from the acceptance criterion: all 3 models ran, but the
+  compatibility table does not unambiguously demonstrate the specific
+  "passes recall, fails false-unknown" pattern the acceptance criterion
+  names — the closed-vocabulary violation (haiku, real target repo) and the
+  golden-matcher brittleness (all 3, minirepo) are real discriminating
+  signal, just not that exact pattern, and the sonnet/opus yield-collapse
+  numbers are confounded by the runner-hang artifact above rather than
+  trustworthy as capability data.
+
+**Test coverage.** `tests/test_doctor.py`: 3 unit tests against fake
+in-process runners (well-formed patch -> recall 1.0/false-unknown 0.0;
+all-unknowns collapse runner -> recall 0.0/false-unknown 1.0, proving the
+metric doesn't reward blanket "unknown" the way raw precision would; silent
+runner -> reported as `empty`, not a crash).
+
+**Open for M6.2+ (recorded, not solved here).** The golden-matching
+brittleness above is exactly what "grade with a different model than
+answers" (M6.2) is for -- a judge model reading "does this claim state fact
+X" tolerates paraphrase; a substring match does not. Don't re-litigate the
+substring approach inside M6.1 -- replace it when M6.2's judge exists.
+
+---
+
+## F10 (revisited) — verification caveat closed
+
+F10's own text flagged that its `SyntaxWarning`-suppression fix had shipped
+without a fresh `make check TARGET_REPO=...` re-run. Ran it: `359 tests`,
+determinism (fixture + target), `fold --check` (fixture + target), golden
+(fixture + target) all green, and the target run's stderr carries no
+`SyntaxWarning` output (previously four lines per M6.1's account). Treat the
+"believed zero-risk" language in F10 as confirmed, not merely argued, as of
+this run.
+
+---
+
+## F14 — `--allowedTools` does not restrict the leaf's toolset; a leaf could
+run Bash the whole time
+
+**Severity:** high — this is not the M6.1 entry's "yield-collapse, cause
+undisambiguated" note, it is the actual mechanism, and it is worse than a
+timeout: `scripts/claude_leaf_runner.sh`'s entire safety premise is "a leaf
+can only Read/Grep/Glob/Write, never execute" (its own comment, and
+`.claude/agents/cdp-leaf.md`'s `tools:` line), and that premise did not hold.
+
+**Confirmed live, not inferred.** `claude -p --model haiku --allowedTools
+"Read Grep Glob Write" --permission-mode acceptEdits ...`, prompted to run
+`date +%s%N` via Bash and report the exact stdout: it returned a real,
+live nanosecond timestamp close to the invocation's own wall-clock time --
+not a fabrication, an actual Bash execution. Same result whether
+`--allowedTools` is space- or comma-separated. Only adding an explicit
+`--disallowedTools "Bash"` blocked it -- meaning `--allowedTools` is a
+permission-*pre-approval* list (skip the prompt for these), not an
+allow-*list* (nothing outside it is available), which is the opposite of
+what the runner's own comment assumed.
+
+**Second-order consequence: this is also the undisambiguated yield-collapse
+mechanism from the M6.1 entry above.** Any action `--allowedTools` doesn't
+cover -- including, it turns out, a `Write` to a path outside the model's
+working directory, which is the *normal* case here since the patch path is
+CDP's out-of-repo state dir -- raises a permission prompt. `-p` is fed via a
+pipe with no TTY to answer it, so without a deny-by-default it hangs until
+`SubprocessRunner`'s own `--timeout` (180-280s in the M6.1 run) kills it --
+indistinguishable from a real empty yield. This plausibly explains that
+session's sonnet/opus 67% yield-collapse on the exact two scopes whose
+patch path required an out-of-tree write, not a model-capability gap.
+
+**Fix, `scripts/claude_leaf_runner.sh`:**
+- `--tools "Read,Grep,Glob,Write"` replaces `--allowedTools` -- confirmed
+  live to actually remove Bash from the model's toolset (a follow-up prompt
+  gets "I don't have a Bash tool available", not an execution).
+- `--add-dir "$ABS_PATCH_DIR"` -- `--tools`'s stricter mode also confines
+  `Write` to the working directory unless granted, which broke the normal
+  out-of-repo patch path; confirmed live that the same `Write` succeeds
+  inside the repo and is refused outside it without this flag.
+- `--permission-prompts none` -- makes any action still requiring a prompt
+  (there should be none left, but this is the safety net) fail fast and
+  visibly instead of hanging to the timeout.
+
+**Verified end to end, real model calls, not fakes:** a normal `Write`
+outside the repo succeeds (~12s); a Bash-escape prompt is refused with no
+patch written and no hang (~8s); and the actual production composition --
+`cdp scan` + `cdp prompts` on `tests/fixtures/minirepo`, the real prompt
+file fed to the fixed runner, patch written to the real
+`<state>/patches/inbox/<node>.json` path -- produces a schema-shaped patch
+(2 claims, 2 unknowns) in ~75s.
+
+**Not done this session:** re-running M6.1's sonnet/opus doctor pass against
+the fixed runner to confirm the yield-collapse actually clears (would need
+another round of live, multi-minute model calls per model/scope; flagged
+for whoever picks up M6.2).

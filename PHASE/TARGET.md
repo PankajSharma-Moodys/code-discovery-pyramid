@@ -662,3 +662,39 @@ does and does not cover (CDP's own prompt template only — not a real model's
 tokenizer, and not the system-prompt/tool-definition overhead a real agent
 framework adds on top, which lives outside this codebase and Phase 9's
 runner adapters).
+
+## Phase 6 (M6.1 only) — `cdp doctor` run for real against this target and against minirepo
+
+Scoped down to M6.1 only this session (M6.2 graded benchmark, M6.3
+digest-first, M6.4 tiering: not started -- see `PHASE/FINDINGS.md`).
+`cdp doctor --node "root/.claude" --runner-cmd "scripts/claude_leaf_runner.sh
+haiku $TARGET_REPO"` against `/Users/sharmp49/git/code_scanner` caught a real
+model conformance defect on the first live run: haiku emitted `kind:
+"purpose"` and `kind: "authority"`, both outside the closed vocabulary
+`.claude/agents/cdp-leaf.md` states verbatim. Doctor's schema-validity check
+is the metric that discriminated, not false-unknown rate.
+
+Full 3-model run (haiku/sonnet/opus) against `tests/fixtures/minirepo`'s two
+golden scopes is in `PHASE/FINDINGS.md`, along with the golden-matcher
+brittleness it surfaced and the unresolved sonnet/opus yield-collapse.
+
+## Post-M6.1 defect pass — F10 re-verified, F14 found and fixed on this target and minirepo
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (359 tests,
+determinism, `fold --check`, golden -- fixture and target) green with no
+`SyntaxWarning` output, closing F10's own verification caveat.
+
+`scripts/claude_leaf_runner.sh` real-model exercises (`claude -p`, haiku,
+live calls, not fakes), on this repo and on `tests/fixtures/minirepo`:
+- A Bash-escape prompt against the pre-fix runner (`--allowedTools`) ran
+  Bash for real (`date +%s%N` returned a live timestamp) -- the sandbox the
+  runner's own comment claimed did not hold. Same prompt against the fixed
+  runner (`--tools`) got "I don't have a Bash tool available" and wrote no
+  patch.
+- `cdp scan` + `cdp prompts --wave 0` on `tests/fixtures/minirepo`, real
+  prompt file, fixed runner, against the real out-of-repo
+  `<state>/patches/inbox/root.json` path: produced a schema-shaped patch (2
+  claims, 2 unknowns, real anchors) in ~75s -- the actual production
+  composition, not a synthetic smoke test.
+
+Full account: `PHASE/FINDINGS.md` F14.

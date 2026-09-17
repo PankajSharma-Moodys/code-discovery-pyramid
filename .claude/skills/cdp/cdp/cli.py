@@ -33,6 +33,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 from . import anchor as anchor_mod
 from . import dataflow as dataflow_mod
 from . import diffs as diffs_mod
+from . import doctor as doctor_mod
 from . import docs as docs_mod
 from . import freshness as freshness_mod
 from . import gates as gates_mod
@@ -199,6 +200,19 @@ def _parser() -> argparse.ArgumentParser:
                      help="retries per scope before it is abandoned (default %d)"
                           % supervisor_mod.MAX_ATTEMPTS)
     rn.set_defaults(func=cmd_run)
+
+    dr = add("doctor", "model conformance harness (M6.1, 4.10) -- schema "
+                        "validity, anchor survival, entailment, recall and "
+                        "false-unknown rate against a hand-authored golden set")
+    dr.add_argument("--runner-cmd", required=True, metavar="CMD",
+                     help="shell command for SubprocessRunner, given prompt and patch "
+                          "paths as its last two arguments")
+    dr.add_argument("--model", required=True, metavar="LABEL",
+                     help="label for this runner in the compatibility table "
+                          "(e.g. a model name) -- not passed to the runner itself")
+    dr.add_argument("--timeout", type=float, default=300.0)
+    dr.add_argument("--node", default=None, help="only this scope")
+    dr.set_defaults(func=cmd_doctor)
 
     st = add("status", "waves, node statuses and coverage")
     st.set_defaults(func=cmd_status)
@@ -1185,6 +1199,74 @@ def cmd_run(args) -> int:
         store = query_mod.Store(backend)  # re-read state.json: next wave inherits this wave's claims
 
     backend.finish_run(run_id, "complete")
+    backend.close()
+    return 0
+
+
+# ----------------------------------------------------------------- doctor
+
+
+def cmd_doctor(args) -> int:
+    """M6.1 (4.10): dispatch one runner over every scope of an already-scanned
+    repo, score each patch against the hand-authored golden set (currently
+    only defined for `tests/fixtures/minirepo` -- doctor on any other repo
+    reports the other four metrics with `recall`/`false_unknown_rate` at
+    `None`, rather than silently fabricating a golden set from CDP's own
+    output).  Writes `<state>/doctor/<model>.json` and prints the
+    compatibility table across every model report already on disk.
+    """
+    paths = _paths(args)
+    backend = _open_store(paths.state)
+    store = query_mod.Store(backend)
+    sched = store._load("schedule")
+    run_id = str(store.manifest.get("run_id", "cdp"))
+    validator = Validator.load(schema_path(SKILL_ROOT))
+    runner = runner_mod.SubprocessRunner(shlex.split(args.runner_cmd), timeout_s=args.timeout)
+
+    golden_by_module = doctor_mod.GOLDEN_MINIREPO if paths.repo.name == "minirepo" else {}
+
+    out_dir = paths.state / "doctor"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    prompt_path = out_dir / "_scratch_prompt.md"
+    patch_path = out_dir / "_scratch_patch.json"
+
+    reports: List[Dict] = []
+    for scope in store.partition["scopes"]:
+        node = scope["node"]
+        if args.node and node != args.node:
+            continue
+        golden = golden_by_module.get(scope["module"], [])
+        report = doctor_mod.doctor_scope(
+            scope, store.inventory, store.extraction, store.xref, sched,
+            store.state.get("claims", []), run_id, runner, paths.repo,
+            prompt_path, patch_path, validator, golden,
+        )
+        reports.append(report)
+        print("  %-40s schema_valid=%-5s empty=%-5s recall=%s false_unknown=%s"
+              % (node, report.get("schema_valid"), report.get("empty"),
+                 report.get("recall"), report.get("false_unknown_rate")))
+
+    for p in (prompt_path, patch_path):
+        if p.exists():
+            p.unlink()
+
+    agg = doctor_mod.aggregate(reports)
+    agg["model"] = args.model
+    agg["scope_reports"] = reports
+    write_json(out_dir / ("%s.json" % args.model), agg)
+    print("doctor    %s: schema_valid=%s%% yield_collapse=%s%% recall=%s%% false_unknown=%s%% (n=%d scope(s), %d golden fact(s))"
+          % (args.model, doctor_mod._pct(agg["schema_validity_rate"]),
+             doctor_mod._pct(agg["yield_collapse_rate"]), doctor_mod._pct(agg["recall"]),
+             doctor_mod._pct(agg["false_unknown_rate"]), agg["scopes"], agg["golden_total"]))
+
+    models = {}
+    for f in out_dir.glob("*.json"):
+        data = read_json(f)
+        if isinstance(data, dict) and "model" in data:
+            models[data["model"]] = data
+    if len(models) > 1:
+        print("\n" + doctor_mod.compatibility_table(models))
+
     backend.close()
     return 0
 
