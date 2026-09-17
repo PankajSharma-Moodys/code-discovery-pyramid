@@ -37,8 +37,28 @@ from .util import (
 
 ROOT_MODULE = "(root)"
 
+# Checked-in AI-assistant/editor configuration -- rule files, plan documents,
+# skill definitions -- with no architectural content. Found live: dispatching
+# a leaf agent against a real target's `.cursor/` scope burned two real model
+# calls and failed both times on schema violations, because there was nothing
+# honest for a leaf to extract from Cursor rule files. Not `.github`/
+# `.gitlab`/`.circleci` -- those get their own `ci` role (`classify_role`)
+# because they carry real deployment/build signal; this list is only for
+# tooling with none. Extend via `.cdp.toml`'s `exclude` list
+# (`store/registry.py`'s `team_excludes`) or `cdp scan --exclude`, never by
+# editing this tuple for one target.
+DEFAULT_EXCLUDES: Tuple[str, ...] = (
+    ".claude", ".cursor", ".windsurf", ".vscode", ".idea", ".zed",
+)
 
-def build_inventory(repo: Path) -> Dict:
+
+def _is_excluded(path: str, excludes: Tuple[str, ...]) -> bool:
+    """Segment-exact match, not substring -- `.cursorstuff/foo.py` must
+    survive a `.cursor` entry."""
+    return any(seg in excludes for seg in path.split("/"))
+
+
+def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
     repo = Path(repo).resolve()
     if not repo.is_dir():
         raise CdpError("not a directory: %s" % repo)
@@ -48,6 +68,13 @@ def build_inventory(repo: Path) -> Dict:
     if paths is None:
         source = "walk"
         paths = walk_files(repo)
+
+    excludes = DEFAULT_EXCLUDES + tuple(extra_excludes)
+    kept = []
+    excluded_paths = []
+    for p in paths:
+        (excluded_paths if _is_excluded(p, excludes) else kept).append(p)
+    paths = kept
 
     manifests = sorted(p for p in paths if is_manifest(p))
     root_module = _root_module(repo, paths, manifests)
@@ -92,6 +119,11 @@ def build_inventory(repo: Path) -> Dict:
             "tracked": tracked,
             "on_disk": on_disk,
             "ratio": round(on_disk / tracked, 2) if tracked else 0.0,
+        },
+        "excluded": {
+            "patterns": sorted(excludes),
+            "count": len(excluded_paths),
+            "paths": sorted(excluded_paths),
         },
         "by_language": _tally(files, "language"),
         "by_role": _tally(files, "role"),
@@ -314,6 +346,12 @@ def summarise(inventory: Dict) -> List[str]:
         "languages " + ", ".join("%s %d" % (k, v) for k, v in list(inventory["by_language"].items())[:8]),
         "modules   %d" % len(inventory["modules"]),
     ]
+    excluded = inventory.get("excluded") or {}
+    if excluded.get("count"):
+        lines.append(
+            "excluded  %d file(s) matching %s"
+            % (excluded["count"], ", ".join(excluded["patterns"]))
+        )
     root = inventory.get("root_module") or {}
     if root.get("is_module") and root.get("named"):
         lines.append("          scan root is one module, named '%s' by %s"

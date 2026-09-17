@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
+    "fold_hash": "2a913fdcbf1492e61461f97d5c55ec2efed475f5bc7b896f0eaa74ea655e15f4",
     "repo": "tree",
     "state_version": 1
   },
@@ -10,8 +10,8 @@
   "build_name": "spm",
   "census": {
     "on_disk": 4729,
-    "ratio": 1.0,
-    "tracked": 4728
+    "ratio": 1.01,
+    "tracked": 4686
   },
   "claims": 1860,
   "claims_by_confidence": {
@@ -31,14 +31,12 @@
   "conflicts": 0,
   "coverage": {
     "files_complete": 0,
-    "files_total": 4728,
+    "files_total": 4686,
     "fraction": 0.0,
     "incomplete_nodes": [
       "root/(.github+3)",
       "root/(build+5)",
       "root/(files)",
-      "root/.claude",
-      "root/.cursor",
       "root/automation",
       "root/automation/api-automation/(files+10)",
       "root/automation/api-automation/src/main/java/com/rms/uds/tests",
@@ -581,7 +579,7 @@
     "java": 1420,
     "javascript": 6,
     "maven": 31,
-    "other": 318,
+    "other": 276,
     "python": 1,
     "scala": 73,
     "sql": 512
@@ -601,13 +599,13 @@
     "build": 85,
     "ci": 8,
     "config": 39,
-    "docs": 60,
+    "docs": 26,
     "schema": 512,
-    "source": 3243,
+    "source": 3235,
     "test": 776
   },
   "routes": 565,
-  "scopes": 172,
+  "scopes": 170,
   "symbols": 20255,
   "unknowns": 4
 }

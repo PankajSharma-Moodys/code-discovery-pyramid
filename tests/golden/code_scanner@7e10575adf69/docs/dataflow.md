@@ -2,7 +2,7 @@
 
 How data travels through this application — the question the module dependency graph cannot answer. The topology below was walked by deterministic Python over typed channel edges; every hop carries the anchor of the edge it came from, so a hop with no evidence has nowhere to hide.
 
-> **Coverage: 0.0%** — 0 of 4728 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/(.github+3)`, `root/(build+5)`, `root/(files)`, `root/.claude`, `root/.cursor`, `root/automation`, `root/automation/api-automation/(files+10)`, `root/automation/api-automation/src/main/java/com/rms/uds/tests`.
+> **Coverage: 0.0%** — 0 of 4686 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/(.github+3)`, `root/(build+5)`, `root/(files)`, `root/automation`, `root/automation/api-automation/(files+10)`, `root/automation/api-automation/src/main/java/com/rms/uds/tests`, `root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)`, `root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/(files)`.
 
 ## Edges that no import expresses
 

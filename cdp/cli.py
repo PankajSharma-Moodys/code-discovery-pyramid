@@ -126,6 +126,11 @@ def _parser() -> argparse.ArgumentParser:
                    help="parallel extraction workers (F9: default auto -- "
                         "sequential under %d parseable files, else cpu_count; "
                         "1 forces sequential)" % extract_mod.PARALLEL_MIN_FILES)
+    s.add_argument("--exclude", action="append", default=None, metavar="NAME",
+                   help="directory-name segment to exclude from the scan, in "
+                        "addition to the built-in AI-tool/editor defaults "
+                        "(.claude, .cursor, ...) and any .cdp.toml `exclude` "
+                        "list -- repeatable")
     s.add_argument("--no-docs", dest="docs", action="store_false", default=True,
                    help="skip rendering <state-dir>/docs/ at the end of the scan")
     s.add_argument("--quiet", action="store_true")
@@ -384,6 +389,13 @@ def _next_generation(existing_patches: Sequence[Dict], node: str) -> int:
 # ------------------------------------------------------------------- scan
 
 
+def _extra_excludes(args, repo: Path) -> List[str]:
+    """`.cdp.toml`'s `exclude` list plus this invocation's `--exclude`
+    (where the command's own parser has one) -- additive on top of
+    `inventory.DEFAULT_EXCLUDES`, never a replacement for it."""
+    return registry_mod.team_excludes(repo) + list(getattr(args, "exclude", None) or [])
+
+
 def cmd_scan(args) -> int:
     paths = _paths(args)
     say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
@@ -395,7 +407,7 @@ def cmd_scan(args) -> int:
     if not getattr(args, "in_repo", False) and not getattr(args, "state_dir", None):
         registry_mod.register(registry_mod.repo_identity(paths.repo), paths.state)
 
-    inventory = inventory_mod.build_inventory(paths.repo)
+    inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=_extra_excludes(args, paths.repo))
     say("\n".join(inventory_mod.summarise(inventory)))
 
     extraction = run_extract(paths.repo, inventory, workers=args.workers)
@@ -943,7 +955,7 @@ def cmd_refresh(args) -> int:
         history_ok = False
         rename_map, edited, added, deleted = {}, set(), set(), set()
 
-    new_inventory = inventory_mod.build_inventory(paths.repo)
+    new_inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=_extra_excludes(args, paths.repo))
     if history_ok:
         changed = set(rename_map.values()) | edited | added
     else:

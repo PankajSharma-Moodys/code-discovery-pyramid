@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
+    "fold_hash": "2a913fdcbf1492e61461f97d5c55ec2efed475f5bc7b896f0eaa74ea655e15f4",
     "repo": "tree",
     "state_version": 1
   },
@@ -9,14 +9,12 @@
   "budget_note": "coverage is never budgeted: it is the check that detects a compromised answer, so it must not be able to be compromised the same way.",
   "coverage": {
     "files_complete": 0,
-    "files_total": 4728,
+    "files_total": 4686,
     "fraction": 0.0,
     "incomplete_nodes": [
       "root/(.github+3)",
       "root/(build+5)",
       "root/(files)",
-      "root/.claude",
-      "root/.cursor",
       "root/automation",
       "root/automation/api-automation/(files+10)",
       "root/automation/api-automation/src/main/java/com/rms/uds/tests",

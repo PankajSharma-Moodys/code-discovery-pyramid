@@ -16,6 +16,18 @@
     "ratio": 1.08,
     "tracked": 13
   },
+  "excluded": {
+    "count": 0,
+    "paths": [],
+    "patterns": [
+      ".claude",
+      ".cursor",
+      ".idea",
+      ".vscode",
+      ".windsurf",
+      ".zed"
+    ]
+  },
   "files": [
     {
       "binary": false,

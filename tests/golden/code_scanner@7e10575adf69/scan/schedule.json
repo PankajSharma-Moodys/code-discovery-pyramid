@@ -285,8 +285,6 @@
     "root/(.github+3)": 0,
     "root/(build+5)": 0,
     "root/(files)": 0,
-    "root/.claude": 0,
-    "root/.cursor": 0,
     "root/automation": 0,
     "root/automation/api-automation/(files+10)": 0,
     "root/automation/api-automation/src/main/java/com/rms/uds/tests": 0,
@@ -334,8 +332,8 @@
     "root/core/RMS.UnifiedStore.Core.App.Tests": 8,
     "root/core/RMS.UnifiedStore.Core.Tests": 5,
     "root/core/RMS.UnifiedStore.Core/(Contracts+2)": 0,
-    "root/core/RMS.UnifiedStore.Core/(files+7)": 1,
-    "root/core/RMS.UnifiedStore.Core/Exceptions": 1,
+    "root/core/RMS.UnifiedStore.Core/(files+7)": 0,
+    "root/core/RMS.UnifiedStore.Core/Exceptions": 0,
     "root/exposure-snapshot/(files+1)": 1,
     "root/exposure-snapshot/domain-data-migration/migrations": 1,
     "root/exposure-snapshot/download-exposure": 10,
@@ -355,8 +353,8 @@
     "root/exposure-snapshot/snapshot-api/src/test": 13,
     "root/exposure-snapshot/snapshot-common/(files+5)": 1,
     "root/exposure-snapshot/snapshot-common/src/main/(files+5)": 1,
-    "root/exposure-snapshot/snapshot-common/src/main/(files+9)": 2,
-    "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/(clients+3)": 2,
+    "root/exposure-snapshot/snapshot-common/src/main/(files+9)": 1,
+    "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/(clients+3)": 1,
     "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/(files)": 2,
     "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/(files)": 2,
     "root/exposure-snapshot/snapshot-developer-utils": 5,
@@ -389,8 +387,8 @@
     "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(BackgroundJobs+5)": 2,
     "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(Clusters+6)": 2,
     "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(EdmSync+5)": 2,
-    "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(files+1)": 3,
-    "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Contracts/(files)": 3,
+    "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(files+1)": 2,
+    "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Contracts/(files)": 2,
     "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1": 3,
     "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/(files)": 3,
     "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)": 3,
@@ -432,8 +430,8 @@
     "root/service-api/RMS.UnifiedStore.Service.Api/Resources/edm-upgrade/sql": 14,
     "root/service-api/RMS.UnifiedStore.Service.Api/Resources/upgrade-lookup/sql": 15,
     "root/service-api/RMS.UnifiedStore.Service.Api/Utils": 15,
-    "root/sql-pool": 4,
-    "root/sql-pool/sql-pool-api-client": 4,
+    "root/sql-pool": 3,
+    "root/sql-pool/sql-pool-api-client": 3,
     "root/sql-pool/sql-pool-api/(files+2)": 10,
     "root/sql-pool/sql-pool-api/src/main/java": 10,
     "root/sql-pool/sql-pool-common/(files+4)": 4,
@@ -456,38 +454,36 @@
     "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests": 7
   },
   "totals": {
-    "nodes": 172,
-    "source_loc_scheduled": 1424015,
+    "nodes": 170,
+    "source_loc_scheduled": 1413466,
     "waves": 18
   },
   "waves": [
     {
-      "file_count": 207,
+      "file_count": 233,
       "level": 0,
-      "loc": 30483,
+      "loc": 22610,
       "nodes": [
         "root/(.github+3)",
         "root/(build+5)",
         "root/(files)",
-        "root/.claude",
-        "root/.cursor",
         "root/automation",
         "root/automation/api-automation/(files+10)",
         "root/automation/api-automation/src/main/java/com/rms/uds/tests",
         "root/client-dotnet/RMS.UnifiedStore.Client",
         "root/client-java",
         "root/client-java/client-core",
-        "root/core/RMS.UnifiedStore.Core/(Contracts+2)"
+        "root/core/RMS.UnifiedStore.Core/(Contracts+2)",
+        "root/core/RMS.UnifiedStore.Core/(files+7)",
+        "root/core/RMS.UnifiedStore.Core/Exceptions"
       ],
       "wave": 0
     },
     {
       "file_count": 361,
       "level": 0,
-      "loc": 272122,
+      "loc": 274306,
       "nodes": [
-        "root/core/RMS.UnifiedStore.Core/(files+7)",
-        "root/core/RMS.UnifiedStore.Core/Exceptions",
         "root/exposure-snapshot/(files+1)",
         "root/exposure-snapshot/domain-data-migration/migrations",
         "root/exposure-snapshot/entity-variation-task/(files+8)",
@@ -497,17 +493,17 @@
         "root/exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/(files)",
         "root/exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/helper",
         "root/exposure-snapshot/snapshot-common/(files+5)",
-        "root/exposure-snapshot/snapshot-common/src/main/(files+5)"
+        "root/exposure-snapshot/snapshot-common/src/main/(files+5)",
+        "root/exposure-snapshot/snapshot-common/src/main/(files+9)",
+        "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/(clients+3)"
       ],
       "wave": 1
     },
     {
-      "file_count": 355,
+      "file_count": 398,
       "level": 0,
-      "loc": 46041,
+      "loc": 43191,
       "nodes": [
-        "root/exposure-snapshot/snapshot-common/src/main/(files+9)",
-        "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/(clients+3)",
         "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/(files)",
         "root/exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/model/query/(files)",
         "root/exposure-snapshot/snapshot-legacy",
@@ -517,17 +513,17 @@
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(Aws+4)",
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(BackgroundJobs+5)",
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(Clusters+6)",
-        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(EdmSync+5)"
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(EdmSync+5)",
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(files+1)",
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Contracts/(files)"
       ],
       "wave": 2
     },
     {
-      "file_count": 357,
+      "file_count": 268,
       "level": 0,
-      "loc": 108333,
+      "loc": 108882,
       "nodes": [
-        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(files+1)",
-        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Contracts/(files)",
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1",
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/(files)",
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
@@ -537,17 +533,17 @@
         "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/SqlInstances",
         "root/ms-sql-java",
         "root/ms-sql-java/downgrade-processor/(files+3)",
-        "root/ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts"
+        "root/ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts",
+        "root/sql-pool",
+        "root/sql-pool/sql-pool-api-client"
       ],
       "wave": 3
     },
     {
-      "file_count": 112,
+      "file_count": 90,
       "level": 0,
-      "loc": 8959,
+      "loc": 6400,
       "nodes": [
-        "root/sql-pool",
-        "root/sql-pool/sql-pool-api-client",
         "root/sql-pool/sql-pool-common/(files+4)",
         "root/sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/(exceptions+3)",
         "root/sql-pool/sql-pool-common/src/test"

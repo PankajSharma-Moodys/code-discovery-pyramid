@@ -2,7 +2,7 @@
 
 Every question this run could not answer, with the anchor that raised it. This is the list to take to the incumbent team before they leave. A gap here is *output*, not failure: the alternative is a document that asserts a plausible answer, and a reader who cannot tell the difference.
 
-> **Coverage: 0.0%** — 0 of 4728 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/(.github+3)`, `root/(build+5)`, `root/(files)`, `root/.claude`, `root/.cursor`, `root/automation`, `root/automation/api-automation/(files+10)`, `root/automation/api-automation/src/main/java/com/rms/uds/tests`.
+> **Coverage: 0.0%** — 0 of 4686 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/(.github+3)`, `root/(build+5)`, `root/(files)`, `root/automation`, `root/automation/api-automation/(files+10)`, `root/automation/api-automation/src/main/java/com/rms/uds/tests`, `root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)`, `root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/(files)`.
 
 ## `root`
 

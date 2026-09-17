@@ -2,13 +2,13 @@
 
 Reconstructed by CDP at commit `<HEAD>`. Every claim below carries a `file:line` citation that a Python verifier confirmed against the file.
 
-> **Coverage: 0.0%** — 0 of 4728 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/(.github+3)`, `root/(build+5)`, `root/(files)`, `root/.claude`, `root/.cursor`, `root/automation`, `root/automation/api-automation/(files+10)`, `root/automation/api-automation/src/main/java/com/rms/uds/tests`.
+> **Coverage: 0.0%** — 0 of 4686 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/(.github+3)`, `root/(build+5)`, `root/(files)`, `root/automation`, `root/automation/api-automation/(files+10)`, `root/automation/api-automation/src/main/java/com/rms/uds/tests`, `root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)`, `root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/(files)`.
 
 ## Census
 
 | | |
 |---|---|
-| Tracked files | 4,728 |
+| Tracked files | 4,686 |
 | Files on disk | 4,729 (**1.0x**) |
 | Inventory source | `git` |
 | Modules | 62 |

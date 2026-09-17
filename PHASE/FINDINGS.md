@@ -2109,3 +2109,71 @@ file fed to the fixed runner, patch written to the real
 the fixed runner to confirm the yield-collapse actually clears (would need
 another round of live, multi-minute model calls per model/scope; flagged
 for whoever picks up M6.2).
+
+---
+
+## F15 — no guard against dispatching leaf agents at AI-tool/editor scaffolding
+
+**Severity:** medium -- not a correctness defect (nothing wrong was claimed),
+but a real waste: it burns real model calls and attempts to extract
+"architecture" from content that has none. **Status: fixed.**
+
+**Found live, not theorised:** dispatching a leaf agent (`cdp run --scope
+root/.cursor`) against `$TARGET_REPO` -- first with haiku, then sonnet --
+both calls failed, because `.claude/`/`.cursor/` in that repository are
+checked-in AI-coding-assistant configuration (rule files, plan documents,
+skill definitions), not source code. Haiku's two attempts were rejected by
+the patch schema itself (an anchor under the 12-character floor, a
+statement over the 500-character cap) -- the gate did its job, but the
+underlying question ("what does this Cursor rule file's architecture look
+like") should never have been asked.
+
+**Root cause:** `cdp/inventory.py` builds from `git ls-files` (deliberately
+-- its own docstring: this is what keeps a 372-file-on-disk/2-in-git
+generated module from reporting as 372) with no dot-directory
+special-casing at all. A `role` classifier already exists
+(`classify_role`, `cdp/lang/__init__.py:78-90`) that would tag an ordinary
+`.md` rule file as `docs`, but Cursor's own `.mdc` extension isn't matched
+by `_DOC_PATTERN` (`md|rst|adoc|txt`) and falls through to `source` --
+and, more fundamentally, `role` was never wired up as an actual filter
+anywhere (`partition.py`/`prompts.py`/`schedule.py` only use it for
+`by_role` reporting counts and a label in the leaf prompt). Nothing stopped
+any tracked file, regardless of role, from being partitioned into a scope
+and handed to a leaf.
+
+**Fix, a denylist rather than a role-based redesign** (user's explicit
+choice -- simpler, ships now, doesn't require redesigning how `role` is
+used throughout the pipeline): `cdp/inventory.py`'s new
+`DEFAULT_EXCLUDES` (`.claude`, `.cursor`, `.windsurf`, `.vscode`, `.idea`,
+`.zed` -- not `.github`/`.gitlab`/`.circleci`, which keep their `ci` role
+and real signal). `build_inventory(repo, extra_excludes=...)` drops any
+path with a matching `/`-separated segment (segment-exact, not substring --
+`.cursorstuff/` survives) before extraction/partitioning/scheduling ever
+see it, and **records what it dropped rather than silently discarding it**
+(`inventory["excluded"]`: patterns, count, full path list) -- this
+project's standing rule against silent gaps.
+
+**Made configurable, per the user's explicit request**, so this isn't a
+one-target special case: `.cdp.toml` (`cdp/store/registry.py`'s existing
+team-config file, "checked into the repo, for a team") gains an `exclude`
+array, read by new `team_excludes()`; `cdp scan` gains a repeatable
+`--exclude` flag for one-off additions. Both are strictly additive on top
+of `DEFAULT_EXCLUDES`, never a replacement -- a team extending the list
+can't accidentally un-exclude the defaults.
+
+**Verified, not assumed:** `tests/test_inventory_excludes.py` (6 tests:
+defaults excluded and recorded, segment-exact matching, nested occurrences,
+`.cdp.toml`/`--exclude` both additive). Real-scale, `$TARGET_REPO`: an
+independent count (`git ls-files | grep -E '(^|/)\.(claude|cursor|...)/'`)
+gave 42 tracked files under those directories; the tool's own
+`inventory["excluded"]["count"]` matched exactly, and no `.claude`/`.cursor`
+scope remained in `cdp status`. Golden re-blessed on **both** the fixture
+and the target -- not because file selection changed on the fixture (it has
+no `.claude`/`.cursor` content), but because `inventory.json` gained a new
+`excluded` key for every scan regardless of whether anything matched,
+changing the JSON shape everywhere. Inspected the diff before blessing
+either baseline: fixture's was exactly `excluded: {count: 0, ...}` and
+nothing else; target's was 4,728 -> 4,686 tracked files (42 fewer, matching
+the independent count) and `root/.claude`/`root/.cursor` gone from the
+incomplete-scopes list, nothing else. `make check TARGET_REPO=...` green
+after (determinism, fold, golden -- fixture and target).

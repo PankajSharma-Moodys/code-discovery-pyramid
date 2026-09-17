@@ -8,7 +8,7 @@
     "java": 1420,
     "javascript": 6,
     "maven": 31,
-    "other": 318,
+    "other": 276,
     "python": 1,
     "scala": 73,
     "sql": 512
@@ -18,395 +18,72 @@
     "build": 85,
     "ci": 8,
     "config": 39,
-    "docs": 60,
+    "docs": 26,
     "schema": 512,
-    "source": 3243,
+    "source": 3235,
     "test": 776
   },
   "counts": {
     "on_disk": 4729,
-    "ratio": 1.0,
-    "tracked": 4728
+    "ratio": 1.01,
+    "tracked": 4686
+  },
+  "excluded": {
+    "count": 42,
+    "paths": [
+      ".claude/plans/Move-Database-Service-API-Metadata.md",
+      ".claude/plans/bug/DP-13132-move_secure_database_system_user.plan.md",
+      ".claude/plans/bug/eih-6365_user-friendly_import_error_137b493c.plan.md",
+      ".claude/plans/catalog_card_access_v2_index_cleanup.plan.md",
+      ".claude/plans/edm_database_downgrade_v2.plan.md",
+      ".claude/plans/feature/EIH-1567-edm_database_move_design.plan.md",
+      ".claude/plans/feature/MI-81566-sql-instance-endpoint-cache.plan.md",
+      ".claude/plans/feature/eih-6429-redis-cache-admin.plan.md",
+      ".claude/plans/unified-store_wfs_metric_counter.plan.md",
+      ".claude/rules/api-endpoint-design-checklist.md",
+      ".claude/rules/code-review-java.md",
+      ".claude/rules/code-review.md",
+      ".claude/rules/feature-flags-usage.md",
+      ".claude/rules/logging-standards-java.md",
+      ".claude/rules/logging-standards.md",
+      ".claude/rules/map-docs.md",
+      ".claude/rules/security.md",
+      ".claude/skills/build-test-module/SKILL.md",
+      ".claude/skills/build-test-module/build-test.sh",
+      ".claude/skills/catalog-db-migration/SKILL.md",
+      ".claude/skills/catalog-schema-update/SKILL.md",
+      ".claude/skills/create-pr/SKILL.md",
+      ".claude/skills/review-pr/SKILL.md",
+      ".cursor/plans/bug/DP-13132-move_secure_database_system_user.plan.md",
+      ".cursor/plans/bug/eih-6365_user-friendly_import_error_137b493c.plan.md",
+      ".cursor/plans/edm_database_downgrade_v2.plan.md",
+      ".cursor/plans/feature/EIH-1567-edm_database_move_design.plan.md",
+      ".cursor/plans/feature/MI-81566-sql-instance-endpoint-cache.plan.md",
+      ".cursor/plans/feature/eih-6429-redis-cache-admin.plan.md",
+      ".cursor/plans/unified-store_wfs_metric_counter.plan.md",
+      ".cursor/rules/api-endpoint-design-checklist.mdc",
+      ".cursor/rules/code-review-java.mdc",
+      ".cursor/rules/code-review.mdc",
+      ".cursor/rules/feature-flags-usage.mdc",
+      ".cursor/rules/logging-standards-java.mdc",
+      ".cursor/rules/logging-standards.mdc",
+      ".cursor/rules/map-docs.md",
+      ".cursor/rules/security.mdc",
+      ".cursor/skills/catalog/db-migration/SKILL.md",
+      ".cursor/skills/catalog/schema-update/SKILL.md",
+      ".cursor/skills/create-pr/SKILL.md",
+      ".cursor/skills/review-pr/SKILL.md"
+    ],
+    "patterns": [
+      ".claude",
+      ".cursor",
+      ".idea",
+      ".vscode",
+      ".windsurf",
+      ".zed"
+    ]
   },
   "files": [
-    {
-      "binary": false,
-      "bytes": 14484,
-      "language": "other",
-      "loc": 328,
-      "module": "(root)",
-      "path": ".claude/plans/Move-Database-Service-API-Metadata.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 12584,
-      "language": "other",
-      "loc": 190,
-      "module": "(root)",
-      "path": ".claude/plans/bug/DP-13132-move_secure_database_system_user.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 19175,
-      "language": "other",
-      "loc": 240,
-      "module": "(root)",
-      "path": ".claude/plans/bug/eih-6365_user-friendly_import_error_137b493c.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 11796,
-      "language": "other",
-      "loc": 196,
-      "module": "(root)",
-      "path": ".claude/plans/catalog_card_access_v2_index_cleanup.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 27718,
-      "language": "other",
-      "loc": 621,
-      "module": "(root)",
-      "path": ".claude/plans/edm_database_downgrade_v2.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 45515,
-      "language": "other",
-      "loc": 583,
-      "module": "(root)",
-      "path": ".claude/plans/feature/EIH-1567-edm_database_move_design.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 21045,
-      "language": "other",
-      "loc": 266,
-      "module": "(root)",
-      "path": ".claude/plans/feature/MI-81566-sql-instance-endpoint-cache.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 24280,
-      "language": "other",
-      "loc": 329,
-      "module": "(root)",
-      "path": ".claude/plans/feature/eih-6429-redis-cache-admin.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 18656,
-      "language": "other",
-      "loc": 152,
-      "module": "(root)",
-      "path": ".claude/plans/unified-store_wfs_metric_counter.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 6789,
-      "language": "other",
-      "loc": 174,
-      "module": "(root)",
-      "path": ".claude/rules/api-endpoint-design-checklist.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 7108,
-      "language": "other",
-      "loc": 214,
-      "module": "(root)",
-      "path": ".claude/rules/code-review-java.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 10984,
-      "language": "other",
-      "loc": 256,
-      "module": "(root)",
-      "path": ".claude/rules/code-review.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 4687,
-      "language": "other",
-      "loc": 133,
-      "module": "(root)",
-      "path": ".claude/rules/feature-flags-usage.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 4800,
-      "language": "other",
-      "loc": 148,
-      "module": "(root)",
-      "path": ".claude/rules/logging-standards-java.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 6927,
-      "language": "other",
-      "loc": 218,
-      "module": "(root)",
-      "path": ".claude/rules/logging-standards.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 3180,
-      "language": "other",
-      "loc": 57,
-      "module": "(root)",
-      "path": ".claude/rules/map-docs.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 9599,
-      "language": "other",
-      "loc": 237,
-      "module": "(root)",
-      "path": ".claude/rules/security.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 3993,
-      "language": "other",
-      "loc": 79,
-      "module": "(root)",
-      "path": ".claude/skills/build-test-module/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 3583,
-      "language": "other",
-      "loc": 136,
-      "module": "(root)",
-      "path": ".claude/skills/build-test-module/build-test.sh",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 10033,
-      "language": "other",
-      "loc": 282,
-      "module": "(root)",
-      "path": ".claude/skills/catalog-db-migration/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 14578,
-      "language": "other",
-      "loc": 313,
-      "module": "(root)",
-      "path": ".claude/skills/catalog-schema-update/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 7045,
-      "language": "other",
-      "loc": 243,
-      "module": "(root)",
-      "path": ".claude/skills/create-pr/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 11199,
-      "language": "other",
-      "loc": 249,
-      "module": "(root)",
-      "path": ".claude/skills/review-pr/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 12584,
-      "language": "other",
-      "loc": 190,
-      "module": "(root)",
-      "path": ".cursor/plans/bug/DP-13132-move_secure_database_system_user.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 19175,
-      "language": "other",
-      "loc": 240,
-      "module": "(root)",
-      "path": ".cursor/plans/bug/eih-6365_user-friendly_import_error_137b493c.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 27718,
-      "language": "other",
-      "loc": 621,
-      "module": "(root)",
-      "path": ".cursor/plans/edm_database_downgrade_v2.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 45515,
-      "language": "other",
-      "loc": 583,
-      "module": "(root)",
-      "path": ".cursor/plans/feature/EIH-1567-edm_database_move_design.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 21047,
-      "language": "other",
-      "loc": 266,
-      "module": "(root)",
-      "path": ".cursor/plans/feature/MI-81566-sql-instance-endpoint-cache.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 24280,
-      "language": "other",
-      "loc": 329,
-      "module": "(root)",
-      "path": ".cursor/plans/feature/eih-6429-redis-cache-admin.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 18656,
-      "language": "other",
-      "loc": 152,
-      "module": "(root)",
-      "path": ".cursor/plans/unified-store_wfs_metric_counter.plan.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 6801,
-      "language": "other",
-      "loc": 174,
-      "module": "(root)",
-      "path": ".cursor/rules/api-endpoint-design-checklist.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 7116,
-      "language": "other",
-      "loc": 214,
-      "module": "(root)",
-      "path": ".cursor/rules/code-review-java.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 11000,
-      "language": "other",
-      "loc": 256,
-      "module": "(root)",
-      "path": ".cursor/rules/code-review.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 4689,
-      "language": "other",
-      "loc": 133,
-      "module": "(root)",
-      "path": ".cursor/rules/feature-flags-usage.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 4804,
-      "language": "other",
-      "loc": 148,
-      "module": "(root)",
-      "path": ".cursor/rules/logging-standards-java.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 6931,
-      "language": "other",
-      "loc": 218,
-      "module": "(root)",
-      "path": ".cursor/rules/logging-standards.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 3186,
-      "language": "other",
-      "loc": 57,
-      "module": "(root)",
-      "path": ".cursor/rules/map-docs.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 9609,
-      "language": "other",
-      "loc": 237,
-      "module": "(root)",
-      "path": ".cursor/rules/security.mdc",
-      "role": "source"
-    },
-    {
-      "binary": false,
-      "bytes": 10033,
-      "language": "other",
-      "loc": 282,
-      "module": "(root)",
-      "path": ".cursor/skills/catalog/db-migration/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 14578,
-      "language": "other",
-      "loc": 313,
-      "module": "(root)",
-      "path": ".cursor/skills/catalog/schema-update/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 7045,
-      "language": "other",
-      "loc": 243,
-      "module": "(root)",
-      "path": ".cursor/skills/create-pr/SKILL.md",
-      "role": "docs"
-    },
-    {
-      "binary": false,
-      "bytes": 11221,
-      "language": "other",
-      "loc": 249,
-      "module": "(root)",
-      "path": ".cursor/skills/review-pr/SKILL.md",
-      "role": "docs"
-    },
     {
       "binary": false,
       "bytes": 15534,
@@ -42588,19 +42265,19 @@
       "by_language": {
         "config": 18,
         "docker": 5,
-        "other": 95
+        "other": 53
       },
       "by_role": {
         "asset": 2,
         "build": 5,
         "ci": 8,
         "config": 15,
-        "docs": 50,
-        "source": 37,
+        "docs": 16,
+        "source": 29,
         "test": 1
       },
-      "files": 118,
-      "loc": 21283,
+      "files": 76,
+      "loc": 10734,
       "manifests": [],
       "name": "(root)",
       "path": ""

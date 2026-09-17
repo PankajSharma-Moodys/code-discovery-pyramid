@@ -734,3 +734,17 @@ multi-line `case class CatalogDetails(...)` at
 extracted correctly. Determinism (two independent scans of the target agree
 byte-for-byte), `fold --check`, and golden all green after re-blessing.
 Full account: `PHASE/FINDINGS.md` F2 (revisited).
+
+## F15 — AI-tool/editor scaffolding excluded from the scan
+
+Independent count against the real target, not trusting the tool's own
+number first: `git ls-files | grep -E '(^|/)\.(claude|cursor|windsurf|
+vscode|idea|zed)/' | wc -l` -> **42** tracked files. After shipping the
+`DEFAULT_EXCLUDES` denylist, `inventory["excluded"]["count"]` matched
+exactly, tracked files dropped 4,728 -> **4,686**, and `root/.claude`/
+`root/.cursor` no longer appear in `cdp status`'s scope list or
+`docs/unknowns.md`'s incomplete-scope list. Golden re-blessed on both the
+fixture (shape-only change: a new `excluded: {count: 0}` key, no fixture
+file actually excluded) and the target (the real 42-file drop) after
+inspecting each diff for exactly that and nothing else. Full account:
+`PHASE/FINDINGS.md` F15.

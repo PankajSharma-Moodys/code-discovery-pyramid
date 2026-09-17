@@ -29,7 +29,7 @@ from __future__ import annotations
 import tomllib
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from ..util import run_git
 
@@ -84,19 +84,35 @@ def repo_identity(repo: Path) -> str:
     return _declared_id(repo) or _origin_remote(repo) or _persisted_uuid(repo)
 
 
-def team_store(repo: Path) -> Optional[Path]:
-    """`.cdp.toml` walking up from `repo`, if a team has opted in to one."""
+def _read_team_config(repo: Path) -> dict:
+    """`.cdp.toml` walking up from `repo`, if a team has opted in to one.
+    Shared by `team_store` and `team_excludes` so the walk-and-parse step
+    isn't duplicated between them."""
     current = Path(repo).resolve()
     for candidate in [current] + list(current.parents):
         config = candidate / TEAM_CONFIG_FILE
         if config.is_file():
             try:
-                data = tomllib.loads(config.read_text(encoding="utf-8"))
+                return tomllib.loads(config.read_text(encoding="utf-8"))
             except (OSError, ValueError):
-                return None
-            store = data.get("store")
-            return Path(store).expanduser() if store else None
-    return None
+                return {}
+    return {}
+
+
+def team_store(repo: Path) -> Optional[Path]:
+    store = _read_team_config(repo).get("store")
+    return Path(store).expanduser() if store else None
+
+
+def team_excludes(repo: Path) -> List[str]:
+    """`.cdp.toml`'s `exclude` array -- directory-name segments a team wants
+    excluded from every scan of this repo, in addition to (never instead of)
+    `inventory.DEFAULT_EXCLUDES`. E.g.:
+
+        exclude = [".idea-shared-notes"]
+    """
+    exclude = _read_team_config(repo).get("exclude")
+    return [str(x) for x in exclude] if isinstance(exclude, list) else []
 
 
 def register(repo_id: str, state_path: Path) -> None:
