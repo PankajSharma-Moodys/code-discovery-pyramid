@@ -356,6 +356,25 @@ def _open_store(state_dir: Path) -> SqliteStore:
     return SqliteStore(state_dir / "index.db")
 
 
+def _check_repo_matches_manifest(paths: "Paths", manifest: Dict) -> None:
+    """Fail loudly rather than silently verifying every anchor against the
+    wrong tree -- found live: `cdp run` defaulted `--repo` to cwd when
+    omitted, verified every claim against this tool's own repo instead of
+    the actual target, and every anchor failed, indistinguishable at a
+    glance from a genuinely bad leaf run. `manifest["repo"]` is already
+    written by `cmd_scan`; this is a runtime cross-check of two
+    already-recorded values, nothing new to serialize."""
+    recorded = manifest.get("repo")
+    if not recorded or str(paths.repo) == recorded:
+        return
+    raise CdpError(
+        "--repo %s does not match the repo this state was scanned from "
+        "(%s, from manifest.json). Anchor verification would silently run "
+        "against the wrong tree. Pass the matching --repo, or --state-dir "
+        "if you meant a different repo's state." % (paths.repo, recorded)
+    )
+
+
 def _run_id(head: str) -> str:
     """Derived from the commit, not the clock.
 
@@ -797,6 +816,7 @@ def cmd_collect(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths.state)
     store = query_mod.Store(backend)
+    _check_repo_matches_manifest(paths, store.manifest)
     inbox = backend.read_inbox()
 
     validator = Validator.load(schema_path(SKILL_ROOT))
@@ -898,6 +918,7 @@ def cmd_fold(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths.state)
     store = query_mod.Store(backend)
+    _check_repo_matches_manifest(paths, store.manifest)
     if args.check:
         problems = state_mod.check_fold(backend, store.xref, store.partition, repo=paths.repo)
         problems += state_mod.check_order_independence(
@@ -933,6 +954,7 @@ def cmd_refresh(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths.state)
     store = query_mod.Store(backend)
+    _check_repo_matches_manifest(paths, store.manifest)
     prior_snapshot_id = backend.snapshot_id()
     say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
 
@@ -1145,10 +1167,14 @@ def cmd_run(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths.state)
     store = query_mod.Store(backend)
+    _check_repo_matches_manifest(paths, store.manifest)
     sched = store._load("schedule")
     run_id = str(store.manifest.get("run_id", "cdp"))
     validator = Validator.load(schema_path(SKILL_ROOT))
     runner = _build_runner(args)
+    if not args.runner_cmd:
+        print("run       no --runner-cmd given -- waiting for a human/external "
+              "process to drop the patch file (FileRunner, timeout %ss)" % args.timeout)
 
     partition_hash = stable_hash(
         sorted((s["node"], s.get("scope_hash")) for s in store.partition["scopes"])
@@ -1467,6 +1493,7 @@ def cmd_answer(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths.state)
     store = query_mod.Store(backend)
+    _check_repo_matches_manifest(paths, store.manifest)
 
     scope_nodes = {s["node"] for s in store.partition["scopes"]}
     if args.scope not in scope_nodes:

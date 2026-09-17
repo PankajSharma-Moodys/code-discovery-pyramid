@@ -2177,3 +2177,54 @@ nothing else; target's was 4,728 -> 4,686 tracked files (42 fewer, matching
 the independent count) and `root/.claude`/`root/.cursor` gone from the
 incomplete-scopes list, nothing else. `make check TARGET_REPO=...` green
 after (determinism, fold, golden -- fixture and target).
+
+---
+
+## F16 — silent `--repo` defaulting produced a misleading all-anchors-failed signature
+
+**Severity:** medium -- no wrong claim was ever accepted (the schema/anchor
+gates caught it), but the failure it caused is actively misleading: it looks
+exactly like a bad leaf run, not like an operator/tooling mistake, and costs
+a real model call to discover. **Status: fixed.**
+
+**Found live, immediately after F15:** running `cdp run --scope
+root/client-java/client-core --runner-cmd "...sonnet $TARGET_REPO"
+--state-dir /tmp/cov_run --timeout 240` (no `--repo`) against a state dir
+scanned from `$TARGET_REPO`, from this tool's own repo as cwd: all 16
+claims came back `anchor_not_found`. Traced before assuming the model was at
+fault: `--repo` silently defaults to cwd (`_paths()`, `cli.py:319-334`),
+which here was this tool's own repo, not the target -- so anchor
+verification ran against completely unrelated file content. The claims
+themselves were fine (confirmed: re-running with `--repo
+$TARGET_REPO` explicitly, the same scope validated cleanly, 1,877 claims
+kept, 0 demoted).
+
+**Fix.** New `_check_repo_matches_manifest(paths, manifest)`
+(`cdp/cli.py`): compares the current invocation's resolved `--repo` against
+`manifest["repo"]`, the resolved path `cmd_scan` already records there --
+no schema change, no new field, **no golden re-blessing** (a runtime
+cross-check of two already-recorded values, nothing new to serialize).
+Raises `CdpError` naming both paths if they differ; a state with nothing
+recorded yet (or `--repo` matching, or omitted and happening to match cwd)
+is untouched. Called in the five commands that read `--repo`'s file content
+to verify or build an anchor: `cmd_run`, `cmd_collect`, `cmd_fold`,
+`cmd_refresh`, `cmd_answer`. Not `cmd_scan` -- it is the writer of the
+record, and re-scanning a `--state-dir` at a new repo on purpose is
+legitimate.
+
+**Second, an optional-flag warning in the same command.** `_build_runner`
+silently returns a `FileRunner` (waits for a human/external process to drop
+the patch file -- a legitimate mode, M5.1's own protocol) whenever
+`--runner-cmd` is omitted, with nothing printed to say so -- indistinguishable
+from `cdp run` simply hanging. `cmd_run` now prints one line when this
+happens; a warning, not a `CdpError`, since the fallback is often exactly
+what's wanted.
+
+**Verified:** `tests/test_repo_guard.py` (9 tests) -- each of the five
+commands raises on a mismatched `--repo` (message names both paths); none
+raise when `--repo` matches or nothing is recorded yet; the runner-fallback
+line appears only when `--runner-cmd` is omitted. Real-scale: reproduced
+the exact original failure (`cdp run` from this tool's repo, no `--repo`,
+against a `$TARGET_REPO`-scanned state) -- now fails immediately with the
+new error, no leaf call spent. `make check TARGET_REPO=...` green against
+the *existing* blessed baseline, confirming nothing serialized changed.
