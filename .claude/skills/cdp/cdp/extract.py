@@ -15,10 +15,13 @@ Two consequences the plan calls out and this file inherits:
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .lang import extract_file
+from .lang.base import FileFacts
 from .util import read_lines
 
 # Files above this size are censused but not parsed. A 4 MB generated source
@@ -26,8 +29,95 @@ from .util import read_lines
 # excluded from git to protect.
 MAX_PARSE_BYTES = 2_000_000
 
+# Below this many parseable files, a process pool's own startup cost (each
+# worker forks/spawns an interpreter) is not worth paying -- every existing
+# test and the `minirepo` fixture sit well under it, so they run the
+# sequential path unchanged and untimed by this change at all (F9, "worth a
+# further 4-8x", was deliberately not implemented until the ordering claim
+# below was verified against real files, not just argued).
+PARALLEL_MIN_FILES = 64
 
-def run_extract(repo: Path, inventory: Dict, progress=None) -> Dict:
+
+def _extract_worker(payload: Tuple[str, str, str]) -> Tuple[str, str, Optional[FileFacts]]:
+    """Runs in a worker process: read one file and extract it, standalone.
+
+    Must stay a module-level function (not a closure) -- `ProcessPoolExecutor`
+    pickles the callable and its argument to hand off to the worker, and a
+    closure over `run_extract`'s locals is not picklable.
+    """
+    repo_str, rel, module = payload
+    lines = read_lines(Path(repo_str) / rel)
+    if not lines:
+        return (rel, module, None)
+    return (rel, module, extract_file(rel, lines, module))
+
+
+def _absorb(rel: str, module: str, facts: FileFacts, defines, uses, io_edges,
+            imports, per_file, declared, module_notes) -> None:
+    """One file's `FileFacts` into the accumulators. Used by both the
+    sequential and parallel paths so there is exactly one copy of this
+    logic to keep in sync with the schema."""
+    for row in facts.defines:
+        row = dict(row)
+        row["file"] = rel
+        row["module"] = module
+        defines.append(row)
+    for row in facts.uses:
+        row = dict(row)
+        row["file"] = rel
+        row["module"] = module
+        row["scope_package"] = facts.package
+        uses.append(row)
+    for row in facts.io_edges:
+        row = dict(row)
+        row["file"] = rel
+        row["module"] = module
+        io_edges.append(row)
+    for row in facts.imports:
+        imports.append({"file": rel, "module": module, "fqn": row["fqn"],
+                        "line": row["line"], "anchor": row["anchor"]})
+
+    if facts.declared_deps:
+        declared.setdefault(module, []).extend(facts.declared_deps)
+    if facts.notes:
+        module_notes.setdefault(module, []).extend(facts.notes)
+
+    per_file[rel] = {
+        "language": facts.language,
+        "package": facts.package,
+        "primary": facts.primary,
+        "loc": facts.loc,
+        "signals": facts.signals,
+        "defines": len(facts.defines),
+        "imports": len(facts.imports),
+        "io_edges": len(facts.io_edges),
+    }
+
+
+def run_extract(repo: Path, inventory: Dict, progress=None,
+                 workers: Optional[int] = None) -> Dict:
+    """Extract every parseable file in `inventory`, in parallel above
+    `PARALLEL_MIN_FILES` files.
+
+    Safe to parallelise across *files* only because of what happens after
+    this function collects the pieces: every list returned below goes
+    through `_sorted()`, whose key ends in `(anchor.file, anchor.line)` --
+    so the final order never depends on which file's rows were appended
+    first. A tie in that key can only happen between two rows from the
+    *same* file (`file` is part of every sort key), and one file's own row
+    order comes entirely from a single `extract_file()` call running start
+    to finish inside one worker -- parallelism changes which files interleave
+    before the sort, never the order of rows a single file produced. There is
+    therefore nothing left for cross-file ordering to get wrong, but that is
+    a claim, not a hope: `tests/test_extract_parallel.py` checks it directly
+    against real files (fixture and, opt-in, `$TARGET_REPO`), not just this
+    docstring's argument.
+
+    `workers=None` (default) auto-selects: sequential below
+    `PARALLEL_MIN_FILES` parseable files, `min(cpu_count, file_count)` above
+    it. An explicit `workers=` always wins, so a caller (the differential
+    test) can force real parallel execution on a small repo.
+    """
     repo = Path(repo)
     defines: List[Dict] = []
     uses: List[Dict] = []
@@ -37,53 +127,43 @@ def run_extract(repo: Path, inventory: Dict, progress=None) -> Dict:
     declared: Dict[str, List[str]] = {}
     module_notes: Dict[str, List[str]] = {}
 
-    for entry in inventory["files"]:
-        rel = entry["path"]
-        if entry["binary"] or entry["bytes"] > MAX_PARSE_BYTES:
-            continue
-        lines = read_lines(repo / rel)
-        if not lines:
-            continue
-        facts = extract_file(rel, lines, entry["module"])
-        module = entry["module"]
+    candidates: List[Tuple[str, str]] = [
+        (entry["path"], entry["module"]) for entry in inventory["files"]
+        if not entry["binary"] and entry["bytes"] <= MAX_PARSE_BYTES
+    ]
 
-        for row in facts.defines:
-            row = dict(row)
-            row["file"] = rel
-            row["module"] = module
-            defines.append(row)
-        for row in facts.uses:
-            row = dict(row)
-            row["file"] = rel
-            row["module"] = module
-            row["scope_package"] = facts.package
-            uses.append(row)
-        for row in facts.io_edges:
-            row = dict(row)
-            row["file"] = rel
-            row["module"] = module
-            io_edges.append(row)
-        for row in facts.imports:
-            imports.append({"file": rel, "module": module, "fqn": row["fqn"],
-                            "line": row["line"], "anchor": row["anchor"]})
+    if workers is None:
+        workers = (min(os.cpu_count() or 1, len(candidates))
+                   if len(candidates) >= PARALLEL_MIN_FILES else 1)
 
-        if facts.declared_deps:
-            declared.setdefault(module, []).extend(facts.declared_deps)
-        if facts.notes:
-            module_notes.setdefault(module, []).extend(facts.notes)
-
-        per_file[rel] = {
-            "language": facts.language,
-            "package": facts.package,
-            "primary": facts.primary,
-            "loc": facts.loc,
-            "signals": facts.signals,
-            "defines": len(facts.defines),
-            "imports": len(facts.imports),
-            "io_edges": len(facts.io_edges),
-        }
-        if progress:
-            progress(rel)
+    if workers <= 1:
+        for rel, module in candidates:
+            lines = read_lines(repo / rel)
+            if not lines:
+                continue
+            facts = extract_file(rel, lines, module)
+            _absorb(rel, module, facts, defines, uses, io_edges, imports,
+                    per_file, declared, module_notes)
+            if progress:
+                progress(rel)
+    else:
+        payloads = [(str(repo), rel, module) for rel, module in candidates]
+        # `Executor.map()` is a generator that, internally, kicks off every
+        # future up front and then yields `futures[i].result()` in dispatch
+        # order -- `i=0`'s result is yielded before `i=1`'s regardless of
+        # which worker process actually finishes first, blocking on `i=0` if
+        # it is still running when `i=1` completes. So this loop absorbs
+        # results in exactly `candidates`' order, identical to the sequential
+        # branch above, even though the underlying work happened out of order
+        # across processes.
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            for rel, module, facts in pool.map(_extract_worker, payloads):
+                if facts is None:
+                    continue
+                _absorb(rel, module, facts, defines, uses, io_edges, imports,
+                        per_file, declared, module_notes)
+                if progress:
+                    progress(rel)
 
     return {
         "head": inventory["head"],

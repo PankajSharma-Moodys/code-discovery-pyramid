@@ -281,6 +281,66 @@ implementing.
 
 ---
 
+## F9 (revisited) — implemented, with explicit sign-off, and verified rather
+than re-blessed
+
+**Sign-off:** given explicitly in session, with the fallback that this
+repository's last commit before this change is a known-good state to revert
+to if it goes wrong.
+
+**Re-reading `run_extract` narrowed the risk this entry itself raised.**
+Every list it returns already passes through `_sorted()` (`extract.py`, key
+ending `(anchor.file, anchor.line)`) — a near-total order regardless of
+input order. A tie in that key can only occur between two rows the *same
+file's own* extraction produced (`file` is part of every sort key), and one
+file's row order comes entirely from a single `extract_file()` call running
+start to finish inside one worker — parallelism changes which files
+interleave before the sort, never a file's own internal order.
+`declared_deps`/`module_notes` were already `sorted(set(...))`-deduped.
+Separately, `state.check_order_independence` turned out to test the
+patch-*merge* stage's order-independence across nodes/waves — a different
+gate entirely, not this one.
+
+**What shipped.** `cdp/extract.py`: `run_extract` gained `workers:
+Optional[int] = None`. Below `PARALLEL_MIN_FILES` (64) parseable files, or
+with an explicit `workers<=1`, it runs the exact prior sequential loop
+(refactored into a shared `_absorb()` helper, but behaviourally identical).
+Above the threshold, `workers=None` auto-selects `min(cpu_count,
+file_count)` and dispatches through `ProcessPoolExecutor.map()` — the code
+comments explain concretely why `.map()`'s result order matches dispatch
+order regardless of which worker finishes first (it yields `futures[i]`'s
+result before `futures[i+1]`'s, blocking on `i` if needed), which is what
+makes the assembly loop absorb results in the same order the sequential
+branch would have, before the sort key removes any remaining ordering
+question anyway. `cli.py`'s `cdp scan` gained `--workers` (default: auto; `1`
+forces sequential).
+
+**Verified, not assumed:**
+- New differential test, `tests/test_extract_parallel.py`: `workers=1` vs an
+  explicit `workers=4` override on `tests/fixtures/minirepo` hash identical
+  (forces the parallel branch despite the fixture being far under the
+  threshold); the auto-selected default matches explicit `workers=1` below
+  the threshold (pins the auto behaviour so it can't silently start
+  spawning processes for tiny repos); and, opt-in
+  (`TARGET_REPO=... python3 -m unittest`, same convention as
+  `test_determinism.py`), `workers=1` vs `workers=None` (real parallel, the
+  target's 4,728 files clear the threshold) hash identical on
+  `$TARGET_REPO`.
+- **Measured on the real target:** `run_extract` alone, sequential 3.93-4.07s
+  vs parallel(auto) 0.74-0.77s across two runs — **~5.2-5.3x**, in the range
+  F9's own estimate named.
+- **Full suite:** 362 tests green (up from 359 — the 3 new tests, one
+  skipped without `TARGET_REPO`).
+- **Full gate, both targets, no re-blessing:**
+  `make check TARGET_REPO=/Users/sharmp49/git/code_scanner` — determinism
+  (fixture and target, two independent scans of the target agree
+  byte-for-byte), `fold --check` (fixture and target), and golden (fixture
+  and target) all green against the *existing* blessed baselines. This is
+  the actual proof, not the docstring's argument: if the ordering claim had
+  been wrong, this would have failed rather than being re-blessed around.
+
+---
+
 ## F10 — `PythonExtractor` prints a `SyntaxWarning` to stderr for real target source
 
 **Severity:** low — cosmetic gate noise, not a correctness defect.

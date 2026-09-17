@@ -698,3 +698,16 @@ live calls, not fakes), on this repo and on `tests/fixtures/minirepo`:
   composition, not a synthetic smoke test.
 
 Full account: `PHASE/FINDINGS.md` F14.
+
+## F9 — parallel `run_extract` exercised on this target, real speedup measured
+
+`tests/test_extract_parallel.py::test_parallel_matches_sequential_on_target_repo`
+(`TARGET_REPO=/Users/sharmp49/git/code_scanner`, 4,728 files, 1.42M LOC):
+sequential `workers=1` vs auto-parallel `workers=None` hash byte-identical.
+Measured twice (once standalone, once inside `make check`):
+sequential 3.93s/4.07s vs parallel 0.74s/0.77s -- **~5.2-5.3x**. Full
+`make check TARGET_REPO=...` after the change: 362 tests, determinism
+(fixture + target), `fold --check` (fixture + target), golden (fixture +
+target) all green against the *existing* blessed baselines -- no
+re-blessing needed, which is the actual evidence for the ordering argument
+in `PHASE/FINDINGS.md`'s F9 (revisited) entry, not just its prose.

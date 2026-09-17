@@ -55,6 +55,7 @@ from . import supervisor as supervisor_mod
 from .store import ARTIFACTS, REPORTS, SqliteStore, WorkspaceStore, has_scanned
 from .store import registry as registry_mod
 from .derive import derive_claims
+from . import extract as extract_mod
 from .extract import run_extract
 from . import prompts as prompts_mod
 from .prompts import build_prompt
@@ -121,6 +122,10 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--max-leaf-loc", type=int, default=partition_mod.DEFAULT_MAX_LOC)
     s.add_argument("--max-concurrent", type=int, default=schedule_mod.DEFAULT_MAX_CONCURRENT)
     s.add_argument("--max-hops", type=int, default=dataflow_mod.DEFAULT_MAX_HOPS)
+    s.add_argument("--workers", type=int, default=None,
+                   help="parallel extraction workers (F9: default auto -- "
+                        "sequential under %d parseable files, else cpu_count; "
+                        "1 forces sequential)" % extract_mod.PARALLEL_MIN_FILES)
     s.add_argument("--no-docs", dest="docs", action="store_false", default=True,
                    help="skip rendering <state-dir>/docs/ at the end of the scan")
     s.add_argument("--quiet", action="store_true")
@@ -393,7 +398,7 @@ def cmd_scan(args) -> int:
     inventory = inventory_mod.build_inventory(paths.repo)
     say("\n".join(inventory_mod.summarise(inventory)))
 
-    extraction = run_extract(paths.repo, inventory)
+    extraction = run_extract(paths.repo, inventory, workers=args.workers)
     say("extract   %d files parsed, %d symbols, %d edges, %d imports"
         % (extraction["totals"]["parsed_files"], extraction["totals"]["defines"],
            extraction["totals"]["io_edges"], extraction["totals"]["imports"]))
