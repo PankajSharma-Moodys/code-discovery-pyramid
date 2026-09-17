@@ -6,15 +6,29 @@
 
 ## Dependencies
 
-**Imports:** nothing in this repository
+**Imports:** `client-java/client-core` (1 refs), `exposure-snapshot/snapshot-sdk` (6 refs)
 
-**Imported by:** nothing in this repository
+**Imported by:** `client-java/uds-client-integration-tests` (9 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation` (6 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-task` (1 refs)
 
 ## Public types declared here
 
 | Type | Kind | Used by | Declared at |
 |---|---|---|---|
+| `BaseTestResource` | class | 5 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/BaseTestResource.scala:9` |
 | `SearchResponse` | class | 3 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/common/SearchResponse.java:5` |
+| `PolicyResponse` | class | 2 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:7` |
+| `PortfolioAccountResponse` | class | 2 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioAccountResponse.java:8` |
+| `TreatyResponse` | class | 2 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:7` |
+| `BundlesResourceSuite` | class | 1 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/BundlesResourceSuite.scala:15` |
+| `PolicyItem` | class | 1 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:239` |
+| `PortfolioResponse` | class | 1 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioResponse.java:8` |
+| `TreatyItem` | class | 1 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyItem.java:5` |
+| `EdmResponseItem` | class | 1 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/edm/EdmResponseItem.java:5` |
+| `SmokeTestSuite` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/SmokeTestSuite.scala:5` |
+| `OdsAccountTestSuite` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/OdsAccountTestSuite.scala:20` |
+| `OdsPolicyTestSuite` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/OdsPolicyTestSuite.scala:17` |
+| `OdsPortfolioTestSuite` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/OdsPortfolioTestSuite.scala:21` |
+| `OdsTreatyTestSuite` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/OdsTreatyTestSuite.scala:16` |
 | `AccountItemResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/AccountResponse/AccountItemResponse.java:5` |
 | `Branch` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/AccountResponse/AccountItemResponse.java:147` |
 | `Cedant` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/AccountResponse/AccountItemResponse.java:164` |
@@ -22,7 +36,6 @@
 | `Underwriter` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/AccountResponse/AccountItemResponse.java:198` |
 | `AccountMetricsResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/AccountResponse/AccountMetricsResponse.java:5` |
 | `TotalInsuredValue` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/AccountResponse/AccountMetricsResponse.java:119` |
-| `PolicyResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:7` |
 | `CoverageBase` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:71` |
 | `Currency` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:95` |
 | `IsFranchiseDeductible` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:119` |
@@ -30,25 +43,19 @@
 | `Lob` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:167` |
 | `NewCauseOfLoss` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:191` |
 | `Peril` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:215` |
-| `PolicyItem` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:239` |
 | `Status` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:47` |
 | `Structure` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PolicyResponse/PolicyResponse.java:23` |
 | `AccountItem` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/AccountItem.java:5` |
-| `PortfolioAccountResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioAccountResponse.java:8` |
+| `PortFolioResponseDto` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioResponseDto.scala:3` |
 | `PortfolioItem` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioItem.java:5` |
 | `PortfolioLocationResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioLocationResponse.java:7` |
 | `PortfolioMetricsResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioMetricsResponse.java:5` |
-| `PortfolioResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioResponse.java:8` |
-| `TreatyItem` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyItem.java:5` |
-| `TreatyResponse` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:7` |
+| `SearchItems` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/PortfolioResponse/PortfolioResponseDto.scala:8` |
 | `AttachBasis` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:23` |
 | `AttachLevel` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:47` |
 | `Cedant` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:71` |
-| `Currency` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:88` |
-| `Producer` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:112` |
-| `TreatyType` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/TreatyResponse/TreatyResponse.java:129` |
-| `EdmMetricsItem` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/edm/EdmMetricsItem.java:5` |
-| `EdmResponseItem` | class | 0 | `exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/dto/ods/edm/EdmResponseItem.java:5` |
+
+_11 more; use `cdp query module exposure-snapshot/snapshot-smoketest`._
 
 ## Scopes
 

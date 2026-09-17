@@ -6,9 +6,21 @@
 
 ## Dependencies
 
-**Imports:** nothing in this repository
+**Imports:** `core/RMS.UnifiedStore.Core` (18 refs)
 
 **Imported by:** nothing in this repository
+
+## Public types declared here
+
+| Type | Kind | Used by | Declared at |
+|---|---|---|---|
+| `DataModel` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/DataModel.cs:17` |
+| `Entity` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Schema/Entity.cs:5` |
+| `IndexTablesDataModel` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/IndexTablesDataModel.cs:11` |
+| `Portfolio` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Schema/Portfolio.cs:5` |
+| `SingleTableDataModel` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/SingleTableDataModel.cs:8` |
+| `SingleTableSchema` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/SingleTableSchema.cs:10` |
+| `SourceTableSchema` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/SourceTableSchema.cs:10` |
 
 ## Scopes
 

@@ -8,6 +8,15 @@ How data travels through this application — the question the module dependency
 
 Modules that exchange data through shared storage. These are real data edges with zero code-level coupling; a dependency graph cannot see them, and a reader told "a depends on b depends on c" will not expect them.
 
+- **`Catalog` and `Program`** (modules `catalog-service/RMS.UnifiedStore.Service.Catalog`, `service-api/RMS.UnifiedStore.Service.Api`)
+  - tables: `catalog.entity_secured`
+  - entities: `ProvisionStatusRecord`
+  - `catalog-service/RMS.UnifiedStore.Service.Catalog/Program.cs:31` `catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Models/ProvisionStatusDbContext.cs:19` `service-api/RMS.UnifiedStore.Service.Api/Program.cs:34` `catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Models/ProvisionStatusDbContext.cs:19`
+  - _Catalog and Program are separate deployable units whose dependency closures both contain code that touches entity:ProvisionStatusRecord. No import connects the two application classes; the data edge exists only through shared storage. This is reachability over packaged code, not an observed runtime call._
+- **`DowngradeProcessor` and `Program`** (modules `ms-sql-java/downgrade-processor`, `service-api/RMS.UnifiedStore.Service.Api`)
+  - tables: `ACCGRP`, `Address`, `BIDET`, `Bridge.rb_trty`, `EQDET`, `FLDET`, `FRDET`, `HUDET`, `LOCCONDITION`, `LocCVG`, `Loccvg`, `PORTACCT`, `PORTINFO`, `PolCVG`, `Policy`, `PolicyConditions`, `Property`, `REINSINF`, `TODET`, `TRDET`, `WCDET`, `buildingattributes`, `customvulncurves`, `dbo`, `dbo.`, `dbo.accgrp`, `dbo.portacct`, `dbo.portinfo`, `locVulnCurves`, `locconditions`, `locvulncurves`, `polcvg`, `policy`, `policyconditioncriteria`, `policyconditions`, `reinsinf`, `the`
+  - `ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/DowngradeProcessor.java:32` `ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V25_to_V25.sql:36600` `service-api/RMS.UnifiedStore.Service.Api/Program.cs:34` `service-api/RMS.UnifiedStore.Service.Api/Resources/edm-init/sql/V1.0__MI_New_EDM.sql:39599`
+  - _DowngradeProcessor and Program are separate deployable units whose dependency closures both contain code that touches table:ACCGRP. No import connects the two application classes; the data edge exists only through shared storage. This is reachability over packaged code, not an observed runtime call._
 - **`SqlPoolApplication` and `RegenerateSchemaBaseline` and `SqlPoolQuartzJobsApplication`** (modules `sql-pool/sql-pool-api`, `sql-pool/sql-pool-integrationtest`, `sql-pool/sql-pool-manager`)
   - tables: `pool_config`, `reservation`, `reservation_metadata`, `server`, `server_metadata`, `server_resource_usage_log`, `server_status_log`
   - entities: `EPoolConfig`, `EReservation`, `EReservationMetadata`, `EServer`, `EServerResourceUsageLog`, `EServerStatusLog`

@@ -6,9 +6,18 @@
 
 ## Dependencies
 
-**Imports:** nothing in this repository
+**Imports:** `exposure-snapshot/snapshot-common` (11 refs)
 
 **Imported by:** nothing in this repository
+
+## Public types declared here
+
+| Type | Kind | Used by | Declared at |
+|---|---|---|---|
+| `R__0001_update_exposure_schemas` | class | 0 | `exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala:23` |
+| `V001_001__populateProvisionTable` | class | 0 | `exposure-snapshot/snapshot-migration/src/main/scala/db/migration/V001_001__populateProvisionTable.scala:14` |
+| `V001_002__provisionExistingTenants` | class | 0 | `exposure-snapshot/snapshot-migration/src/main/scala/db/migration/V001_002__provisionExistingTenants.scala:17` |
+| `V002_001__provisionMissingTenants` | class | 0 | `exposure-snapshot/snapshot-migration/src/main/scala/db/migration/V002_001__provisionMissingTenants.scala:22` |
 
 ## Scopes
 

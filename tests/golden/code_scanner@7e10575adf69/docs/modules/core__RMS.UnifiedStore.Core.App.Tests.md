@@ -6,9 +6,17 @@
 
 ## Dependencies
 
-**Imports:** nothing in this repository
+**Imports:** `core/RMS.UnifiedStore.Core` (5 refs), `core/RMS.UnifiedStore.Core.App` (3 refs)
 
 **Imported by:** nothing in this repository
+
+## Public types declared here
+
+| Type | Kind | Used by | Declared at |
+|---|---|---|---|
+| `ExceptionHandlerMiddlewareTests` | class | 0 | `core/RMS.UnifiedStore.Core.App.Tests/Middleware/ExceptionHandlerMiddlewareTests.cs:23` |
+| `JobSchedulerTests` | class | 0 | `core/RMS.UnifiedStore.Core.App.Tests/Job/JobSchedulerTests.cs:11` |
+| `SingleTaskJobHandlerTests` | class | 0 | `core/RMS.UnifiedStore.Core.App.Tests/Job/SingleTaskJobHandlerTests.cs:14` |
 
 ## Scopes
 

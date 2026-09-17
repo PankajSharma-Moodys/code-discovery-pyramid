@@ -1,54 +1,12 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
+    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
     "repo": "tree",
     "state_version": 1
   },
   "budget": 200,
   "claims": [
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "correlationId = os.getenv('CORRELATION_ID')",
-          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
-          "line": 13
-        }
-      ],
-      "id": "config.config_correlation_id",
-      "kind": "config",
-      "source_nodes": [
-        "root/ms-sql-java/downgrade-processor/(files+3)"
-      ],
-      "statement": "Configuration key 'CORRELATION_ID' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
-      "subject": "config:CORRELATION_ID",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "ENV DEBIAN_FRONTEND noninteractive",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
-          "line": 3
-        }
-      ],
-      "id": "config.config_debian_frontend",
-      "kind": "config",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
-      ],
-      "statement": "Configuration key 'DEBIAN_FRONTEND' is read at 1 site(s) in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform.",
-      "subject": "config:DEBIAN_FRONTEND",
-      "verdict": "consistent"
-    },
     {
       "anchor_verified_at": "<HEAD>",
       "channel": "config_read",
@@ -78,69 +36,6 @@
       ],
       "statement": "Configuration key 'FLYWAY_CMD_VERSION' is read at 3 site(s) in (root), exposure-snapshot, exposure-snapshot/snapshot-migration.",
       "subject": "config:FLYWAY_CMD_VERSION",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "ENV HOME=/root",
-          "file": "ms-sql-java/downgrade-processor/Dockerfile",
-          "line": 4
-        }
-      ],
-      "id": "config.config_home",
-      "kind": "config",
-      "source_nodes": [
-        "root/ms-sql-java/downgrade-processor/(files+3)"
-      ],
-      "statement": "Configuration key 'HOME' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
-      "subject": "config:HOME",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "ARG JACKSON_VERSION=2.22.2",
-          "file": "service-api/docker/Dockerfile",
-          "line": 8
-        }
-      ],
-      "id": "config.config_jackson_version",
-      "kind": "config",
-      "source_nodes": [
-        "root/(build+5)"
-      ],
-      "statement": "Configuration key 'JACKSON_VERSION' is read at 1 site(s) in (root).",
-      "subject": "config:JACKSON_VERSION",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "ENV JAVA_ARGS=-Djdk.tls.client.protocols=\"TLSv1,TLSv1.1,TLSv1.2\"",
-          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
-          "line": 36
-        }
-      ],
-      "id": "config.config_java_args",
-      "kind": "config",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-migration"
-      ],
-      "statement": "Configuration key 'JAVA_ARGS' is read at 1 site(s) in exposure-snapshot/snapshot-migration.",
-      "subject": "config:JAVA_ARGS",
       "verdict": "consistent"
     },
     {
@@ -280,69 +175,6 @@
       "confidence": "high",
       "evidence": [
         {
-          "anchor": "ARG MAVEN_REPO=https://artifactory.rms-npe-internal.com/artifactory/maven-public",
-          "file": "service-api/docker/Dockerfile",
-          "line": 7
-        }
-      ],
-      "id": "config.config_maven_repo",
-      "kind": "config",
-      "source_nodes": [
-        "root/(build+5)"
-      ],
-      "statement": "Configuration key 'MAVEN_REPO' is read at 1 site(s) in (root).",
-      "subject": "config:MAVEN_REPO",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "ENV USER=root",
-          "file": "ms-sql-java/downgrade-processor/Dockerfile",
-          "line": 3
-        }
-      ],
-      "id": "config.config_user",
-      "kind": "config",
-      "source_nodes": [
-        "root/ms-sql-java/downgrade-processor/(files+3)"
-      ],
-      "statement": "Configuration key 'USER' is read at 1 site(s) in ms-sql-java/downgrade-processor.",
-      "subject": "config:USER",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "ENV WORKINGDIR=/opt/snapshot-smoketest",
-          "file": "exposure-snapshot/snapshot-smoketest/Dockerfile",
-          "line": 3
-        }
-      ],
-      "id": "config.config_workingdir",
-      "kind": "config",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-smoketest/(files+1)"
-      ],
-      "statement": "Configuration key 'WORKINGDIR' is read at 1 site(s) in exposure-snapshot/snapshot-smoketest.",
-      "subject": "config:WORKINGDIR",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "config_read",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
           "anchor": "ENV com.amazonaws.services.s3.enableV4 true",
           "file": "exposure-snapshot/download-exposure/Dockerfile",
           "line": 5
@@ -374,18 +206,28 @@
       "confidence": "medium",
       "evidence": [
         {
-          "anchor": "public interface EConfigPoolRepository extends JpaRepository<EPoolConfig, Long> {}",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EConfigPoolRepository.java",
-          "line": 8
+          "anchor": "public DbSet<JobRecord> Jobs { get; set; } = null!;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/ManagedSqlDbContext.cs",
+          "line": 386
+        },
+        {
+          "anchor": "public DbSet<JobRecord> Jobs { get; set; } = null!;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/DataLayer/EF/ServiceApiDbContext.cs",
+          "line": 393
         }
       ],
-      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_econfigpoolrepository.rms_unifiedstore_sqlpool_dal_entities_epoolconfig",
+      "id": "data_model.repository.managedsqldbcontext_createjobreservation.jobrecord",
       "kind": "data_model",
       "source_nodes": [
-        "root/sql-pool/sql-pool-dal"
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
       ],
-      "statement": "EConfigPoolRepository reads and writes EPoolConfig; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EPoolConfig",
+      "statement": "ManagedSqlDbContext#CreateJobReservation reads and writes JobRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "statements": [
+        "ManagedSqlDbContext#CreateJobReservation reads and writes JobRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+        "ServiceApiDbContext reads and writes JobRecord; no table name is stated in source, so the binding is left to the persistence framework's default."
+      ],
+      "subject": "entity:JobRecord",
       "verdict": "consistent"
     },
     {
@@ -395,18 +237,28 @@
       "confidence": "medium",
       "evidence": [
         {
-          "anchor": "public interface EReservationRepository extends JpaRepository<EReservation, Long> {",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationRepository.java",
-          "line": 11
+          "anchor": "public DbSet<TenantQueueRecord> TenantQueues { get; set; } = null!;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/ManagedSqlDbContext.cs",
+          "line": 394
+        },
+        {
+          "anchor": "public DbSet<TenantQueueRecord> TenantQueues { get; set; } = null!;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/DataLayer/EF/ServiceApiDbContext.cs",
+          "line": 406
         }
       ],
-      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_ereservationrepository.rms_unifiedstore_sqlpool_dal_entities_ereservation",
+      "id": "data_model.repository.managedsqldbcontext_createjobreservation.tenantqueuerecord",
       "kind": "data_model",
       "source_nodes": [
-        "root/sql-pool/sql-pool-dal"
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
       ],
-      "statement": "EReservationRepository reads and writes EReservation; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservation",
+      "statement": "ManagedSqlDbContext#CreateJobReservation reads and writes TenantQueueRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "statements": [
+        "ManagedSqlDbContext#CreateJobReservation reads and writes TenantQueueRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+        "ServiceApiDbContext reads and writes TenantQueueRecord; no table name is stated in source, so the binding is left to the persistence framework's default."
+      ],
+      "subject": "entity:TenantQueueRecord",
       "verdict": "consistent"
     },
     {
@@ -416,438 +268,28 @@
       "confidence": "medium",
       "evidence": [
         {
-          "anchor": "public interface EReservationMetadataRepository extends JpaRepository<EReservationMetadata, Long> {",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EReservationMetadataRepository.java",
-          "line": 9
-        }
-      ],
-      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_ereservationmetadatarepository.rms_unifiedstore_sqlpool_dal_entities_ereservationmetadata",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-dal"
-      ],
-      "statement": "EReservationMetadataRepository reads and writes EReservationMetadata; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EReservationMetadata",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "persist",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
+          "anchor": "public DbSet<TenantRecord> Tenants { get; set; } = null!;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/ManagedSqlDbContext.cs",
+          "line": 372
+        },
         {
-          "anchor": "public interface EServerRepository extends JpaRepository<EServer, Long> {",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EServerRepository.java",
-          "line": 14
+          "anchor": "public DbSet<TenantRecord> Tenants { get; set; } = null!;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/DataLayer/EF/ServiceApiDbContext.cs",
+          "line": 385
         }
       ],
-      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_eserverrepository.rms_unifiedstore_sqlpool_dal_entities_eserver",
+      "id": "data_model.repository.managedsqldbcontext_createjobreservation.tenantrecord",
       "kind": "data_model",
       "source_nodes": [
-        "root/sql-pool/sql-pool-dal"
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
       ],
-      "statement": "EServerRepository reads and writes EServer; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServer",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "persist",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "extends JpaRepository<EServerResourceUsageLog, ResourceUsageLogKey> {",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EServerUsageLogRepository.java",
-          "line": 14
-        }
+      "statement": "ManagedSqlDbContext#CreateJobReservation reads and writes TenantRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+      "statements": [
+        "ManagedSqlDbContext#CreateJobReservation reads and writes TenantRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+        "ServiceApiDbContext reads and writes TenantRecord; no table name is stated in source, so the binding is left to the persistence framework's default."
       ],
-      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_eserverusagelogrepository.rms_unifiedstore_sqlpool_dal_entities_eserverresourceusagelog",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-dal"
-      ],
-      "statement": "EServerUsageLogRepository reads and writes EServerResourceUsageLog; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerResourceUsageLog",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "persist",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "public interface EServerStatusLogRepository extends JpaRepository<EServerStatusLog, Long> {",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/repository/EServerStatusLogRepository.java",
-          "line": 13
-        }
-      ],
-      "id": "data_model.repository.rms_unifiedstore_sqlpool_dal_repository_eserverstatuslogrepository.rms_unifiedstore_sqlpool_dal_entities_eserverstatuslog",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-dal"
-      ],
-      "statement": "EServerStatusLogRepository reads and writes EServerStatusLog; no table name is stated in source, so the binding is left to the persistence framework's default.",
-      "subject": "entity:rms.unifiedstore.sqlpool.dal.entities.EServerStatusLog",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "DPoolConfig asDPoolConfig(PoolConfigUpdate poolConfigUpdate);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
-          "line": 22
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigupdate.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "PoolConfigUpdate is converted to DPoolConfig by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "DReservation asDReservation(Reservation reservation);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
-          "line": 24
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_reservation.rms_unifiedstore_sqlpool_common_model_domain_dreservation",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "Reservation is converted to DReservation by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Reservation -> rms.unifiedstore.sqlpool.common.model.domain.DReservation",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "DReservation asDReservation(ReservationUpdate reservation);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
-          "line": 34
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_reservationupdate.rms_unifiedstore_sqlpool_common_model_domain_dreservation",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "ReservationUpdate is converted to DReservation by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ReservationUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DReservation",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "DServer asDServer(Server server);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
-          "line": 22
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_server.rms_unifiedstore_sqlpool_common_model_domain_dserver",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "Server is converted to DServer by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.Server -> rms.unifiedstore.sqlpool.common.model.domain.DServer",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "DServer asDServer(ServerUpdate server);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
-          "line": 34
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_dtos_serverupdate.rms_unifiedstore_sqlpool_common_model_domain_dserver",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "ServerUpdate is converted to DServer by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.dtos.ServerUpdate -> rms.unifiedstore.sqlpool.common.model.domain.DServer",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.Named;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/HostAndPortMapper.java",
-          "line": 4
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_hostandportmapper.library_org_mapstruct_named",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "HostAndPortMapper is converted to Named by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.HostAndPortMapper -> library:org.mapstruct.Named",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.Mapper;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
-          "line": 3
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_poolconfigmapper.library_org_mapstruct_mapper",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "PoolConfigMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.PoolConfigMapper -> library:org.mapstruct.Mapper",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import static org.mapstruct.NullValuePropertyMappingStrategy.IGNORE;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
-          "line": 3
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_reservationmapper.library_org_mapstruct_nullvaluepropertymappingstrategy",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "ReservationMapper is converted to NullValuePropertyMappingStrategy by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapper -> library:org.mapstruct.NullValuePropertyMappingStrategy",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.factory.Mappers;",
-          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ReservationMapperTest.java",
-          "line": 7
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_reservationmappertest.library_org_mapstruct_factory",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/(files+2)"
-      ],
-      "statement": "ReservationMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ReservationMapperTest -> library:org.mapstruct.factory",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.Mapper;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
-          "line": 3
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_servermapper.library_org_mapstruct_mapper",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "ServerMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapper -> library:org.mapstruct.Mapper",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.factory.Mappers;",
-          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ServerMapperTest.java",
-          "line": 7
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_servermappertest.library_org_mapstruct_factory",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/(files+2)"
-      ],
-      "statement": "ServerMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerMapperTest -> library:org.mapstruct.factory",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.Mapper;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerResourceUsageLogMapper.java",
-          "line": 3
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_serverresourceusagelogmapper.library_org_mapstruct_mapper",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "ServerResourceUsageLogMapper is converted to Mapper by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapper -> library:org.mapstruct.Mapper",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import org.mapstruct.factory.Mappers;",
-          "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ServerResourceUsageLogMapperTest.java",
-          "line": 4
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_api_model_mappers_serverresourceusagelogmappertest.library_org_mapstruct_factory",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/(files+2)"
-      ],
-      "statement": "ServerResourceUsageLogMapperTest is converted to factory by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.api.model.mappers.ServerResourceUsageLogMapperTest -> library:org.mapstruct.factory",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "PoolConfigDetailedOutput asPoolConfigDetailedOutput(DPoolConfig dPoolConfig);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
-          "line": 20
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigdetailedoutput",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "DPoolConfig is converted to PoolConfigDetailedOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigDetailedOutput",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "PoolConfigOutput asPoolConfigOutput(DPoolConfig dPoolConfig);",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
-          "line": 17
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_api_model_dtos_poolconfigoutput",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "DPoolConfig is converted to PoolConfigOutput by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.api.model.dtos.PoolConfigOutput",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "EPoolConfig asEPoolConfig(DPoolConfig dPoolConfig);",
-          "file": "sql-pool/sql-pool-service/src/main/java/RMS/UnifiedStore/sqlpool/service/mappers/DPoolConfigMapper.java",
-          "line": 30
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dpoolconfig.rms_unifiedstore_sqlpool_dal_entities_epoolconfig",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-service"
-      ],
-      "statement": "DPoolConfig is converted to EPoolConfig by a mapper in sql-pool/sql-pool-service; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DPoolConfig -> rms.unifiedstore.sqlpool.dal.entities.EPoolConfig",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "map",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "default OffsetDateTime expirationTime(DReservation dReservation) {",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
-          "line": 48
-        }
-      ],
-      "id": "data_model.map.rms_unifiedstore_sqlpool_common_model_domain_dreservation.java_time_offsetdatetime",
-      "kind": "data_model",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "DReservation is converted to OffsetDateTime by a mapper in sql-pool/sql-pool-api; the two are different representations of the same record.",
-      "subject": "rms.unifiedstore.sqlpool.common.model.domain.DReservation -> java.time.OffsetDateTime",
+      "subject": "entity:TenantRecord",
       "verdict": "consistent"
     },
     {
@@ -869,6 +311,536 @@
       ],
       "statement": "automation holds 2 git-tracked file(s) against 44 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
       "subject": "automation",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Attribute/RmsAuthorizeServiceEntityAttribute.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Attribute/RmsAuthorizeServiceEntityAttribute.cs",
+          "line": 7
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog/(files+4)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 198 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Tasks;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/v1/AccessController.cs",
+          "line": 8
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Job/ArtifactBulkDeleteJobHandler.cs",
+          "line": 7
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog.catalog_service_rms_unifiedstore_service_catalog_engine",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog imports catalog-service/RMS.UnifiedStore.Service.Catalog.Engine at 44 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog -> catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using Constants = RMS.UnifiedStore.Core.Constants;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Attribute/RmsAuthorizeServiceEntityAttribute.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Bootstrap.cs",
+          "line": 2
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog/(files+4)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog imports core/RMS.UnifiedStore.Core at 207 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/external/v1/CardController.Access.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/external/v1/ExposureSetController.cs",
+          "line": 9
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog imports core/RMS.UnifiedStore.Core.App at 12 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Cache;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Cache/ThumbprintVersionCache.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Configuration/ConfigurationManager.cs",
+          "line": 2
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_common.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/(Cache+10)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common imports core/RMS.UnifiedStore.Core at 95 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Exceptions/ArchiveNotFoundException.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Exceptions/UserDoesNotHavePermissionToDatabaseException.cs",
+          "line": 1
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_common.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common/(Cache+10)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common imports core/RMS.UnifiedStore.Core.App at 15 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/ConfigurationManagerTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/ConfigurationManagerTests.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_common_tests.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 113 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/ConfigurationManagerTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/DataLayer/ProvisionStatusRepositoryTests.cs",
+          "line": 2
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_common_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests imports core/RMS.UnifiedStore.Core at 12 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ArtifactRegisterContextData.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ArtifactUpdateContextData.cs",
+          "line": 1
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_engine.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/(files+6)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 159 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ExecutionContext.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ICatalogCardData.cs",
+          "line": 1
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_engine.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/(files+6)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine imports core/RMS.UnifiedStore.Core at 44 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Module/GetSecurableAccessModule.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_engine.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Module"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine imports core/RMS.UnifiedStore.Core.App at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CardDataQueryModuleTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CardDataQueryModuleTests.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_engine_tests.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 149 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Executor/ConditionalMapReduceExecutorTests.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Executor/SequentialExecutorTests.cs",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_engine_tests.catalog_service_rms_unifiedstore_service_catalog_engine",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/(files+3)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Engine at 52 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/RegisterAccessModuleTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/RegisterCardModuleTests.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_engine_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests imports core/RMS.UnifiedStore.Core at 22 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Attribute;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/Attribute/RmsAuthorizeServiceEntityAttributeTests.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Controllers.external.v1;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 9
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_tests.catalog_service_rms_unifiedstore_service_catalog",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog at 16 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts.v1;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/ArchiveResponseTests.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using ArchiveResponse = RMS.UnifiedStore.Service.Catalog.Common.Contracts.v1.ArchiveResponse;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/ArchiveResponseTests.cs",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_tests.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 37 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/Handlers/CardAggregateQueryJobHandlerTests.cs",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_tests.catalog_service_rms_unifiedstore_service_catalog_engine",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Engine at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement.Contracts;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests imports core/RMS.UnifiedStore.Core at 19 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Middleware;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/TestServerFactory.cs",
+          "line": 19
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_service_catalog_tests.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests imports core/RMS.UnifiedStore.Core.App at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Storage;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Handler;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/Database/PostgreSqlInvoker.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_tools_catalog_cli.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 42 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Tasks;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Migrate/Data/CatalogDatabaseInvoker.cs",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_tools_catalog_cli.catalog_service_rms_unifiedstore_service_catalog_engine",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli imports catalog-service/RMS.UnifiedStore.Service.Catalog.Engine at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli -> catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.catalog_service_rms_unifiedstore_tools_catalog_cli.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli imports core/RMS.UnifiedStore.Core at 19 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli -> core/RMS.UnifiedStore.Core",
       "verdict": "consistent"
     },
     {
@@ -1083,6 +1055,31 @@
           "line": 14
         }
       ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_download_exposure",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/download-exposure at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/download-exposure",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        }
+      ],
       "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_common",
       "kind": "dependency",
       "source_nodes": [
@@ -1133,6 +1130,31 @@
           "line": 14
         }
       ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_legacy_snapshot_legacy_task",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-legacy/snapshot-legacy-task at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        }
+      ],
       "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_sdk",
       "kind": "dependency",
       "source_nodes": [
@@ -1140,6 +1162,181 @@
       ],
       "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-sdk at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
       "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        }
+      ],
+      "id": "dependency.observed.client_java_uds_client_integration_tests.exposure_snapshot_snapshot_smoketest",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/client-java/uds-client-integration-tests/(files+5)"
+      ],
+      "statement": "client-java/uds-client-integration-tests imports exposure-snapshot/snapshot-smoketest at 9 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "client-java/uds-client-integration-tests -> exposure-snapshot/snapshot-smoketest",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Contracts;",
+          "file": "core/RMS.UnifiedStore.Core.App/ActionFilter/DebugActionFilter.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Diagnostics;",
+          "file": "core/RMS.UnifiedStore.Core.App/ActionFilter/DebugActionFilter.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.core_rms_unifiedstore_core_app.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/core/RMS.UnifiedStore.Core.App"
+      ],
+      "statement": "core/RMS.UnifiedStore.Core.App imports core/RMS.UnifiedStore.Core at 21 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "core/RMS.UnifiedStore.Core.App -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Job;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/JobSchedulerTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Job;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/SingleTaskJobHandlerTests.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.core_rms_unifiedstore_core_app_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/core/RMS.UnifiedStore.Core.App.Tests"
+      ],
+      "statement": "core/RMS.UnifiedStore.Core.App.Tests imports core/RMS.UnifiedStore.Core at 5 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "core/RMS.UnifiedStore.Core.App.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/SingleTaskJobHandlerTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Middleware/ExceptionHandlerMiddlewareTests.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.core_rms_unifiedstore_core_app_tests.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/core/RMS.UnifiedStore.Core.App.Tests"
+      ],
+      "statement": "core/RMS.UnifiedStore.Core.App.Tests imports core/RMS.UnifiedStore.Core.App at 3 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "core/RMS.UnifiedStore.Core.App.Tests -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Cache;",
+          "file": "core/RMS.UnifiedStore.Core.Tests/Cache/BaseRedisCacheTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement;",
+          "file": "core/RMS.UnifiedStore.Core.Tests/Clients/AuthServiceCacheTests.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.core_rms_unifiedstore_core_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/core/RMS.UnifiedStore.Core.Tests"
+      ],
+      "statement": "core/RMS.UnifiedStore.Core.Tests imports core/RMS.UnifiedStore.Core at 11 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "core/RMS.UnifiedStore.Core.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/VariationApplication.scala",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.ExposureSnapshotException",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_download_exposure.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/download-exposure"
+      ],
+      "statement": "exposure-snapshot/download-exposure imports exposure-snapshot/snapshot-common at 36 distinct sites.",
+      "subject": "exposure-snapshot/download-exposure -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.utility.ZipUtility",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 11
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.utility.ZipUtility",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/PortfolioSnapshotService.scala",
+          "line": 11
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_download_exposure.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/download-exposure"
+      ],
+      "statement": "exposure-snapshot/download-exposure imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/download-exposure -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
       "verdict": "consistent"
     },
     {
@@ -1195,26 +1392,6 @@
     {
       "anchor_verified_at": "<HEAD>",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.model.*;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/services/DomainService.java",
-          "line": 6
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_ods_domain_data.client_java_uds_client",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/ods-domain-data"
-      ],
-      "statement": "exposure-snapshot/ods-domain-data imports client-java/uds-client at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/ods-domain-data -> client-java/uds-client",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
@@ -1235,26 +1412,6 @@
       ],
       "statement": "exposure-snapshot/ods-domain-data imports exposure-snapshot/snapshot-common at 13 distinct sites.",
       "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-common",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.model.*;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/services/DomainService.java",
-          "line": 6
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_ods_domain_data.exposure_snapshot_snapshot_sdk",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/ods-domain-data"
-      ],
-      "statement": "exposure-snapshot/ods-domain-data imports exposure-snapshot/snapshot-sdk at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/ods-domain-data -> exposure-snapshot/snapshot-sdk",
       "verdict": "consistent"
     },
     {
@@ -1293,8 +1450,8 @@
           "line": 12
         },
         {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
+          "anchor": "import com.rms.unifiedstore.model.catalog.SortOrder;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/query/SortParser.java",
           "line": 3
         }
       ],
@@ -1303,7 +1460,7 @@
       "source_nodes": [
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
-      "statement": "exposure-snapshot/snapshot-api imports client-java/uds-client at 33 distinct sites.",
+      "statement": "exposure-snapshot/snapshot-api imports client-java/uds-client at 27 distinct sites.",
       "subject": "exposure-snapshot/snapshot-api -> client-java/uds-client",
       "verdict": "consistent"
     },
@@ -1378,7 +1535,7 @@
       "source_nodes": [
         "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
       ],
-      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-common at 414 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-common at 408 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
       "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-common",
       "verdict": "consistent"
     },
@@ -1405,31 +1562,6 @@
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-filter-query-service at 5 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
       "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-filter-query-service",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
-          "line": 3
-        },
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/SnapshotApiImpl.java",
-          "line": 19
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
-      ],
-      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
       "verdict": "consistent"
     },
     {
@@ -1480,26 +1612,6 @@
       ],
       "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/snapshot-workflow-service at 30 distinct sites.",
       "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/snapshot-workflow-service",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import com.rms.utils.swagger.SwaggerBundle;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
-          "line": 73
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_api.exposure_snapshot_swagger_resource",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
-      ],
-      "statement": "exposure-snapshot/snapshot-api imports exposure-snapshot/swagger-resource at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-api -> exposure-snapshot/swagger-resource",
       "verdict": "consistent"
     },
     {
@@ -1579,23 +1691,177 @@
     },
     {
       "anchor_verified_at": "<HEAD>",
-      "channel": "codegen",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
+      "confidence": "medium",
       "evidence": [
         {
-          "anchor": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
-          "file": "exposure-snapshot/snapshot-legacy/pom.xml",
-          "line": 1
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
         }
       ],
-      "id": "dependency.generated.exposure_snapshot_snapshot_legacy",
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.client_java_uds_client",
       "kind": "dependency",
       "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy"
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
       ],
-      "statement": "exposure-snapshot/snapshot-legacy holds 1 git-tracked file(s) against 58 on disk. Its contents are generated at build time, so they are invisible to a git-based inventory and are described by the build contract rather than read.",
-      "subject": "exposure-snapshot/snapshot-legacy",
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports client-java/uds-client at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> client-java/uds-client",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.exposure_snapshot_download_exposure",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports exposure-snapshot/download-exposure at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> exposure-snapshot/download-exposure",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports exposure-snapshot/snapshot-common at 8 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.exposure_snapshot_snapshot_legacy_snapshot_legacy_task",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports exposure-snapshot/snapshot-legacy/snapshot-legacy-task at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.{DataCatalogService, DbCommunicator}",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports exposure-snapshot/snapshot-sdk at 10 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation.exposure_snapshot_snapshot_smoketest",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation imports exposure-snapshot/snapshot-smoketest at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation -> exposure-snapshot/snapshot-smoketest",
       "verdict": "consistent"
     },
     {
@@ -1651,61 +1917,126 @@
     {
       "anchor_verified_at": "<HEAD>",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/src/main/java/com/rms/unifiedstore/partition/SnapshotPartitionTask.java",
-          "line": 3
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_partition.exposure_snapshot_snapshot_common",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
-      ],
-      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition imports exposure-snapshot/snapshot-common at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition -> exposure-snapshot/snapshot-common",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/src/main/java/com/rms/unifiedstore/transform/TransformEdmTask.java",
-          "line": 3
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_transform.exposure_snapshot_snapshot_common",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
-      ],
-      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform imports exposure-snapshot/snapshot-common at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform -> exposure-snapshot/snapshot-common",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
       "confidence": "medium",
       "evidence": [
         {
-          "anchor": "import com.rms.unifiedstore.client.core.model.User;",
-          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/helper/UdsSdkHelper.java",
-          "line": 10
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.service._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/task/PortfolioSnapshotTask.scala",
+          "line": 11
         }
       ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_sdk.client_java_client_core",
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_task.exposure_snapshot_download_exposure",
       "kind": "dependency",
       "source_nodes": [
-        "root/exposure-snapshot/snapshot-sdk/src/main/java"
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
       ],
-      "statement": "exposure-snapshot/snapshot-sdk imports client-java/client-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-sdk -> client-java/client-core",
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task imports exposure-snapshot/download-exposure at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task -> exposure-snapshot/download-exposure",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.EntityType.PORTFOLIO_TYPE",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotApplication.scala",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotApplication.scala",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_task.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task imports exposure-snapshot/snapshot-common at 56 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task -> exposure-snapshot/snapshot-common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.PartitionMatrix",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/PartitionMatrixService.scala",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_task.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 2 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotUtils.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.model.TableBounds",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotUtils.scala",
+          "line": 6
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_legacy_snapshot_legacy_task.exposure_snapshot_snapshot_sdk",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      ],
+      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task imports exposure-snapshot/snapshot-sdk at 26 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task -> exposure-snapshot/snapshot-sdk",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.SnapshotConfiguration",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.clients.AnalyticsGatewayClient",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.exposure_snapshot_snapshot_migration.exposure_snapshot_snapshot_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/exposure-snapshot/snapshot-migration"
+      ],
+      "statement": "exposure-snapshot/snapshot-migration imports exposure-snapshot/snapshot-common at 11 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-migration -> exposure-snapshot/snapshot-common",
       "verdict": "consistent"
     },
     {
@@ -1729,7 +2060,7 @@
       "source_nodes": [
         "root/exposure-snapshot/snapshot-sdk/src/main/java"
       ],
-      "statement": "exposure-snapshot/snapshot-sdk imports client-java/uds-client at 12 distinct sites.",
+      "statement": "exposure-snapshot/snapshot-sdk imports client-java/uds-client at 11 distinct sites.",
       "subject": "exposure-snapshot/snapshot-sdk -> client-java/uds-client",
       "verdict": "consistent"
     },
@@ -1754,28 +2085,33 @@
       "source_nodes": [
         "root/exposure-snapshot/snapshot-sdk/src/main/java"
       ],
-      "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-common at 20 distinct sites.",
+      "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-common at 31 distinct sites.",
       "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-common",
       "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
+      "confidence": "high",
       "evidence": [
         {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/workflow/EdmQueryService.java",
-          "line": 3
+          "anchor": "import com.rms.unifiedstore.sdk.ScalaRetryUtil",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/BaseTestResource.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.UdsSdkHelper",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/BundlesResourceSuite.scala",
+          "line": 6
         }
       ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_sdk.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
+      "id": "dependency.observed.exposure_snapshot_snapshot_smoketest.exposure_snapshot_snapshot_sdk",
       "kind": "dependency",
       "source_nodes": [
-        "root/exposure-snapshot/snapshot-sdk/src/main/java"
+        "root/exposure-snapshot/snapshot-smoketest/src/main/scala"
       ],
-      "statement": "exposure-snapshot/snapshot-sdk imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-sdk -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "statement": "exposure-snapshot/snapshot-smoketest imports exposure-snapshot/snapshot-sdk at 6 distinct sites.",
+      "subject": "exposure-snapshot/snapshot-smoketest -> exposure-snapshot/snapshot-sdk",
       "verdict": "consistent"
     },
     {
@@ -1831,37 +2167,17 @@
     {
       "anchor_verified_at": "<HEAD>",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
-          "line": 5
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.client_java_uds_client",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-task-delete"
-      ],
-      "statement": "exposure-snapshot/snapshot-task-delete imports client-java/uds-client at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-task-delete -> client-java/uds-client",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
-          "line": 5
-        },
         {
           "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
           "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
           "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.payload.AuthKeys;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 7
         }
       ],
       "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.exposure_snapshot_snapshot_common",
@@ -1869,28 +2185,8 @@
       "source_nodes": [
         "root/exposure-snapshot/snapshot-task-delete"
       ],
-      "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-common at 8 distinct sites.",
+      "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-common at 7 distinct sites.",
       "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-common",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "medium",
-      "evidence": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
-          "line": 5
-        }
-      ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_task_delete.exposure_snapshot_snapshot_legacy_snapshot_legacy_core",
-      "kind": "dependency",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-task-delete"
-      ],
-      "statement": "exposure-snapshot/snapshot-task-delete imports exposure-snapshot/snapshot-legacy/snapshot-legacy-core at 1 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
-      "subject": "exposure-snapshot/snapshot-task-delete -> exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
       "verdict": "consistent"
     },
     {
@@ -1946,21 +2242,401 @@
     {
       "anchor_verified_at": "<HEAD>",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
+      "confidence": "medium",
       "evidence": [
         {
-          "anchor": "import com.rms.snapshot.filter.service.ParserService;",
-          "file": "exposure-snapshot/snapshot-workflow-service/src/main/java/com/rms/unifiedstore/workflow/WorkflowSearchServiceImpl.java",
-          "line": 10
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.App;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/RedisTlsConfigurationTests.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.App;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/ServiceFactoryTests.cs",
+          "line": 9
         }
       ],
-      "id": "dependency.observed.exposure_snapshot_snapshot_workflow_service.exposure_snapshot_snapshot_filter_query_service",
+      "id": "dependency.observed.managed_sql_rms_unifiedstore_service_managedsql_tests.managed_sql_rms_unifiedstore_service_managedsql",
       "kind": "dependency",
       "source_nodes": [
-        "root/exposure-snapshot/snapshot-workflow-service"
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/(files+10)"
       ],
-      "statement": "exposure-snapshot/snapshot-workflow-service imports exposure-snapshot/snapshot-filter-query-service at 1 distinct sites.",
-      "subject": "exposure-snapshot/snapshot-workflow-service -> exposure-snapshot/snapshot-filter-query-service",
+      "statement": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests imports managed-sql/RMS.UnifiedStore.Service.ManagedSql at 343 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests -> managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using ConfigurationManager = RMS.UnifiedStore.Service.Catalog.Common.Configuration.ConfigurationManager;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 91
+        },
+        {
+          "anchor": "using IConfigurationManager = RMS.UnifiedStore.Service.Catalog.Common.Configuration.IConfigurationManager;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 93
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/(App+5)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 272 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/AdminDataHandler.cs",
+          "line": 22
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2.DSL;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/DatabridgeDatabaseQueryHandler.cs",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api.catalog_service_rms_unifiedstore_service_catalog_engine",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/Handlers/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api imports catalog-service/RMS.UnifiedStore.Service.Catalog.Engine at 5 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api -> catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 36
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 37
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/(App+5)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api imports core/RMS.UnifiedStore.Core at 364 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using NotFoundException = RMS.UnifiedStore.Core.App.Exceptions.NotFoundException;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Jobs.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/IntegrationTestController.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/(Internal+3)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api imports core/RMS.UnifiedStore.Core.App at 55 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 47
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/BaseAdminDataSecurablesHandler.cs",
+          "line": 11
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api.service_api_rms_unifiedstore_service_api_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/(App+5)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api imports service-api/RMS.UnifiedStore.Service.Api.Common at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api -> service-api/RMS.UnifiedStore.Service.Api.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAccessApi.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAdminSecurableApi.cs",
+          "line": 3
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_common.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Common"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Common imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 4 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Common -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAccessApi.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAdminSecurableApi.cs",
+          "line": 2
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_common.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Common"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Common imports core/RMS.UnifiedStore.Core at 4 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Common -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataApiTest.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataNegativeTestData.cs",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_integration_tests.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Integration.Tests"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 7 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Extensions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiCrudTest.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Extensions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiTests.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_integration_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Integration.Tests"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests imports core/RMS.UnifiedStore.Core at 4 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataApiTest.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataNegativeTestData.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_integration_tests.service_api_rms_unifiedstore_service_api_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Integration.Tests"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests imports service-api/RMS.UnifiedStore.Service.Api.Common at 6 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests -> service-api/RMS.UnifiedStore.Service.Api.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 15
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 16
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_tests.catalog_service_rms_unifiedstore_service_catalog_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Tests imports catalog-service/RMS.UnifiedStore.Service.Catalog.Common at 149 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Tests -> catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.App;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 8
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/CreateEdmTests.cs",
+          "line": 5
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Tests imports core/RMS.UnifiedStore.Core at 157 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Tests -> core/RMS.UnifiedStore.Core",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Controllers/Internal/v1/IntegrationTestControllerTests.cs",
+          "line": 4
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_tests.core_rms_unifiedstore_core_app",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Tests imports core/RMS.UnifiedStore.Core.App at 15 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Tests -> core/RMS.UnifiedStore.Core.App",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Cache;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 11
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_tests.service_api_rms_unifiedstore_service_api",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Tests imports service-api/RMS.UnifiedStore.Service.Api at 556 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Tests -> service-api/RMS.UnifiedStore.Service.Api",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/BaseAdminDataSecurablesHandlerTests.cs",
+          "line": 12
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/DatabaseAdminDataHandlerTests.cs",
+          "line": 12
+        }
+      ],
+      "id": "dependency.observed.service_api_rms_unifiedstore_service_api_tests.service_api_rms_unifiedstore_service_api_common",
+      "kind": "dependency",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Tests imports service-api/RMS.UnifiedStore.Service.Api.Common at 3 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Tests -> service-api/RMS.UnifiedStore.Service.Api.Common",
       "verdict": "consistent"
     },
     {
@@ -2315,422 +2991,52 @@
     },
     {
       "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
+      "confidence": "medium",
       "evidence": [
         {
-          "anchor": "CMD [\"java\", \\",
-          "file": "automation/api-automation/Dockerfile",
-          "line": 25
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/DataModel.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Catalog.Schema;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/DataModel.cs",
+          "line": 4
         }
       ],
-      "id": "deployable.process_automation_api_automation",
-      "kind": "deployable",
+      "id": "dependency.observed.tests_performance_catalog_data_model_rms_unifiedstore_tests_performance_datamodel_db.core_rms_unifiedstore_core",
+      "kind": "dependency",
       "source_nodes": [
-        "root/automation/api-automation/(files+10)"
+        "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB"
       ],
-      "statement": "automation/api-automation is packaged as its own container image; its entry command is [\"java\", \\.",
-      "subject": "process:automation/api-automation",
+      "statement": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB imports core/RMS.UnifiedStore.Core at 18 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB -> core/RMS.UnifiedStore.Core",
       "verdict": "consistent"
     },
     {
       "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
+      "confidence": "medium",
       "evidence": [
         {
-          "anchor": "CMD [\"/bin/bash\", \"-e\", \"run-migrations.sh\"]",
-          "file": "exposure-snapshot/domain-data-migration/Dockerfile",
-          "line": 30
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_domain_data_migration",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/(files+1)"
-      ],
-      "statement": "exposure-snapshot is packaged as its own container image; its entry command is [\"/bin/bash\", \"-e\", \"run-migrations.sh\"].",
-      "subject": "process:exposure-snapshot/domain-data-migration",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests/PortfolioTableTests.cs",
+          "line": 4
+        },
         {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/download-exposure/Dockerfile",
-          "line": 23
+          "anchor": "using RMS.UnifiedStore.Core.Configuration.Provider;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests/PortfolioTableTests.cs",
+          "line": 5
         }
       ],
-      "id": "deployable.process_exposure_snapshot_download_exposure",
-      "kind": "deployable",
+      "id": "dependency.observed.tests_performance_catalog_data_model_rms_unifiedstore_tests_performance_datamodel_db_tests.core_rms_unifiedstore_core",
+      "kind": "dependency",
       "source_nodes": [
-        "root/exposure-snapshot/download-exposure"
+        "root/tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
       ],
-      "statement": "exposure-snapshot/download-exposure is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/download-exposure",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/entity-variation-task/Dockerfile",
-          "line": 19
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_entity_variation_task",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/entity-variation-task/(files+8)"
-      ],
-      "statement": "exposure-snapshot/entity-variation-task is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/entity-variation-task",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD /api-run",
-          "file": "exposure-snapshot/snapshot-api/Dockerfile",
-          "line": 17
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_api",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-api/(files+8)"
-      ],
-      "statement": "exposure-snapshot/snapshot-api is packaged as its own container image; its entry command is /api-run.",
-      "subject": "process:exposure-snapshot/snapshot-api",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD /runWorkflow.sh",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/Dockerfile",
-          "line": 12
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_accumulation",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation"
-      ],
-      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation is packaged as its own container image; its entry command is /runWorkflow.sh.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/Dockerfile",
-          "line": 17
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_partition",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
-      ],
-      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/Dockerfile",
-          "line": 21
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_task",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
-      ],
-      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/Dockerfile",
-          "line": 18
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_legacy_snapshot_legacy_transform",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
-      ],
-      "statement": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD [\"/bin/bash\", \"-e\", \"run-flyway-migrations.sh\"]",
-          "file": "exposure-snapshot/snapshot-migration/Dockerfile",
-          "line": 38
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_migration",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-migration"
-      ],
-      "statement": "exposure-snapshot/snapshot-migration is packaged as its own container image; its entry command is [\"/bin/bash\", \"-e\", \"run-flyway-migrations.sh\"].",
-      "subject": "process:exposure-snapshot/snapshot-migration",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/snapshot-smoketest/Dockerfile",
-          "line": 17
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_smoketest",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-smoketest/(files+1)"
-      ],
-      "statement": "exposure-snapshot/snapshot-smoketest is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-smoketest",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS /opt/snapshot-task-create.jar",
-          "file": "exposure-snapshot/snapshot-task-create/Dockerfile",
-          "line": 12
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_task_create",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-task-create"
-      ],
-      "statement": "exposure-snapshot/snapshot-task-create is packaged as its own container image; its entry command is java $JAVA_OPTS /opt/snapshot-task-create.jar.",
-      "subject": "process:exposure-snapshot/snapshot-task-create",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java $JAVA_OPTS \\",
-          "file": "exposure-snapshot/snapshot-task-delete/Dockerfile",
-          "line": 21
-        }
-      ],
-      "id": "deployable.process_exposure_snapshot_snapshot_task_delete",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-task-delete"
-      ],
-      "statement": "exposure-snapshot/snapshot-task-delete is packaged as its own container image; its entry command is java $JAVA_OPTS \\.",
-      "subject": "process:exposure-snapshot/snapshot-task-delete",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"]",
-          "file": "managed-sql/Dockerfile",
-          "line": 9
-        }
-      ],
-      "id": "deployable.process_managed_sql",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/(build+5)"
-      ],
-      "statement": "(root) is packaged as its own container image; its entry command is [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"].",
-      "subject": "process:managed-sql",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java -jar /opt/downgrade-processor.jar",
-          "file": "ms-sql-java/downgrade-processor/Dockerfile",
-          "line": 22
-        }
-      ],
-      "id": "deployable.process_ms_sql_java_downgrade_processor",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/ms-sql-java/downgrade-processor/(files+3)"
-      ],
-      "statement": "ms-sql-java/downgrade-processor is packaged as its own container image; its entry command is java -jar /opt/downgrade-processor.jar.",
-      "subject": "process:ms-sql-java/downgrade-processor",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD [\"dotnet\", \"/app/RMS.UnifiedStore.Service.Api/RMS.UnifiedStore.Service.Api.dll\"]",
-          "file": "service-api/docker/Dockerfile",
-          "line": 53
-        }
-      ],
-      "id": "deployable.process_service_api_docker",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/(build+5)"
-      ],
-      "statement": "(root) is packaged as its own container image; its entry command is [\"dotnet\", \"/app/RMS.UnifiedStore.Service.Api/RMS.UnifiedStore.Service.Api.dll\"].",
-      "subject": "process:service-api/docker",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml",
-          "file": "sql-pool/sql-pool-api/Dockerfile",
-          "line": 23
-        }
-      ],
-      "id": "deployable.process_sql_pool_sql_pool_api",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/(files+2)"
-      ],
-      "statement": "sql-pool/sql-pool-api is packaged as its own container image; its entry command is sql-pool-api/bin/sql-pool-api server dropwizard-service-config.yml.",
-      "subject": "process:sql-pool/sql-pool-api",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml",
-          "file": "sql-pool/sql-pool-manager/Dockerfile",
-          "line": 23
-        }
-      ],
-      "id": "deployable.process_sql_pool_sql_pool_manager",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-manager/(files+5)"
-      ],
-      "statement": "sql-pool/sql-pool-manager is packaged as its own container image; its entry command is sql-pool-manager/bin/sql-pool-manager server dropwizard-service-config.yml.",
-      "subject": "process:sql-pool/sql-pool-manager",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD java -cp \"*\" rms.unifiedstore.sqlpool.setup.SetupApplication",
-          "file": "sql-pool/sql-pool-setup/Dockerfile",
-          "line": 16
-        }
-      ],
-      "id": "deployable.process_sql_pool_sql_pool_setup",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-setup/(files+1)"
-      ],
-      "statement": "sql-pool/sql-pool-setup is packaged as its own container image; its entry command is java -cp \"*\" rms.unifiedstore.sqlpool.setup.SetupApplication.",
-      "subject": "process:sql-pool/sql-pool-setup",
-      "verdict": "consistent"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD sql-pool-smoketest/bin/sql-pool-smoketest rms.unifiedstore.sqlpool.test.SqlPoolTestSuite",
-          "file": "sql-pool/sql-pool-smoketest/Dockerfile",
-          "line": 22
-        }
-      ],
-      "id": "deployable.process_sql_pool_sql_pool_smoketest",
-      "kind": "deployable",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-smoketest"
-      ],
-      "statement": "sql-pool/sql-pool-smoketest is packaged as its own container image; its entry command is sql-pool-smoketest/bin/sql-pool-smoketest rms.unifiedstore.sqlpool.test.SqlPoolTestSuite.",
-      "subject": "process:sql-pool/sql-pool-smoketest",
+      "statement": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests imports core/RMS.UnifiedStore.Core at 2 distinct sites. This edge is NOT declared in the build manifest; it compiles by transitive resolution and will break on a dependency bump.",
+      "subject": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests -> core/RMS.UnifiedStore.Core",
       "verdict": "consistent"
     },
     {
@@ -2752,6 +3058,48 @@
       ],
       "statement": "GenerateExposureSchemaFromParquetFiles declares a process entry point in exposure-snapshot/snapshot-developer-utils; it is one of the repository's separately-startable units.",
       "subject": "GenerateExposureSchemaFromParquetFiles",
+      "verdict": "entailed"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static async Task Main(string[] args)",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Program.cs",
+          "line": 31
+        }
+      ],
+      "id": "entrypoint.main.program",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog/(files+4)"
+      ],
+      "statement": "Program declares a process entry point in catalog-service/RMS.UnifiedStore.Service.Catalog; it is one of the repository's separately-startable units.",
+      "subject": "Program",
+      "verdict": "entailed"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "public static async Task Main(string[] args)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Program.cs",
+          "line": 34
+        }
+      ],
+      "id": "entrypoint.main.rms_unifiedstore_service_api_program",
+      "kind": "entrypoint",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
+      ],
+      "statement": "Program declares a process entry point in service-api/RMS.UnifiedStore.Service.Api; it is one of the repository's separately-startable units.",
+      "subject": "RMS.UnifiedStore.Service.Api.Program",
       "verdict": "entailed"
     },
     {
@@ -2878,237 +3226,6 @@
       ],
       "statement": "ExposureBundleServiceIT declares a process entry point in exposure-snapshot/entity-variation-task; it is one of the repository's separately-startable units.",
       "subject": "com.rms.unifiedstore.entityvariation.integration.ExposureBundleServiceIT",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) {",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition/src/main/java/com/rms/unifiedstore/partition/SnapshotPartitionTask.java",
-          "line": 10
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_partition_snapshotpartitiontask",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-partition"
-      ],
-      "statement": "SnapshotPartitionTask declares a process entry point in exposure-snapshot/snapshot-legacy/snapshot-legacy-partition; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.partition.SnapshotPartitionTask",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) throws Exception {",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
-          "line": 102
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_snapshot_api_apiapplication",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
-      ],
-      "statement": "APIApplication declares a process entry point in exposure-snapshot/snapshot-api; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.snapshot.api.APIApplication",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) {",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/GetS2STokenApp.java",
-          "line": 10
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_snapshot_api_gets2stokenapp",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/(files+5)"
-      ],
-      "statement": "GetS2STokenApp declares a process entry point in exposure-snapshot/snapshot-api; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.snapshot.api.GetS2STokenApp",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) {",
-          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/SnapshotApplication.java",
-          "line": 25
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_snapshot_task_create_snapshotapplication",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-task-create"
-      ],
-      "statement": "SnapshotApplication declares a process entry point in exposure-snapshot/snapshot-task-create; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.snapshot.task.create.SnapshotApplication",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) throws Exception {",
-          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/AutomationDebugTool.java",
-          "line": 81
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_test_automation_automationdebugtool",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)"
-      ],
-      "statement": "AutomationDebugTool declares a process entry point in client-java/uds-client-integration-tests; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.test.automation.AutomationDebugTool",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) throws Exception {",
-          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/PipelineTestRunner.java",
-          "line": 15
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_test_automation_pipelinetestrunner",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/(files+5)"
-      ],
-      "statement": "PipelineTestRunner declares a process entry point in client-java/uds-client-integration-tests; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.test.automation.PipelineTestRunner",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) {",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/src/main/java/com/rms/unifiedstore/transform/TransformEdmTask.java",
-          "line": 10
-        }
-      ],
-      "id": "entrypoint.main.com_rms_unifiedstore_transform_transformedmtask",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/exposure-snapshot/snapshot-legacy/snapshot-legacy-transform"
-      ],
-      "statement": "TransformEdmTask declares a process entry point in exposure-snapshot/snapshot-legacy/snapshot-legacy-transform; it is one of the repository's separately-startable units.",
-      "subject": "com.rms.unifiedstore.transform.TransformEdmTask",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD [\"/bin/bash\", \"-e\", \"run-migrations.sh\"]",
-          "file": "exposure-snapshot/domain-data-migration/Dockerfile",
-          "line": 30
-        }
-      ],
-      "id": "entrypoint.main.exposure_snapshot_domain_data_migration",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/exposure-snapshot/(files+1)"
-      ],
-      "statement": "exposure-snapshot/domain-data-migration declares a process entry point in exposure-snapshot; it is one of the repository's separately-startable units.",
-      "subject": "exposure-snapshot/domain-data-migration",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "CMD [\"dotnet\", \"/app/RMS.UnifiedStore.Service.ManagedSql/RMS.UnifiedStore.Service.ManagedSql.dll\"]",
-          "file": "managed-sql/Dockerfile",
-          "line": 9
-        }
-      ],
-      "id": "entrypoint.main.managed_sql",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/(build+5)"
-      ],
-      "statement": "managed-sql declares a process entry point in (root); it is one of the repository's separately-startable units.",
-      "subject": "managed-sql",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "if __name__ == \"__main__\":",
-          "file": "ms-sql-java/downgrade-processor/scripts/winrm_script.py",
-          "line": 449
-        }
-      ],
-      "id": "entrypoint.main.ms_sql_java_downgrade_processor_scripts_winrm_script",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/ms-sql-java/downgrade-processor/(files+3)"
-      ],
-      "statement": "winrm_script declares a process entry point in ms-sql-java/downgrade-processor; it is one of the repository's separately-startable units.",
-      "subject": "ms-sql-java.downgrade-processor.scripts.winrm_script",
-      "verdict": "entailed"
-    },
-    {
-      "anchor_verified_at": "<HEAD>",
-      "channel": "process_boundary",
-      "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
-      "evidence": [
-        {
-          "anchor": "public static void main(String[] args) throws Exception {",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
-          "line": 33
-        }
-      ],
-      "id": "entrypoint.main.rms_unifiedstore_sqlpool_api_sqlpoolapplication",
-      "kind": "entrypoint",
-      "source_nodes": [
-        "root/sql-pool/sql-pool-api/src/main/java"
-      ],
-      "statement": "SqlPoolApplication declares a process entry point in sql-pool/sql-pool-api; it is one of the repository's separately-startable units.",
-      "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication",
       "verdict": "entailed"
     },
     {
@@ -4455,6 +4572,102 @@
     },
     {
       "anchor_verified_at": "<HEAD>",
+      "channel": "process_boundary",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "anchor": "public virtual DbSet<ProvisionStatusRecord> ProvisionStatuses { get; set; }",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Models/ProvisionStatusDbContext.cs",
+          "line": 19
+        },
+        {
+          "anchor": "INSERT INTO catalog.entity_secured (entityname, secured) values ('database',false);",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/db/migrations/V6_1_1_3__AddEntitySecuredTable.sql",
+          "line": 2
+        },
+        {
+          "anchor": "public static async Task Main(string[] args)",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Program.cs",
+          "line": 31
+        },
+        {
+          "anchor": "public static async Task Main(string[] args)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Program.cs",
+          "line": 34
+        }
+      ],
+      "id": "side_effect.process_boundary.catalog.program",
+      "kind": "side_effect",
+      "side_effect_type": "db_write",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog/(files+4)"
+      ],
+      "statement": "Catalog and Program are separate deployable units that exchange data through shared storage (2 shared target(s), including catalog.entity_secured). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call.",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog <-> RMS.UnifiedStore.Service.Api.Program",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "http_out",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Integration/CatalogServiceTests.cs",
+          "line": 13
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Utils/RefitInvokerTests.cs",
+          "line": 5
+        }
+      ],
+      "id": "side_effect.catalog_service_rms_unifiedstore_service_catalog_common_tests.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/(files+11)"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests makes outbound HTTP calls, across 2 site(s).",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests:http_out",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "http_out",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 14
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateExposureSetTests.cs",
+          "line": 15
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateRiskAnalysisTests.cs",
+          "line": 14
+        }
+      ],
+      "id": "side_effect.catalog_service_rms_unifiedstore_service_catalog_tests.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/catalog-service/RMS.UnifiedStore.Service.Catalog.Tests"
+      ],
+      "statement": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests makes outbound HTTP calls, across 8 site(s).",
+      "subject": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests:http_out",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
       "channel": "http_out",
       "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
@@ -4583,24 +4796,39 @@
     },
     {
       "anchor_verified_at": "<HEAD>",
-      "channel": "http_out",
+      "channel": "process_boundary",
       "claim_reviewed_at": "<HEAD>",
-      "confidence": "high",
+      "confidence": "medium",
       "evidence": [
         {
-          "anchor": "import org.apache.http.client.utils.URIBuilder;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/GeoHazHelper.java",
-          "line": 25
+          "anchor": "public static void main(String[] args) throws IOException {",
+          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/DowngradeProcessor.java",
+          "line": 32
+        },
+        {
+          "anchor": "when 6 then 'Problem Insert into Address'",
+          "file": "ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V21_to_V18.sql",
+          "line": 8551
+        },
+        {
+          "anchor": "when 3 then 'Problem Insert into ACCGRP'",
+          "file": "ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V25_to_V25.sql",
+          "line": 36600
+        },
+        {
+          "anchor": "public static async Task Main(string[] args)",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Program.cs",
+          "line": 34
         }
       ],
-      "id": "side_effect.exposure_snapshot_entity_variation_task.http_out",
+      "id": "side_effect.process_boundary.downgradeprocessor.program",
       "kind": "side_effect",
-      "side_effect_type": "http_out",
+      "side_effect_type": "db_write",
       "source_nodes": [
-        "root/exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/(files)"
+        "root/ms-sql-java/downgrade-processor/(files+3)"
       ],
-      "statement": "exposure-snapshot/entity-variation-task makes outbound HTTP calls, across 1 site(s).",
-      "subject": "exposure-snapshot/entity-variation-task:http_out",
+      "statement": "DowngradeProcessor and Program are separate deployable units that exchange data through shared storage (37 shared target(s), including ACCGRP, Address, BIDET, Bridge.rb_trty). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call.",
+      "subject": "com.rms.unifiedstore.downgrade.DowngradeProcessor <-> RMS.UnifiedStore.Service.Api.Program",
       "verdict": "consistent"
     },
     {
@@ -4610,19 +4838,29 @@
       "confidence": "high",
       "evidence": [
         {
-          "anchor": "import org.apache.http.client.utils.URIBuilder;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/VariationJobsResource.java",
-          "line": 68
+          "anchor": "using System.Net.Http;",
+          "file": "core/RMS.UnifiedStore.Core/Clients/HttpClientSendRetryHandler.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "core/RMS.UnifiedStore.Core/Clients/S2SAuthenticationHandler.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using System.Net.Http.Headers;",
+          "file": "core/RMS.UnifiedStore.Core/Configuration/ChainedConfigurationProvider.cs",
+          "line": 6
         }
       ],
-      "id": "side_effect.exposure_snapshot_snapshot_api.http_out",
+      "id": "side_effect.core_rms_unifiedstore_core.http_out",
       "kind": "side_effect",
       "side_effect_type": "http_out",
       "source_nodes": [
-        "root/exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources"
+        "root/core/RMS.UnifiedStore.Core/(files+7)"
       ],
-      "statement": "exposure-snapshot/snapshot-api makes outbound HTTP calls, across 1 site(s).",
-      "subject": "exposure-snapshot/snapshot-api:http_out",
+      "statement": "core/RMS.UnifiedStore.Core makes outbound HTTP calls, across 4 site(s).",
+      "subject": "core/RMS.UnifiedStore.Core:http_out",
       "verdict": "consistent"
     },
     {
@@ -4659,24 +4897,66 @@
     },
     {
       "anchor_verified_at": "<HEAD>",
-      "channel": "metric_emit",
+      "channel": "http_out",
       "claim_reviewed_at": "<HEAD>",
       "confidence": "high",
       "evidence": [
         {
-          "anchor": "import com.codahale.metrics.MetricRegistry;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/database/ManagedDataSourceFactoryImpl.java",
+          "anchor": "using System.Net.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 27
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/RestoreArchivesHandlerTest.cs",
+          "line": 28
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Databases/DatabaseConnectionStringHandlerTests.cs",
+          "line": 21
+        }
+      ],
+      "id": "side_effect.managed_sql_rms_unifiedstore_service_managedsql_tests.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/(Archives+4)"
+      ],
+      "statement": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests makes outbound HTTP calls, across 19 site(s).",
+      "subject": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests:http_out",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "http_out",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 75
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/ManagedSqlDbMigrator.cs",
+          "line": 13
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/RefitHttpClientFactory.cs",
           "line": 3
         }
       ],
-      "id": "side_effect.exposure_snapshot_snapshot_common.metric_emit",
+      "id": "side_effect.managed_sql_rms_unifiedstore_service_managedsql.http_out",
       "kind": "side_effect",
-      "side_effect_type": "metric_emit",
+      "side_effect_type": "http_out",
       "source_nodes": [
-        "root/exposure-snapshot/snapshot-common/(files+5)"
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/(App+4)"
       ],
-      "statement": "exposure-snapshot/snapshot-common emits metrics to an observability sink, across 1 site(s).",
-      "subject": "exposure-snapshot/snapshot-common:metric_emit",
+      "statement": "managed-sql/RMS.UnifiedStore.Service.ManagedSql makes outbound HTTP calls, across 6 site(s).",
+      "subject": "managed-sql/RMS.UnifiedStore.Service.ManagedSql:http_out",
       "verdict": "consistent"
     },
     {
@@ -4746,6 +5026,102 @@
       ],
       "statement": "SqlPoolApplication and RegenerateSchemaBaseline and SqlPoolQuartzJobsApplication are separate deployable units that exchange data through shared storage (13 shared target(s), including pool_config, reservation, reservation_metadata, server). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call.",
       "subject": "rms.unifiedstore.sqlpool.api.SqlPoolApplication <-> rms.unifiedstore.sqlpool.integrationtest.support.schema.RegenerateSchemaBaseline <-> rms.unifiedstore.sqlpool.manager.SqlPoolQuartzJobsApplication",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "http_out",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataApiTest.cs",
+          "line": 15
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataNegativeTestData.cs",
+          "line": 14
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiTests.cs",
+          "line": 15
+        }
+      ],
+      "id": "side_effect.service_api_rms_unifiedstore_service_api_integration_tests.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Integration.Tests"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests makes outbound HTTP calls, across 6 site(s).",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests:http_out",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "http_out",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/CacheControllerTests.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Controllers/Internal/v1/EdmControllerTests.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/CreateEdmTests.cs",
+          "line": 18
+        }
+      ],
+      "id": "side_effect.service_api_rms_unifiedstore_service_api_tests.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api.Tests/(files)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api.Tests makes outbound HTTP calls, across 47 site(s).",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api.Tests:http_out",
+      "verdict": "consistent"
+    },
+    {
+      "anchor_verified_at": "<HEAD>",
+      "channel": "http_out",
+      "claim_reviewed_at": "<HEAD>",
+      "confidence": "high",
+      "evidence": [
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Clients/ResourceManager/KmsKeyResourceManager.cs",
+          "line": 11
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/MoveDatabase/MoveDatabaseHandler.cs",
+          "line": 25
+        },
+        {
+          "anchor": "using System.Net.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/MoveEdm/MoveExposureDatabaseHandler.Cleanup.cs",
+          "line": 9
+        }
+      ],
+      "id": "side_effect.service_api_rms_unifiedstore_service_api.http_out",
+      "kind": "side_effect",
+      "side_effect_type": "http_out",
+      "source_nodes": [
+        "root/service-api/RMS.UnifiedStore.Service.Api/(DataBridge+5)"
+      ],
+      "statement": "service-api/RMS.UnifiedStore.Service.Api makes outbound HTTP calls, across 8 site(s).",
+      "subject": "service-api/RMS.UnifiedStore.Service.Api:http_out",
       "verdict": "consistent"
     },
     {
@@ -4909,7 +5285,7 @@
       "verdict": "consistent"
     }
   ],
-  "count": 1278,
-  "elided": 1078,
+  "count": 1860,
+  "elided": 1660,
   "query": "claims"
 }

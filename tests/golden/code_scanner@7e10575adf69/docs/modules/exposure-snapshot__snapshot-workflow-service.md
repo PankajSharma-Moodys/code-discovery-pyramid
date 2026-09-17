@@ -8,7 +8,7 @@
 
 **Imports:** `exposure-snapshot/snapshot-common` (23 refs), `exposure-snapshot/snapshot-filter-query-service` (1 refs)
 
-**Imported by:** `exposure-snapshot/snapshot-api` (30 refs)
+**Imported by:** `exposure-snapshot/snapshot-api` (30 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-task` (1 refs)
 
 ## Public types declared here
 

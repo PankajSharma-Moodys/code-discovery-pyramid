@@ -10,6 +10,12 @@
 
 **Imported by:** nothing in this repository
 
+## Public types declared here
+
+| Type | Kind | Used by | Declared at |
+|---|---|---|---|
+| `Class1` | class | 0 | `client-dotnet/RMS.UnifiedStore.Client/Class1.cs:5` |
+
 ## Scopes
 
 How the partitioner cut this module, and what each leaf was authorised to read.

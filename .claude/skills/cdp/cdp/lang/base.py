@@ -33,6 +33,9 @@ THIRD_PARTY_PREFIXES: Tuple[str, ...] = (
     "io.dropwizard.", "io.swagger.", "io.prometheus.", "io.netty.", "io.micrometer.",
     "io.reactivex.", "lombok.", "ch.qos.", "net.sf.", "reactor.", "graphql.",
     "software.amazon.", "feign.", "retrofit2.", "okhttp3.",
+    # --- C# BCL and common libraries
+    "System.", "Microsoft.", "Newtonsoft.", "AutoMapper.", "Serilog.",
+    "FluentValidation.", "Xunit.", "Moq.", "NUnit.", "FluentAssertions.",
 )
 
 # Coarse per-language channel hints keyed on an import prefix. These are the
@@ -108,6 +111,13 @@ IMPORT_CHANNEL_HINTS: Tuple[Tuple[str, str], ...] = (
     ("github.com/gorilla/mux", "http_in"),
     ("golang.org/x/crypto/ssh", "ssh_exec"),
     ("github.com/prometheus/client_golang", "metric_emit"),
+    # --- C# (verified against $TARGET_REPO's actual `using` directives,
+    # PHASE/FINDINGS.md F2 -- not guessed)
+    ("Microsoft.AspNetCore.Mvc", "http_in"),
+    ("Microsoft.AspNetCore.Routing", "http_in"),
+    ("Microsoft.EntityFrameworkCore", "persist"),
+    ("System.Net.Http", "http_out"),
+    ("Hangfire", "schedule"),
 )
 
 
@@ -247,3 +257,34 @@ def count_loc(lines: Sequence[str]) -> int:
     make the leaf budget in §3.3 a function of code style rather than content.
     """
     return sum(1 for line in lines if normalise_ws(line))
+
+
+def mask_string_literals(line: str) -> str:
+    """Blank out `"..."`/`'...'` contents so a brace inside a string literal
+    (a message format, a route path) never shifts brace-depth nesting.
+
+    Shared across extractors that track type/member nesting by counting
+    braces per line (`java.py`'s original private `_mask_literals`,
+    generalised here for `csharp.py` and `scala.py` to reuse without either
+    depending on `java.py`).
+    """
+    out = []
+    quote = None
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in ('"', "'"):
+            quote = ch
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)

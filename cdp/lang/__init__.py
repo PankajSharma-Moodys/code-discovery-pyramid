@@ -17,10 +17,12 @@ from typing import Dict, List, Optional, Tuple
 
 from .base import ExtractContext, Extractor, FileFacts
 from .build import MANIFEST_NAMES, BuildExtractor
+from .csharp import CSharpExtractor
 from .data import ConfigExtractor, DockerExtractor, GenericExtractor, SqlExtractor
 from .go import GoExtractor
 from .java import JavaExtractor
 from .python import PythonExtractor
+from .scala import ScalaExtractor
 from .web import WebExtractor
 
 EXTRACTORS: Tuple[Extractor, ...] = (
@@ -30,6 +32,8 @@ EXTRACTORS: Tuple[Extractor, ...] = (
     PythonExtractor(),
     WebExtractor(),
     GoExtractor(),
+    CSharpExtractor(),
+    ScalaExtractor(),
     SqlExtractor(),
     ConfigExtractor(),
 )

@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
+    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
     "repo": "tree",
     "state_version": 1
   },
@@ -9,37 +9,15 @@
   "elided": 0,
   "found": [
     {
-      "claims": [
-        {
-          "anchor_verified_at": "<HEAD>",
-          "channel": "process_boundary",
-          "claim_reviewed_at": "<HEAD>",
-          "confidence": "high",
-          "evidence": [
-            {
-              "anchor": "public static void main(String[] args) {",
-              "file": "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java",
-              "line": 143
-            }
-          ],
-          "id": "entrypoint.main.generateexposureschemafromparquetfiles",
-          "kind": "entrypoint",
-          "source_nodes": [
-            "root/exposure-snapshot/snapshot-developer-utils"
-          ],
-          "statement": "GenerateExposureSchemaFromParquetFiles declares a process entry point in exposure-snapshot/snapshot-developer-utils; it is one of the repository's separately-startable units.",
-          "subject": "GenerateExposureSchemaFromParquetFiles",
-          "verdict": "entailed"
-        }
-      ],
+      "claims": [],
       "collision": false,
       "defined_at": [
-        "exposure-snapshot/snapshot-developer-utils/src/main/java/GenerateExposureSchemaFromParquetFiles.java:21"
+        "core/RMS.UnifiedStore.Core.App/Job/AbstractJobHandler.cs:8"
       ],
-      "fqn": "GenerateExposureSchemaFromParquetFiles",
+      "fqn": "AbstractJobHandler",
       "kind": "class",
       "modules": [
-        "exposure-snapshot/snapshot-developer-utils"
+        "core/RMS.UnifiedStore.Core.App"
       ],
       "used_by": [],
       "used_by_count": 0,
@@ -47,6 +25,6 @@
       "visibility": "public"
     }
   ],
-  "name": "GenerateExposureSchemaFromParquetFiles",
+  "name": "AbstractJobHandler",
   "query": "symbol"
 }

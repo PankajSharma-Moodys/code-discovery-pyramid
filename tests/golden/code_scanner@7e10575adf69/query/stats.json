@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
+    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
     "repo": "tree",
     "state_version": 1
   },
@@ -13,20 +13,20 @@
     "ratio": 1.0,
     "tracked": 4728
   },
-  "claims": 1278,
+  "claims": 1860,
   "claims_by_confidence": {
-    "high": 1251,
-    "medium": 27
+    "high": 1744,
+    "medium": 116
   },
   "claims_by_kind": {
     "config": 15,
-    "data_model": 576,
-    "dependency": 62,
+    "data_model": 604,
+    "dependency": 128,
     "deployable": 20,
-    "entrypoint": 73,
+    "entrypoint": 549,
     "naming": 2,
     "ownership": 510,
-    "side_effect": 20
+    "side_effect": 32
   },
   "conflicts": 0,
   "coverage": {
@@ -221,14 +221,6 @@
         "to": "exposure-snapshot/ods-domain-data"
       },
       {
-        "from": "exposure-snapshot/download-exposure",
-        "to": "exposure-snapshot/snapshot-common"
-      },
-      {
-        "from": "exposure-snapshot/download-exposure",
-        "to": "exposure-snapshot/snapshot-sdk"
-      },
-      {
         "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
         "to": "exposure-snapshot/ods-domain-data"
       },
@@ -237,32 +229,12 @@
         "to": "exposure-snapshot/ods-domain-data"
       },
       {
-        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-        "to": "exposure-snapshot/snapshot-common"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-        "to": "exposure-snapshot/snapshot-sdk"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-migration",
-        "to": "exposure-snapshot/snapshot-common"
-      },
-      {
         "from": "exposure-snapshot/snapshot-sdk",
         "to": "exposure-snapshot/snapshot-filter-query-service"
       },
       {
         "from": "exposure-snapshot/snapshot-smoketest",
         "to": "exposure-snapshot/snapshot-common"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-smoketest",
-        "to": "exposure-snapshot/snapshot-sdk"
       },
       {
         "from": "sql-pool/sql-pool-integrationtest",
@@ -277,8 +249,96 @@
         "to": "sql-pool/sql-pool-api-client"
       }
     ],
-    "observed": 58,
+    "observed": 124,
     "observed_not_declared": [
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
       {
         "from": "client-java/uds-client",
         "to": "exposure-snapshot/ods-domain-data"
@@ -293,6 +353,10 @@
       },
       {
         "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/download-exposure"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
         "to": "exposure-snapshot/snapshot-common"
       },
       {
@@ -301,7 +365,43 @@
       },
       {
         "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
         "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-smoketest"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.App",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.App.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.App.Tests",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "client-java/client-core"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
       },
       {
         "from": "exposure-snapshot/idempotency-filter",
@@ -332,32 +432,140 @@
         "to": "exposure-snapshot/snapshot-filter-query-service"
       },
       {
-        "from": "exposure-snapshot/snapshot-api",
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/download-exposure"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
         "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-smoketest"
       },
       {
         "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
         "to": "exposure-snapshot/snapshot-common"
       },
       {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/download-exposure"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-smoketest"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-workflow-service"
+      },
+      {
         "from": "exposure-snapshot/snapshot-sdk",
         "to": "client-java/client-core"
       },
       {
-        "from": "exposure-snapshot/snapshot-sdk",
-        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-task-delete",
-        "to": "client-java/uds-client"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-task-delete",
-        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+        "from": "exposure-snapshot/snapshot-smoketest",
+        "to": "client-java/client-core"
       },
       {
         "from": "exposure-snapshot/snapshot-workflow-service",
         "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
+        "to": "managed-sql/RMS.UnifiedStore.Service.ManagedSql"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "service-api/RMS.UnifiedStore.Service.Api.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Common",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Common",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+        "to": "service-api/RMS.UnifiedStore.Service.Api.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "service-api/RMS.UnifiedStore.Service.Api"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "service-api/RMS.UnifiedStore.Service.Api.Common"
+      },
+      {
+        "from": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
       }
     ]
   },
@@ -367,24 +575,26 @@
   "languages": {
     "build": 20,
     "config": 49,
+    "csharp": 2262,
     "docker": 23,
     "gradle": 13,
     "java": 1420,
     "javascript": 6,
     "maven": 31,
-    "other": 2653,
+    "other": 318,
     "python": 1,
+    "scala": 73,
     "sql": 512
   },
   "modules": 63,
   "query": "stats",
   "repo": "tree",
   "resolution": {
-    "ambiguous": 0,
-    "local": 2295,
-    "matched": 1742,
-    "third_party": 7265,
-    "unresolved": 605
+    "ambiguous": 6,
+    "local": 4057,
+    "matched": 5182,
+    "third_party": 15772,
+    "unresolved": 3432
   },
   "roles": {
     "asset": 5,
@@ -396,8 +606,8 @@
     "source": 3243,
     "test": 776
   },
-  "routes": 43,
+  "routes": 565,
   "scopes": 172,
-  "symbols": 12949,
+  "symbols": 20255,
   "unknowns": 4
 }

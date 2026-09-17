@@ -8,7 +8,7 @@
 
 **Imports:** `client-java/client-core` (247 refs), `exposure-snapshot/ods-domain-data` (2 refs), `exposure-snapshot/snapshot-sdk` (2 refs)
 
-**Imported by:** `client-java/uds-client-integration-tests` (170 refs), `exposure-snapshot/ods-domain-data` (1 refs), `exposure-snapshot/snapshot-api` (33 refs), `exposure-snapshot/snapshot-sdk` (12 refs), `exposure-snapshot/snapshot-task-create` (2 refs), `exposure-snapshot/snapshot-task-delete` (1 refs)
+**Imported by:** `client-java/uds-client-integration-tests` (170 refs), `exposure-snapshot/download-exposure` (1 refs), `exposure-snapshot/ods-domain-data` (1 refs), `exposure-snapshot/snapshot-api` (27 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation` (6 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-task` (1 refs), `exposure-snapshot/snapshot-sdk` (11 refs), `exposure-snapshot/snapshot-task-create` (2 refs)
 
 ## Public types declared here
 
@@ -20,7 +20,7 @@
 | `UnifiedStoreClient` | interface | 17 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClient.java:20` |
 | `GetCatalogCardResponse` | class | 17 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/model/catalog/GetCatalogCardResponse.java:10` |
 | `UnifiedStoreClientFactory` | class | 16 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/UnifiedStoreClientFactory.java:5` |
-| `CreateConnectionStringResponse` | class | 15 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/model/database/CreateConnectionStringResponse.java:16` |
+| `CreateConnectionStringResponse` | class | 16 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/model/database/CreateConnectionStringResponse.java:16` |
 | `UdsServerType` | enum | 14 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/model/database/UdsServerType.java:6` |
 | `ExposureBundleEntity` | class | 14 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleEntity.java:16` |
 | `ExposureBundleTableSetEntity` | class | 13 | `client-java/uds-client/src/main/java/com/rms/unifiedstore/model/exposurebundle/ExposureBundleTableSetEntity.java:13` |

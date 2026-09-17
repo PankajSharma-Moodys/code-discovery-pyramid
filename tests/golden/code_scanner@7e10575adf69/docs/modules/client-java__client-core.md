@@ -8,13 +8,13 @@
 
 **Imports:** nothing in this repository
 
-**Imported by:** `client-java/eih-client` (28 refs), `client-java/uds-client` (247 refs), `client-java/uds-client-integration-tests` (64 refs), `exposure-snapshot/snapshot-api` (2 refs), `exposure-snapshot/snapshot-sdk` (1 refs)
+**Imported by:** `client-java/eih-client` (28 refs), `client-java/uds-client` (247 refs), `client-java/uds-client-integration-tests` (64 refs), `exposure-snapshot/download-exposure` (1 refs), `exposure-snapshot/snapshot-api` (2 refs), `exposure-snapshot/snapshot-sdk` (1 refs), `exposure-snapshot/snapshot-smoketest` (1 refs)
 
 ## Public types declared here
 
 | Type | Kind | Used by | Declared at |
 |---|---|---|---|
-| `User` | class | 93 | `client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/User.java:3` |
+| `User` | class | 95 | `client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/User.java:3` |
 | `UnifiedStoreException` | class | 35 | `client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/exceptions/UnifiedStoreException.java:5` |
 | `JobIdResponse` | class | 32 | `client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/model/job/JobIdResponse.java:7` |
 | `BaseService` | class | 24 | `client-java/client-core/src/main/java/com/rms/unifiedstore/client/core/BaseService.java:50` |

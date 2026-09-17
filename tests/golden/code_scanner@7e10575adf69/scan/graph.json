@@ -3,7 +3,6 @@
     [
       "client-java/uds-client",
       "exposure-snapshot/ods-domain-data",
-      "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
       "exposure-snapshot/snapshot-sdk"
     ]
   ],
@@ -238,14 +237,6 @@
         "to": "exposure-snapshot/ods-domain-data"
       },
       {
-        "from": "exposure-snapshot/download-exposure",
-        "to": "exposure-snapshot/snapshot-common"
-      },
-      {
-        "from": "exposure-snapshot/download-exposure",
-        "to": "exposure-snapshot/snapshot-sdk"
-      },
-      {
         "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
         "to": "exposure-snapshot/ods-domain-data"
       },
@@ -254,32 +245,12 @@
         "to": "exposure-snapshot/ods-domain-data"
       },
       {
-        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-        "to": "exposure-snapshot/snapshot-common"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-        "to": "exposure-snapshot/snapshot-sdk"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-migration",
-        "to": "exposure-snapshot/snapshot-common"
-      },
-      {
         "from": "exposure-snapshot/snapshot-sdk",
         "to": "exposure-snapshot/snapshot-filter-query-service"
       },
       {
         "from": "exposure-snapshot/snapshot-smoketest",
         "to": "exposure-snapshot/snapshot-common"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-smoketest",
-        "to": "exposure-snapshot/snapshot-sdk"
       },
       {
         "from": "sql-pool/sql-pool-integrationtest",
@@ -294,8 +265,96 @@
         "to": "sql-pool/sql-pool-api-client"
       }
     ],
-    "observed_edges": 58,
+    "observed_edges": 124,
     "observed_not_declared": [
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
       {
         "from": "client-java/uds-client",
         "to": "exposure-snapshot/ods-domain-data"
@@ -310,6 +369,10 @@
       },
       {
         "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/download-exposure"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
         "to": "exposure-snapshot/snapshot-common"
       },
       {
@@ -318,7 +381,43 @@
       },
       {
         "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
         "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "client-java/uds-client-integration-tests",
+        "to": "exposure-snapshot/snapshot-smoketest"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.App",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.App.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.App.Tests",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "core/RMS.UnifiedStore.Core.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "client-java/client-core"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/download-exposure",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
       },
       {
         "from": "exposure-snapshot/idempotency-filter",
@@ -349,99 +448,396 @@
         "to": "exposure-snapshot/snapshot-filter-query-service"
       },
       {
-        "from": "exposure-snapshot/snapshot-api",
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/download-exposure"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
         "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-sdk"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+        "to": "exposure-snapshot/snapshot-smoketest"
       },
       {
         "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
         "to": "exposure-snapshot/snapshot-common"
       },
       {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "client-java/uds-client"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/download-exposure"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-smoketest"
+      },
+      {
+        "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+        "to": "exposure-snapshot/snapshot-workflow-service"
+      },
+      {
         "from": "exposure-snapshot/snapshot-sdk",
         "to": "client-java/client-core"
       },
       {
-        "from": "exposure-snapshot/snapshot-sdk",
-        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-task-delete",
-        "to": "client-java/uds-client"
-      },
-      {
-        "from": "exposure-snapshot/snapshot-task-delete",
-        "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core"
+        "from": "exposure-snapshot/snapshot-smoketest",
+        "to": "client-java/client-core"
       },
       {
         "from": "exposure-snapshot/snapshot-workflow-service",
         "to": "exposure-snapshot/snapshot-common"
+      },
+      {
+        "from": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
+        "to": "managed-sql/RMS.UnifiedStore.Service.ManagedSql"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api",
+        "to": "service-api/RMS.UnifiedStore.Service.Api.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Common",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Common",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+        "to": "service-api/RMS.UnifiedStore.Service.Api.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "core/RMS.UnifiedStore.Core.App"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "service-api/RMS.UnifiedStore.Service.Api"
+      },
+      {
+        "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+        "to": "service-api/RMS.UnifiedStore.Service.Api.Common"
+      },
+      {
+        "from": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
+        "to": "core/RMS.UnifiedStore.Core"
+      },
+      {
+        "from": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests",
+        "to": "core/RMS.UnifiedStore.Core"
       }
     ]
   },
   "external": {
     "third_party_packages": {
-      "com.fasterxml.jackson": 904,
-      "com.google.common": 83,
-      "com.google.gson": 25,
-      "com.google.inject": 27,
-      "io.dropwizard.jobs": 29,
+      "Microsoft.AspNetCore.Mvc": 134,
+      "Microsoft.EntityFrameworkCore": 109,
+      "Microsoft.EntityFrameworkCore.Infrastructure": 59,
+      "Microsoft.EntityFrameworkCore.Metadata": 53,
+      "Microsoft.EntityFrameworkCore.Migrations": 71,
+      "Microsoft.EntityFrameworkCore.Storage": 55,
+      "Microsoft.Extensions.DependencyInjection": 80,
+      "Microsoft.Extensions.Internal": 79,
+      "Microsoft.Extensions.Logging": 590,
+      "Moq": 275,
+      "Newtonsoft.Json": 77,
+      "Refit": 136,
+      "System": 1396,
+      "System.Collections.Generic": 981,
+      "System.ComponentModel.DataAnnotations": 158,
+      "System.IO": 52,
+      "System.Linq": 412,
+      "System.Net": 106,
+      "System.Net.Http": 109,
+      "System.Text": 59,
+      "System.Text.Json": 287,
+      "System.Threading": 557,
+      "System.Threading.Tasks": 1128,
+      "Xunit": 394,
+      "Xunit.Abstractions": 199,
+      "com.fasterxml.jackson": 919,
+      "com.google.common": 87,
       "io.swagger.v3": 144,
       "jakarta.ws.rs": 53,
       "java.io.IOException": 61,
-      "java.nio.charset": 28,
-      "java.nio.file": 43,
-      "java.sql.Connection": 32,
+      "java.nio.file": 54,
       "java.sql.SQLException": 44,
-      "java.time.Duration": 43,
-      "java.time.Instant": 37,
       "java.time.LocalDateTime": 52,
-      "java.time.OffsetDateTime": 43,
       "java.util.*": 77,
       "java.util.ArrayList": 126,
       "java.util.Arrays": 59,
       "java.util.Collections": 50,
       "java.util.HashMap": 75,
-      "java.util.LinkedHashMap": 28,
       "java.util.List": 443,
       "java.util.Map": 218,
       "java.util.Objects": 54,
-      "java.util.Optional": 94,
+      "java.util.Optional": 97,
       "java.util.Set": 45,
-      "java.util.UUID": 149,
-      "java.util.concurrent": 145,
+      "java.util.UUID": 156,
+      "java.util.concurrent": 150,
       "java.util.function": 136,
-      "java.util.regex": 33,
-      "java.util.stream": 110,
-      "javax.inject.Inject": 33,
-      "javax.inject.Singleton": 34,
-      "javax.sql.DataSource": 31,
+      "java.util.stream": 114,
       "javax.validation.constraints": 52,
-      "javax.ws.rs": 222,
-      "lombok.AllArgsConstructor": 29,
-      "lombok.Builder": 33,
+      "javax.ws.rs": 244,
       "lombok.Getter": 48,
-      "lombok.ToString": 41,
-      "lombok.extern.slf4j": 41,
       "okhttp3.OkHttpClient": 58,
-      "okhttp3.Request": 35,
-      "org.apache.commons": 159,
-      "org.apache.parquet": 35,
+      "org.apache.commons": 177,
       "org.junit.Assert": 92,
       "org.junit.Before": 52,
       "org.junit.Test": 88,
       "org.junit.jupiter": 582,
-      "org.mockito.ArgumentMatchers": 39,
-      "org.mockito.Mockito": 139,
-      "org.mockito.junit": 25,
-      "org.slf4j.Logger": 252,
-      "org.slf4j.LoggerFactory": 252,
-      "org.slf4j.MDC": 37,
-      "org.springframework.beans": 40,
-      "org.springframework.stereotype": 43,
-      "org.testng.annotations": 29,
-      "software.amazon.awssdk": 136
+      "org.mockito.Mockito": 140,
+      "org.slf4j.Logger": 256,
+      "org.slf4j.LoggerFactory": 273,
+      "software.amazon.awssdk": 139
     },
     "unresolved_imports": [
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 8
+        },
+        "count": 390,
+        "fqn": "RMS.ManagedSql"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Job/CardQueryJobHandlerV2.cs",
+          "line": 6
+        },
+        "count": 247,
+        "fqn": "RMS.BackgroundJobs"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.Tests.Common;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 2
+        },
+        "count": 144,
+        "fqn": "RMS.Tests.Common"
+      },
+      {
+        "anchor": {
+          "anchor": "using Moodys.Libraries.Flags;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/RegisterAccessModuleTests.cs",
+          "line": 3
+        },
+        "count": 120,
+        "fqn": "Moodys.Libraries.Flags"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Schema;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/CatalogAbstractBusinessHierarchySchemaTest.cs",
+          "line": 2
+        },
+        "count": 103,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Schema"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Auth.Authorization;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/TestServerFactory.cs",
+          "line": 15
+        },
+        "count": 89,
+        "fqn": "RMS.ServiceManagement.Auth.Authorization"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Retry;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/CheckSqlInstancesReachableJobTests.cs",
+          "line": 5
+        },
+        "count": 72,
+        "fqn": "RMS.ManagedSql.Retry"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Context;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Executor/ConditionalMapReduceExecutorTests.cs",
+          "line": 3
+        },
+        "count": 72,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Engine.Execution.Context"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CleanupSecurablesModulesTests.cs",
+          "line": 9
+        },
+        "count": 66,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Sql;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/RestoreArchivesHandlerTest.cs",
+          "line": 8
+        },
+        "count": 57,
+        "fqn": "RMS.ManagedSql.Sql"
+      },
+      {
+        "anchor": {
+          "anchor": "using Hangfire.Server;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Databases/DatabaseHandlerTests.cs",
+          "line": 2
+        },
+        "count": 53,
+        "fqn": "Hangfire.Server"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.RecurringJobs;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/Program.cs",
+          "line": 9
+        },
+        "count": 48,
+        "fqn": "RMS.BackgroundJobs.RecurringJobs"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Aws;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 9
+        },
+        "count": 46,
+        "fqn": "RMS.ManagedSql.Aws"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.DatabaseManagement;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/RestoreArchivesHandlerTest.cs",
+          "line": 7
+        },
+        "count": 46,
+        "fqn": "RMS.ManagedSql.DatabaseManagement"
+      },
+      {
+        "anchor": {
+          "anchor": "using Amazon.S3;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Clients/Aws/AwsClientFactory.cs",
+          "line": 3
+        },
+        "count": 42,
+        "fqn": "Amazon.S3"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Schema.Extensions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/CatalogAbstractBusinessHierarchySchemaTest.cs",
+          "line": 4
+        },
+        "count": 39,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Schema.Extensions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.Extensions;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Extensions/DatabaseRepositoryExtensionsTests.cs",
+          "line": 9
+        },
+        "count": 39,
+        "fqn": "RMS.UnifiedStore.Service.ManagedSql.Extensions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Exceptions;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Databases/DatabaseExportHandlerTests.cs",
+          "line": 6
+        },
+        "count": 37,
+        "fqn": "RMS.ManagedSql.Exceptions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Common.Apps.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Handler/GroupNamesHandler.cs",
+          "line": 3
+        },
+        "count": 34,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Exceptions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Extensions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Extensions/StorageExtensionsAccessTests.cs",
+          "line": 8
+        },
+        "count": 33,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Engine.Extensions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.SanitizedStrings;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 10
+        },
+        "count": 32,
+        "fqn": "RMS.ManagedSql.SanitizedStrings"
+      },
       {
         "anchor": {
           "anchor": "import com.rms.util.config.ConfigProvider;",
@@ -462,12 +858,228 @@
       },
       {
         "anchor": {
+          "anchor": "using Amazon.S3.Model;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Handler/ThumbprintVersionHandler.cs",
+          "line": 2
+        },
+        "count": 28,
+        "fqn": "Amazon.S3.Model"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Utils;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/UpgradeSqlInstancesJobTests.cs",
+          "line": 9
+        },
+        "count": 26,
+        "fqn": "RMS.ManagedSql.Utils"
+      },
+      {
+        "anchor": {
+          "anchor": "using StackExchange.Redis;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Cache/ThumbprintVersionCache.cs",
+          "line": 3
+        },
+        "count": 26,
+        "fqn": "StackExchange.Redis"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Gauges;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/AlertNotReadyTenantJobTest.cs",
+          "line": 2
+        },
+        "count": 25,
+        "fqn": "RMS.ManagedSql.Gauges"
+      },
+      {
+        "anchor": {
+          "anchor": "using Constants = RMS.UnifiedStore.Service.Catalog.Common.Constants;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Extensions/StorageExtensionsCommonTests.cs",
+          "line": 10
+        },
+        "count": 25,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Constants"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.SqlServerInstanceManagement;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Engine/KubernetesWorkflowServiceTest.cs",
+          "line": 9
+        },
+        "count": 24,
+        "fqn": "RMS.ManagedSql.SqlServerInstanceManagement"
+      },
+      {
+        "anchor": {
+          "anchor": "using Swashbuckle.AspNetCore.Annotations;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/external/v1/AccessController.cs",
+          "line": 9
+        },
+        "count": 24,
+        "fqn": "Swashbuckle.AspNetCore.Annotations"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.Handlers;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Engine/WorkflowEngineTests.cs",
+          "line": 6
+        },
+        "count": 23,
+        "fqn": "RMS.BackgroundJobs.Handlers"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.ResourceManagement.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/TenantQueueHandlerTests.cs",
+          "line": 4
+        },
+        "count": 22,
+        "fqn": "RMS.ManagedSql.ResourceManagement.Http"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Storage;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 12
+        },
+        "count": 22,
+        "fqn": "RMS.ManagedSql.Storage"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Auth.Jwt;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Startup.cs",
+          "line": 17
+        },
+        "count": 22,
+        "fqn": "RMS.ServiceManagement.Auth.Jwt"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Common.Apps.Utils;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Contracts/v1/AdminDataResponse.cs",
+          "line": 2
+        },
+        "count": 22,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Utils"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Maintenance;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/MigrateSqlInstancesJobTests.cs",
+          "line": 2
+        },
+        "count": 21,
+        "fqn": "RMS.ManagedSql.Maintenance"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Executor;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Executor/ConditionalMapReduceExecutorTests.cs",
+          "line": 4
+        },
+        "count": 19,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Engine.Execution.Executor"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.Contracts.Internal;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/DataLayer/EFBaseRepositoryTests.cs",
+          "line": 2
+        },
+        "count": 18,
+        "fqn": "RMS.BackgroundJobs.Contracts.Internal"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.Tests.Common;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 7
+        },
+        "count": 17,
+        "fqn": "RMS.BackgroundJobs.Tests.Common"
+      },
+      {
+        "anchor": {
           "anchor": "import io.restassured.response.Response;",
           "file": "automation/api-automation/src/main/java/com/rms/uds/apis/dataCatalog/AccessApi.java",
           "line": 10
         },
         "count": 17,
         "fqn": "io.restassured.response.Response"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.Clients.Workflow;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Controllers/ArchivesControllerPriorityTests.cs",
+          "line": 6
+        },
+        "count": 16,
+        "fqn": "RMS.BackgroundJobs.Clients.Workflow"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.Exceptions;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/DataLayer/JobTypeLimitRepositoryTests.cs",
+          "line": 2
+        },
+        "count": 16,
+        "fqn": "RMS.BackgroundJobs.Exceptions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.DataObjects;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/RemoveUnusedLoginsJobTests.cs",
+          "line": 5
+        },
+        "count": 16,
+        "fqn": "RMS.ManagedSql.DataObjects"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Entitlement;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/AwsVolumeHandlerTests.cs",
+          "line": 5
+        },
+        "count": 16,
+        "fqn": "RMS.ManagedSql.Entitlement"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.Logging;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/TenantProvisioning/TenantHandlerTests.cs",
+          "line": 13
+        },
+        "count": 16,
+        "fqn": "RMS.UnifiedStore.Service.ManagedSql.Logging"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Kubernetes;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Clusters/EksClusterResolverTests.cs",
+          "line": 5
+        },
+        "count": 15,
+        "fqn": "RMS.ManagedSql.Kubernetes"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Utils;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Utils/RefitInvokerTests.cs",
+          "line": 3
+        },
+        "count": 15,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Utils"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.Usage;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/AlertNotReadyTenantJobTest.cs",
+          "line": 7
+        },
+        "count": 15,
+        "fqn": "RMS.UnifiedStore.Service.ManagedSql.Usage"
       },
       {
         "anchor": {
@@ -489,6 +1101,87 @@
       },
       {
         "anchor": {
+          "anchor": "using RMS.ManagedSql.Helm;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/UpgradeSqlInstancesJobTests.cs",
+          "line": 5
+        },
+        "count": 14,
+        "fqn": "RMS.ManagedSql.Helm"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Tests.Common;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 13
+        },
+        "count": 14,
+        "fqn": "RMS.ManagedSql.Tests.Common"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.Metering;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 24
+        },
+        "count": 14,
+        "fqn": "RMS.UnifiedStore.Service.ManagedSql.Metering"
+      },
+      {
+        "anchor": {
+          "anchor": "import com.rms.auth.integration.jwt.S2SJWTGenerator;",
+          "file": "automation/api-automation/src/main/java/com/rms/uds/bal/dataCatalog/CommonRequest.java",
+          "line": 6
+        },
+        "count": 14,
+        "fqn": "com.rms.auth.integration.jwt.S2SJWTGenerator"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.EF;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/DatabaseRepository.cs",
+          "line": 5
+        },
+        "count": 13,
+        "fqn": "RMS.ManagedSql.EF"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Kubernetes.Model;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/UpgradeSqlInstancesJobTests.cs",
+          "line": 6
+        },
+        "count": 13,
+        "fqn": "RMS.ManagedSql.Kubernetes.Model"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Integration/CatalogService.cs",
+          "line": 9
+        },
+        "count": 13,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Exceptions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Models;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/DataLayer/ProvisionStatusRepositoryTests.cs",
+          "line": 4
+        },
+        "count": 13,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Models"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Invoke;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Options/AbstractVerbGroup.cs",
+          "line": 2
+        },
+        "count": 13,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Invoke"
+      },
+      {
+        "anchor": {
           "anchor": "import com.rms.workflow.api.model.JobOutput;",
           "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
           "line": 18
@@ -507,6 +1200,15 @@
       },
       {
         "anchor": {
+          "anchor": "using RMS.ManagedSql.ResourceManagement.Contracts;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/TenantQueueHandlerTests.cs",
+          "line": 3
+        },
+        "count": 12,
+        "fqn": "RMS.ManagedSql.ResourceManagement.Contracts"
+      },
+      {
+        "anchor": {
           "anchor": "import org.awaitility.Awaitility;",
           "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/Phase24ProvisioningChainTest.java",
           "line": 18
@@ -516,12 +1218,21 @@
       },
       {
         "anchor": {
-          "anchor": "import com.rms.auth.integration.jwt.S2SJWTGenerator;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/bal/dataCatalog/CommonRequest.java",
-          "line": 6
+          "anchor": "using RMS.ManagedSql.Filtering;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/MaintenanceHandlerFilterTests.cs",
+          "line": 9
         },
         "count": 11,
-        "fqn": "com.rms.auth.integration.jwt.S2SJWTGenerator"
+        "fqn": "RMS.ManagedSql.Filtering"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Common.Apps;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Startup.cs",
+          "line": 18
+        },
+        "count": 11,
+        "fqn": "RMS.ServiceManagement.Common.Apps"
       },
       {
         "anchor": {
@@ -534,6 +1245,15 @@
       },
       {
         "anchor": {
+          "anchor": "using Amazon.Runtime;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Clients/Aws/AwsClientFactory.cs",
+          "line": 2
+        },
+        "count": 10,
+        "fqn": "Amazon.Runtime"
+      },
+      {
+        "anchor": {
           "anchor": "import com.rms.util.config.ConfigProviderFactory;",
           "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolSpringConfiguration.java",
           "line": 6
@@ -543,12 +1263,129 @@
       },
       {
         "anchor": {
+          "anchor": "using Json.Schema;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Schema/CatalogExposureBundleTableSetSchemaTests.cs",
+          "line": 1
+        },
+        "count": 9,
+        "fqn": "Json.Schema"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Utils.Security;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/ServiceFactoryTests.cs",
+          "line": 7
+        },
+        "count": 9,
+        "fqn": "RMS.ManagedSql.Utils.Security"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Auth.Identity;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/TestServerFactory.cs",
+          "line": 16
+        },
+        "count": 9,
+        "fqn": "RMS.ServiceManagement.Auth.Identity"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Clients.Workflow.Contracts;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Clients/Workflow/IWorkflowServiceApi.cs",
+          "line": 2
+        },
+        "count": 9,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Clients.Workflow.Contracts"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.glassfish.jersey.client.ClientConfig;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
+          "line": 36
+        },
+        "count": 9,
+        "fqn": "org.glassfish.jersey.client.ClientConfig"
+      },
+      {
+        "anchor": {
           "anchor": "import org.mapstruct.Mapper;",
           "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
           "line": 3
         },
         "count": 9,
         "fqn": "org.mapstruct.Mapper"
+      },
+      {
+        "anchor": {
+          "anchor": "using Amazon.EC2;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/AwsVolumeHandlerTests.cs",
+          "line": 1
+        },
+        "count": 8,
+        "fqn": "Amazon.EC2"
+      },
+      {
+        "anchor": {
+          "anchor": "using Hangfire.Storage;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Databases/DatabaseHandlerTests.cs",
+          "line": 3
+        },
+        "count": 8,
+        "fqn": "Hangfire.Storage"
+      },
+      {
+        "anchor": {
+          "anchor": "using Snapshot = RMS.ManagedSql.Aws.Snapshot;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/AwsVolumeHandlerTests.cs",
+          "line": 19
+        },
+        "count": 8,
+        "fqn": "RMS.ManagedSql.Aws.Snapshot"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Contracts.Internal;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Controllers/Internal/v1/JobMetricsControllerTests.cs",
+          "line": 4
+        },
+        "count": 8,
+        "fqn": "RMS.ManagedSql.Contracts.Internal"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Sync;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/BackgroundJobs/UpgradeSqlInstancesJobTests.cs",
+          "line": 8
+        },
+        "count": 8,
+        "fqn": "RMS.ManagedSql.Sync"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Teams;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/MaintenanceHandlerFilterTests.cs",
+          "line": 12
+        },
+        "count": 8,
+        "fqn": "RMS.ManagedSql.Teams"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.LogicMonitor;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/ServiceFactoryTests.cs",
+          "line": 11
+        },
+        "count": 8,
+        "fqn": "RMS.UnifiedStore.Service.ManagedSql.LogicMonitor"
+      },
+      {
+        "anchor": {
+          "anchor": "using StackExchange.Redis.Extensions.Core.Abstractions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Cache/ThumbprintVersionCache.cs",
+          "line": 4
+        },
+        "count": 8,
+        "fqn": "StackExchange.Redis.Extensions.Core.Abstractions"
       },
       {
         "anchor": {
@@ -579,12 +1416,48 @@
       },
       {
         "anchor": {
+          "anchor": "import org.glassfish.jersey.client.ClientProperties;",
+          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
+          "line": 37
+        },
+        "count": 8,
+        "fqn": "org.glassfish.jersey.client.ClientProperties"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.joda.time.DateTime;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/VariationsImpl.java",
+          "line": 28
+        },
+        "count": 8,
+        "fqn": "org.joda.time.DateTime"
+      },
+      {
+        "anchor": {
           "anchor": "import org.mapstruct.Mapping;",
           "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/PoolConfigMapper.java",
           "line": 4
         },
         "count": 8,
         "fqn": "org.mapstruct.Mapping"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.DataServices;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/OnDemand/TransientSqlInstanceSystemDatabaseImporterTests.cs",
+          "line": 8
+        },
+        "count": 7,
+        "fqn": "RMS.ManagedSql.DataServices"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Auth;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/TestServerFactory.cs",
+          "line": 14
+        },
+        "count": 7,
+        "fqn": "RMS.ServiceManagement.Auth"
       },
       {
         "anchor": {
@@ -651,6 +1524,60 @@
       },
       {
         "anchor": {
+          "anchor": "import org.scalatest.wordspec.AsyncWordSpec",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/test/scala/com/rms/unifiedstore/service/EdmLeaseServiceTest.scala",
+          "line": 12
+        },
+        "count": 7,
+        "fqn": "org.scalatest.wordspec.AsyncWordSpec"
+      },
+      {
+        "anchor": {
+          "anchor": "using CorrelationId.Abstractions;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Engine/WorkflowEngineTests.cs",
+          "line": 1
+        },
+        "count": 6,
+        "fqn": "CorrelationId.Abstractions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.BackgroundJobs.Engine;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/Program.cs",
+          "line": 7
+        },
+        "count": 6,
+        "fqn": "RMS.BackgroundJobs.Engine"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.ModelBinding;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/TestServerFactory.cs",
+          "line": 21
+        },
+        "count": 6,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.ModelBinding"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.ModelBinding;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/CardController.Access.cs",
+          "line": 6
+        },
+        "count": 6,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.ModelBinding"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Tests.Performance.DataModel.DB.Schema;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests/PortfolioTableTests.cs",
+          "line": 7
+        },
+        "count": 6,
+        "fqn": "RMS.UnifiedStore.Tests.Performance.DataModel.DB.Schema"
+      },
+      {
+        "anchor": {
           "anchor": "import com.rms.core.qe.common.testresult.TestCase;",
           "file": "automation/api-automation/src/main/java/com/rms/uds/objects/testcases/dataCatalog/AccessApiTestcase.java",
           "line": 3
@@ -687,15 +1614,6 @@
       },
       {
         "anchor": {
-          "anchor": "import org.glassfish.jersey.client.ClientConfig;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
-          "line": 36
-        },
-        "count": 6,
-        "fqn": "org.glassfish.jersey.client.ClientConfig"
-      },
-      {
-        "anchor": {
           "anchor": "import org.mapstruct.factory.Mappers;",
           "file": "sql-pool/sql-pool-api/src/test/java/RMS/unifiedstore/sqlpool/api/model/mappers/ReservationMapperTest.java",
           "line": 7
@@ -711,6 +1629,51 @@
         },
         "count": 6,
         "fqn": "org.redisson.api.RedissonClient"
+      },
+      {
+        "anchor": {
+          "anchor": "using Moodys.Libraries.AspNetCore.Utils;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Tasks/CardRegisterTask.cs",
+          "line": 2
+        },
+        "count": 5,
+        "fqn": "Moodys.Libraries.AspNetCore.Utils"
+      },
+      {
+        "anchor": {
+          "anchor": "using JobDetails = RMS.BackgroundJobs.JobDetails;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/Common/DatabaseOperationHandlerHelperTests.cs",
+          "line": 23
+        },
+        "count": 5,
+        "fqn": "RMS.BackgroundJobs.JobDetails"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Storage.AWSS3;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Databases/DatabaseHandlerTests.cs",
+          "line": 19
+        },
+        "count": 5,
+        "fqn": "RMS.ManagedSql.Storage.AWSS3"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Common.Apps.Logging;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/LocalStartup.cs",
+          "line": 10
+        },
+        "count": 5,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Logging"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Clients.Workflow;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Workflow/RemoteJobHandlerTests.cs",
+          "line": 7
+        },
+        "count": 5,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Clients.Workflow"
       },
       {
         "anchor": {
@@ -759,24 +1722,6 @@
       },
       {
         "anchor": {
-          "anchor": "import org.glassfish.jersey.client.ClientProperties;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
-          "line": 37
-        },
-        "count": 5,
-        "fqn": "org.glassfish.jersey.client.ClientProperties"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.joda.time.DateTime;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/VariationsImpl.java",
-          "line": 28
-        },
-        "count": 5,
-        "fqn": "org.joda.time.DateTime"
-      },
-      {
-        "anchor": {
           "anchor": "import org.mapstruct.Named;",
           "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/HostAndPortMapper.java",
           "line": 4
@@ -792,6 +1737,60 @@
         },
         "count": 5,
         "fqn": "org.redisson.spring.cache.CacheConfig"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.scalatest.wordspec.AnyWordSpec",
+          "file": "exposure-snapshot/download-exposure/src/test/java/com/rms/unifiedstore/AccountSnapshotServiceIT.scala",
+          "line": 28
+        },
+        "count": 5,
+        "fqn": "org.scalatest.wordspec.AnyWordSpec"
+      },
+      {
+        "anchor": {
+          "anchor": "using static LanguageExt.Prelude;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/QueryV2/ParserV2/DSL/Transform.cs",
+          "line": 10
+        },
+        "count": 4,
+        "fqn": "LanguageExt.Prelude"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Clients;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Workflow/JobMetricWorkflowServiceTests.cs",
+          "line": 2
+        },
+        "count": 4,
+        "fqn": "RMS.ManagedSql.Clients"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Commands;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Engine/InstanceOperationsWorkflowServiceTest.cs",
+          "line": 8
+        },
+        "count": 4,
+        "fqn": "RMS.ManagedSql.Commands"
+      },
+      {
+        "anchor": {
+          "anchor": "using PersistentVolumeClaim = RMS.ManagedSql.Kubernetes.Model.PersistentVolumeClaim;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Engine/KubernetesWorkflowServiceTest.cs",
+          "line": 24
+        },
+        "count": 4,
+        "fqn": "RMS.ManagedSql.Kubernetes.Model.PersistentVolumeClaim"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.StagingPath;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Archives/ArchivesHandlerTest.cs",
+          "line": 11
+        },
+        "count": 4,
+        "fqn": "RMS.ManagedSql.StagingPath"
       },
       {
         "anchor": {
@@ -831,6 +1830,33 @@
       },
       {
         "anchor": {
+          "anchor": "import org.flywaydb.core.api.logging.LogFactory",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 13
+        },
+        "count": 4,
+        "fqn": "org.flywaydb.core.api.logging.LogFactory"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.flywaydb.core.api.migration.{BaseJavaMigration, Context}",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 14
+        },
+        "count": 4,
+        "fqn": "org.flywaydb.core.api.migration.BaseJavaMigration"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.flywaydb.core.api.migration.{BaseJavaMigration, Context}",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 14
+        },
+        "count": 4,
+        "fqn": "org.flywaydb.core.api.migration.Context"
+      },
+      {
+        "anchor": {
           "anchor": "import org.mapstruct.Mappings;",
           "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ServerMapper.java",
           "line": 5
@@ -840,12 +1866,156 @@
       },
       {
         "anchor": {
+          "anchor": "import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/OdsAccountTestSuite.scala",
+          "line": 18
+        },
+        "count": 4,
+        "fqn": "org.scalatest.BeforeAndAfter"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/OdsAccountTestSuite.scala",
+          "line": 18
+        },
+        "count": 4,
+        "fqn": "org.scalatest.BeforeAndAfterAll"
+      },
+      {
+        "anchor": {
+          "anchor": "import org.scalatest.matchers.should.Matchers",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/test/scala/com/rms/unifiedstore/service/EdmLeaseServiceTest.scala",
+          "line": 11
+        },
+        "count": 4,
+        "fqn": "org.scalatest.matchers.should.Matchers"
+      },
+      {
+        "anchor": {
           "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.PoolConfigList;",
           "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ClientWiringTest.java",
           "line": 9
         },
         "count": 4,
         "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigList"
+      },
+      {
+        "anchor": {
+          "anchor": "using Amazon.EKS;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Clusters/EksClusterResolverTests.cs",
+          "line": 1
+        },
+        "count": 3,
+        "fqn": "Amazon.EKS"
+      },
+      {
+        "anchor": {
+          "anchor": "using Amazon.Runtime.Internal;",
+          "file": "core/RMS.UnifiedStore.Core/Configuration/ChainedConfigurationProvider.cs",
+          "line": 1
+        },
+        "count": 3,
+        "fqn": "Amazon.Runtime.Internal"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Admin.Contracts;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.cs",
+          "line": 10
+        },
+        "count": 3,
+        "fqn": "RMS.ManagedSql.Admin.Contracts"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.CommonLogging;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Program.cs",
+          "line": 8
+        },
+        "count": 3,
+        "fqn": "RMS.ManagedSql.CommonLogging"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ManagedSql.Controllers;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/ArchivesController.cs",
+          "line": 6
+        },
+        "count": 3,
+        "fqn": "RMS.ManagedSql.Controllers"
+      },
+      {
+        "anchor": {
+          "anchor": "using RetryPolicy = RMS.ManagedSql.Retry.RetryPolicy;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/SqlInstances/SystemDatabaseS3ImporterLocal.cs",
+          "line": 16
+        },
+        "count": 3,
+        "fqn": "RMS.ManagedSql.Retry.RetryPolicy"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Auth.Actions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Startup.cs",
+          "line": 16
+        },
+        "count": 3,
+        "fqn": "RMS.ServiceManagement.Auth.Actions"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Common.Apps.ExceptionHandling;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/TestServer.cs",
+          "line": 11
+        },
+        "count": 3,
+        "fqn": "RMS.ServiceManagement.Common.Apps.ExceptionHandling"
+      },
+      {
+        "anchor": {
+          "anchor": "using SMLForbiddenException = RMS.ServiceManagement.Common.Apps.Exceptions.ForbiddenException;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Integration/CatalogService.cs",
+          "line": 23
+        },
+        "count": 3,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Exceptions.ForbiddenException"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.ServiceManagement.Common.Apps.Http;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/ManagedSqlDbMigrator.cs",
+          "line": 6
+        },
+        "count": 3,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Http"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/IInvoker.cs",
+          "line": 1
+        },
+        "count": 3,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Clean.Database;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Clean/Database/IntegrationTestInvoker.cs",
+          "line": 6
+        },
+        "count": 3,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Clean.Database"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Migrate.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Migrate/Data/CatalogDatabaseInvoker.cs",
+          "line": 15
+        },
+        "count": 3,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Migrate.Data"
       },
       {
         "anchor": {
@@ -1074,1110 +2244,210 @@
       },
       {
         "anchor": {
-          "anchor": "import com.rms.auth.framework.resources.ResourcesAuthorizer;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
-          "line": 19
+          "anchor": "using Amazon.EKS.Model;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Clusters/EksClusterResolverTests.cs",
+          "line": 2
         },
         "count": 2,
-        "fqn": "com.rms.auth.framework.resources.ResourcesAuthorizer"
+        "fqn": "Amazon.EKS.Model"
       },
       {
         "anchor": {
-          "anchor": "import com.rms.core.qe.common.AutomationUtil;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
+          "anchor": "using Amazon.ElasticFileSystem;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 2
+        },
+        "count": 2,
+        "fqn": "Amazon.ElasticFileSystem"
+      },
+      {
+        "anchor": {
+          "anchor": "using Antlr4.Runtime;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/QueryV2/ParserV2/AntlrHelper.cs",
+          "line": 1
+        },
+        "count": 2,
+        "fqn": "Antlr4.Runtime"
+      },
+      {
+        "anchor": {
+          "anchor": "using CorrelationId.HttpClient;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 3
+        },
+        "count": 2,
+        "fqn": "CorrelationId.HttpClient"
+      },
+      {
+        "anchor": {
+          "anchor": "using Hangfire.SqlServer;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 5
+        },
+        "count": 2,
+        "fqn": "Hangfire.SqlServer"
+      },
+      {
+        "anchor": {
+          "anchor": "using Hangfire.States;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/TestConfiguration.cs",
+          "line": 1
+        },
+        "count": 2,
+        "fqn": "Hangfire.States"
+      },
+      {
+        "anchor": {
+          "anchor": "using IWorkflowApi = RMS.BackgroundJobs.Clients.Workflow.IWorkflowApi;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/IntegrationTestWorkflowServiceTests.cs",
+          "line": 14
+        },
+        "count": 2,
+        "fqn": "RMS.BackgroundJobs.Clients.Workflow.IWorkflowApi"
+      },
+      {
+        "anchor": {
+          "anchor": "using VolumeInfo = RMS.ManagedSql.Aws.VolumeInfo;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/Handler/AwsVolumeHandlerTests.cs",
           "line": 20
         },
         "count": 2,
-        "fqn": "com.rms.core.qe.common.AutomationUtil"
+        "fqn": "RMS.ManagedSql.Aws.VolumeInfo"
       },
       {
         "anchor": {
-          "anchor": "import com.rms.core.qe.common.CommonUtil;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/model/AuthTokenUtil.java",
-          "line": 7
+          "anchor": "using RMS.ManagedSql.Idempotency;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 27
         },
         "count": 2,
-        "fqn": "com.rms.core.qe.common.CommonUtil"
+        "fqn": "RMS.ManagedSql.Idempotency"
       },
       {
         "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.INTERNAL_API_BASE_URI;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/ConfigManager.java",
-          "line": 3
+          "anchor": "using RMS.ManagedSql.Refit;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 29
         },
         "count": 2,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.INTERNAL_API_BASE_URI"
+        "fqn": "RMS.ManagedSql.Refit"
       },
       {
         "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.WORKFLOW;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 18
-        },
-        "count": 2,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.WORKFLOW"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.WORKFLOW_TAGNAME;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 19
-        },
-        "count": 2,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.WORKFLOW_TAGNAME"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.HealthCheckResource;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/SqlPoolHealthCheckResource.java",
-          "line": 8
-        },
-        "count": 2,
-        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.HealthCheckResource"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckRegistry;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/resources/SqlPoolHealthCheckResource.java",
-          "line": 10
-        },
-        "count": 2,
-        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckRegistry"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.*;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/util/JobUtils.java",
-          "line": 13
-        },
-        "count": 2,
-        "fqn": "com.rms.workflow.api.model.*"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.DockerInput;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/util/WFSUtils.java",
-          "line": 11
-        },
-        "count": 2,
-        "fqn": "com.rms.workflow.api.model.DockerInput"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.ProgressInput1;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/workflow/execution/Task.java",
-          "line": 16
-        },
-        "count": 2,
-        "fqn": "com.rms.workflow.api.model.ProgressInput1"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.ResultsInput;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
-          "line": 19
-        },
-        "count": 2,
-        "fqn": "com.rms.workflow.api.model.ResultsInput"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.typesafe.config.Config;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/database/DataSourceManager.java",
-          "line": 3
-        },
-        "count": 2,
-        "fqn": "com.typesafe.config.Config"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.typesafe.config.ConfigFactory;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/database/DataSourceManager.java",
-          "line": 4
-        },
-        "count": 2,
-        "fqn": "com.typesafe.config.ConfigFactory"
-      },
-      {
-        "anchor": {
-          "anchor": "import static io.restassured.RestAssured.given;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
-          "line": 34
-        },
-        "count": 2,
-        "fqn": "io.restassured.RestAssured.given"
-      },
-      {
-        "anchor": {
-          "anchor": "import static junit.framework.TestCase.*;",
-          "file": "client-java/uds-client/src/test/java/com/rms/unifiedstore/EdmServiceImplTests.java",
-          "line": 5
-        },
-        "count": 2,
-        "fqn": "junit.framework.TestCase.*"
-      },
-      {
-        "anchor": {
-          "anchor": "import net.jodah.failsafe.Fallback;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/FailsafeUtil.java",
-          "line": 16
-        },
-        "count": 2,
-        "fqn": "net.jodah.failsafe.Fallback"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.antlr.v4.runtime.Token;",
-          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/visitors/SortByVisitor.java",
-          "line": 9
-        },
-        "count": 2,
-        "fqn": "org.antlr.v4.runtime.Token"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.hk2.utilities.binding.AbstractBinder;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
-          "line": 83
-        },
-        "count": 2,
-        "fqn": "org.glassfish.hk2.utilities.binding.AbstractBinder"
-      },
-      {
-        "anchor": {
-          "anchor": "import static org.hamcrest.CoreMatchers.instanceOf;",
-          "file": "sql-pool/sql-pool-common/src/test/java/RMS/unifiedstore/sqlpool/common/helper/ServerHelperFactoryTest.java",
-          "line": 3
-        },
-        "count": 2,
-        "fqn": "org.hamcrest.CoreMatchers.instanceOf"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.jdbi.v3.sqlobject.statement.SqlUpdate;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/SchemaChangelogDao.java",
-          "line": 8
-        },
-        "count": 2,
-        "fqn": "org.jdbi.v3.sqlobject.statement.SqlUpdate"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.redisson.api.RMap;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CoreCacheManager.java",
-          "line": 3
-        },
-        "count": 2,
-        "fqn": "org.redisson.api.RMap"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.redisson.client.codec.Codec;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/CoreCacheManager.java",
-          "line": 6
-        },
-        "count": 2,
-        "fqn": "org.redisson.client.codec.Codec"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.HealthApi;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
-          "line": 3
-        },
-        "count": 2,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.HealthApi"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.PoolConfigurationApi;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
-          "line": 4
-        },
-        "count": 2,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.PoolConfigurationApi"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.ReservationApi;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
-          "line": 5
-        },
-        "count": 2,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.ReservationApi"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.client.ServerApi;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
-          "line": 6
-        },
-        "count": 2,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.client.ServerApi"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.invoker.ApiClient;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/SqlPoolApi.java",
-          "line": 7
-        },
-        "count": 2,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.invoker.ApiClient"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.auth0.jwt.JWT;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/S2SClaimTokens.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.auth0.jwt.JWT"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.auth0.jwt.JWTCreator;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/S2SClaimTokens.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.auth0.jwt.JWTCreator"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.auth0.jwt.algorithms.Algorithm;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/support/S2SClaimTokens.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "com.auth0.jwt.algorithms.Algorithm"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.moodys.FlagAttribute;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/featureflag/FeatureFlagConnector.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.moodys.FlagAttribute"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.moodys.FlagProvider;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/featureflag/FeatureFlagConnector.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.moodys.FlagProvider"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.moodys.FlagProviderFactory;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/featureflag/FeatureFlagConnector.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "com.moodys.FlagProviderFactory"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.core.qe.common.AuthUtil;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.AuthUtil"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.AuthUtil.resolveAuthToken;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/model/AuthTokenUtil.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.AuthUtil.resolveAuthToken"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.CollectionUtil.checkMapKey;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/model/AuthTokenUtil.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.CollectionUtil.checkMapKey"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.CollectionUtil.compareLists;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.CollectionUtil.compareLists"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.CollectionUtil.convertJSONArrayToList;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/AccessApiTest.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.CollectionUtil.convertJSONArrayToList"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.CommonUtil.getEnvVariableValue;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/TestSuiteExecutor.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.CommonUtil.getEnvVariableValue"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.LogUtil.*;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/dataCatalog/CatalogEntitiesCrudTest.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.LogUtil.*"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.core.qe.common.SlackClientHelper;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
-          "line": 12
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.SlackClientHelper"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.core.qe.common.TestRailClient;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
-          "line": 13
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.TestRailClient"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.automationFramework.TestSuiteExecutorUtil.executeTestSuiteExecutorCommand;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/TestSuiteExecutor.java",
-          "line": 6
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.automationFramework.TestSuiteExecutorUtil.executeTestSuiteExecutorCommand"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.BUILD_NUMBER;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.BUILD_NUMBER"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.CREATE_NEW_TESTRUNID;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.CREATE_NEW_TESTRUNID"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.POST_TO_SLACK;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 6
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.POST_TO_SLACK"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.REFRESH_TOKEN;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 7
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.REFRESH_TOKEN"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TENANT_ID;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 8
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.TENANT_ID"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TENANT_NAME;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 9
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.TENANT_NAME"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TESTRAIL_PASSWORD;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 10
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.TESTRAIL_PASSWORD"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TESTRAIL_TESTPLANID;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 11
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.TESTRAIL_TESTPLANID"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TESTRAIL_USERNAME;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 12
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.TESTRAIL_USERNAME"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.TEST_RUN_TYPE;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 13
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.TEST_RUN_TYPE"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.UPDATE_TESTRAIL;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 14
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.UPDATE_TESTRAIL"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.USER_NAME;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
+          "anchor": "using StorageType = RMS.ManagedSql.StorageType;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/UpdateArchiveTests.cs",
           "line": 15
         },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.USER_NAME"
+        "count": 2,
+        "fqn": "RMS.ManagedSql.StorageType"
       },
       {
         "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.USER_PASSWORD;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 16
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.USER_PASSWORD"
-      },
-      {
-        "anchor": {
-          "anchor": "import static com.rms.core.qe.common.constants.QeConstants.UUID_AUTOMATION;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/config/EnvConfig.java",
-          "line": 17
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.constants.QeConstants.UUID_AUTOMATION"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.core.qe.common.testresult.TestResultDao;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
-          "line": 14
-        },
-        "count": 1,
-        "fqn": "com.rms.core.qe.common.testresult.TestResultDao"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.crypto.core.AES;",
-          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/util/EncryptionUtil.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.crypto.core.AES"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.datasource.*;",
-          "file": "sql-pool/sql-pool-dal/src/main/java/RMS/UnifiedStore/sqlpool/dal/DataAccessConfiguration.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.datasource.*"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.ErrorBody;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/SPMExceptionMapper.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.framework.api.dropwizard.ErrorBody"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.filter.ActionsAllowedDynamicFeature;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
-          "line": 21
-        },
-        "count": 1,
-        "fqn": "com.rms.framework.api.dropwizard.filter.ActionsAllowedDynamicFeature"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.filter.ReadOnlyTokenFilter;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java",
-          "line": 6
-        },
-        "count": 1,
-        "fqn": "com.rms.framework.api.dropwizard.filter.ReadOnlyTokenFilter"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.filter.ValidateResourcesDynamicFeature.ValidateResourcesRequestFilter;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/filters/ResourceGroupRequestFilter.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "com.rms.framework.api.dropwizard.filter.ValidateResourcesDynamicFeature.ValidateResourcesRequestFilter"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheck;",
-          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/healthcheck/QuartzJobsElapsedTimeCheck.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheck"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckResult;",
-          "file": "sql-pool/sql-pool-manager/src/main/java/RMS/UnifiedStore/sqlpool/manager/healthcheck/QuartzJobsElapsedTimeCheck.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.rms.framework.api.dropwizard.health.newhealthcheck.RmsHealthCheckResult"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.client.TenantQueueResourceApi;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/TenantQueueService.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "com.rms.workflow.api.client.TenantQueueResourceApi"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.JobResponse;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/execution/JobUtils.java",
-          "line": 14
-        },
-        "count": 1,
-        "fqn": "com.rms.workflow.api.model.JobResponse"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.TenantQueueOutput;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/TenantQueueService.java",
-          "line": 6
-        },
-        "count": 1,
-        "fqn": "com.rms.workflow.api.model.TenantQueueOutput"
-      },
-      {
-        "anchor": {
-          "anchor": "import com.rms.workflow.api.model.TenantQueuesOutput;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/service/TenantQueueService.java",
+          "anchor": "using RMS.ManagedSql.SystemHealth;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/RecurringJobs/PublishSystemMetricsAsMeteringEventsRecurringJobTests.cs",
           "line": 7
         },
-        "count": 1,
-        "fqn": "com.rms.workflow.api.model.TenantQueuesOutput"
+        "count": 2,
+        "fqn": "RMS.ManagedSql.SystemHealth"
       },
       {
         "anchor": {
-          "anchor": "import com.rms.workflow.api.model.WorkflowsResponse;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/WorkflowServiceHelper.java",
-          "line": 21
-        },
-        "count": 1,
-        "fqn": "com.rms.workflow.api.model.WorkflowsResponse"
-      },
-      {
-        "anchor": {
-          "anchor": "import dev.failsafe.Failsafe;",
-          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/EdmRollbackExecutor.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "dev.failsafe.Failsafe"
-      },
-      {
-        "anchor": {
-          "anchor": "import dev.failsafe.FailsafeException;",
-          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/EdmRollbackExecutor.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "dev.failsafe.FailsafeException"
-      },
-      {
-        "anchor": {
-          "anchor": "import dev.failsafe.RetryPolicy;",
-          "file": "ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/EdmRollbackExecutor.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "dev.failsafe.RetryPolicy"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.federecio.dropwizard.swagger.SwaggerBundleConfiguration;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolDropwizardConfiguration.java",
-          "line": 7
-        },
-        "count": 1,
-        "fqn": "io.federecio.dropwizard.swagger.SwaggerBundleConfiguration"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.RestAssured;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
-          "line": 11
-        },
-        "count": 1,
-        "fqn": "io.restassured.RestAssured"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.config.ConnectionConfig;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
-          "line": 12
-        },
-        "count": 1,
-        "fqn": "io.restassured.config.ConnectionConfig"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.config.HttpClientConfig;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
-          "line": 13
-        },
-        "count": 1,
-        "fqn": "io.restassured.config.HttpClientConfig"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.config.RestAssuredConfig;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/tests/managedSql/SmokeSuite.java",
-          "line": 14
-        },
-        "count": 1,
-        "fqn": "io.restassured.config.RestAssuredConfig"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.http.ContentType;",
-          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ITHelper.java",
-          "line": 8
-        },
-        "count": 1,
-        "fqn": "io.restassured.http.ContentType"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.response.ResponseBody;",
-          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ITHelper.java",
-          "line": 10
-        },
-        "count": 1,
-        "fqn": "io.restassured.response.ResponseBody"
-      },
-      {
-        "anchor": {
-          "anchor": "import io.restassured.specification.RequestSpecification;",
-          "file": "exposure-snapshot/entity-variation-task/src/test/java/com/rms/unifiedstore/entityvariation/integration/ITHelper.java",
-          "line": 11
-        },
-        "count": 1,
-        "fqn": "io.restassured.specification.RequestSpecification"
-      },
-      {
-        "anchor": {
-          "anchor": "import net.jodah.failsafe.FailsafeException;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/helper/UdsInvocationHandler.java",
-          "line": 8
-        },
-        "count": 1,
-        "fqn": "net.jodah.failsafe.FailsafeException"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.antlr.v4.runtime.*;",
-          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/ParserServiceImpl.java",
-          "line": 17
-        },
-        "count": 1,
-        "fqn": "org.antlr.v4.runtime.*"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.antlr.v4.runtime.misc.IntervalSet;",
-          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/ParserServiceImpl.java",
-          "line": 18
-        },
-        "count": 1,
-        "fqn": "org.antlr.v4.runtime.misc.IntervalSet"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.eclipse.jetty.http.HttpStatus;",
-          "file": "exposure-snapshot/snapshot-task-create/src/main/java/com/rms/unifiedstore/snapshot/task/create/EdmBundleManager.java",
-          "line": 23
-        },
-        "count": 1,
-        "fqn": "org.eclipse.jetty.http.HttpStatus"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.eclipse.jetty.server.handler.ErrorHandler;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/errorhandling/UnbrandedErrorHandler.java",
-          "line": 7
-        },
-        "count": 1,
-        "fqn": "org.eclipse.jetty.server.handler.ErrorHandler"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.eclipse.jetty.util.component.LifeCycle;",
-          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/spring/SpringBundle.java",
+          "anchor": "using ExceptionHandler = RMS.ServiceManagement.Common.Apps.ExceptionHandling.ExceptionHandler;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/LocalStartup.cs",
           "line": 15
         },
-        "count": 1,
-        "fqn": "org.eclipse.jetty.util.component.LifeCycle"
+        "count": 2,
+        "fqn": "RMS.ServiceManagement.Common.Apps.ExceptionHandling.ExceptionHandler"
       },
       {
         "anchor": {
-          "anchor": "import org.flywaydb.core.Flyway;",
-          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/FlywayProvision.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "org.flywaydb.core.Flyway"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.flywaydb.core.api.FlywayException;",
-          "file": "sql-pool/sql-pool-setup/src/main/java/RMS/UnifiedStore/sqlpool/setup/provisioner/FlywayProvision.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "org.flywaydb.core.api.FlywayException"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.hk2.api.InjectionResolver;",
-          "file": "sql-pool/sql-pool-common/src/main/java/RMS/UnifiedStore/sqlpool/common/spring/SpringBundle.java",
-          "line": 16
-        },
-        "count": 1,
-        "fqn": "org.glassfish.hk2.api.InjectionResolver"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.hk2.api.TypeLiteral;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/APIApplication.java",
-          "line": 82
-        },
-        "count": 1,
-        "fqn": "org.glassfish.hk2.api.TypeLiteral"
-      },
-      {
-        "anchor": {
-          "anchor": "import static org.glassfish.jersey.client.ClientProperties.CONNECT_TIMEOUT;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.client.ClientProperties.CONNECT_TIMEOUT"
-      },
-      {
-        "anchor": {
-          "anchor": "import static org.glassfish.jersey.client.ClientProperties.READ_TIMEOUT;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.client.ClientProperties.READ_TIMEOUT"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.jackson.JacksonFeature;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/helper/RESTHelper.java",
-          "line": 38
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.jackson.JacksonFeature"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.media.multipart.BodyPart;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
-          "line": 19
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.media.multipart.BodyPart"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.media.multipart.FormDataMultiPart;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
-          "line": 20
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.media.multipart.FormDataMultiPart"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.media.multipart.MultiPart;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
+          "anchor": "using NotFoundException = RMS.ServiceManagement.Common.Apps.Exceptions.NotFoundException;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Integration/CatalogService.cs",
           "line": 21
         },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.media.multipart.MultiPart"
+        "count": 2,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Exceptions.NotFoundException"
       },
       {
         "anchor": {
-          "anchor": "import org.glassfish.jersey.media.multipart.MultiPartFeature;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
-          "line": 22
+          "anchor": "using RMS.ServiceManagement.Common.Apps.Hangfire;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/ServiceFactory.cs",
+          "line": 39
         },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.media.multipart.MultiPartFeature"
+        "count": 2,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Hangfire"
       },
       {
         "anchor": {
-          "anchor": "import org.glassfish.jersey.media.multipart.file.StreamDataBodyPart;",
-          "file": "exposure-snapshot/entity-variation-task/src/main/java/com/rms/unifiedstore/entityvariation/utils/DomainDataHttpClient.java",
-          "line": 23
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.media.multipart.file.StreamDataBodyPart"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.server.ParamException;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/mapper/WebApplicationExceptionMapper.java",
-          "line": 13
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.server.ParamException"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.server.model.Invocable;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/mapper/JerseyViolationExceptionMapper.java",
-          "line": 12
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.server.model.Invocable"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.glassfish.jersey.uri.UriComponent;",
-          "file": "exposure-snapshot/snapshot-filter-query-service/src/main/java/com/rms/snapshot/filter/service/DomainIdentifierValidator.java",
-          "line": 16
-        },
-        "count": 1,
-        "fqn": "org.glassfish.jersey.uri.UriComponent"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.h2.store.fs.FileUtils;",
-          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/test/java/com.rms.unifiedstore/utility/ZipUtilityTest.java",
+          "anchor": "using static RMS.ServiceManagement.Common.Apps.Health.HealthCheckConstants;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/LocalStartup.cs",
           "line": 14
         },
-        "count": 1,
-        "fqn": "org.h2.store.fs.FileUtils"
+        "count": 2,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Health.HealthCheckConstants"
       },
       {
         "anchor": {
-          "anchor": "import static org.hamcrest.CoreMatchers.startsWith;",
-          "file": "sql-pool/sql-pool-common/src/test/java/RMS/unifiedstore/sqlpool/common/helper/ServerHelperTest.java",
-          "line": 3
+          "anchor": "using RMS.ServiceManagement.Common.Apps.Swagger;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql/App/LocalStartup.cs",
+          "line": 11
         },
-        "count": 1,
-        "fqn": "org.hamcrest.CoreMatchers.startsWith"
+        "count": 2,
+        "fqn": "RMS.ServiceManagement.Common.Apps.Swagger"
       },
       {
         "anchor": {
-          "anchor": "import org.jdbi.v3.core.Jdbi;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/DaoFactory.java",
-          "line": 8
-        },
-        "count": 1,
-        "fqn": "org.jdbi.v3.core.Jdbi"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.jdbi.v3.sqlobject.SqlObjectPlugin;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/dbo/DaoFactory.java",
-          "line": 9
-        },
-        "count": 1,
-        "fqn": "org.jdbi.v3.sqlobject.SqlObjectPlugin"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.joda.time.DateTimeZone;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/DateFormatter.java",
-          "line": 4
-        },
-        "count": 1,
-        "fqn": "org.joda.time.DateTimeZone"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.joda.time.Interval;",
-          "file": "exposure-snapshot/snapshot-common/src/main/java/com/rms/unifiedstore/snapshot/common/DateFormatter.java",
-          "line": 5
-        },
-        "count": 1,
-        "fqn": "org.joda.time.Interval"
-      },
-      {
-        "anchor": {
-          "anchor": "import static org.mapstruct.NullValuePropertyMappingStrategy.IGNORE;",
-          "file": "sql-pool/sql-pool-api/src/main/java/RMS/UnifiedStore/sqlpool/api/model/mappers/ReservationMapper.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "org.mapstruct.NullValuePropertyMappingStrategy.IGNORE"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.redisson.Redisson;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/RedisClientFactory.java",
-          "line": 3
-        },
-        "count": 1,
-        "fqn": "org.redisson.Redisson"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.redisson.codec.LZ4Codec;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/PooledRedisConfigProvider.java",
-          "line": 6
-        },
-        "count": 1,
-        "fqn": "org.redisson.codec.LZ4Codec"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.redisson.spring.cache.RedissonCache;",
-          "file": "exposure-snapshot/ods-domain-data/src/main/java/com/rms/unifiedstore/cache/GuavaCoreCache.java",
-          "line": 6
-        },
-        "count": 1,
-        "fqn": "org.redisson.spring.cache.RedissonCache"
-      },
-      {
-        "anchor": {
-          "anchor": "import org.skife.jdbi.v2.Handle;",
-          "file": "automation/api-automation/src/main/java/com/rms/uds/listener/ApiListener.java",
-          "line": 22
-        },
-        "count": 1,
-        "fqn": "org.skife.jdbi.v2.Handle"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.invoker.ApiException;",
-          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/external/SPMClient.java",
-          "line": 16
-        },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.invoker.ApiException"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.*;",
-          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/external/SPMClient.java",
+          "anchor": "using JobInput = RMS.UnifiedStore.Service.Catalog.Common.Clients.Workflow.Contracts.JobInput;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/WorkflowInputTests.cs",
           "line": 17
         },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.*"
+        "count": 2,
+        "fqn": "RMS.UnifiedStore.Service.Catalog.Common.Clients.Workflow.Contracts.JobInput"
       },
       {
         "anchor": {
-          "anchor": "import static rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.InstanceTypeEnum.LARGE;",
-          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/PoolConfigurationTest.java",
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Bootstrap;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 7
+        },
+        "count": 2,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Bootstrap"
+      },
+      {
+        "anchor": {
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Bootstrap.Database;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/Database/PostgreSqlInvoker.cs",
           "line": 4
         },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.InstanceTypeEnum.LARGE"
+        "count": 2,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Bootstrap.Database"
       },
       {
         "anchor": {
-          "anchor": "import static rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.TypeEnum.MSSQL_EC2;",
-          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/PoolConfigurationTest.java",
-          "line": 5
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Migrate.Metadata;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Migrate/Metadata/CatalogInvoker.cs",
+          "line": 13
         },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigOutput.TypeEnum.MSSQL_EC2"
+        "count": 2,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Migrate.Metadata"
       },
       {
         "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.PoolConfigUpdate;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/PoolPatchRouteTest.java",
-          "line": 19
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Migrate.Schema;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Migrate/Schema/CatalogInvoker.cs",
+          "line": 15
         },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.PoolConfigUpdate"
+        "count": 2,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Migrate.Schema"
       },
       {
         "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.ReservationUpdate;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ReservationPatchRouteTest.java",
-          "line": 24
+          "anchor": "using RMS.UnifiedStore.Tools.Catalog.Cli.Options.Monitor;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Monitor/CountersInvoker.cs",
+          "line": 3
         },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.ReservationUpdate"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.Server;",
-          "file": "sql-pool/sql-pool-smoketest/src/main/java/RMS/UnifiedStore/sqlpool/test/api/ReservationWorkflowOnUserManageServerTest.java",
-          "line": 16
-        },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.Server"
-      },
-      {
-        "anchor": {
-          "anchor": "import rms.unifiedstore.sqlpool.apiclient.model.SqlPoolHealthCheckResponse;",
-          "file": "sql-pool/sql-pool-integrationtest/src/test/java/rms/unifiedstore/sqlpool/integrationtest/ClientWiringTest.java",
-          "line": 10
-        },
-        "count": 1,
-        "fqn": "rms.unifiedstore.sqlpool.apiclient.model.SqlPoolHealthCheckResponse"
+        "count": 2,
+        "fqn": "RMS.UnifiedStore.Tools.Catalog.Cli.Options.Monitor"
       }
     ]
   },
@@ -2186,61 +2456,47 @@
       "(root)",
       "automation",
       "automation/api-automation",
-      "catalog-service/RMS.UnifiedStore.Service.Catalog",
-      "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
-      "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
-      "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
-      "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
-      "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
-      "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
       "client-dotnet/RMS.UnifiedStore.Client",
       "client-java",
       "client-java/client-core",
       "core/RMS.UnifiedStore.Core",
-      "core/RMS.UnifiedStore.Core.App",
-      "core/RMS.UnifiedStore.Core.App.Tests",
-      "core/RMS.UnifiedStore.Core.Tests",
       "exposure-snapshot",
-      "exposure-snapshot/download-exposure",
       "exposure-snapshot/entity-variation-task",
       "exposure-snapshot/snapshot-common",
       "exposure-snapshot/snapshot-legacy",
-      "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
-      "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
-      "exposure-snapshot/snapshot-migration",
-      "exposure-snapshot/snapshot-smoketest",
       "exposure-snapshot/swagger-resource",
       "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
-      "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "ms-sql-java",
       "ms-sql-java/downgrade-processor",
-      "service-api/RMS.UnifiedStore.Service.Api",
-      "service-api/RMS.UnifiedStore.Service.Api.Common",
-      "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
-      "service-api/RMS.UnifiedStore.Service.Api.Tests",
       "sql-pool",
       "sql-pool/sql-pool-api-client",
-      "sql-pool/sql-pool-common",
-      "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
-      "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
+      "sql-pool/sql-pool-common"
     ],
     [
       "client-java/eih-client",
       "client-java/uds-client",
+      "core/RMS.UnifiedStore.Core.App",
+      "core/RMS.UnifiedStore.Core.Tests",
       "exposure-snapshot/ods-domain-data",
       "exposure-snapshot/snapshot-developer-utils",
-      "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
       "exposure-snapshot/snapshot-legacy/snapshot-legacy-partition",
       "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
+      "exposure-snapshot/snapshot-migration",
       "exposure-snapshot/snapshot-sdk",
+      "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
       "sql-pool/sql-pool-dal",
       "sql-pool/sql-pool-provision",
-      "sql-pool/sql-pool-setup"
+      "sql-pool/sql-pool-setup",
+      "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
+      "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
     ],
     [
-      "client-java/uds-client-integration-tests",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "core/RMS.UnifiedStore.Core.App.Tests",
       "exposure-snapshot/idempotency-filter",
       "exposure-snapshot/snapshot-filter-query-service",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "exposure-snapshot/snapshot-smoketest",
       "exposure-snapshot/snapshot-task-create",
       "exposure-snapshot/snapshot-task-delete",
       "sql-pool/sql-pool-integrationtest",
@@ -2248,12 +2504,28 @@
       "sql-pool/sql-pool-smoketest"
     ],
     [
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "exposure-snapshot/download-exposure",
       "exposure-snapshot/snapshot-workflow-service",
+      "service-api/RMS.UnifiedStore.Service.Api.Common",
       "sql-pool/sql-pool-api",
       "sql-pool/sql-pool-manager"
     ],
     [
-      "exposure-snapshot/snapshot-api"
+      "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+      "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+      "exposure-snapshot/snapshot-api",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "service-api/RMS.UnifiedStore.Service.Api",
+      "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests"
+    ],
+    [
+      "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "client-java/uds-client-integration-tests",
+      "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "service-api/RMS.UnifiedStore.Service.Api.Tests"
     ]
   ],
   "modules": [
@@ -2322,6 +2594,450 @@
     "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests"
   ],
   "observed": [
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Attribute/RmsAuthorizeServiceEntityAttribute.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Attribute/RmsAuthorizeServiceEntityAttribute.cs",
+          "line": 7
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Bootstrap.cs",
+          "line": 5
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 198
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Tasks;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/v1/AccessController.cs",
+          "line": 8
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Job/ArtifactBulkDeleteJobHandler.cs",
+          "line": 7
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module.Builder;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Job/ArtifactBulkDeleteJobHandler.cs",
+          "line": 8
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "weight": 44
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using Constants = RMS.UnifiedStore.Core.Constants;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Attribute/RmsAuthorizeServiceEntityAttribute.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Bootstrap.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Logging;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Bootstrap.cs",
+          "line": 3
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 207
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/external/v1/CardController.Access.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/external/v1/ExposureSetController.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/external/v2/AccessController.cs",
+          "line": 7
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 12
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Cache;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Cache/ThumbprintVersionCache.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Configuration/ConfigurationManager.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Configuration/ConfigurationManager.cs",
+          "line": 3
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 95
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Exceptions/ArchiveNotFoundException.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Exceptions/UserDoesNotHavePermissionToDatabaseException.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common/Exceptions/UserDoesNotHavePermissionToRegisterDatabaseException.cs",
+          "line": 1
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 15
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/ConfigurationManagerTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/ConfigurationManagerTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/Entry/CatalogColumnEntryTests.cs",
+          "line": 1
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 113
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Configuration/ConfigurationManagerTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/DataLayer/ProvisionStatusRepositoryTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests/Handlers/TenantHandlerTests.cs",
+          "line": 4
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 12
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ArtifactRegisterContextData.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ArtifactUpdateContextData.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/CardQueryContextData.cs",
+          "line": 1
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 159
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ExecutionContext.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ICatalogCardData.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Context/ICatalogQueryContextData.cs",
+          "line": 1
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 44
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine/Execution/Module/GetSecurableAccessModule.cs",
+          "line": 3
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CardDataQueryModuleTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CardDataQueryModuleTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Data;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CardDataQueryModuleTests.cs",
+          "line": 4
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 149
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Executor/ConditionalMapReduceExecutorTests.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Executor/SequentialExecutorTests.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Module;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/CardDataQueryModuleTests.cs",
+          "line": 8
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "weight": 52
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/RegisterAccessModuleTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/RegisterCardModuleTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests/Execution/Module/RemoveAccessModuleTests.cs",
+          "line": 5
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 22
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Attribute;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/Attribute/RmsAuthorizeServiceEntityAttributeTests.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Controllers.external.v1;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Handlers;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 10
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "weight": 16
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts.v1;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/ArchiveResponseTests.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using ArchiveResponse = RMS.UnifiedStore.Service.Catalog.Common.Contracts.v1.ArchiveResponse;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/ArchiveResponseTests.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Integration;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/ArchiveResponseTests.cs",
+          "line": 2
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 37
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/Handlers/CardAggregateQueryJobHandlerTests.cs",
+          "line": 14
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement.Contracts;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateAccumulationAnalysisTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/CreateExposureSetTests.cs",
+          "line": 3
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 19
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Middleware;",
+          "file": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests/TestServerFactory.cs",
+          "line": 19
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Service.Catalog.Tests",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Storage;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Handler;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/Database/PostgreSqlInvoker.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Configuration.Entry;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Clean/Database/IntegrationTestInvoker.cs",
+          "line": 3
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 42
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.Execution.Tasks;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Migrate/Data/CatalogDatabaseInvoker.cs",
+          "line": 14
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Configuration;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/CatalogInvoker.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli/Invoke/Bootstrap/Database/PostgreSqlInvoker.cs",
+          "line": 2
+        }
+      ],
+      "from": "catalog-service/RMS.UnifiedStore.Tools.Catalog.Cli",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 19
+    },
     {
       "examples": [
         {
@@ -2480,6 +3196,28 @@
         }
       ],
       "from": "client-java/uds-client-integration-tests",
+      "to": "exposure-snapshot/download-exposure",
+      "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogServiceTests.java",
+          "line": 12
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
       "to": "exposure-snapshot/snapshot-common",
       "weight": 9
     },
@@ -2524,8 +3262,225 @@
         }
       ],
       "from": "client-java/uds-client-integration-tests",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogServiceTests.java",
+          "line": 12
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
       "to": "exposure-snapshot/snapshot-sdk",
       "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/common/TestContext.java",
+          "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogAnalysisTests.java",
+          "line": 14
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.*;",
+          "file": "client-java/uds-client-integration-tests/src/test/java/com/rms/unifiedstore/test/automation/serviceapi/tests/CatalogServiceTests.java",
+          "line": 12
+        }
+      ],
+      "from": "client-java/uds-client-integration-tests",
+      "to": "exposure-snapshot/snapshot-smoketest",
+      "weight": 9
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Contracts;",
+          "file": "core/RMS.UnifiedStore.Core.App/ActionFilter/DebugActionFilter.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Diagnostics;",
+          "file": "core/RMS.UnifiedStore.Core.App/ActionFilter/DebugActionFilter.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Exceptions;",
+          "file": "core/RMS.UnifiedStore.Core.App/Exceptions/BadRequestException.cs",
+          "line": 1
+        }
+      ],
+      "from": "core/RMS.UnifiedStore.Core.App",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 21
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Job;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/JobSchedulerTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Job;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/SingleTaskJobHandlerTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Exceptions;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/SingleTaskJobHandlerTests.cs",
+          "line": 4
+        }
+      ],
+      "from": "core/RMS.UnifiedStore.Core.App.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 5
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Job/SingleTaskJobHandlerTests.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Middleware/ExceptionHandlerMiddlewareTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Middleware;",
+          "file": "core/RMS.UnifiedStore.Core.App.Tests/Middleware/ExceptionHandlerMiddlewareTests.cs",
+          "line": 4
+        }
+      ],
+      "from": "core/RMS.UnifiedStore.Core.App.Tests",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 3
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Cache;",
+          "file": "core/RMS.UnifiedStore.Core.Tests/Cache/BaseRedisCacheTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement;",
+          "file": "core/RMS.UnifiedStore.Core.Tests/Clients/AuthServiceCacheTests.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement.Contracts;",
+          "file": "core/RMS.UnifiedStore.Core.Tests/Clients/AuthServiceCacheTests.cs",
+          "line": 4
+        }
+      ],
+      "from": "core/RMS.UnifiedStore.Core.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 11
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.client.core.model.User",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/task/LiveVariationTask.scala",
+          "line": 4
+        }
+      ],
+      "from": "exposure-snapshot/download-exposure",
+      "to": "client-java/client-core",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.model.database.CreateConnectionStringResponse",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/task/LiveVariationTask.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/download-exposure",
+      "to": "client-java/uds-client",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/VariationApplication.scala",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.ExposureSnapshotException",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.error.VariationsErrorCode",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/download-exposure",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 36
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.utility.ZipUtility",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 11
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.utility.ZipUtility",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/PortfolioSnapshotService.scala",
+          "line": 11
+        }
+      ],
+      "from": "exposure-snapshot/download-exposure",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.{AsyncS3UploadDownloader, DbCommunicator}",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.{AsyncS3UploadDownloader, DbCommunicator}",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.ScalaRetryUtil.getEdmSizing",
+          "file": "exposure-snapshot/download-exposure/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotService.scala",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/download-exposure",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 14
     },
     {
       "examples": [
@@ -2637,19 +3592,19 @@
           "line": 12
         },
         {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
-          "line": 3
-        },
-        {
           "anchor": "import com.rms.unifiedstore.model.catalog.SortOrder;",
           "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/query/SortParser.java",
           "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.model.catalog.GetCatalogCardCountResponse;",
+          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/ExposureVariationsImplV1.java",
+          "line": 10
         }
       ],
       "from": "exposure-snapshot/snapshot-api",
       "to": "client-java/uds-client",
-      "weight": 33
+      "weight": 27
     },
     {
       "examples": [
@@ -2715,7 +3670,7 @@
       ],
       "from": "exposure-snapshot/snapshot-api",
       "to": "exposure-snapshot/snapshot-common",
-      "weight": 414
+      "weight": 408
     },
     {
       "examples": [
@@ -2738,28 +3693,6 @@
       "from": "exposure-snapshot/snapshot-api",
       "to": "exposure-snapshot/snapshot-filter-query-service",
       "weight": 5
-    },
-    {
-      "examples": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/helper/SnapshotDbHelper.java",
-          "line": 3
-        },
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v1/SnapshotApiImpl.java",
-          "line": 19
-        },
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/irp/variation/v2/CreateExposureVariationV2JobImpl.java",
-          "line": 5
-        }
-      ],
-      "from": "exposure-snapshot/snapshot-api",
-      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
-      "weight": 6
     },
     {
       "examples": [
@@ -2886,6 +3819,160 @@
     {
       "examples": [
         {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.lob.LobDetReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "client-java/uds-client",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.lob.LobDetReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "exposure-snapshot/download-exposure",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 8
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.lob.LobDetReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.lob.LobDetReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.{DataCatalogService, DbCommunicator}",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.{DataCatalogService, DbCommunicator}",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 4
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 10
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.view.common.Syringe",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/AccumulationViewWorkflowEntrypoint.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.cedant.CedantsReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.accumulation.view.creator.view.lob.LobDetReader",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation/src/main/scala/com/rms/unifiedstore/snapshot/accumulation/view/task/AccumulationViewTask.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation",
+      "to": "exposure-snapshot/snapshot-smoketest",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
           "anchor": "import static com.rms.unifiedstore.snapshot.common.constants.CoreConstants.PARTITION_MATRIX_FILENAME;",
           "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java",
           "line": 3
@@ -2937,6 +4024,120 @@
     {
       "examples": [
         {
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "client-java/uds-client",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.service._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/task/PortfolioSnapshotTask.scala",
+          "line": 11
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/download-exposure",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.EntityType.PORTFOLIO_TYPE",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotApplication.scala",
+          "line": 3
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotApplication.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys.ENTITY_TYPE",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotApplication.scala",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 56
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.PartitionMatrix",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/PartitionMatrixService.scala",
+          "line": 3
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "weight": 2
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotUtils.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.model.TableBounds",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/SnapshotUtils.scala",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 26
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore._",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/service/AccountSnapshotGenerationService.scala",
+          "line": 5
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-smoketest",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.{SnapshotUtils, workflow}",
+          "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task/src/main/scala/com/rms/unifiedstore/task/PortfolioSnapshotTask.scala",
+          "line": 35
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-task",
+      "to": "exposure-snapshot/snapshot-workflow-service",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
           "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
           "file": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform/src/main/java/com/rms/unifiedstore/transform/TransformEdmTask.java",
           "line": 3
@@ -2945,6 +4146,28 @@
       "from": "exposure-snapshot/snapshot-legacy/snapshot-legacy-transform",
       "to": "exposure-snapshot/snapshot-common",
       "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.SnapshotConfiguration",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.clients.AnalyticsGatewayClient",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 5
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.constants.CoreConstants.AE_BUNDLES_SERVICE_NAME",
+          "file": "exposure-snapshot/snapshot-migration/src/main/scala/db/migration/R__0001_update_exposure_schemas.scala",
+          "line": 6
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-migration",
+      "to": "exposure-snapshot/snapshot-common",
+      "weight": 11
     },
     {
       "examples": [
@@ -2978,7 +4201,7 @@
       ],
       "from": "exposure-snapshot/snapshot-sdk",
       "to": "client-java/uds-client",
-      "weight": 12
+      "weight": 11
     },
     {
       "examples": [
@@ -3000,19 +4223,41 @@
       ],
       "from": "exposure-snapshot/snapshot-sdk",
       "to": "exposure-snapshot/snapshot-common",
-      "weight": 20
+      "weight": 31
     },
     {
       "examples": [
         {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-sdk/src/main/java/com/rms/unifiedstore/workflow/EdmQueryService.java",
-          "line": 3
+          "anchor": "import com.rms.unifiedstore.client.core.model.User",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/BundlesResourceSuite.scala",
+          "line": 5
         }
       ],
-      "from": "exposure-snapshot/snapshot-sdk",
-      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
+      "from": "exposure-snapshot/snapshot-smoketest",
+      "to": "client-java/client-core",
       "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.ScalaRetryUtil",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/BaseTestResource.scala",
+          "line": 4
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.helper.UdsSdkHelper",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/api/BundlesResourceSuite.scala",
+          "line": 6
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.sdk.ScalaRetryUtil",
+          "file": "exposure-snapshot/snapshot-smoketest/src/main/scala/com/rms/unifiedstore/repo/impl/account/OdsAccountResourceLoader.scala",
+          "line": 8
+        }
+      ],
+      "from": "exposure-snapshot/snapshot-smoketest",
+      "to": "exposure-snapshot/snapshot-sdk",
+      "weight": 6
     },
     {
       "examples": [
@@ -3056,23 +4301,6 @@
     {
       "examples": [
         {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
-          "line": 5
-        }
-      ],
-      "from": "exposure-snapshot/snapshot-task-delete",
-      "to": "client-java/uds-client",
-      "weight": 1
-    },
-    {
-      "examples": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
-          "line": 5
-        },
-        {
           "anchor": "import com.rms.unifiedstore.snapshot.common.helper.TaskMDCInitializer;",
           "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
           "line": 6
@@ -3081,23 +4309,16 @@
           "anchor": "import com.rms.unifiedstore.snapshot.common.payload.AuthKeys;",
           "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
           "line": 7
+        },
+        {
+          "anchor": "import com.rms.unifiedstore.snapshot.common.payload.SnapshotTaskKeys;",
+          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
+          "line": 8
         }
       ],
       "from": "exposure-snapshot/snapshot-task-delete",
       "to": "exposure-snapshot/snapshot-common",
-      "weight": 8
-    },
-    {
-      "examples": [
-        {
-          "anchor": "import com.rms.unifiedstore.sdk.DbCommunicator;",
-          "file": "exposure-snapshot/snapshot-task-delete/src/main/java/com/rms/unifiedstore/delete/task/DeleteSnapshotTask.java",
-          "line": 5
-        }
-      ],
-      "from": "exposure-snapshot/snapshot-task-delete",
-      "to": "exposure-snapshot/snapshot-legacy/snapshot-legacy-core",
-      "weight": 1
+      "weight": 7
     },
     {
       "examples": [
@@ -3154,6 +4375,370 @@
       "from": "exposure-snapshot/snapshot-workflow-service",
       "to": "exposure-snapshot/snapshot-filter-query-service",
       "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.App;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/RedisTlsConfigurationTests.cs",
+          "line": 1
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.App;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/ServiceFactoryTests.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.ManagedSql.DataLayer;",
+          "file": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests/App/ServiceFactoryTests.cs",
+          "line": 10
+        }
+      ],
+      "from": "managed-sql/RMS.UnifiedStore.Service.ManagedSql.Tests",
+      "to": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "weight": 343
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using ConfigurationManager = RMS.UnifiedStore.Service.Catalog.Common.Configuration.ConfigurationManager;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 91
+        },
+        {
+          "anchor": "using IConfigurationManager = RMS.UnifiedStore.Service.Catalog.Common.Configuration.IConfigurationManager;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 93
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 77
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 272
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/AdminDataHandler.cs",
+          "line": 22
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2.DSL;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/DatabridgeDatabaseQueryHandler.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/GetDataBridgeDatabaseHandler.cs",
+          "line": 18
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "weight": 5
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Http;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 36
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 37
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Clients.ServiceManagement;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 38
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 364
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using NotFoundException = RMS.UnifiedStore.Core.App.Exceptions.NotFoundException;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Jobs.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/IntegrationTestController.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs",
+          "line": 9
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 55
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/App/ServiceFactory.cs",
+          "line": 47
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/BaseAdminDataSecurablesHandler.cs",
+          "line": 11
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api/Handlers/DatabaseAdminDataHandler.cs",
+          "line": 14
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api",
+      "to": "service-api/RMS.UnifiedStore.Service.Api.Common",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAccessApi.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAdminSecurableApi.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogCardApi.cs",
+          "line": 3
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Common",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 4
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAccessApi.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogAdminSecurableApi.cs",
+          "line": 2
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Common/Contracts/v1/ICatalogCardApi.cs",
+          "line": 2
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Common",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 4
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataApiTest.cs",
+          "line": 6
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataNegativeTestData.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiCrudTest.cs",
+          "line": 6
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 7
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Extensions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiCrudTest.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Extensions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Extensions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/DatabaseServerSecurityTest.cs",
+          "line": 4
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 4
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataApiTest.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/AdminDataNegativeTestData.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests/CardApiCrudTest.cs",
+          "line": 5
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Integration.Tests",
+      "to": "service-api/RMS.UnifiedStore.Service.Api.Common",
+      "weight": 6
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 15
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 16
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Common.Handler;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 17
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Common",
+      "weight": 149
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Catalog.Engine.QueryV2.ParserV2;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/DatabridgeDatabaseQueryHandlerTests.cs",
+          "line": 8
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "to": "catalog-service/RMS.UnifiedStore.Service.Catalog.Engine",
+      "weight": 1
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.App;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 8
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/CreateEdmTests.cs",
+          "line": 5
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.App;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/CreateEdmTests.cs",
+          "line": 6
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 157
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 9
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Controllers/Internal/v1/IntegrationTestControllerTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.App.Exceptions;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/ExportDatabaseHandlerTests.cs",
+          "line": 10
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "to": "core/RMS.UnifiedStore.Core.App",
+      "weight": 15
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Cache;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 10
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 11
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Controllers.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/AdminDataControllerDatabasesTests.cs",
+          "line": 12
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "to": "service-api/RMS.UnifiedStore.Service.Api",
+      "weight": 556
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/BaseAdminDataSecurablesHandlerTests.cs",
+          "line": 12
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/DatabaseAdminDataHandlerTests.cs",
+          "line": 12
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Service.Api.Common.Contracts.v1;",
+          "file": "service-api/RMS.UnifiedStore.Service.Api.Tests/Handlers/ExposureSetSecurableHandlerTests.cs",
+          "line": 16
+        }
+      ],
+      "from": "service-api/RMS.UnifiedStore.Service.Api.Tests",
+      "to": "service-api/RMS.UnifiedStore.Service.Api.Common",
+      "weight": 3
     },
     {
       "examples": [
@@ -3462,6 +5047,45 @@
       "from": "sql-pool/sql-pool-smoketest",
       "to": "sql-pool/sql-pool-provision",
       "weight": 5
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/DataModel.cs",
+          "line": 3
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Catalog.Schema;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/DataModel.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Catalog.Schema.DataType;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB/Model/DataModel.cs",
+          "line": 5
+        }
+      ],
+      "from": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 18
+    },
+    {
+      "examples": [
+        {
+          "anchor": "using RMS.UnifiedStore.Core;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests/PortfolioTableTests.cs",
+          "line": 4
+        },
+        {
+          "anchor": "using RMS.UnifiedStore.Core.Configuration.Provider;",
+          "file": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests/PortfolioTableTests.cs",
+          "line": 5
+        }
+      ],
+      "from": "tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests",
+      "to": "core/RMS.UnifiedStore.Core",
+      "weight": 2
     }
   ]
 }

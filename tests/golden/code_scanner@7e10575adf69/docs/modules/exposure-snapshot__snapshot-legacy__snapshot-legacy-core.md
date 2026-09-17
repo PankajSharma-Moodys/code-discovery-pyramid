@@ -8,17 +8,17 @@
 
 **Imports:** `exposure-snapshot/snapshot-common` (3 refs), `exposure-snapshot/snapshot-sdk` (2 refs)
 
-**Imported by:** `client-java/uds-client-integration-tests` (9 refs), `exposure-snapshot/snapshot-api` (6 refs), `exposure-snapshot/snapshot-sdk` (1 refs), `exposure-snapshot/snapshot-task-delete` (1 refs)
+**Imported by:** `client-java/uds-client-integration-tests` (9 refs), `exposure-snapshot/download-exposure` (2 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-accumulation` (6 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-task` (2 refs)
 
 ## Public types declared here
 
 | Type | Kind | Used by | Declared at |
 |---|---|---|---|
+| `ZipUtility` | class | 2 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/ZipUtility.java:14` |
+| `PartitionMatrix` | class | 1 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java:31` |
 | `DbUtility` | class | 1 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/DbUtility.java:9` |
 | `S3Utility` | class | 1 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/S3Utility.java:14` |
-| `PartitionMatrix` | class | 0 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/PartitionMatrix.java:31` |
 | `DbUtilityTest` | class | 0 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/test/java/com.rms.unifiedstore/utility/DbUtilityTest.java:6` |
-| `ZipUtility` | class | 0 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/main/java/com/rms/unifiedstore/utility/ZipUtility.java:14` |
 | `ZipUtilityTest` | class | 0 | `exposure-snapshot/snapshot-legacy/snapshot-legacy-core/src/test/java/com.rms.unifiedstore/utility/ZipUtilityTest.java:17` |
 
 ## Scopes

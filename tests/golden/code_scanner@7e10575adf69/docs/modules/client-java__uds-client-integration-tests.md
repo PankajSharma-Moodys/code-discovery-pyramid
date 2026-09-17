@@ -6,7 +6,7 @@
 
 ## Dependencies
 
-**Imports:** `client-java/client-core` (64 refs), `client-java/eih-client` (2 refs), `client-java/uds-client` (170 refs), `exposure-snapshot/snapshot-common` (9 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-core` (9 refs), `exposure-snapshot/snapshot-sdk` (9 refs)
+**Imports:** `client-java/client-core` (64 refs), `client-java/eih-client` (2 refs), `client-java/uds-client` (170 refs), `exposure-snapshot/download-exposure` (9 refs), `exposure-snapshot/snapshot-common` (9 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-core` (9 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-task` (9 refs), `exposure-snapshot/snapshot-sdk` (9 refs), `exposure-snapshot/snapshot-smoketest` (9 refs)
 
 **Imported by:** nothing in this repository
 

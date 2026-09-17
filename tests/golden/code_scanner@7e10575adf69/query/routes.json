@@ -1,13 +1,13 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
+    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
     "repo": "tree",
     "state_version": 1
   },
   "budget": 200,
-  "count": 43,
-  "elided": 0,
+  "count": 565,
+  "elided": 365,
   "query": "routes",
   "routes": [
     {
@@ -414,6 +414,479 @@
     {
       "declared_via": null,
       "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/AdminController.cs:60"
+      ],
+      "handler": "AdminController#GetEntityNames",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/entity-names",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/AdminController.cs:27"
+      ],
+      "handler": "AdminController#StartNormalizedMigrationAsync",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/normalized-migration/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/AdminController.cs:51"
+      ],
+      "handler": "AdminController#GetTenants",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/tenants",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/SchemaController.cs:29"
+      ],
+      "handler": "SchemaController#GetSchemaAsync",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/{entityName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/TenantController.cs:77"
+      ],
+      "handler": "TenantController#DeprovisionTenantAsync",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/TenantController.cs:31"
+      ],
+      "handler": "TenantController#GetProvisioningStatusAsync",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/TenantController.cs:52"
+      ],
+      "handler": "TenantController#ProvisionTenantAsync",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/TenantController.cs:97"
+      ],
+      "handler": "TenantController#MaintainTenantDbAsync",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "[controller]/{tenantId}/db/maintain",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Aws.cs:97"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteSnapShots",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "aws/snapshots",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Aws.cs:77"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListSnapShots",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "aws/snapshots",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Aws.cs:117"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpsertSnapshotsTags",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "aws/snapshots/tags",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Aws.cs:36"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteVolumes",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "aws/volumes",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Aws.cs:15"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListVolumes",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "aws/volumes",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Aws.cs:56"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpsertVolumesTags",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "aws/volumes/tags",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Job.cs:44"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#SubmitBackgroundJob",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "background-jobs/{jobName}",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SnapshotDatabase.cs:12"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateOnDemandSnapshotDatabase",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "clusters/{clusterName}/instances/{instanceName}/database-snapshots",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:139"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListInvalidSqlInstancesAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "clusters/{tenantId}/namespaces/{ns}/sql-instances/invalid",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:80"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#GetDatabasesAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:279"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#DeleteDatabaseAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:337"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#ArchiveDatabaseAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseId}/archive",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:406"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#MoveDatabaseAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseId}/move",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:179"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#ReindexDatabaseAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseId}/reindex",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:122"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#ShrinkDatabaseAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseId}/shrink",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:229"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#UpdateDatabaseStatisticsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseId}/statistics/update",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/AdminDataController.Databases.cs:39"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.AdminDataController#GetDatabaseAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "databases/{databaseRiId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/EnterpriseTenantController.cs:89"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.EnterpriseTenantController#RemoveEnterpriseSettingAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "enterprise/v1/provision/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/EnterpriseTenantController.cs:32"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.EnterpriseTenantController#GetEnterpriseSettingStatusAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "enterprise/v1/provision/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/EnterpriseTenantController.cs:60"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.EnterpriseTenantController#AddEnterpriseSettingAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "enterprise/v1/provision/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/EnterpriseTenantController.cs:116"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.EnterpriseTenantController#GetEnterpriseSettings",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "enterprise/v1/tenants/{tenantId}/settings",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/EnterpriseTenantController.cs:143"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.v1.EnterpriseTenantController#PutEnterpriseSettings",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "enterprise/v1/tenants/{tenantId}/settings",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.cs:15"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/[controller]",
+      "unresolved_constants": [],
+      "verb": "ANY"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "catalog-service/RMS.UnifiedStore.Service.Catalog/Controllers/internal/v1/HealthController.cs:13"
+      ],
+      "handler": "HealthController#GetDependencyHealth",
+      "module": "catalog-service/RMS.UnifiedStore.Service.Catalog",
+      "route": "internal/v1/[controller]/dependency-health",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/HealthController.cs:13"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.HealthController#GetDependencyHealth",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/[controller]/dependency-health",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/CacheController.cs:70"
+      ],
+      "handler": "CacheController#ListKeysAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/[controller]/keys",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/CacheController.cs:110"
+      ],
+      "handler": "CacheController#DeleteKeyAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/[controller]/keys/{**key}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/CacheController.cs:34"
+      ],
+      "handler": "CacheController#GetKeyAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/[controller]/keys/{**key}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/Internal/v1/JobMetricsController.cs:30"
+      ],
+      "handler": "JobMetricsController#ReportAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "internal/v1/[controller]/report",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/JobMetricsController.cs:30"
+      ],
+      "handler": "JobMetricsController#ReportAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/[controller]/report",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/IntegrationTestController.cs:76"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.IntegrationTestController#RunTestsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/integration-test",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/IntegrationTestController.cs:126"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.IntegrationTestController#GetTestResultsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/integration-test/results",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/EdmController.cs:39"
+      ],
+      "handler": "EdmController#DeleteEdmRecordAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/{tenantId}/edm/edm-record/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/EdmController.cs:59"
+      ],
+      "handler": "EdmController#UpdateEdmRecordAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/{tenantId}/edm/edm-record/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/SqlInstancesController.cs:33"
+      ],
+      "handler": "SqlInstancesController#InvalidateConnectionString",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "internal/v1/{tenantId}/sqlInstances/{serverName}/databases/{databaseName}/invalidate-connection-string",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
         "exposure-snapshot/snapshot-api/src/main/java/com/rms/unifiedstore/snapshot/api/resources/InternalVariationResource.java:196"
       ],
       "handler": "com.rms.unifiedstore.snapshot.api.resources.InternalVariationResource#getExposureVariations",
@@ -454,6 +927,1260 @@
       "route": "internal/variation/v1/exposurevariations/{variationId}/admin",
       "unresolved_constants": [],
       "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobReservations.cs:18"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobReservationsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-reservations",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobReservations.cs:95"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateJobReservationAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-reservations",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobReservations.cs:177"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobReservationsByTenantAndInstanceAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-reservations/tenants/{tenantId}/sql-instances/{instanceName}/job-types/{jobName}/job-reservations",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobReservations.cs:63"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteJobReservationByJobIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-reservations/{jobId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobReservations.cs:39"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobReservationByIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-reservations/{reservationId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobReservations.cs:151"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateJobReservationAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-reservations/{reservationId}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobType.cs:16"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobTypesAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobType.cs:66"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#AddJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:207"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetAllJobTypeLimitsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:16"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#AddJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:253"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#SeedJobTypeLimitsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/seed",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:181"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetAllJobTypeLimitsByTenantAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/tenants/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:135"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetAllJobTypeLimitsByInstanceAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/tenants/{tenantId}/instances/{instanceName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:46"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/tenants/{tenantId}/instances/{instanceName}/job-names/{jobTypeName}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:107"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobTypeLimitAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/tenants/{tenantId}/instances/{instanceName}/job-names/{jobTypeName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:73"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/tenants/{tenantId}/instances/{instanceName}/job-names/{jobTypeName}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:154"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetAllJobTypeLimitsByJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/tenants/{tenantId}/job-names/{jobTypeName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobTypeLimit.cs:229"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobTypeLimitByIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types-limits/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobType.cs:148"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types/{id}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobType.cs:36"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobTypeByIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobType.cs:100"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateJobTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "job-types/{id}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Jobs.cs:40"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#CancelJobAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "jobs/{jobId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Jobs.cs:17"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetJobDetailsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "jobs/{jobId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:144"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#UpdateKmsKeyForTenantAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "kms-infos/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.system.cs:15"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetLockInfoAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "locks",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.system.cs:36"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#ReleaseLockAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "locks/release/{sessionId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:23"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListConfigsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:107"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateConfigAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:48"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetConfigsByTypeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs/type/{scheduleType}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:224"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteConfigAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs/{configId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:74"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetConfigAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs/{configId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:149"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ActivateConfigAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs/{configId}/activate",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:188"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeactivateConfigAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs/{configId}/deactivate",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:260"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetSchedulesByConfigIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/configs/{configId}/schedules",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:450"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetDatabaseCountsGroupedAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/db-count",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:286"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListSchedulesAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/schedules",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:377"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#BulkUpdateSchedulesAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/schedules/bulk",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:509"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#TriggerScheduleUpgradeAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/schedules/{scheduleId:int}/trigger",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:577"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetScheduleAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/schedules/{scheduleId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:426"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetAvailableSqlImagesAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/sql-images",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Maintenance.cs:320"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetSchedulesByTenantIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "maintenance/tenants/{tenantId}/schedules",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Cluster.cs:17"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListClusterDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/clusters",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Cluster.cs:57"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateClusterAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/clusters",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Cluster.cs:115"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteClusterAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/clusters/{clusterName}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Cluster.cs:37"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetClusterByNameAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/clusters/{clusterName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Cluster.cs:89"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateClusterAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/clusters/{clusterName}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.ConnectionString.cs:16"
+      ],
+      "handler": "AdminController#ListConnectionStringDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/connection-strings",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.ConnectionString.cs:36"
+      ],
+      "handler": "AdminController#GetConnectionStringByIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/connection-strings/{externalId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.ConnectionString.cs:56"
+      ],
+      "handler": "AdminController#UpdateConnectionStringAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/connection-strings/{externalId}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.DataVaultSettings.cs:18"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#ListDataVaultMetadatasAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/data-vaults",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.DataVaultSettings.cs:58"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#CreateDataVaultMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/data-vaults",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.DataVaultSettings.cs:103"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#DeleteDataVaultMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/data-vaults/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.DataVaultSettings.cs:37"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetDataVaultMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/data-vaults/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.DataVaultSettings.cs:79"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#UpdateDataVaultMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/data-vaults/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Database.cs:20"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListDatabasesDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/databases",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobMeta.cs:16"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListJobsDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/jobs",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobMeta.cs:81"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateJobAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/jobs",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobMeta.cs:144"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteJobAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/jobs/{externalJobId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobMeta.cs:61"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetJobByIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/jobs/{externalJobId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.JobMeta.cs:118"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateJobAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/jobs/{externalJobId}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:19"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#ListKmsInfosAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/kms-infos",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:77"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#CreateKmsInfoAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/kms-infos",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:38"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetKmsInfosByTenantAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/kms-infos/tenant/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:121"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#DeleteKmsInfoAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/kms-infos/{id}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:58"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetKmsInfoAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/kms-infos/{id}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.KmsInfos.cs:98"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#UpdateKmsInfoAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/kms-infos/{id}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Login.cs:16"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListLoginsDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/logins",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Login.cs:56"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateLogin",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/logins",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Login.cs:127"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteLoginAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/logins/database/{databaseId}/login/{loginName}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Login.cs:36"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetLoginByDatabaseIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/logins/database/{databaseId}/login/{loginName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Login.cs:101"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateLoginAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/logins/database/{databaseId}/login/{loginName}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:19"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListSqlIntanceDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/sql-instances",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:59"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateSqlInstance",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/sql-instances",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:91"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateSqlInstanceAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/sql-instances/{instanceName}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Tenant.cs:18"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ListTenantDetailsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/tenants",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Tenants.cs:18"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#ListTenantsMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Tenant.cs:58"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateTenantAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/tenants",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Tenants.cs:58"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#CreateTenantMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Tenant.cs:143"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#SyncDatabaseCardsAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/tenants/sync-database-cards",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Tenants.cs:105"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#DeleteTenantMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Tenant.cs:38"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetTenantByIdAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/tenants/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Tenants.cs:37"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetTenantMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Tenants.cs:80"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#UpdateTenantMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Tenant.cs:90"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateTenantAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/tenants/{tenantId}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Edms.cs:17"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#ListEdmsMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/edms",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Edms.cs:59"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#CreateEdmMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/edms",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Edms.cs:110"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#DeleteEdmMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/edms/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Edms.cs:37"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetEdmMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/edms/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.Edms.cs:82"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#UpdateEdmMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/edms/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.TransientDbs.cs:18"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#ListTransientDbsMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/transient-dbs",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.TransientDbs.cs:60"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#CreateTransientDbMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/transient-dbs",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.TransientDbs.cs:111"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#DeleteTransientDbMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/transient-dbs/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.TransientDbs.cs:38"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#GetTransientDbMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/transient-dbs/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/Internal/v1/AdminController.TransientDbs.cs:83"
+      ],
+      "handler": "RMS.UnifiedStore.Service.Api.Controllers.Internal.v1.AdminController#UpdateTransientDbMetadataAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "meta/tenants/{tenantId}/transient-dbs/{riGuid}",
+      "unresolved_constants": [],
+      "verb": "PATCH"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:117"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteSqlInstanceAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:39"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetSqlInstanceByNameAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Database.cs:62"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#CreateDatabase",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}/databases",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Database.cs:139"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#DeleteDatabaseAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}/databases/{databaseName}",
+      "unresolved_constants": [],
+      "verb": "DELETE"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Database.cs:41"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#GetDatabaseByNameAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}/databases/{databaseName}",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Database.cs:112"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#UpdateDatabaseAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}/databases/{databaseName}",
+      "unresolved_constants": [],
+      "verb": "PUT"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.Database.cs:160"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ShrinkDatabaseAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}/databases/{databaseName}/shrink",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "managed-sql/RMS.UnifiedStore.Service.ManagedSql/Controllers/v1/AdminController.SqlInstance.cs:165"
+      ],
+      "handler": "RMS.UnifiedStore.Service.ManagedSql.Controllers.v1.AdminController#ShrinkInstanceDatabasesAsync",
+      "module": "managed-sql/RMS.UnifiedStore.Service.ManagedSql",
+      "route": "meta/{tenantId}/sql-instances/{instanceName}/shrink-databases",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateDataController.cs:184"
+      ],
+      "handler": "MigrateDataController#GetManagedSqlInstanceSnapshotsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/get-snapshots",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateInternalDataController.cs:184"
+      ],
+      "handler": "MigrateInternalDataController#GetManagedSqlInstanceSnapshotsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/get-snapshots-internal",
+      "unresolved_constants": [],
+      "verb": "GET"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateDataController.cs:228"
+      ],
+      "handler": "MigrateDataController#GetManagedSqlInstanceSnapshotsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/recreate-from-snapshot",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateInternalDataController.cs:228"
+      ],
+      "handler": "MigrateInternalDataController#GetManagedSqlInstanceSnapshotsAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/recreate-from-snapshot-internal",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateDataController.cs:140"
+      ],
+      "handler": "MigrateDataController#ForceRestartSqlInstanceAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/restart-sql-instance",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateInternalDataController.cs:140"
+      ],
+      "handler": "MigrateInternalDataController#ForceRestartSqlInstanceAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/restart-sql-instance-internal",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateDataController.cs:44"
+      ],
+      "handler": "MigrateDataController#ForceMigrateSqlInstanceToClusterAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/sql-instance",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateInternalDataController.cs:44"
+      ],
+      "handler": "MigrateInternalDataController#ForceMigrateSqlInstanceToClusterAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/sql-instance-internal",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateDataController.cs:291"
+      ],
+      "handler": "MigrateDataController#StartBackgroundJob",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/start-edm-populate-job",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateInternalDataController.cs:291"
+      ],
+      "handler": "MigrateInternalDataController#StartBackgroundJob",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/start-edm-populate-job-internal",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateDataController.cs:96"
+      ],
+      "handler": "MigrateDataController#ForceUpgradeSqlInstanceAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/upgrade-sql-instance",
+      "unresolved_constants": [],
+      "verb": "POST"
+    },
+    {
+      "declared_via": null,
+      "evidence": [
+        "service-api/RMS.UnifiedStore.Service.Api/Controllers/v1/MigrateInternalDataController.cs:96"
+      ],
+      "handler": "MigrateInternalDataController#ForceUpgradeSqlInstanceToClusterAsync",
+      "module": "service-api/RMS.UnifiedStore.Service.Api",
+      "route": "migrate/upgrade-sql-instance-internal",
+      "unresolved_constants": [],
+      "verb": "POST"
     },
     {
       "declared_via": "${ApiConstants.SNAPSHOT_PATH}",

@@ -23,6 +23,7 @@
 
 ## Side effects
 
+- DowngradeProcessor and Program are separate deployable units that exchange data through shared storage (37 shared target(s), including ACCGRP, Address, BIDET, Bridge.rb_trty). No import connects them, so no dependency graph shows this edge; it is reachability over packaged code, not an observed runtime call. — `ms-sql-java/downgrade-processor/src/main/java/com/rms/unifiedstore/downgrade/DowngradeProcessor.java:32` `ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V21_to_V18.sql:8551` `ms-sql-java/downgrade-processor/src/main/resources/rollback-scripts/Rollback_V25_to_V25.sql:36600` `service-api/RMS.UnifiedStore.Service.Api/Program.cs:34`
 - ms-sql-java/downgrade-processor reads from the database, across 4 site(s). — `ms-sql-java/downgrade-processor/scripts/winrm_script.py:110` `ms-sql-java/downgrade-processor/scripts/winrm_script.py:125` `ms-sql-java/downgrade-processor/scripts/winrm_script.py:162`
 
 ## Ownership

@@ -92,6 +92,69 @@ set rather than the repository.
 
 ---
 
+## F2 (revisited) — C# and Scala extractors, resolved
+
+**Constraint corrected before implementing:** `tree-sitter` was the first
+idea (Graphify's own mechanism, per `RESEARCH_GRAPHIFY.md`), retracted after
+`pyproject.toml` was actually read -- zero dependencies is stated there as
+deliberate and "load-bearing" for `cdp install`'s copy-a-directory
+distribution. Both extractors are hand-rolled regex/brace-depth, the same
+style as `java.py`/`go.py`/`web.py`, zero new dependencies.
+
+**Ground-truthed, not guessed:** both extractors' regexes were designed
+against real `.cs`/`.scala` files sampled from `$TARGET_REPO` (file-scoped
+`namespace X.Y.Z;`, ASP.NET Core `[Route]`/`[HttpGet]` attributes, EF Core
+`DbContext`/`DbSet<T>`, C# `using` directives vs. the unrelated C# 8 `using`
+*declaration*; Scala flat `package`, brace-optional `case class`) before any
+regex was written.
+
+**Real bug caught by a smoke test before shipping, not assumed correct:**
+the brace-depth nesting logic (based on `java.py`'s, tuned for Java's
+K&R-leaning style: `public class Foo {`) silently orphaned every member of a
+type when the opening brace was on its *own* line -- confirmed to be the
+dominant real style in `$TARGET_REPO` (`Controllers/RoleNames.cs`:
+`public static class RoleNames` then `{` on the next line). Under the
+same-line assumption, the class was popped off the nesting stack before its
+own body ever opened, and a route attribute's owner then silently resolved
+to the *next* unrelated class instead. Fixed by holding a declaration
+`pending` until its own opening brace is actually observed, rather than
+pushing it immediately -- verified with a same-line/next-line/no-body-at-all
+(`case class Foo(...)`, `public record Foo(...);`) test matrix in
+`tests/test_csharp.py`/`tests/test_scala.py`, not just the one case that
+happened to fail first.
+
+**Explicitly out of scope, stated rather than silently dropped:** C# DI via
+fluent `services.AddScoped<I,T>()` calls, AutoMapper profiles, MediatR
+handlers (none are attribute-shaped, so none fit this extractor's detection
+style); any Scala web-framework signal (nothing in the sampled 73 files
+evidences one -- adding a signal with no real corpus support would be
+exactly the "close a number gap, not a real demand" mistake
+`RESEARCH_GRAPHIFY.md` §9 warns against).
+
+**Verified on real, previously-unseen files, not only the synthetic test
+snippets:** a scratch scan of `$TARGET_REPO/service-api` (a real C# module)
+went from 0 to 3,000 symbols / 152 routes / 520 claims; spot-checking one
+emitted route (`AdminDataController#ArchiveSecurableAsync`,
+`[HttpPost("securables/{securableId}/archive")]`) against the real file
+confirmed an exact line match. A scratch scan of
+`$TARGET_REPO/exposure-snapshot/snapshot-sdk` (mixed Java/Scala) correctly
+attributed Scala-only rows to the new extractor, including a real,
+previously-unseen bodyless multi-line `case class CatalogDetails(...)` at
+`DataCatalogServiceIT.scala:194` -- the same shape the pending-brace fix
+above was built to handle, hit for real, not only in the test I wrote.
+
+**Full target re-blessed, not fixture:** unlike F9/F10/F14 this session,
+this is a deliberate recall increase, so the golden diff on `$TARGET_REPO`
+was *expected*, inspected for plausibility, then blessed
+(`cdp selftest --golden $TARGET_REPO --bless`) -- not treated as a red flag.
+375 tests green; `make check TARGET_REPO=...` green afterward (determinism,
+fold, golden -- fixture and target). New target totals: C# 7,718 defines /
+15,926 imports / 1,007 io_edges (from 0); Scala 142 defines / 616 imports /
+8 io_edges (from 0); repository-wide symbols 12,949 → 20,255, routes 43 →
+565. Fixture golden untouched (`minirepo` has no `.cs`/`.scala` content).
+
+---
+
 ## F3 — `cdp selftest` reported success on an empty suite
 
 **Severity:** medium. **Status: fixed in Phase 0 (M0.5), recorded for

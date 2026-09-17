@@ -6,7 +6,7 @@
 
 ## Dependencies
 
-**Imports:** `client-java/client-core` (2 refs), `client-java/uds-client` (33 refs), `exposure-snapshot/idempotency-filter` (3 refs), `exposure-snapshot/ods-domain-data` (12 refs), `exposure-snapshot/snapshot-common` (414 refs), `exposure-snapshot/snapshot-filter-query-service` (5 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-core` (6 refs), `exposure-snapshot/snapshot-sdk` (25 refs), `exposure-snapshot/snapshot-workflow-service` (30 refs), `exposure-snapshot/swagger-resource` (1 refs)
+**Imports:** `client-java/client-core` (2 refs), `client-java/uds-client` (27 refs), `exposure-snapshot/idempotency-filter` (3 refs), `exposure-snapshot/ods-domain-data` (12 refs), `exposure-snapshot/snapshot-common` (408 refs), `exposure-snapshot/snapshot-filter-query-service` (5 refs), `exposure-snapshot/snapshot-sdk` (25 refs), `exposure-snapshot/snapshot-workflow-service` (30 refs), `exposure-snapshot/swagger-resource` (1 refs)
 
 **Imported by:** nothing in this repository
 

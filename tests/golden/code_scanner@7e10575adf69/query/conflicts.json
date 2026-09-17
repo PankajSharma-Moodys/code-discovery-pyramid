@@ -1,7 +1,7 @@
 {
   "as_of": {
     "commit": "<HEAD>",
-    "fold_hash": "c06a9123c0a5f60f1a950a4862cccc195dbf17b5f0f1a91bd33ecf3b992fc91f",
+    "fold_hash": "336352f3af8b34fd1d513c6b29519b7eb2b9e153cfbd05a38f99975bf5767da7",
     "repo": "tree",
     "state_version": 1
   },
@@ -9,8 +9,44 @@
   "conflicts": [],
   "count": 0,
   "elided": 0,
-  "near_miss_count": 1,
+  "near_miss_count": 4,
   "near_misses": [
+    {
+      "kind": "data_model",
+      "nodes": [
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
+      ],
+      "statements": [
+        "ManagedSqlDbContext#CreateJobReservation reads and writes JobRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+        "ServiceApiDbContext reads and writes JobRecord; no table name is stated in source, so the binding is left to the persistence framework's default."
+      ],
+      "subject": "entity:JobRecord"
+    },
+    {
+      "kind": "data_model",
+      "nodes": [
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
+      ],
+      "statements": [
+        "ManagedSqlDbContext#CreateJobReservation reads and writes TenantQueueRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+        "ServiceApiDbContext reads and writes TenantQueueRecord; no table name is stated in source, so the binding is left to the persistence framework's default."
+      ],
+      "subject": "entity:TenantQueueRecord"
+    },
+    {
+      "kind": "data_model",
+      "nodes": [
+        "root/managed-sql/RMS.UnifiedStore.Service.ManagedSql/DataLayer/EF/(files)",
+        "root/service-api/RMS.UnifiedStore.Service.Api/(files+7)"
+      ],
+      "statements": [
+        "ManagedSqlDbContext#CreateJobReservation reads and writes TenantRecord; no table name is stated in source, so the binding is left to the persistence framework's default.",
+        "ServiceApiDbContext reads and writes TenantRecord; no table name is stated in source, so the binding is left to the persistence framework's default."
+      ],
+      "subject": "entity:TenantRecord"
+    },
     {
       "kind": "naming",
       "nodes": [

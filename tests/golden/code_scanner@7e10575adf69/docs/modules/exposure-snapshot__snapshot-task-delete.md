@@ -6,7 +6,7 @@
 
 ## Dependencies
 
-**Imports:** `client-java/uds-client` (1 refs), `exposure-snapshot/snapshot-common` (8 refs), `exposure-snapshot/snapshot-legacy/snapshot-legacy-core` (1 refs), `exposure-snapshot/snapshot-sdk` (3 refs)
+**Imports:** `exposure-snapshot/snapshot-common` (7 refs), `exposure-snapshot/snapshot-sdk` (3 refs)
 
 **Imported by:** nothing in this repository
 

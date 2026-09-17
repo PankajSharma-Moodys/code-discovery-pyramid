@@ -6,9 +6,15 @@
 
 ## Dependencies
 
-**Imports:** nothing in this repository
+**Imports:** `core/RMS.UnifiedStore.Core` (2 refs)
 
 **Imported by:** nothing in this repository
+
+## Public types declared here
+
+| Type | Kind | Used by | Declared at |
+|---|---|---|---|
+| `PortfolioTableTests` | class | 0 | `tests/performance/catalog-data-model/RMS.UnifiedStore.Tests.Performance.DataModel.DB.Tests/PortfolioTableTests.cs:13` |
 
 ## Scopes
 

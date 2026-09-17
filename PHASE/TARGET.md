@@ -711,3 +711,26 @@ sequential 3.93s/4.07s vs parallel 0.74s/0.77s -- **~5.2-5.3x**. Full
 target) all green against the *existing* blessed baselines -- no
 re-blessing needed, which is the actual evidence for the ordering argument
 in `PHASE/FINDINGS.md`'s F9 (revisited) entry, not just its prose.
+
+## F2 — C# and Scala extractors, exercised on this target (census update)
+
+T1's baseline (above) recorded C# and Scala both producing zero defines/
+imports/io_edges. After shipping `cdp/lang/csharp.py`/`cdp/lang/scala.py`,
+a full scan of `$TARGET_REPO` gives:
+
+| Language | defines | imports | io_edges |
+|---|---|---|---|
+| C# (`.cs`) | 7,718 (was 0) | 15,926 (was 0) | 1,007 (was 0) |
+| Scala | 142 (was 0) | 616 (was 0) | 8 (was 0) |
+| Java (unchanged) | 11,782 | 11,903 | 397 |
+
+Repository-wide: symbols defined 12,949 → **20,255**, routes 43 → **565**.
+Golden re-blessed after inspecting a sample of the new rows for plausibility
+(not blindly): `AdminDataController#ArchiveSecurableAsync`'s
+`[HttpPost("securables/{securableId}/archive")]` route matched the real
+file at the cited line exactly; a real, previously-unseen bodyless
+multi-line `case class CatalogDetails(...)` at
+`exposure-snapshot/snapshot-sdk/src/test/scala/.../DataCatalogServiceIT.scala:194`
+extracted correctly. Determinism (two independent scans of the target agree
+byte-for-byte), `fold --check`, and golden all green after re-blessing.
+Full account: `PHASE/FINDINGS.md` F2 (revisited).
