@@ -193,6 +193,81 @@ class HookTest(unittest.TestCase):
         self.assertNotIn("working tree is dirty", self.fire())
 
 
+@unittest.skipUnless(have_git(), "the HEAD check needs a real git repository")
+class StrictModeTest(unittest.TestCase):
+    """Phase 9: `--strict` blocks the first source read instead of nudging,
+    but only when coverage and freshness both clear the bar (the stress test
+    named in `phase_9_plan.md`: coverage is not freshness, R8)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = make_repo(Path(self.tmp.name))
+        main(["scan", "--repo", str(self.repo), "--in-repo", "--quiet"])
+        self.source = "core/src/main/java/COM/Example/mini/core/Widget.java"
+        self.session = self.id()
+
+    def _set_coverage(self, fraction: float) -> None:
+        from cdp.store import SqliteStore
+
+        backend = SqliteStore(self.repo / ".cdp" / "index.db")
+        state = backend.read_artifact("state", {})
+        state["coverage"]["fraction"] = fraction
+        backend.write_artifact("state", state)
+        backend.close()
+
+    def fire(self, session=None):
+        return hook_mod.strict_decide(
+            event("Read", str(self.repo / self.source), self.repo, session or self.session))
+
+    def test_below_threshold_degrades_to_a_nudge_not_a_block(self) -> None:
+        # The fixture's own real coverage after a bare scan (no agent dispatch)
+        # is well under STRICT_MIN_COVERAGE -- exercised as-is, not forced.
+        result = self.fire()
+        self.assertIsNotNone(result)
+        self.assertFalse(result["block"])
+        self.assertIn("cdp query", result["message"])
+
+    def test_full_coverage_and_fresh_head_blocks(self) -> None:
+        self._set_coverage(1.0)
+        result = self.fire()
+        self.assertIsNotNone(result)
+        self.assertTrue(result["block"])
+        self.assertIn("Blocked", result["message"])
+
+    def test_full_coverage_but_stale_head_still_degrades_to_a_nudge(self) -> None:
+        """The named stress test: 100% coverage does not license a block when
+        the index no longer describes the working tree (R8, two dates)."""
+        from cdp.store import SqliteStore
+
+        self._set_coverage(1.0)
+        backend = SqliteStore(self.repo / ".cdp" / "index.db")
+        inventory = backend.read_artifact("inventory")
+        inventory["head"] = "0" * 40
+        backend.write_artifact("inventory", inventory)
+        backend.close()
+        self.assertIsNone(self.fire())
+
+    def test_blocks_at_most_once_per_session_then_stays_silent(self) -> None:
+        self._set_coverage(1.0)
+        first = self.fire()
+        self.assertTrue(first["block"])
+        self.assertIsNone(self.fire())
+
+    def test_strict_flag_makes_main_emit_a_deny_decision(self) -> None:
+        self._set_coverage(1.0)
+        proc = subprocess.run(
+            [sys.executable, "-m", "cdp.hook", "--strict"],
+            input=json.dumps(event("Read", str(self.repo / self.source),
+                                    self.repo, "cli-session")),
+            capture_output=True, text=True, cwd=str(SKILL_ROOT))
+        self.assertEqual(proc.returncode, 0)
+        body = json.loads(proc.stdout)
+        self.assertEqual(
+            body["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("permissionDecisionReason", body["hookSpecificOutput"])
+
+
 class HookSafetyTest(unittest.TestCase):
     """It fails open, always. Breaking every file read is far worse than
     missing a nudge."""
@@ -200,6 +275,7 @@ class HookSafetyTest(unittest.TestCase):
     def test_garbage_input_is_silent(self) -> None:
         for payload in ({}, {"tool_name": "Read"}, {"tool_name": "Read", "tool_input": 3}):
             self.assertIsNone(hook_mod.decide(payload))
+            self.assertIsNone(hook_mod.strict_decide(payload))
 
     def test_non_json_stdin_exits_zero_with_no_output(self) -> None:
         proc = subprocess.run([sys.executable, "-m", "cdp.hook"],
@@ -225,6 +301,13 @@ class HookSafetyTest(unittest.TestCase):
         self.assertIn("additionalContext", body["hookSpecificOutput"])
         self.assertIn("systemMessage", body)
 
+    def test_payload_blocks_only_when_asked(self) -> None:
+        body = hook_mod.payload("blocked reason", block=True)
+        self.assertEqual(body["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertEqual(
+            body["hookSpecificOutput"]["permissionDecisionReason"], "blocked reason")
+        self.assertNotIn("additionalContext", body["hookSpecificOutput"])
+
 
 class InstallHookTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -249,6 +332,26 @@ class InstallHookTest(unittest.TestCase):
             self.assertEqual(len(groups), 1)
             self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob")
             self.assertEqual(len(groups[0]["hooks"]), 1, "duplicated on re-install")
+
+    def test_install_strict_writes_the_flag_and_reinstall_updates_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            main(["install", str(target), "--hook", "--strict"])
+            settings = json.loads(
+                (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+            handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
+            self.assertEqual(len(handlers), 1)
+            self.assertEqual(handlers[0]["args"], ["--strict"])
+
+            # Re-installing without --strict updates the existing entry in
+            # place rather than leaving the old choice or stacking a duplicate.
+            main(["install", str(target), "--hook"])
+            settings = json.loads(
+                (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+            handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
+            self.assertEqual(len(handlers), 1)
+            self.assertEqual(handlers[0]["args"], [])
 
     def test_install_states_no_scan_yet_without_requiring_in_repo(self) -> None:
         # M2.6: the hook is no longer `--in-repo` only (`store.registry`

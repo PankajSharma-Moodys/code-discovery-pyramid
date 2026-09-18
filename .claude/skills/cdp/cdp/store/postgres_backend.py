@@ -451,16 +451,25 @@ class PostgresStore(WorkspaceStore):
         )
         self._conn.commit()
 
+    def set_run_lessons_version(self, run_id: str, lessons_version: Optional[int]) -> None:
+        cur = self._cur()
+        cur.execute(
+            "UPDATE snapshot_run SET lessons_version=%s WHERE run_id=%s",
+            (None if lessons_version is None else str(lessons_version), run_id),
+        )
+        self._conn.commit()
+
     def get_run(self, run_id: str) -> Optional[Dict]:
         cur = self._cur()
         cur.execute(
-            "SELECT run_id, partition_hash, status FROM snapshot_run WHERE run_id=%s", (run_id,)
+            "SELECT run_id, partition_hash, status, lessons_version FROM snapshot_run WHERE run_id=%s",
+            (run_id,),
         )
         row = cur.fetchone()
         self._conn.commit()
         if row is None:
             return None
-        return {"run_id": row[0], "partition_hash": row[1], "status": row[2]}
+        return {"run_id": row[0], "partition_hash": row[1], "status": row[2], "lessons_version": row[3]}
 
     def upsert_task(self, run_id: str, scope_hash: str, **fields: Any) -> None:
         cur = self._cur()

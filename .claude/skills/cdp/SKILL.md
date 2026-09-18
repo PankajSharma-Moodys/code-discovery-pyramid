@@ -93,53 +93,46 @@ reconstruction rather than a lookup.
 (17 on a 391-file repo) and reads the whole codebase. `scan` is free; this is
 not.
 
-### The wave loop
+### `cdp run` is the orchestrator; you supply the model calls
 
-The pyramid lives in the state directory, not in the agent call stack. Every
-agent runs at nesting depth 1; a later wave reads what an earlier wave wrote and
-exited. That is what lets pyramid depth exceed the subagent nesting cap, and it
-is what makes the run resumable.
+`cdp run` owns the wave loop, retries, leases and fold — the bookkeeping this
+skill used to describe by hand. Per scope it writes `.cdp/prompts/<node>.md`,
+then blocks waiting for `.cdp/patches/inbox/<node-with-slashes-as-__>.json` to
+appear (`FileRunner` — "drop the prompt, wait for the patch", the same contract
+this skill always used, now made explicit and supervised). When the patch
+lands, `cdp run` validates it, hands a schema violation back to the same scope
+up to `--max-attempts` times, and folds — you never call `prompts`/`collect`/
+`fold` by hand for this.
 
-```
-1.  scan                     (deterministic; already done)
-2.  prompts --wave N         write one prompt per scope in wave N
-3.  spawn wave N's agents    ALL IN ONE MESSAGE, one Task per scope
-4.  collect                  validate + verify + append + fold
-5.  status                   confirm, then N += 1 and repeat
-```
-
-Concretely:
+One `cdp run` process dispatches its scopes **sequentially** — a lease is what
+lets a *second* `cdp run` process safely take a different scope of the same
+wave at the same time. So the concurrency this skill used to get from "spawn a
+whole wave in one message" now comes from running one `cdp run --scope <node>`
+per scope, in parallel:
 
 ```bash
-python3 .claude/skills/cdp/run.py status          # how many waves, which nodes
-python3 .claude/skills/cdp/run.py prompts --wave 0
+python3 .claude/skills/cdp/run.py status                    # scopes in the next wave
+python3 .claude/skills/cdp/run.py run --scope root/gateway &  # one per scope,
+python3 .claude/skills/cdp/run.py run --scope root/billing &  # backgrounded
 ```
 
-`prompts` writes `.cdp/prompts/<node>.md`. For each one, spawn a `cdp-leaf`
-subagent — **all of a wave's agents in a single message**, so they run
-concurrently — with a prompt of exactly this shape:
+Then, **in one message**, spawn a `cdp-leaf` subagent per scope you just
+started — the prompt contract is unchanged:
 
 > Read `.cdp/prompts/<node>.md` and follow it. Read only the files it lists.
 > Write your patch to `.cdp/patches/inbox/<node-with-slashes-as-__>.json`.
 
-Then:
+Each backgrounded `cdp run --scope` notices its own patch file, validates,
+folds and exits on its own. `cdp status` confirms the wave finished; repeat for
+the next wave. `cdp run --wave-all` does every wave, one scope at a time, and
+is the right choice when there is no subagent to run concurrently with it (e.g.
+driving a real model via `--runner-cmd`, which shells out to `command
+<prompt-path> <patch-path>` per scope instead of waiting on a human/subagent to
+drop the file).
 
-```bash
-python3 .claude/skills/cdp/run.py collect
-python3 .claude/skills/cdp/run.py prompts --wave 1
-```
-
-...and so on. Waves must run in order: wave *N+1* inherits the verified facts
-wave *N* established, which is the whole reason `sql-pool-common` is scheduled
-before the eight modules that import it.
-
-### Handling failures
-
-`collect` reports rejected patches with the specific schema violation. Per §3.5
-you may hand a violation back to the agent **up to three times**; its only legal
-moves are to correct the value or move the observation to `unknowns[]`. After
-the third failure leave the node `invalid` and advance — a wave does not block
-on a failed node, and the coverage figure records the gap.
+If a run is interrupted, `cdp run --resume` reclaims scopes whose lease lapsed
+mid-flight and continues the same `run_id`; it never re-bills a scope that
+already folded.
 
 Never hand-edit `.cdp/state.json`. It is a materialized view over the patch log;
 `fold --check` will catch you, and a fact that is not derivable from its
@@ -177,18 +170,23 @@ output shape, not over any language.
 
 ## Reference
 
+The essentials:
+
 | Command | |
 |---|---|
 | `scan` | every deterministic phase; writes `.cdp/` |
 | `query <kind> [term]` | `stats coverage symbol file module routes table config paths search claims unknowns conflicts` |
 | `docs [--out DIR]` | markdown artifacts |
-| `prompts [--wave N] [--node X]` | leaf prompts for the wave loop |
-| `collect [--mode strict\|lenient]` | validate, verify, append, fold |
-| `fold [--check]` | recompute state, or assert the fold invariant |
-| `status` | waves, node statuses, coverage |
-| `validate <patch.json>` | schema-check one patch |
+| `run --wave N\|--wave-all\|--stale-only\|--scope X` | dispatch -> collect -> fold, supervised |
+| `status` | waves, node statuses, coverage, running tasks |
 | `install <repo>` | copy the skill into another repository |
-| `selftest` | run the bundled tests |
+
+`cdp help` lists everything else (`doctor`, `reflect`, `lessons`, `diff`,
+`link`, `gc`, `compact`, `verify`, `export`, `rollback`, `answer`, `githook`,
+`selftest`, ...) with when to reach for each. It is generated from the live
+argument parser (`cdp/cli.py` `cmd_help`/`helpdoc.describe`), so unlike this
+file it cannot drift from the actual CLI. `cdp help --json` gives the same
+surface as data, for a non-Claude driver to bootstrap against.
 
 Budgets: `--max-leaf-files` (40), `--max-leaf-loc` (6000), `--max-concurrent`
 (12), `--max-hops` (8).

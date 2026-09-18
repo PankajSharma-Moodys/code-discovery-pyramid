@@ -96,7 +96,8 @@ An independent Python verifier re-opens every file you cite. Claims whose
 anchors fail are demoted to `unknowns[]` automatically. An anchor must:
 
 - be **literal source text**, copied exactly, not paraphrased;
-- be at least **12 characters**;
+- be **between 12 and 400 characters** — a rejected anchor is abandoned, not
+  retried with a shorter one, so stay well under 400;
 - occur **at most 3 times** in its file;
 - occur **exactly once** within ±5 lines of the `line` you give.
 
@@ -105,6 +106,10 @@ short or too common. `@Entity` alone is 7 characters and would be rejected;
 `@Entity @Table(name = "server")` is legal and more specific than either line.
 Write the span on one line with single spaces between the joined lines —
 interior whitespace is normalised when matching, so indentation does not matter.
+**Two or three lines is normally enough — never quote a whole method body or
+a multi-line annotation block just to be safe; that is what blows past 400
+characters.** If the shortest span that disambiguates the line is still too
+long, cite a shorter, less specific span rather than the whole block.
 
 A `line` that is off by a few is fine and will be corrected. A line that is off
 by 200 is a failed citation. The most common failure mode of a code-reading

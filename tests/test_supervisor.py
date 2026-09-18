@@ -188,7 +188,9 @@ class LeaseTest(unittest.TestCase):
         self.assertTrue(self.backend.acquire_lease("run-a", "scope-1", 0.15))
         second = SqliteStore(self.db_path)
         self.addCleanup(second.close)
-        heartbeat = supervisor_mod._LeaseHeartbeat(self.backend, "run-a", "scope-1", 0.15, 0.05).start()
+        heartbeat = supervisor_mod._LeaseHeartbeat(
+            lambda: self.backend.heartbeat_lease("run-a", "scope-1", 0.15), 0.05
+        ).start()
         try:
             time.sleep(0.3)  # longer than the original lease -- only survives via renewal
             self.assertFalse(second.acquire_lease("run-a", "scope-1", 60))

@@ -20,14 +20,23 @@ dependencies = []
 
 # Optional, lazily imported by cdp/store/postgres_backend.py only -- the base
 # install above stays dependency-free. See that module's docstring.
+#
+# `mcp`/`litellm`/`agent` (Phase 9, 7.1/7.2/7.4) are the same pattern one
+# level up: each names the real dependency of a *sibling package*
+# (mcp_server/, litellm_adapter/, agent_adapter/), never of `cdp` itself.
+# `tests/test_core_purity.py` enforces that `cdp/` cannot import any of them.
+# mcp left empty until that adapter has real code to depend on.
 [project.optional-dependencies]
 postgres = ["psycopg2-binary"]
+mcp = []
+litellm = ["litellm"]
+agent = ["langgraph", "langchain-core", "google-adk"]
 
 [project.scripts]
 cdp = "cdp.cli:main"
 
 [tool.setuptools]
-packages = ["cdp", "cdp.lang"]
+packages = ["cdp", "cdp.lang", "mcp_server", "litellm_adapter", "agent_adapter"]
 
 # Known limitation, stated rather than papered over: `cli.SKILL_ROOT` is
 # `cdp/../`, so `schema/` and `tests/` are resolved as siblings of the package.

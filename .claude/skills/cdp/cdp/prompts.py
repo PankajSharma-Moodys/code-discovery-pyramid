@@ -57,6 +57,8 @@ def build_prompt(
     digest_mode: bool = False,
     repo_root: Optional[Path] = None,
     symbol_index: Optional[Tuple[Dict[str, List[str]], Dict[str, List[str]]]] = None,
+    extra_third_party: Set[str] = frozenset(),
+    prompt_fixes: Sequence[Dict] = (),
 ) -> Tuple[str, Dict]:
     node = scope["node"]
     module = scope["module"]
@@ -79,6 +81,22 @@ def build_prompt(
         named_sections.append(("digest", digest_text))
     named_sections.append(("task", _task_section(node, run_id, digest_mode)))
 
+    # M9.3 (6.7) follow-up: a promoted `prompt_fix` was validated, cut and
+    # pinned but never actually rendered anywhere -- consumed here the same
+    # way `import_channel_hint`/`budget_change` already are. Applied by
+    # `section` name against these exact same section labels (`reflect.py`'s
+    # `KNOWN_PROMPT_SECTIONS` is this list, not an invented one), so a fix
+    # aimed at `digest` is silently absent on a T3/non-digest scope -- that
+    # section was never built for this call, not a bug.
+    if prompt_fixes:
+        by_section: Dict[str, List[str]] = {}
+        for fix in prompt_fixes:
+            by_section.setdefault(fix["section"], []).append(fix["instruction"])
+        named_sections = [
+            (name, _apply_prompt_fixes(text, by_section.get(name)))
+            for name, text in named_sections
+        ]
+
     # M5.6 (4.9): `CDP_CLI_SCOPE.md` marks per-leaf fixed overhead
     # "unverified -- measure first". `header`/`task` are the two sections
     # whose size is a function of `node`/`run_id` only, not of the scope's
@@ -98,7 +116,9 @@ def build_prompt(
         "loc": scope["loc"],
         "imported_symbols": len(imported),
         "inherited_claims": len(inherited),
+        "sigma_claims": sum(1 for c in inherited if _is_sigma_claim(c, imported)),
         "elided_claims": len(elided),
+        "elided_subjects": sorted({str(c.get("subject", "")) for c in elided}),
         "budget_fired": bool(elided),
         "section_chars": section_chars,
         "total_chars": total_chars,
@@ -111,7 +131,9 @@ def build_prompt(
     if symbol_index is not None:
         symbol_owner, namespace_owner = symbol_index
         module_set = {m["name"] for m in inventory["modules"]}
-        stats["tiering"] = compute_tier(scope, extraction, module_set, symbol_owner, namespace_owner)
+        stats["tiering"] = compute_tier(
+            scope, extraction, module_set, symbol_owner, namespace_owner, extra_third_party
+        )
     return "\n\n".join(text for _name, text in named_sections if text), stats
 
 
@@ -139,6 +161,16 @@ def _imported_symbols(extraction: Dict, scope_files: Set[str]) -> Set[str]:
     return out
 
 
+def _is_sigma_claim(claim: Dict, imported: Set[str]) -> bool:
+    """Narrower than "inherited": true only for a claim whose subject is one
+    of this scope's own imported symbols, not one pulled in via a module
+    dependency's entrypoint/data_model/ownership/deployable fallback below."""
+    subject = str(claim.get("subject", ""))
+    return subject in imported or any(
+        subject.startswith(sym + ".") or sym.startswith(subject + ".") for sym in imported
+    )
+
+
 def _inherit(
     prior_claims: Sequence[Dict],
     imported: Set[str],
@@ -150,12 +182,9 @@ def _inherit(
 
     relevant: List[Dict] = []
     for claim in prior_claims:
-        subject = str(claim.get("subject", ""))
         nodes = claim.get("source_nodes") or []
         from_dep = any(n.startswith("root/") and n.split("/")[1] in deps for n in nodes)
-        touches = subject in imported or any(
-            subject.startswith(sym + ".") or sym.startswith(subject + ".") for sym in imported
-        )
+        touches = _is_sigma_claim(claim, imported)
         if touches or (from_dep and claim.get("kind") in ("entrypoint", "data_model", "ownership", "deployable")):
             relevant.append(claim)
 
@@ -356,6 +385,17 @@ def _gaps_section(xref: Dict, scope_files: Set[str]) -> str:
         "If you can say which, that is a useful claim; if you cannot, that is a useful unknown.\n\n"
         + "\n".join("- `%s`" % r for r in rows)
     )
+
+
+def _apply_prompt_fixes(text: str, instructions: Optional[List[str]]) -> str:
+    """A promoted `prompt_fix` is routing-only text, R10: it can add an
+    instruction a leaf reads, never a fact a leaf is told to assert -- there
+    is no claim-shaped field for it to land in. Appended, not prepended, so a
+    lesson reads as an addendum to the section it targets, not a rewrite of it."""
+    if not instructions:
+        return text
+    lesson_block = "\n\n".join("**Lesson:** %s" % instr for instr in instructions)
+    return text + "\n\n" + lesson_block if text else lesson_block
 
 
 def _task_section(node: str, run_id: str, digest_mode: bool = False) -> str:

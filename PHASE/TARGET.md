@@ -1103,6 +1103,41 @@ confirming `link refresh`/`refresh_links` changed nothing about the existing
 `scan`/`fold`/`golden` pipeline, since no existing command calls the new code
 path.
 
+## Phase 9 (M9.1 only) — trajectory store, exercised on a real module
+
+Scoped to M9.1 only this session (M9.2-M9.4 deferred — 0.17/0.18's real
+scope, a corpus/regret/routing milestone, a reflection/lesson-set/holdout
+milestone, and a distribution milestone, do not compress into one sitting;
+`PHASE/FINDINGS.md` has the scoping account). `sql-pool/sql-pool-api`
+scanned fresh into `/tmp/m91_scratch`; `cdp run --wave-all` driven through a
+real external `--runner-cmd` script, `CDP_TRAJECTORY_DB` pointed at a scratch
+file:
+
+```
+$ cdp run --wave-all --runner-cmd "python3 fake_runner.py"
+wave 0       2 scope(s)  validated 2
+
+run_id: cdp-7e10575adf69
+leaf rows: [{'node': 'root/(files+2)', 'state': 'validated', ...},
+            {'node': 'root/src/main/java', 'state': 'validated', ...}]
+events: [{'event': 'started', ...}, {'event': 'finished', 'reason': 'complete', ...}]
+```
+
+Both real scopes produced a `fact_leaf_run` row and the run produced its
+`started`/`finished` `fact_run_event` pair, against real target-derived
+`scope_hash`/`repo_id` values, not synthetic ones. Scratch directories
+removed after the exercise.
+
+`make check TARGET_REPO=...`: first run caught a real defect (`cdp/
+trajectory.py` violated the "sqlite3 imported in exactly one module"
+boundary test), fixed, re-frozen, re-gated. **494 tests green (up from 491),
+determinism (fixture+target), `fold --check` (fixture+target), golden
+(fixture+target) all green, byte-identical, no re-bless needed** — the
+trajectory store's writes (wired into `cdp run`'s wave loop and `cdp
+rollback`) changed nothing about the existing `scan`/`fold`/`golden`
+pipeline, since no existing gate command calls `cdp run` or `cdp rollback`.
+Full account: `PHASE/FINDINGS.md`.
+
 ## Phase 8 (M8.5) — non-entanglement test, already green against fully-populated tables
 
 `tests/test_store_sqlite.py::TestRunsAndTasks::test_dropping_every_link_row_leaves_snapshot_and_claim_untouched`
@@ -1114,3 +1149,366 @@ same comparison against empty link tables). No new code needed; verified
 green in isolation this session, and it is part of the same `unittest
 discover` `make check`'s `selftest` gate already runs, so it is enforced in
 CI on every later phase without further wiring.
+
+## Phase 9 (M9.2 only) — corpus/regret/routing prior, exercised on a real module
+
+`sql-pool/sql-pool-api` scanned fresh into a scratch dir; `cdp run --wave-all`
+via a real external `--runner-cmd` script, `CDP_TRAJECTORY_DB` pointed at a
+scratch file:
+
+```
+wave 0       2 scope(s)  validated 2
+```
+
+Both real scopes' `fact_leaf_run` rows carried a real input fingerprint
+(`tokens_est` 3472/8886, `rows_elided` 0 — a genuinely first scan, nothing
+yet to elide) and a real, all-zero output scorecard (`entailed`/`consistent`/
+`contradicted`/`elision_regret` all 0 — the fake runner emitted zero claims,
+so this is provably rather than accidentally zero). `routing_prior` queried
+against each scope's own real shape key
+(`files<=16|langs=config,docker,gradle,java,other|roles=build,config,source,test`;
+`files<=64|langs=java|roles=source`) returned `n=1` with matching aggregates,
+and `n=0`/`validated_rate=None` for an unseen shape — the SQL-not-model
+acceptance line, against real target-derived rows.
+
+**Migration exercised against the real, pre-existing `~/.cdp/trajectories.db`
+left over from M9.1's own real-target runs** (73KB, pre-M9.2 schema, found on
+disk rather than assumed absent): opening it with the M9.2 code added the
+seven new columns in place via `ALTER TABLE`; its prior rows were read back
+afterward and confirmed unchanged. Scratch directories, the scratch
+trajectory DB, and the fake runner script removed after the exercise; both
+this checkout's and `$TARGET_REPO`'s own working trees (`git status
+--porcelain`) were empty before and after.
+
+`make check TARGET_REPO=...`: **497 tests green (up from 494), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed** — confirming these additive
+columns and the `entail_mod` call wired into `_apply_wave_results` changed
+nothing about the existing `scan`/`fold`/`golden` pipeline, since `cdp run`
+is not on that pipeline's path.
+
+## Phase 9 (M9.3, 6.6 only) — reflection, exercised on a real module
+
+`sql-pool/sql-pool-api` scanned fresh into a scratch dir; two real
+`fact_leaf_run` rows seeded against its real `run_id` (one contradicted, one
+merely high-token with real `claims_emitted=5`). `cdp reflect
+--runner-cmd ...` initially selected **both** as outliers — a real defect in
+M9.2's own `leaf_runs_for` (it had stopped selecting `claims_emitted`/
+`unknowns_emitted`, so every row read back `claims_emitted=None`, wrongly
+qualifying any high-token scope regardless of real yield). Fixed
+(`PHASE/FINDINGS.md` has the full account); re-verified against the same
+seeded rows:
+
+```
+reflect   PROMOTED  (root/(files+2)): prompt_fix
+reflect   1 accepted, 0 discarded
+```
+
+only the genuinely contradicted scope selected, correctly excluding the
+high-token-but-real-yield one. A second run with a fake runner emitting
+`{"promotion": "none"}` against the same seeded row: `DISCARDED ... no
+actionable promotion` — the "unactionable reflection is discarded, never
+stored" acceptance line, against real target-derived corpus rows rather
+than a synthetic dict. Scratch directories and fake runner scripts removed
+after the exercise; both this checkout's and `$TARGET_REPO`'s own working
+trees (`git status --porcelain`) were empty before and after.
+
+`make check TARGET_REPO=...`: **514 tests green (up from 497), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed** — confirming the new
+`reflect.py` module and `cdp reflect` CLI surface changed nothing about the
+existing `scan`/`fold`/`golden` pipeline, since no existing command calls
+it — and that the `leaf_runs_for` fix above didn't move anything on that
+pipeline's own path either, since nothing on it calls `leaf_runs_for`.
+
+## Phase 9 (M9.3, 6.7 only) — lesson-set cut/pin, exercised on the same real module
+
+Scoped to 6.7 only, asked explicitly before implementing (holdout A/B, 6.8,
+deferred — `PHASE/FINDINGS.md` has the full account). `sql-pool/sql-pool-api`
+scanned fresh into a scratch dir; two promotions seeded directly against a
+real trajectory DB, standing in for `cdp reflect`'s own accepted output (no
+model call spent this session):
+
+```
+$ cdp lessons cut
+lessons   cut v1 (2 promotion(s))
+$ cdp run --wave-all --lessons 1 --runner-cmd "python3 fake_runner.py"
+lessons   pinned v1
+```
+
+`backend.get_run(run_id)["lessons_version"]` read back `'1'` from a real
+`snapshot_run` row; a second `cdp run` with no `--lessons` flag picked v1
+automatically (auto-on once a cut exists); `--no-lessons` produced
+`lessons_version: None`. All three resolution paths proven against a real
+run, not a synthetic dict. Scratch directory and trajectory DB removed after
+the exercise; main checkout's `git status --porcelain` was empty before and
+after.
+
+`make check TARGET_REPO=...`: first run caught F19 (two pre-existing tests'
+exact-dict assertions broke on `get_run`'s new additive key — `PHASE/FINDINGS.md`
+has the account); fixed and re-run from a clean freeze. **519 tests green
+(up from 514), determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed.**
+
+## Phase 9 (M9.4, `SKILL.md` only) — no target exercise needed
+
+Pure documentation change (`SKILL.md`, rewritten for the post-`cdp run`
+world — see `PHASE/FINDINGS.md`). No command reads `SKILL.md`, so nothing
+about this target's scan/fold/golden behaviour is expected to move.
+`make check TARGET_REPO=...` was still run once, after freeze, as the
+standard confirmation that the session touched nothing else: **519 tests
+green, determinism/fold-check/golden all green on both fixture and
+target, byte-identical, no re-bless needed.**
+
+## Phase 9 (M9.4 pre-work) — interface-adapter scaffold, no target exercise needed
+
+New sibling packages (`mcp_server/`, `litellm_adapter/`, `agent_adapter/`),
+one new core-only test (`tests/test_core_purity.py`), and packaging/Makefile
+wiring — see `PHASE/FINDINGS.md`. Nothing here reads or writes `$TARGET_REPO`
+scan state, so `make check TARGET_REPO=...` is run only as the standard
+confirmation that this pass changed nothing about core's own scan/fold/golden
+behaviour: **520 tests green, determinism/fold-check/golden all green on
+fixture and target, byte-identical, no re-bless needed.**
+
+## Phase 9 (M9.4, 7.1 only) — MCP server, exercised on a real module
+
+`sql-pool/sql-pool-api` scanned via `mcp_server.tools.cdp_scan` directly (no
+CLI subprocess), then queried and statused the same way, into
+`/tmp/mcp_target_scratch` (removed after the exercise):
+
+```
+scan claims 41 symbols 413 scopes 2
+unknowns 0
+status run_id/head cdp-7e10575adf69 7e10575adf69
+```
+
+The 41-claim/413-symbol numbers match Phase 4's own real-target readout for
+this exact module exactly, confirming the MCP tool layer answers from the
+same code paths the CLI does rather than a silently-diverging reimplementation.
+`query.dispatch`'s extraction out of `cmd_query` (`PHASE/FINDINGS.md`, D42)
+is a pure refactor — `make check TARGET_REPO=...` (below) is the confirmation
+it changed nothing observable.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+freeze, result recorded once it completes — see `PHASE/FINDINGS.md`).
+
+## Phase 9 (M9.4, strict mode only) — exercised on a real module, both directions
+
+Scoped to strict mode only (`PHASE/FINDINGS.md` has the full account: the
+`_gate`/`strict_decide` design, `STRICT_MIN_COVERAGE = 0.95`, and why the
+plan's own stress test — 100% coverage but a stale index — is enforced by
+construction rather than only tested). `sql-pool/sql-pool-api` scanned fresh
+into a scratch dir:
+
+```
+coverage: {'files_complete': 0, 'files_total': 49, 'fraction': 0.0, ...}
+below-threshold: {'block': False, 'message': "`.cdp/` indexes this repository at 7e10575adf69. ..."}
+full-coverage:   {'block': True, 'message': "Blocked: the index covers 100% of this repository at 7e10575adf69 ..."}
+```
+
+The real, un-forced coverage after a bare scan (0.0 — no agent dispatch has
+run) degrades to the ordinary nudge, exactly as it must; forcing the same
+real scan's `coverage.fraction` to 1.0 (the only way to reach the block branch
+without a live multi-agent `cdp run`) flips `strict_decide` to a real block
+against a real file (`ServerResource.java`) at the real pinned commit sha.
+Scratch directory removed after the exercise.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **527 tests green,
+determinism/fold-check/golden all green on both fixture and target,
+byte-identical, no re-bless needed.**
+
+## Phase 9 (M9.4, §7.9 only) — `AGENTS.md`, exercised on a real module
+
+Scoped to §7.9 only this session (LiteLLM adapter 7.2, LangGraph/ADK
+adapters 7.4 remain; see `PHASE/FINDINGS.md`). `sql-pool/sql-pool-api`
+copied into a scratch target, `cdp install <target>` (non-`--self`) wrote a
+real `AGENTS.md` at the target root:
+
+```
+$ python3 .claude/skills/cdp/run.py scan --repo sql-pool-api --state-dir <scratch>
+$ python3 .claude/skills/cdp/run.py query stats --state-dir <scratch>
+repo        sql-pool-api @ unpinned
+census      48 tracked / 49 on disk (1.0x) [walk]
+modules     1 in 2 scopes
+claims      41  unknowns 2
+```
+
+Both commands run exactly as `AGENTS.md` documents them, with no `cdp` CLI
+and no Claude-specific tooling — the concrete form of the plan's own claim
+that `scan`/`query` need nothing beyond a shell and Python 3.9. Scratch
+directory removed after the exercise; this repository's own
+`cdp install --self` correctly left the real root `AGENTS.md` untouched
+(`kept ... not overwritten`).
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **529 tests green, determinism/fold-check/golden all green on both fixture and target, byte-identical, no re-bless needed.**
+
+## Phase 9 (M9.4, 7.2 only) — LiteLLM adapter's `preflight`, real subprocess pipeline
+
+Not exercised against `$TARGET_REPO` itself — this adapter's real-input
+exercise is `tests/fixtures/minirepo` (`preflight` shells out to `cdp scan`
++ `cdp doctor`, which only has a golden set for that fixture), orthogonal to
+which repository CDP has scanned. `preflight("fake-model-no-such-provider")`
+correctly returned `ok: False` through three chained real subprocesses with
+no `litellm` SDK installed — full account in `PHASE/FINDINGS.md`.
+`make check TARGET_REPO=...`: **529 tests, determinism, fold --check, golden
+all green on both fixture and target, byte-identical, no re-bless needed** —
+confirms this adapter, entirely outside `cdp/`, changed nothing about
+`scan`/`fold`/`golden` against this target.
+
+## Phase 9 (M9.3, 6.8 only) — holdout A/B exercised on a real module, `T3 rate 1.000 -> 1.000`
+
+`sql-pool/sql-pool-api` scanned fresh into `/tmp/m98_scratch` (removed
+after). A synthetic `import_channel_hint` promotion (`com.rms.auth.framework`
+— the real, previously-unrecognised third-party root `TARGET.md`'s own M6.4
+finding named) recorded against an unrelated fake repo id, cut, then `cdp
+holdout --repo sql-pool/sql-pool-api --lessons 1` run for real against this
+target module:
+
+```
+holdout   v1 on github.com/moodys-ma-platform/unified-store: T3 rate 1.000 (none) -> 1.000 (lessons) -- PROMOTE
+holdout   v1 promoted to latest
+```
+
+The rate didn't move on this specific module — consistent with M6.4's own
+finding that this module's T3 scopes carry other unresolved imports besides
+this one pattern — but the full pipeline (scan, promotion, cut, deterministic
+tiering A/B, promotion write) ran end to end against real target data with no
+crash. Full account, including the two fixture-repo end-to-end tests
+(`minirepo` learned / `solorepo` holdout, and the same-repo-refusal case) and
+the open decisions this milestone settled: `PHASE/FINDINGS.md`.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **536 tests
+green, determinism (fixture+target), fold --check (fixture+target), golden
+(fixture+target) all green, byte-identical, no re-bless needed.**
+
+## Phase 9 (M9.4, 7.4 only) — LangGraph/ADK adapters, exercised on a real module
+
+The plan marks 7.4 "on demand" and Phase 9's exit criteria don't name it;
+built this session at the user's explicit request after confirming every
+other Phase 9 exit criterion was already met. `PHASE/FINDINGS.md` has the
+full design account (why 7.4 shares 7.1's three-tool surface, the
+SDK-isolation pattern, and what's unverified).
+
+`agent_adapter.tool_specs()['cdp_scan'].func`/`['cdp_status'].func` called
+directly (no CLI subprocess, no LangGraph/ADK — neither SDK is installed in
+this environment) against `sql-pool/sql-pool-api` into a scratch state dir:
+
+```
+cdp_query -> ask the extracted state a question
+cdp_scan -> run every deterministic phase and write queryable state
+cdp_status -> waves, node statuses and coverage
+scan claims 41 symbols 413
+status run_id/head cdp-7e10575adf69 7e10575adf69a193da7f547aed088f7409f1f7c4
+```
+
+The 41-claim/413-symbol numbers match every prior Phase 9 real-target
+exercise of this exact module (M9.4 7.1's MCP exercise above, among others),
+confirming this adapter answers from the same code path rather than a third
+reimplementation. Scratch directory removed after the exercise.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **536 tests
+green, determinism (fixture+target), fold --check (fixture+target), golden
+(fixture+target) all green, byte-identical, no re-bless needed** —
+`agent_adapter`'s own suite runs under `make check-interfaces`, not `make
+check`, so this confirms only that adding it changed nothing about the
+existing `scan`/`fold`/`golden` pipeline. With this, every Phase 9 exit
+criterion, including the on-demand 7.4 item, is closed.
+
+## Post-Phase-9 follow-up — 3 of 7 code/design gaps, each exercised live on `sql-pool/sql-pool-api`
+
+`PHASE/FINDINGS.md`'s "Session handoff" entry has the full account and the
+4 remaining items. Real-target evidence for the 3 closed this session:
+
+- **Lessons-hint cadence**: 5 real `cdp run --wave-all` dispatches (fake
+  runner) against this module; `finished_run_count()` read back as exactly
+  5; `_maybe_print_lessons_hint` against that real store printed `lessons 1
+  promotion(s) pending after 5 runs -- \`cdp lessons cut\` to freeze them`.
+- **Live-model holdout**: real `haiku` leaf dispatch of this module's 2
+  scopes, twice (`--lessons none` / `--lessons v1`), plus real `haiku`
+  reader + `sonnet` judge calls over 3 hand-verified questions. Found (and
+  fixed, live, before the real numbers were trustworthy) an anchor-length
+  defect that abandoned both scopes on the first attempt, and a benchmark-
+  harness contamination bug (reader model reading its own gold-fact file).
+  Post-fix real result: `coverage 0.444 (none) -> 0.167 (lessons) -- REJECT`,
+  n=3, explicitly not trusted as a general verdict — h03 scored 0.0 in
+  *both* arms because no `cdp query` subcommand surfaces third-party
+  imports at all.
+- **`prompt_fix` rendering**: a real `prompt_fix` cut, promoted, then `cdp
+  prompts --lessons 1` against a fresh scan of this module wrote the lesson
+  text verbatim into both real scopes' prompt files (`grep`-confirmed on
+  disk, not a unit-test string).
+
+`cdp lessons unpromote <v>`: costed, decision made (build it, after further
+analysis), not started.
+
+Remaining, not yet exercised: Phase 8 link gaps (M8.2-M8.5, already closed
+per `FINDINGS.md`'s own item-4 correction), `link` tasks through `cdp run`,
+source-vs-digest same-scope comparison.
+
+## Item 7 (`sigma_claims`) closed — exercised on the same real module
+
+`sql-pool/sql-pool-api` scanned fresh, `cdp prompts --wave 0`, stats read back
+via `backend.read_report("prompts")`:
+
+```
+root/(files+2)         inherited_claims=12  sigma_claims=12
+root/src/main/java     inherited_claims=20  sigma_claims=20
+```
+
+Equality on both real scopes is the expected result for a single-module scan
+(no sibling module present in `schedule["module_deps"]` for the dep-fallback
+path to diverge from a direct-import touch) — the same caveat M6.4's tiering
+exercise already recorded for this module. `sigma_claims < inherited_claims`
+is a cross-module-scan result, not reproducible at this scan shape.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **545 tests
+green, determinism (fixture+target), `fold --check` (fixture+target), golden
+(fixture+target) all green, byte-identical, no re-bless needed.**
+
+## Post-Phase-9, item 5 — link tasks through leases, exercised on two real modules
+
+`sql-pool/sql-pool-api` and `service-api` each scanned fresh; `cdp link scan
+--db` persisted 2,697 links (0 heuristic — the same real finding M8.1/M8.3
+already recorded for this pair). One synthetic heuristic link, using both
+modules' real repo paths, was written into the persisted report the same way
+M8.3's own exercise did (this pair produces no heuristic match naturally).
+`cdp link run --runner-cmd "python3 <fake_runner>"` (a real subprocess):
+
+```
+link run  1 task(s)  validated 1  1 resolution(s) folded
+```
+
+Confirmed by reading state back directly: a real `link_task` row
+(`cdp-link | link-<hash> | validated | 1`) and a real `fact_leaf_run` row
+in `~/.cdp/trajectories.db` with `task_kind_dim` resolving to `'link'` and
+`scope_shape_dim` resolving to `protocol=http_out|candidates<=1` — the
+concrete proof `dim_task_kind=link` is no longer only a closed-vocabulary
+value nothing ever writes. The one synthetic corpus row this exercise wrote
+(no `CDP_TRAJECTORY_DB` override was set) was deleted afterward as
+fabricated test data, not a real learning signal. Scratch scan/db/prompt
+directories removed after; both this checkout's and `$TARGET_REPO`'s own
+working trees (`git status --porcelain`) were empty before and after.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **549 tests
+green (up from 545), determinism (fixture+target), `fold --check`
+(fixture+target), golden (fixture+target) all green, byte-identical, no
+re-bless needed.**
+
+## `cdp lessons unpromote` — exercised against a scratch trajectory DB, not this target's scan
+
+Not exercised against `$TARGET_REPO`'s own scan state — this feature lives
+entirely in `~/.cdp/trajectories.db` (or `CDP_TRAJECTORY_DB`), orthogonal to
+which repo has been scanned, the same posture Phase 7 (M7.6, Postgres) and
+Phase 9's own trajectory-store work recorded here before. `CDP_TRAJECTORY_DB`
+was pointed at a scratch file (never the real trajectory DB); a real
+promotion, cut, and promote via the actual `TrajectoryStore` API, then the
+real installed CLI: `cdp lessons unpromote --version 1 --reason "..."`
+correctly flipped `promoted` back to 0, printed the exact fallback lesson
+version (or "no lesson-set" when none remained promoted), and a second
+unpromote of the same version correctly refused with exit 2. Full account
+in `PHASE/FINDINGS.md`. `make check TARGET_REPO=...`: **552 tests green (up
+from 549), determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed** —
+confirming nothing about the existing `scan`/`fold`/`golden` pipeline moved,
+since no existing gate command touches the trajectory store's `lesson_cut`
+table.

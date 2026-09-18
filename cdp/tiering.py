@@ -36,6 +36,7 @@ def scope_unresolved_imports(
     module_set: Set[str],
     symbol_owner: Dict[str, List[str]],
     namespace_owner: Dict[str, List[str]],
+    extra_third_party: Set[str] = frozenset(),
 ) -> int:
     """Count of this scope's own import rows that resolve to no internal
     module and are not third-party/stdlib-shaped — the same
@@ -53,7 +54,7 @@ def scope_unresolved_imports(
             continue
         if owners:
             continue
-        if _looks_third_party(row["fqn"]):
+        if _looks_third_party(row["fqn"], extra_third_party):
             continue
         count += 1
     return count
@@ -65,12 +66,17 @@ def compute_tier(
     module_set: Set[str],
     symbol_owner: Dict[str, List[str]],
     namespace_owner: Dict[str, List[str]],
+    extra_third_party: Set[str] = frozenset(),
 ) -> Dict:
     """The v1 rule's pre-dispatch half: T3 iff this scope has an unresolved
     import, else T2. The post-dispatch half (a T2 leaf that escalates) is
     applied afterward by `apply_leaf_escalation`, once a patch actually
-    exists to read `escalated` from."""
-    unresolved = scope_unresolved_imports(scope, extraction, module_set, symbol_owner, namespace_owner)
+    exists to read `escalated` from. `extra_third_party` (M9.3, 6.8) is a
+    lesson-set's `import_channel_hint` patterns -- the one routing knob a
+    promotion actually moves."""
+    unresolved = scope_unresolved_imports(
+        scope, extraction, module_set, symbol_owner, namespace_owner, extra_third_party
+    )
     if unresolved:
         return {"tier": T3, "reason": UNRESOLVED_IMPORTS, "unresolved_imports": unresolved}
     return {"tier": T2, "reason": None, "unresolved_imports": 0}

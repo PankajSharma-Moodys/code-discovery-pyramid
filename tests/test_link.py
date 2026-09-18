@@ -19,7 +19,9 @@ sys.path.insert(0, str(SKILL_ROOT))
 
 from cdp.link import (  # noqa: E402
     build_tasks,
+    dispatch_link_task,
     fold_resolutions,
+    link_task_shape_key,
     query_service,
     refresh_links,
     scan_links,
@@ -375,6 +377,68 @@ class RefreshTest(unittest.TestCase):
         other = _snapshot("unrelated", "zzz", [])
         report = refresh_links(old_report, [other])
         self.assertEqual(report["unmatched"], old_report["unmatched"])
+
+
+class DispatchLinkTaskTest(unittest.TestCase):
+    """Post-Phase-9 item 5: `dispatch_link_task` runs a link task through the
+    same lease/retry machinery `supervisor.dispatch_scope` uses for scopes,
+    against `link_task` (not `snapshot_task`, R3's non-entanglement)."""
+
+    def setUp(self):
+        import tempfile
+        from cdp.store.sqlite_backend import SqliteStore
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.backend = SqliteStore(Path(self.tmp.name) / "index.db")
+        self.addCleanup(self.backend.close)
+        self.prompts_dir = Path(self.tmp.name) / "prompts"
+        self.prompts_dir.mkdir()
+
+        caller = _snapshot("billing", "aaa",
+                            [_edge("A", "http:https://x/charge/{id}", "http_out", file="A.java", line=1)])
+        callee = _snapshot("svc", "bbb",
+                            [_edge("Handler", "route:POST /charge/:id", "http_in", file="H.java", line=9)])
+        self.report = scan_links([caller, callee])
+        self.task = build_tasks(self.report)[0]
+
+    def test_valid_patch_reaches_validated_and_writes_a_link_task_row(self):
+        from test_supervisor import ScriptedRunner, _write
+        link_id = self.task["candidates"][0]["link_id"]
+        patch = {"task_id": self.task["task_id"], "resolutions": [
+            {"link_id": link_id, "verdict": "match", "reason": "same endpoint",
+             "anchor": {"file": "A.java", "line": 1}},
+        ]}
+        runner = ScriptedRunner([_write(patch)])
+        row = dispatch_link_task(self.task, "run-1", runner, self.backend, self.prompts_dir)
+        self.assertEqual(row["state"], "validated")
+        self.assertEqual(row["attempts"], 1)
+        states = self.backend.link_task_states("run-1")
+        self.assertEqual(states[self.task["task_id"]]["state"], "validated")
+
+    def test_a_fabricated_anchor_retries_then_abandons(self):
+        from test_supervisor import ScriptedRunner, _write
+        patch = {"task_id": self.task["task_id"], "resolutions": [
+            {"link_id": "not-a-real-link", "verdict": "match", "reason": "x",
+             "anchor": {"file": "A.java", "line": 1}},
+        ]}
+        runner = ScriptedRunner([_write(patch)])
+        row = dispatch_link_task(self.task, "run-2", runner, self.backend, self.prompts_dir, max_attempts=2)
+        self.assertEqual(row["state"], "abandoned")
+        self.assertEqual(row["attempts"], 2)
+
+    def test_second_supervisor_cannot_claim_a_held_lease(self):
+        self.assertTrue(self.backend.acquire_link_lease("run-3", self.task["task_id"], 60))
+        from test_supervisor import ScriptedRunner, _write
+        runner = ScriptedRunner([_write({"task_id": self.task["task_id"], "resolutions": []})])
+        row = dispatch_link_task(self.task, "run-3", runner, self.backend, self.prompts_dir)
+        self.assertIsNone(row)
+
+
+class LinkTaskShapeKeyTest(unittest.TestCase):
+    def test_bucketed_on_protocol_and_candidate_count(self):
+        task = {"protocol": "http_out", "candidates": [{}, {}, {}]}
+        self.assertEqual(link_task_shape_key(task), "protocol=http_out|candidates<=4")
 
 
 if __name__ == "__main__":

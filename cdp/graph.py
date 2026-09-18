@@ -163,10 +163,16 @@ def _package_root(fqn: str) -> str:
     return ".".join(parts[:3]) if len(parts) >= 3 else fqn
 
 
-def _looks_third_party(fqn: str) -> bool:
+def _looks_third_party(fqn: str, extra_patterns=frozenset()) -> bool:
     from .lang.base import is_third_party
 
     if is_third_party(fqn):
+        return True
+    # M9.3 (6.8): lesson-set `import_channel_hint` patterns, a prefix match
+    # against a real, previously-unrecognised third-party root (e.g.
+    # `com.rms.auth.framework`) -- the one place a promotion actually steers
+    # routing (T3 escalation), never claim content.
+    if any(fqn == p or fqn.startswith(p.rstrip("*").rstrip(".") + ".") for p in extra_patterns):
         return True
     # A bare, dotless import is a package name from a language whose stdlib we
     # did not enumerate; treat it as external rather than as a finding.

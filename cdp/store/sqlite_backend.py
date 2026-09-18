@@ -184,9 +184,28 @@ SCHEMA_V4 = """
 ALTER TABLE snapshot_meta ADD COLUMN touch_seq INTEGER;
 """
 
+# Post-Phase-9 item 5: `link_task` gets the same lease/state columns
+# `snapshot_task` already has, so a link task (M8.3's ambiguous-caller-target
+# question) can be dispatched through the same lease/retry machinery as a
+# scope, keeping trajectory learning's `dim_task_kind=link` no longer blind to
+# link work. `scope_hash` (the column link_task already had, M2.5) holds a
+# link task's `task_id` here -- same column name so the generic lease/task
+# helpers below work unmodified against either table.
+SCHEMA_V7 = """
+ALTER TABLE link_task ADD COLUMN state TEXT;
+ALTER TABLE link_task ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE link_task ADD COLUMN dispatched_at TEXT;
+ALTER TABLE link_task ADD COLUMN lease_until TEXT;
+ALTER TABLE link_task ADD COLUMN last_error TEXT;
+ALTER TABLE link_task ADD COLUMN patch_hash TEXT;
+ALTER TABLE link_task ADD COLUMN wall_ms INTEGER;
+"""
+
 #: Forward-only migrations, one script per version. Adding a version is
 #: appending here, never editing an earlier entry.
-MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6)
+MIGRATIONS: Tuple[str, ...] = (
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
+)
 
 
 def _now() -> str:
@@ -201,6 +220,18 @@ def _lease_ts(seconds: float = 0.0) -> str:
     test's 0.05s lease both need sub-second resolution to compare correctly)."""
     when = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)
     return when.isoformat(timespec="milliseconds")
+
+
+def connect_raw(db_path, *, check_same_thread: bool = True) -> sqlite3.Connection:
+    """A plain `sqlite3.connect` (foreign keys on), exposed for callers
+    outside `store/` that need their own, separate sqlite database -- Phase
+    9's trajectory store is not a `WorkspaceStore` backend and shares no
+    schema with `index.db`, but `tests/test_store_sqlite.py`'s import-boundary
+    test still requires `sqlite3` be imported nowhere else, so this is the one
+    crossing point."""
+    conn = sqlite3.connect(str(db_path), check_same_thread=check_same_thread)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 class SqliteStore(WorkspaceStore):
@@ -475,6 +506,13 @@ class SqliteStore(WorkspaceStore):
         ).fetchall()
         return {r[0]: {"state": r[1], "attempts": r[2]} for r in rows}
 
+    def link_task_states(self, run_id: str) -> Dict[str, Dict]:
+        """`link_task` counterpart of `task_states` (post-Phase-9 item 5)."""
+        rows = self._conn.execute(
+            "SELECT scope_hash, state, attempts FROM link_task WHERE run_id=?", (run_id,)
+        ).fetchall()
+        return {r[0]: {"state": r[1], "attempts": r[2]} for r in rows}
+
     # ------------------------------------------------ runs/tasks (Phase 5, M5.2)
 
     def begin_run(self, run_id: str, partition_hash: Optional[str] = None) -> None:
@@ -495,26 +533,40 @@ class SqliteStore(WorkspaceStore):
         )
         self._conn.commit()
 
-    def upsert_task(self, run_id: str, scope_hash: str, **fields: Any) -> None:
-        """Insert-or-update one `snapshot_task` row (M5.2's state machine is
-        the only writer). `fields` are whichever columns changed -- callers
-        pass only those, never the full row."""
+    def set_run_lessons_version(self, run_id: str, lessons_version: Optional[int]) -> None:
+        self._conn.execute(
+            "UPDATE snapshot_run SET lessons_version=? WHERE run_id=?",
+            (None if lessons_version is None else str(lessons_version), run_id),
+        )
+        self._conn.commit()
+
+    def _upsert_task(self, table: str, run_id: str, scope_hash: str, **fields: Any) -> None:
+        """Insert-or-update one row of `table` (`snapshot_task` or
+        `link_task` -- same column shape, post-Phase-9 item 5). `fields` are
+        whichever columns changed -- callers pass only those, never the full
+        row."""
         existing = self._conn.execute(
-            "SELECT 1 FROM snapshot_task WHERE run_id=? AND scope_hash=?", (run_id, scope_hash)
+            "SELECT 1 FROM %s WHERE run_id=? AND scope_hash=?" % table, (run_id, scope_hash)
         ).fetchone()
         if existing is None:
             cols = ["run_id", "scope_hash"] + list(fields.keys())
             self._conn.execute(
-                "INSERT INTO snapshot_task (%s) VALUES (%s)" % (", ".join(cols), ", ".join("?" * len(cols))),
+                "INSERT INTO %s (%s) VALUES (%s)" % (table, ", ".join(cols), ", ".join("?" * len(cols))),
                 [run_id, scope_hash] + list(fields.values()),
             )
         else:
             self._conn.execute(
-                "UPDATE snapshot_task SET %s WHERE run_id=? AND scope_hash=?"
-                % ", ".join("%s=?" % k for k in fields),
+                "UPDATE %s SET %s WHERE run_id=? AND scope_hash=?"
+                % (table, ", ".join("%s=?" % k for k in fields)),
                 list(fields.values()) + [run_id, scope_hash],
             )
         self._conn.commit()
+
+    def upsert_task(self, run_id: str, scope_hash: str, **fields: Any) -> None:
+        self._upsert_task("snapshot_task", run_id, scope_hash, **fields)
+
+    def upsert_link_task(self, run_id: str, task_id: str, **fields: Any) -> None:
+        self._upsert_task("link_task", run_id, task_id, **fields)
 
     def task_rows(self, run_id: str) -> List[Dict]:
         """Full `snapshot_task` rows for `run_id`, for `status`'s per-run task
@@ -534,35 +586,36 @@ class SqliteStore(WorkspaceStore):
 
     # ------------------------------------------------------- leases (M5.4)
 
-    def acquire_lease(self, run_id: str, scope_hash: str, lease_seconds: float) -> bool:
+    def _acquire_lease(self, table: str, run_id: str, scope_hash: str, lease_seconds: float) -> bool:
         """Atomically claim `scope_hash` for the calling process, for up to
-        `lease_seconds`. One UPDATE (or, for a scope never seen before, one
-        INSERT into a row nothing else can be racing yet) is the whole
-        critical section -- SQLite serialises writers on the file itself, so
-        the loser of a race between two supervisor processes sees `rowcount ==
-        0` and takes nothing, never a partial claim. A row is claimable when
-        it has no lease yet, or its lease has already expired (the supervisor
-        that held it is presumed dead)."""
+        `lease_seconds`, in `table` (`snapshot_task` or `link_task`). One
+        UPDATE (or, for a row never seen before, one INSERT into a row
+        nothing else can be racing yet) is the whole critical section --
+        SQLite serialises writers on the file itself, so the loser of a race
+        between two supervisor processes sees `rowcount == 0` and takes
+        nothing, never a partial claim. A row is claimable when it has no
+        lease yet, or its lease has already expired (the supervisor that held
+        it is presumed dead)."""
         now = _lease_ts()
         until = _lease_ts(lease_seconds)
         cur = self._conn.execute(
-            "UPDATE snapshot_task SET lease_until=? "
-            "WHERE run_id=? AND scope_hash=? AND (lease_until IS NULL OR lease_until < ?)",
+            "UPDATE %s SET lease_until=? "
+            "WHERE run_id=? AND scope_hash=? AND (lease_until IS NULL OR lease_until < ?)" % table,
             (until, run_id, scope_hash, now),
         )
         if cur.rowcount:
             self._conn.commit()
             return True
         exists = self._conn.execute(
-            "SELECT 1 FROM snapshot_task WHERE run_id=? AND scope_hash=?", (run_id, scope_hash)
+            "SELECT 1 FROM %s WHERE run_id=? AND scope_hash=?" % table, (run_id, scope_hash)
         ).fetchone()
         if exists is not None:
             self._conn.commit()  # row exists, held by a live lease -- not ours
             return False
         try:
             self._conn.execute(
-                "INSERT INTO snapshot_task (run_id, scope_hash, state, attempts, lease_until) "
-                "VALUES (?, ?, 'pending', 0, ?)",
+                "INSERT INTO %s (run_id, scope_hash, state, attempts, lease_until) "
+                "VALUES (?, ?, 'pending', 0, ?)" % table,
                 (run_id, scope_hash, until),
             )
         except sqlite3.IntegrityError:
@@ -571,27 +624,45 @@ class SqliteStore(WorkspaceStore):
         self._conn.commit()
         return True
 
-    def heartbeat_lease(self, run_id: str, scope_hash: str, lease_seconds: float) -> None:
+    def acquire_lease(self, run_id: str, scope_hash: str, lease_seconds: float) -> bool:
+        return self._acquire_lease("snapshot_task", run_id, scope_hash, lease_seconds)
+
+    def acquire_link_lease(self, run_id: str, task_id: str, lease_seconds: float) -> bool:
+        return self._acquire_lease("link_task", run_id, task_id, lease_seconds)
+
+    def _heartbeat_lease(self, table: str, run_id: str, scope_hash: str, lease_seconds: float) -> None:
         """Renew a lease this process already holds. Called every
         `HEARTBEAT_SECONDS` while a runner call is in flight -- if the process
         dies, the heartbeats stop and the lease expires on its own within
         `lease_seconds` of the last one, which is the entire death-detection
         mechanism (no separate liveness channel)."""
         self._conn.execute(
-            "UPDATE snapshot_task SET lease_until=? WHERE run_id=? AND scope_hash=?",
+            "UPDATE %s SET lease_until=? WHERE run_id=? AND scope_hash=?" % table,
             (_lease_ts(lease_seconds), run_id, scope_hash),
         )
         self._conn.commit()
 
-    def release_lease(self, run_id: str, scope_hash: str) -> None:
+    def heartbeat_lease(self, run_id: str, scope_hash: str, lease_seconds: float) -> None:
+        self._heartbeat_lease("snapshot_task", run_id, scope_hash, lease_seconds)
+
+    def heartbeat_link_lease(self, run_id: str, task_id: str, lease_seconds: float) -> None:
+        self._heartbeat_lease("link_task", run_id, task_id, lease_seconds)
+
+    def _release_lease(self, table: str, run_id: str, scope_hash: str) -> None:
         """Give up a held lease immediately once its task reaches a terminal
         (or retry-pending) outcome, rather than making the next dispatch wait
         out the full `lease_seconds`."""
         self._conn.execute(
-            "UPDATE snapshot_task SET lease_until=NULL WHERE run_id=? AND scope_hash=?",
+            "UPDATE %s SET lease_until=NULL WHERE run_id=? AND scope_hash=?" % table,
             (run_id, scope_hash),
         )
         self._conn.commit()
+
+    def release_lease(self, run_id: str, scope_hash: str) -> None:
+        self._release_lease("snapshot_task", run_id, scope_hash)
+
+    def release_link_lease(self, run_id: str, task_id: str) -> None:
+        self._release_lease("link_task", run_id, task_id)
 
     # --------------------------------------------------- resume (M5.5, 4.6)
 
@@ -599,11 +670,12 @@ class SqliteStore(WorkspaceStore):
         """`snapshot_run` row for `run_id`, or `None` if this run was never
         begun -- what `--resume`'s partition-drift guard compares against."""
         row = self._conn.execute(
-            "SELECT run_id, partition_hash, status FROM snapshot_run WHERE run_id=?", (run_id,)
+            "SELECT run_id, partition_hash, status, lessons_version FROM snapshot_run WHERE run_id=?",
+            (run_id,),
         ).fetchone()
         if row is None:
             return None
-        return {"run_id": row[0], "partition_hash": row[1], "status": row[2]}
+        return {"run_id": row[0], "partition_hash": row[1], "status": row[2], "lessons_version": row[3]}
 
     def reclaim_expired(self, run_id: str) -> List[str]:
         """`dispatched` tasks whose lease has already lapsed -- the supervisor

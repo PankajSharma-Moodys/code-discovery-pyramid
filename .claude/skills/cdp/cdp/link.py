@@ -38,7 +38,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .util import stable_hash
+from .util import read_json, stable_hash, write_text
 
 LIBRARY_PREFIX = "library:"
 
@@ -390,6 +390,94 @@ def fold_resolutions(report: Dict, task: Dict, patch: Dict, run_id: str) -> int:
         }
         n += 1
     return n
+
+
+def link_task_shape_key(task: Dict) -> str:
+    """Post-Phase-9 item 5: `trajectory.scope_shape_key`'s counterpart for a
+    link task -- bucketed candidate count plus protocol, coarse for the same
+    reason `scope_shape_key` is coarse (M9.2's routing prior groups on this to
+    find shape-alike neighbours, which only works if the key generalises)."""
+    n = len(task.get("candidates") or [])
+    bucket = 1
+    while bucket < max(n, 1):
+        bucket *= 2
+    return "protocol=%s|candidates<=%d" % (task["protocol"], bucket)
+
+
+def _classify_link_returned(patch_path, task: Dict):
+    """`supervisor._classify_returned`'s counterpart for one link task: no
+    schema/anchor-liveness check (a link patch has no claims to verify against
+    a repo's live source), just `validate_task_patch`'s own closed shape and
+    citation check -- a fabricated anchor is already an `/resolutions/.../anchor`
+    validation error, not a separate gate."""
+    from . import supervisor as supervisor_mod
+    if not patch_path.exists():
+        return supervisor_mod.EMPTY, "runner returned ok but wrote no patch", None
+    try:
+        patch = read_json(patch_path)
+    except (ValueError, OSError) as exc:
+        return supervisor_mod.INVALID, "not valid JSON: %s" % exc, None
+    errors = validate_task_patch(patch, task)
+    if errors:
+        return supervisor_mod.INVALID, "; ".join(errors[:6]), None
+    return supervisor_mod.VALIDATED, None, patch
+
+
+def dispatch_link_task(
+    task: Dict, run_id: str, runner, backend, prompts_dir,
+    lease_seconds: float = 90.0, heartbeat_seconds: float = 30.0, max_attempts: int = 3,
+) -> Optional[Dict]:
+    """Post-Phase-9 item 5: `supervisor.dispatch_scope`'s retry loop, reused
+    for one link task instead of a scope -- same states/leases (`link_task`,
+    not `snapshot_task`, so R3's non-entanglement holds), so link work is no
+    longer invisible to `cdp run`'s wave machinery or to trajectory learning
+    (`dim_task_kind=link`). Returns `None` if another supervisor already holds
+    this task's lease, the same "not mine to dispatch" convention
+    `dispatch_scope` uses."""
+    from . import supervisor as supervisor_mod
+    backend.ensure_inbox()
+    task_id = task["task_id"]
+    prompt_path = prompts_dir / (task_id + ".md")
+    write_text(prompt_path, render_task_prompt(task))
+    patch_path = backend._inbox_dir() / (task_id + ".json")
+
+    state = supervisor_mod.PENDING
+    last_error: Optional[str] = None
+    patch: Optional[Dict] = None
+    attempt = 0
+    for attempt in range(1, max_attempts + 1):
+        if not backend.acquire_link_lease(run_id, task_id, lease_seconds):
+            return None
+        if patch_path.exists():
+            patch_path.unlink()
+        backend.upsert_link_task(
+            run_id, task_id, state=supervisor_mod.DISPATCHED, attempts=attempt,
+            dispatched_at=supervisor_mod._now(), last_error=None,
+        )
+        heartbeat = supervisor_mod._LeaseHeartbeat(
+            lambda: backend.heartbeat_link_lease(run_id, task_id, lease_seconds), heartbeat_seconds
+        ).start()
+        try:
+            result = runner.run(prompt_path, patch_path)
+        finally:
+            heartbeat.stop()
+        if not result.ok:
+            state, last_error, patch = supervisor_mod.EXPIRED, result.error or "runner reported failure with no message", None
+        else:
+            backend.upsert_link_task(run_id, task_id, state=supervisor_mod.RETURNED, wall_ms=result.wall_ms)
+            state, last_error, patch = _classify_link_returned(patch_path, task)
+        backend.upsert_link_task(run_id, task_id, state=state, last_error=last_error, wall_ms=result.wall_ms)
+        backend.release_link_lease(run_id, task_id)
+        if state not in supervisor_mod.RETRY_STATES:
+            break
+    if state in supervisor_mod.RETRY_STATES:
+        state = supervisor_mod.ABANDONED
+        backend.upsert_link_task(run_id, task_id, state=state, last_error=last_error)
+        patch = None
+    return {
+        "task_id": task_id, "state": state, "attempts": attempt,
+        "last_error": last_error, "patch": patch,
+    }
 
 
 _INBOUND_OF = dict(DIRECTIONS)  # http_out->http_in, event_publish->event_subscribe, persist->schema_own

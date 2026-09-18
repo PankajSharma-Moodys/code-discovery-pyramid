@@ -254,6 +254,12 @@ class WorkspaceStore(ABC):
     def finish_run(self, run_id: str, status: str) -> None:
         raise self._no_run_tracking()
 
+    def set_run_lessons_version(self, run_id: str, lessons_version: Optional[int]) -> None:
+        """M9.3 (6.7): pins which lesson-set cut (or none) this run used --
+        `snapshot_run.lessons_version`, so `--lessons vN` is a pin recorded on
+        the run itself, not merely a CLI flag that leaves no trace."""
+        raise self._no_run_tracking()
+
     def upsert_task(self, run_id: str, scope_hash: str, **fields: Any) -> None:
         raise self._no_run_tracking()
 

@@ -75,6 +75,78 @@ class BuildPromptDigestModeTest(unittest.TestCase):
         self.assertEqual(stats1["digest_fingerprint"], stats2["digest_fingerprint"])
 
 
+class PromptFixTest(unittest.TestCase):
+    """Post-Phase-9 follow-up: a promoted `prompt_fix` used to be validated,
+    cut and pinned but never rendered anywhere. Now consumed by `build_prompt`
+    the same way `import_channel_hint`/`budget_change` already are."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.repo = make_repo(Path(cls.tmp.name))
+        cls.state = Path(cls.tmp.name) / "state"
+        main(["scan", "--repo", str(cls.repo), "--state-dir", str(cls.state), "--quiet"])
+        cls.store = Store(cls.state)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.store.close()
+        cls.tmp.cleanup()
+
+    def _scope(self):
+        return self.store.partition["scopes"][0]
+
+    def _sched(self):
+        return self.store._load("schedule")
+
+    def test_no_prompt_fixes_leaves_sections_unchanged(self) -> None:
+        text, _stats = build_prompt(
+            self._scope(), self.store.inventory, self.store.extraction, self.store.xref,
+            self._sched(), [], "run1", prompt_fixes=[],
+        )
+        self.assertNotIn("**Lesson:**", text)
+
+    def test_a_fix_targeting_header_appears_in_header_only(self) -> None:
+        fixes = [{"section": "header", "instruction": "Double-check the module name."}]
+        text, stats = build_prompt(
+            self._scope(), self.store.inventory, self.store.extraction, self.store.xref,
+            self._sched(), [], "run1", prompt_fixes=fixes,
+        )
+        self.assertIn("**Lesson:** Double-check the module name.", text)
+        self.assertEqual(text.count("**Lesson:**"), 1)
+
+    def test_a_fix_targeting_digest_is_silently_absent_without_digest_mode(self) -> None:
+        """A `prompt_fix` naming `digest` has nowhere to land on a T3/non-digest
+        scope -- that section is never built for this call, not a bug (7 known
+        sections exist; only `digest` is conditional on `digest_mode=True`)."""
+        fixes = [{"section": "digest", "instruction": "Watch for truncated files."}]
+        text, _stats = build_prompt(
+            self._scope(), self.store.inventory, self.store.extraction, self.store.xref,
+            self._sched(), [], "run1", prompt_fixes=fixes,
+        )
+        self.assertNotIn("**Lesson:**", text)
+
+    def test_a_fix_targeting_digest_appears_when_digest_mode_is_on(self) -> None:
+        fixes = [{"section": "digest", "instruction": "Watch for truncated files."}]
+        text, _stats = build_prompt(
+            self._scope(), self.store.inventory, self.store.extraction, self.store.xref,
+            self._sched(), [], "run1", digest_mode=True, repo_root=self.repo, prompt_fixes=fixes,
+        )
+        self.assertIn("**Lesson:** Watch for truncated files.", text)
+
+    def test_multiple_fixes_on_the_same_section_all_appear(self) -> None:
+        fixes = [
+            {"section": "task", "instruction": "First instruction."},
+            {"section": "task", "instruction": "Second instruction."},
+        ]
+        text, _stats = build_prompt(
+            self._scope(), self.store.inventory, self.store.extraction, self.store.xref,
+            self._sched(), [], "run1", prompt_fixes=fixes,
+        )
+        self.assertIn("**Lesson:** First instruction.", text)
+        self.assertIn("**Lesson:** Second instruction.", text)
+
+
 class EscalationRateTest(unittest.TestCase):
     def test_none_when_no_claims(self) -> None:
         self.assertIsNone(_escalation_rate([]))

@@ -30,9 +30,19 @@ M2.6's store registry (`store.registry`) dissolves this: `find_state` walks up
 for an in-repo `.cdp/` first, and failing that, resolves the repo's identity
 and looks it up in the registry that a default-location `scan` populated.
 
-**Not strict mode.** Blocking a read is out of scope here and lands in Phase 9
-gated on `state.coverage.fraction`, because blocking against an index below its
-coverage threshold is actively harmful (`RESEARCH_GRAPHIFY.md §7.8`).
+**Strict mode (Phase 9, `--strict`)** turns the same one-shot trigger into a
+block instead of a nudge, but only when blocking cannot backfire: coverage
+(`state.json`'s `coverage.fraction`) is at or above `STRICT_MIN_COVERAGE`, and
+the same freshness gate below (`inventory.head == git HEAD`) that already
+guards the nudge also guards the block. Coverage is not freshness (R8, two
+dates) — a 100%-coverage index at a stale HEAD is exactly the case that must
+still degrade to a nudge, not block, since the index may no longer describe
+the tree being read. Below the threshold, or when either gate fails, strict
+mode degrades to the ordinary nudge rather than refusing silently or blocking
+against ignorance — same "triggers at most once per session, never gets
+stuck" one-shot marker as the nudge, so a block (or its degraded nudge) can
+never repeat within a session and never leaves the model stuck: it fires once,
+states why, and gets out of the way.
 
 **Fails open, always.** Any exception, any unreadable state, any surprise in the
 input shape exits 0 with no output. A hook is in the path of every file read in
@@ -69,6 +79,13 @@ WATCHED = ("Read", "Grep", "Glob")
 NUDGE_ROLE = "source"
 
 STATE_DIRNAME = ".cdp"
+
+#: Below this, a block would deny the model the source *and* leave the index
+#: unable to answer (`RESEARCH_GRAPHIFY.md §7.8`) -- degrade to a nudge instead.
+#: Deliberately high: blocking is a one-shot, session-shaping event, so the
+#: bar for "the index can stand in for the source" is higher than the bar for
+#: "the index is worth mentioning."
+STRICT_MIN_COVERAGE = 0.95
 
 
 def nudge_text(sha: str, path: str, dirty: bool) -> str:
@@ -195,8 +212,13 @@ def claim_session(state: Path, session_id: str) -> bool:
 # ------------------------------------------------------------------ decide
 
 
-def decide(event: Dict) -> Optional[str]:
-    """The nudge to emit, or None for a silent no-op. Never raises."""
+def _gate(event: Dict) -> Optional[Dict]:
+    """Everything both the nudge and the strict-mode block need in common:
+    a reachable, fresh, source-role read. Returns `None` for any of the four
+    silent no-ops (no state, unreadable state, stale index, wrong role);
+    otherwise a dict with `state`/`inventory`/`repo`/`indexed`/`rel`. Does
+    **not** claim the session marker -- callers decide what firing means.
+    """
     if event.get("tool_name") not in WATCHED:
         return None
 
@@ -221,6 +243,7 @@ def decide(event: Dict) -> Optional[str]:
         # manifest's own `repo` field is the only reliable source.
         manifest_repo = backend.read_artifact("manifest", {}).get("repo")
         repo = Path(manifest_repo) if manifest_repo else state.parent
+        folded = backend.read_artifact("state", {})
         backend.close()
     except (OSError, ValueError, CdpError):
         return None
@@ -236,9 +259,46 @@ def decide(event: Dict) -> Optional[str]:
     if _role_of(inventory, rel) != NUDGE_ROLE:
         return None
 
-    if not claim_session(state, str(event.get("session_id") or "no-session")):
+    return {
+        "state": state, "inventory": inventory, "repo": repo,
+        "indexed": indexed, "rel": rel, "coverage_fraction": folded.get(
+            "coverage", {}).get("fraction", 0.0),
+    }
+
+
+def decide(event: Dict) -> Optional[str]:
+    """The nudge to emit, or None for a silent no-op. Never raises."""
+    gated = _gate(event)
+    if gated is None:
         return None
-    return nudge_text(indexed, rel, is_dirty(repo))
+    if not claim_session(gated["state"], str(event.get("session_id") or "no-session")):
+        return None
+    return nudge_text(gated["indexed"], gated["rel"], is_dirty(gated["repo"]))
+
+
+def strict_decide(event: Dict) -> Optional[Dict]:
+    """Strict mode's one-shot decision: block, or degrade to the nudge.
+
+    Returns `None` for a silent no-op (same four gates `decide` uses), or a
+    dict `{"block": bool, "message": str}` -- `block` is only ever `True` when
+    coverage clears `STRICT_MIN_COVERAGE` *and* the freshness gate above
+    already held (`_gate` checked it before this function is reached).
+    """
+    gated = _gate(event)
+    if gated is None:
+        return None
+    if not claim_session(gated["state"], str(event.get("session_id") or "no-session")):
+        return None
+    message = nudge_text(gated["indexed"], gated["rel"], is_dirty(gated["repo"]))
+    if gated["coverage_fraction"] < STRICT_MIN_COVERAGE:
+        return {"block": False, "message": message}
+    block_message = (
+        "Blocked: the index covers %.0f%% of this repository at %s and can "
+        "answer this without reading source. %s If the index truly cannot "
+        "answer, override this once and read the file directly." %
+        (gated["coverage_fraction"] * 100, gated["indexed"][:12], message)
+    )
+    return {"block": True, "message": block_message}
 
 
 def _relative(path: Path, repo: Path) -> Optional[str]:
@@ -272,7 +332,22 @@ def _role_of(inventory: Dict, rel: str) -> Optional[str]:
 # -------------------------------------------------------------------- main
 
 
-def payload(message: str) -> Dict:
+def payload(message: str, block: bool = False) -> Dict:
+    if block:
+        # `permissionDecision`/`permissionDecisionReason` is the documented
+        # PreToolUse contract for actually deciding the call, unlike the plain
+        # nudge above -- unverified against a live harness in this environment
+        # (no interactive session to block for real in this repo's own test
+        # suite), so `strict_decide` never blocks unless `_gate` already
+        # confirmed a fresh, high-coverage index, per this module's docstring.
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": message,
+            },
+            "systemMessage": message,
+        }
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -289,15 +364,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         print()
         print("Sample nudge:\n  %s" % nudge_text("0" * 40, "src/Example.java", False))
         return 0
+    strict = "--strict" in argv
     try:
         event = json.loads(sys.stdin.read() or "{}")
-        message = decide(event if isinstance(event, dict) else {})
+        event = event if isinstance(event, dict) else {}
+        if strict:
+            result = strict_decide(event)
+            message = result["message"] if result else None
+            block = bool(result and result["block"])
+        else:
+            message = decide(event)
+            block = False
     except Exception:
         # Fails open. See the module docstring: this runs before every file read
         # in the session, and breaking that is far worse than missing a nudge.
         return 0
     if message:
-        print(json.dumps(payload(message)))
+        print(json.dumps(payload(message, block=block)))
     return 0
 
 

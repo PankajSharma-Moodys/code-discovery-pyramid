@@ -23,7 +23,7 @@ CDP    := $(PYTHON) -m cdp.cli
 FIXTURE := tests/fixtures/minirepo
 FIXTURE_SLUG := minirepo@fixture
 
-.PHONY: check check-fast selftest distribution determinism fold golden \
+.PHONY: check check-fast check-interfaces selftest distribution determinism fold golden \
         bless bless-fixture check-self clean help
 
 ## check: every gate. Green is the contract for every later phase.
@@ -38,6 +38,18 @@ check-fast: selftest
 selftest:
 	@echo "== selftest =="
 	@$(CDP) selftest
+
+## check-interfaces: the interface adapters' own tests (Phase 9, 7.1/7.2/7.4).
+## Not part of `check` -- these packages carry optional third-party deps
+## (mcp/litellm/langgraph/adk) core must never require; each test skips
+## cleanly if its own optional dependency isn't installed.
+check-interfaces:
+	@echo "== check-interfaces (mcp_server) =="
+	@$(PYTHON) -m unittest discover -s mcp_server/tests -t .
+	@echo "== check-interfaces (litellm_adapter) =="
+	@$(PYTHON) -m unittest discover -s litellm_adapter/tests -t .
+	@echo "== check-interfaces (agent_adapter) =="
+	@$(PYTHON) -m unittest discover -s agent_adapter/tests -t .
 
 ## distribution: the vendored skill copy has not drifted. (Also inside selftest.)
 distribution:

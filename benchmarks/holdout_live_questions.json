@@ -1,0 +1,33 @@
+[
+  {
+    "id": "h01",
+    "category": "entrypoint",
+    "question": "What is the main application class of sql-pool-api and what does its main() method do?",
+    "gold_facts": [
+      "SqlPoolApplication",
+      "extends RmsApiApplication",
+      "calls run(args)"
+    ],
+    "gold_source": "src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java:29-37"
+  },
+  {
+    "id": "h02",
+    "category": "routes",
+    "question": "What is the base path for the ReservationResource, and what class does its @Path constant come from?",
+    "gold_facts": [
+      "/v1/reservations",
+      "ApiConstants.SQL_POOL_RESERVATION_PATH"
+    ],
+    "gold_source": "src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7, resources/ReservationResource.java:43"
+  },
+  {
+    "id": "h03",
+    "category": "imports",
+    "question": "Which two third-party/internal packages does this module import for authentication (ServicePrincipal) and for DTO mapping (the @Mapper annotation)?",
+    "gold_facts": [
+      "com.rms.auth.framework",
+      "org.mapstruct"
+    ],
+    "gold_source": "resources/ReservationResource.java:7 (ServicePrincipal), model/mappers/PoolConfigMapper.java:3-4 (org.mapstruct.Mapper)"
+  }
+]

@@ -1323,3 +1323,48 @@ QUERIES: Dict[str, Callable] = {
     "stats": q_stats,
     "coverage": q_coverage,
 }
+
+
+def dispatch(
+    store: Store,
+    kind: str,
+    term: Optional[str] = None,
+    *,
+    budget: Optional[int] = None,
+    claim_kind: Optional[str] = None,
+    module: Optional[str] = None,
+    subject: Optional[str] = None,
+    frm: Optional[str] = None,
+    to: Optional[str] = None,
+    max_hops: Optional[int] = None,
+) -> Dict:
+    """One dispatch table for `kind` -> the right `QUERIES[kind]` call, shared
+    by `cli.cmd_query` and `mcp_server` (7.1) so the MCP tool answers exactly
+    what the CLI would, rather than a second, driftable copy of this `if`
+    ladder."""
+    fn = QUERIES[kind]
+    unbudgeted = kind in UNBUDGETED
+    if unbudgeted and budget is not None:
+        raise ValueError(
+            "`query %s` is never budgeted: it is the check meant to run "
+            "before concluding that something is absent, and a budgeted "
+            "guardrail cannot detect a budgeted answer." % kind
+        )
+    b = None if unbudgeted else Budget(budget)
+
+    if kind in ("symbol", "file", "module", "search"):
+        if not term:
+            raise ValueError("`query %s` needs a term" % kind)
+        return fn(store, term, budget=b)
+    if kind == "trace":
+        if not term:
+            raise ValueError("`query trace` needs an entry point")
+        kwargs = {} if max_hops is None else {"max_hops": max_hops}
+        return fn(store, term, budget=b, **kwargs)
+    if kind in ("routes", "table", "config", "unknowns"):
+        return fn(store, term, budget=b)
+    if kind == "paths":
+        return fn(store, frm, to, budget=b)
+    if kind == "claims":
+        return fn(store, claim_kind or term, module, subject, budget=b)
+    return fn(store)

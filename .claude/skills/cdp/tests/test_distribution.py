@@ -13,13 +13,16 @@ supported way to change it.
 
 from __future__ import annotations
 
+import contextlib
 import filecmp
+import io
+import tempfile
 import unittest
 from pathlib import Path
 
 from helpers import SKILL_ROOT  # noqa: F401  (sets sys.path)
 
-from cdp.cli import DIST_MEMBERS, _DIST_IGNORE
+from cdp.cli import DIST_MEMBERS, _DIST_IGNORE, main
 
 VENDORED = SKILL_ROOT / ".claude" / "skills" / "cdp"
 
@@ -93,6 +96,40 @@ class VendoredCopyTest(unittest.TestCase):
             self.assertFalse(
                 (VENDORED / forbidden).exists(),
                 "%s was vendored into the skill copy" % forbidden,
+            )
+
+
+class AgentsMdInstallTest(unittest.TestCase):
+    """Tier-0 (RESEARCH_GRAPHIFY.md §7.9): a root AGENTS.md for hook-less
+    assistants — Cursor, Codex, Copilot, Aider — none of which read
+    `.claude/skills/cdp/`."""
+
+    def setUp(self) -> None:
+        self._quiet = contextlib.redirect_stdout(io.StringIO())
+        self._quiet.__enter__()
+        self.addCleanup(lambda: self._quiet.__exit__(None, None, None))
+
+    def test_install_writes_agents_md_at_the_target_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            main(["install", str(target)])
+            agents_md = target / "AGENTS.md"
+            self.assertTrue(agents_md.is_dir() is False and agents_md.exists())
+            text = agents_md.read_text(encoding="utf-8")
+            self.assertIn("scan --repo", text)
+            self.assertIn("query stats", text)
+            self.assertIn("query symbol X", text)
+
+    def test_install_never_overwrites_an_existing_agents_md(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            (target / "AGENTS.md").write_text("operator's own file\n", encoding="utf-8")
+            main(["install", str(target)])
+            self.assertEqual(
+                (target / "AGENTS.md").read_text(encoding="utf-8"),
+                "operator's own file\n",
             )
 
 

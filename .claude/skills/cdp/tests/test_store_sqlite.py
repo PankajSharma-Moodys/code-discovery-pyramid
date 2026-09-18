@@ -360,7 +360,8 @@ class TestRunsAndTasks(unittest.TestCase):
         self.assertIsNone(self.store.get_run("r1"))
         self.store.begin_run("r1", "hash-a")
         row = self.store.get_run("r1")
-        self.assertEqual(row, {"run_id": "r1", "partition_hash": "hash-a", "status": "running"})
+        self.assertEqual(row, {"run_id": "r1", "partition_hash": "hash-a", "status": "running",
+                               "lessons_version": None})
 
     def test_reclaim_expired_moves_only_dispatched_past_lease(self):
         self.store.begin_run("r1", "hash-a")

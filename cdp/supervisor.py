@@ -78,18 +78,18 @@ def _now() -> str:
 
 
 class _LeaseHeartbeat:
-    """Renews one scope's lease every `interval` seconds for as long as a
-    runner call is in flight. Runs in a background thread because the main
-    thread is blocked inside `runner.run()` -- there is no between-calls point
-    to renew from. If the process dies, this thread dies with it and the
-    lease simply expires; that is the entire death-detection mechanism, not a
-    special case of it."""
+    """Renews one task's lease every `interval` seconds for as long as a
+    runner call is in flight, via `heartbeat_fn` (a zero-arg callable the
+    caller closes over its own `backend.heartbeat_lease`/`heartbeat_link_lease`
+    call -- generalised, post-Phase-9 item 5, so `link.dispatch_link_task` can
+    reuse this class against `link_task`'s lease instead of duplicating it).
+    Runs in a background thread because the main thread is blocked inside
+    `runner.run()` -- there is no between-calls point to renew from. If the
+    process dies, this thread dies with it and the lease simply expires; that
+    is the entire death-detection mechanism, not a special case of it."""
 
-    def __init__(self, backend, run_id: str, scope_hash: str, lease_seconds: float, interval: float) -> None:
-        self._backend = backend
-        self._run_id = run_id
-        self._scope_hash = scope_hash
-        self._lease_seconds = lease_seconds
+    def __init__(self, heartbeat_fn, interval: float) -> None:
+        self._heartbeat_fn = heartbeat_fn
         self._interval = interval
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -100,7 +100,7 @@ class _LeaseHeartbeat:
 
     def _loop(self) -> None:
         while not self._stop.wait(self._interval):
-            self._backend.heartbeat_lease(self._run_id, self._scope_hash, self._lease_seconds)
+            self._heartbeat_fn()
 
     def stop(self) -> None:
         self._stop.set()
@@ -124,6 +124,7 @@ def dispatch_scope(
     lease_seconds: float = LEASE_SECONDS,
     heartbeat_seconds: float = HEARTBEAT_SECONDS,
     max_attempts: int = MAX_ATTEMPTS,
+    lesson_hints: Optional[Dict] = None,
 ) -> Optional[Dict]:
     """Run one scope through the retry loop to a terminal state.
 
@@ -137,7 +138,15 @@ def dispatch_scope(
     """
     node = scope["node"]
     scope_hash = scope.get("scope_hash") or node
-    text, _stats = build_prompt(scope, inventory, extraction, xref, sched, prior_claims, run_id)
+    hints = lesson_hints or {}
+    prompt_kwargs = {}
+    if hints.get("max_inherited") is not None:
+        prompt_kwargs["max_inherited"] = hints["max_inherited"]
+    text, prompt_stats = build_prompt(
+        scope, inventory, extraction, xref, sched, prior_claims, run_id,
+        extra_third_party=hints.get("third_party_patterns", frozenset()),
+        prompt_fixes=hints.get("prompt_fixes", ()), **prompt_kwargs
+    )
     prompt_path = prompts_dir / (node.replace("/", "__") + ".md")
     write_text(prompt_path, text)
     patch_path = backend._inbox_dir() / (node.replace("/", "__") + ".json")
@@ -155,7 +164,9 @@ def dispatch_scope(
             run_id, scope_hash, state=DISPATCHED, attempts=attempt,
             dispatched_at=_now(), last_error=None,
         )
-        heartbeat = _LeaseHeartbeat(backend, run_id, scope_hash, lease_seconds, heartbeat_seconds).start()
+        heartbeat = _LeaseHeartbeat(
+            lambda: backend.heartbeat_lease(run_id, scope_hash, lease_seconds), heartbeat_seconds
+        ).start()
         try:
             result = runner.run(prompt_path, patch_path)
         finally:
@@ -176,6 +187,7 @@ def dispatch_scope(
     return {
         "node": node, "scope_hash": scope_hash, "state": state,
         "attempts": attempt, "last_error": last_error, "patch": patch,
+        "prompt_stats": prompt_stats,
     }
 
 
@@ -184,6 +196,7 @@ def run_wave(
     validator: Validator, sched: Dict, mode: str = STRICT,
     lease_seconds: float = LEASE_SECONDS, heartbeat_seconds: float = HEARTBEAT_SECONDS,
     max_attempts: int = MAX_ATTEMPTS, skip_hashes=frozenset(),
+    lesson_hints: Optional[Dict] = None,
 ) -> List[Dict]:
     """Dispatch every scope named in `nodes`, sequentially within this
     process -- M5.4's atomic lease acquisition is what makes it safe for a
@@ -216,7 +229,7 @@ def run_wave(
         row = dispatch_scope(
             scope, store.inventory, store.extraction, store.xref, sched, prior,
             run_id, runner, backend, prompts_dir, validator, paths.repo, mode,
-            lease_seconds, heartbeat_seconds, max_attempts,
+            lease_seconds, heartbeat_seconds, max_attempts, lesson_hints,
         )
         if row is not None:
             results.append(row)

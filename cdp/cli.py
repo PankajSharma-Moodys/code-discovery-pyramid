@@ -35,10 +35,12 @@ from . import dataflow as dataflow_mod
 from . import diffs as diffs_mod
 from . import doctor as doctor_mod
 from . import docs as docs_mod
+from . import entail as entail_mod
 from . import export as export_mod
 from . import freshness as freshness_mod
 from . import gates as gates_mod
 from . import githooks as githooks_mod
+from . import hook as hook_mod
 from . import golden as golden_mod
 from . import graph as graph_mod
 from . import helpdoc
@@ -46,6 +48,7 @@ from . import inventory as inventory_mod
 from . import link as link_mod
 from . import partition as partition_mod
 from . import query as query_mod
+from . import reflect as reflect_mod
 from . import refresh as refresh_mod
 from . import resolve as resolve_mod
 from . import rollback as rollback_mod
@@ -55,6 +58,7 @@ from . import snapshot as snapshot_mod
 from . import state as state_mod
 from . import supervisor as supervisor_mod
 from . import tiering as tiering_mod
+from . import trajectory as trajectory_mod
 from .store import ARTIFACTS, REPORTS, FileStore, SqliteStore, WorkspaceStore, has_scanned
 from .store import registry as registry_mod
 from .derive import derive_claims
@@ -179,6 +183,12 @@ def _parser() -> argparse.ArgumentParser:
                      help="M6.3 (4.2): digest-first mode -- the leaf's input is full file "
                           "text inlined in the prompt, not a Read/Grep tool. Behind a flag "
                           "until doctor/benchmark evidence promotes it to default.")
+    pr_lessons = pr.add_mutually_exclusive_group()
+    pr_lessons.add_argument("--lessons", type=int, default=None, metavar="N",
+                             help="pin lesson-set cut vN (M9.3, 6.7/6.8); default: the "
+                                  "latest *promoted* cut, or none if none is promoted yet")
+    pr_lessons.add_argument("--no-lessons", action="store_true",
+                             help="never use a lesson-set, even if one is promoted")
     pr.set_defaults(func=cmd_prompts)
 
     c = add("collect", "validate, verify and append leaf patches from the inbox")
@@ -217,6 +227,12 @@ def _parser() -> argparse.ArgumentParser:
     rn.add_argument("--max-attempts", type=int, default=supervisor_mod.MAX_ATTEMPTS,
                      help="retries per scope before it is abandoned (default %d)"
                           % supervisor_mod.MAX_ATTEMPTS)
+    rn_lessons = rn.add_mutually_exclusive_group()
+    rn_lessons.add_argument("--lessons", type=int, default=None, metavar="N",
+                             help="pin lesson-set cut vN (M9.3, 6.7); default: the latest "
+                                  "cut if one exists, otherwise none")
+    rn_lessons.add_argument("--no-lessons", action="store_true",
+                             help="never use a lesson-set, even if a cut exists")
     rn.set_defaults(func=cmd_run)
 
     dr = add("doctor", "model conformance harness (M6.1, 4.10) -- schema "
@@ -231,6 +247,30 @@ def _parser() -> argparse.ArgumentParser:
     dr.add_argument("--timeout", type=float, default=300.0)
     dr.add_argument("--node", default=None, help="only this scope")
     dr.set_defaults(func=cmd_doctor)
+
+    rf = add("reflect", "M9.3 (6.6): one real model call per outlier scope from a "
+                         "run's own trajectory corpus, cashed out as a deterministic "
+                         "promotion or discarded")
+    rf.add_argument("--run-id", default=None, help="default: this store's own manifest run_id")
+    rf.add_argument("--runner-cmd", required=True, metavar="CMD",
+                     help="shell command for SubprocessRunner, given prompt and output "
+                          "paths as its last two arguments")
+    rf.add_argument("--limit", type=int, default=reflect_mod.DEFAULT_LIMIT,
+                     help="max outlier scopes to reflect on (default %d)" % reflect_mod.DEFAULT_LIMIT)
+    rf.add_argument("--timeout", type=float, default=300.0)
+    rf.set_defaults(func=cmd_reflect)
+
+    ls = add("lessons", "M9.3 (6.7): cut and inspect numbered, pinned lesson-sets")
+    ls.add_argument("lessons_action", choices=["cut", "show", "unpromote"])
+    ls.add_argument("--version", type=int, default=None,
+                     help="show: which cut (default: latest); unpromote: required")
+    ls.add_argument("--reason", default=None, help="unpromote: audit note, why this cut is being reverted")
+    ls.set_defaults(func=cmd_lessons)
+
+    ho = add("holdout", "M9.3 (6.8): A/B a lesson-set cut against a repo outside its own "
+                         "learning corpus; promotes it to `latest` only if it passes")
+    ho.add_argument("--lessons", type=int, required=True, metavar="N", help="the cut to A/B")
+    ho.set_defaults(func=cmd_holdout)
 
     st = add("status", "waves, node statuses and coverage")
     st.set_defaults(func=cmd_status)
@@ -295,6 +335,25 @@ def _parser() -> argparse.ArgumentParser:
     lkc.add_argument("--in", dest="in_dir", required=True,
                       help="the directory a prior `link prompts --out` wrote")
     lkc.set_defaults(func=cmd_link_collect)
+
+    lkr2 = lk_sub.add_parser("run", help="dispatch every ambiguous link task through the "
+                                          "same lease/retry machinery `cdp run` uses for "
+                                          "scopes, and record it to the trajectory store "
+                                          "as dim_task_kind=link (post-Phase-9 item 5)")
+    lkr2.add_argument("--db", default=None,
+                       help="read from / write back into this SqliteStore's link.* "
+                            "namespace instead of the one this invocation resolves to")
+    lkr2.add_argument("--run-id", default=None, help="defaults to \"cdp-link\"")
+    lkr2.add_argument("--out", default=None,
+                       help="directory to write task prompts into (defaults to "
+                            "<state>/link-tasks)")
+    lkr2.add_argument("--runner-cmd", default=None, metavar="CMD",
+                       help="run each task's prompt through this command via "
+                            "runner.SubprocessRunner; without it, waits for a human/"
+                            "external process to drop the patch file (FileRunner)")
+    lkr2.add_argument("--timeout", type=float, default=300.0)
+    lkr2.add_argument("--max-attempts", type=int, default=supervisor_mod.MAX_ATTEMPTS)
+    lkr2.set_defaults(func=cmd_link_run)
 
     lkr = lk_sub.add_parser("refresh", help="re-verify a prior `link scan --db`'s contracts "
                                              "against freshly scanned state directories (M8.4, 5.3)")
@@ -387,6 +446,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="refresh this repository's own vendored .claude/skills/cdp copy")
     i.add_argument("--hook", action="store_true",
                    help="also install the PreToolUse nudge (requires in-repo state)")
+    i.add_argument("--strict", action="store_true",
+                   help="with --hook, block the first source read of a session "
+                        "instead of nudging, when the index is fresh and its "
+                        "coverage fraction is at least %.2f" % hook_mod.STRICT_MIN_COVERAGE)
     i.set_defaults(func=cmd_install)
 
     stest = add("selftest", "run the bundled tests")
@@ -797,36 +860,16 @@ def cmd_query(args) -> int:
     store = query_mod.Store(_open_store(_paths(args)))
     if getattr(args, "as_of", None):
         _apply_as_of(store, args.as_of)
-    fn = query_mod.QUERIES[args.kind]
-    # One `Budget` per response, shared by every list in it. `stats` and
-    # `coverage` are constructed without one and take no `budget` argument, so
-    # the exemption is enforced by their signatures rather than by a convention.
-    unbudgeted = args.kind in query_mod.UNBUDGETED
-    if unbudgeted and args.budget is not None:
-        raise CdpError(
-            "`query %s` is never budgeted: it is the check `SKILL.md` tells you to "
-            "run before concluding that something is absent, and a budgeted "
-            "guardrail cannot detect a budgeted answer." % args.kind
+    # Dispatch itself lives in `query.dispatch` -- shared with `mcp_server`'s
+    # `cdp_query` tool (Phase 9, 7.1) so both answer from one `if` ladder.
+    try:
+        result = query_mod.dispatch(
+            store, args.kind, args.term, budget=args.budget,
+            claim_kind=args.claim_kind, module=args.module, subject=args.subject,
+            frm=args.frm, to=args.to, max_hops=args.max_hops,
         )
-    budget = None if unbudgeted else query_mod.Budget(args.budget)
-
-    if args.kind in ("symbol", "file", "module", "search"):
-        if not args.term:
-            raise CdpError("`query %s` needs a term" % args.kind)
-        result = fn(store, args.term, budget=budget)
-    elif args.kind == "trace":
-        if not args.term:
-            raise CdpError("`query trace` needs an entry point")
-        result = fn(store, args.term, max_hops=args.max_hops, budget=budget)
-    elif args.kind in ("routes", "table", "config", "unknowns"):
-        result = fn(store, args.term, budget=budget)
-    elif args.kind == "paths":
-        result = fn(store, args.frm, args.to, budget=budget)
-    elif args.kind == "claims":
-        result = fn(store, args.claim_kind or args.term, args.module, args.subject,
-                    budget=budget)
-    else:
-        result = fn(store)
+    except ValueError as exc:
+        raise CdpError(str(exc))
 
     if args.json:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
@@ -885,6 +928,23 @@ def cmd_prompts(args) -> int:
     # of `extraction`, so per-scope re-building would be quadratic in scope count.
     symbol_index = tiering_mod.build_symbol_index_for_tiering(store.extraction)
 
+    # M9.3 (6.8): the same lesson resolution `cmd_run` uses, so `cdp prompts
+    # --lessons vN` reproduces exactly what a real run would have applied --
+    # this is `cdp holdout`'s own A/B lever, no live model call required.
+    with trajectory_mod.TrajectoryStore() as trajectory:
+        if args.no_lessons:
+            lessons_version = None
+        elif args.lessons is not None:
+            lessons_version = args.lessons
+        else:
+            lessons_version = trajectory.latest_lesson_version()
+        lesson_hints: Dict = {}
+        if lessons_version is not None:
+            lesson_hints = reflect_mod.apply_lessons(trajectory.load_lessons(lessons_version))
+    prompt_kwargs: Dict = {}
+    if lesson_hints.get("max_inherited") is not None:
+        prompt_kwargs["max_inherited"] = lesson_hints["max_inherited"]
+
     written: List[Dict] = []
     for scope in store.partition["scopes"]:
         node = scope["node"]
@@ -895,6 +955,9 @@ def cmd_prompts(args) -> int:
         text, stats = build_prompt(
             scope, store.inventory, store.extraction, store.xref, sched, prior, run_id,
             digest_mode=args.digest, repo_root=paths.repo, symbol_index=symbol_index,
+            extra_third_party=lesson_hints.get("third_party_patterns", frozenset()),
+            prompt_fixes=lesson_hints.get("prompt_fixes", ()),
+            **prompt_kwargs
         )
         path = out_dir / (node.replace("/", "__") + ".md")
         write_text(path, text)
@@ -1292,7 +1355,9 @@ def _stale_nodes(store: "query_mod.Store", repo: Path) -> List[str]:
     return sorted(nodes)
 
 
-def _apply_wave_results(backend, store, results: List[Dict], run_id: str, mode: str, paths: "Paths") -> Dict:
+def _apply_wave_results(backend, store, results: List[Dict], run_id: str, mode: str, paths: "Paths",
+                         trajectory: Optional["trajectory_mod.TrajectoryStore"] = None,
+                         repo_id: Optional[str] = None, model: Optional[str] = None) -> Dict:
     """The terminal outcome of one wave: append a `complete` patch for every
     scope that validated, a `status: failed` patch (no claims) for every one
     abandoned -- `state.fold`'s existing superseded-node handling turns the
@@ -1302,9 +1367,13 @@ def _apply_wave_results(backend, store, results: List[Dict], run_id: str, mode: 
     def_fqns, edge_subjects, edges_by_key = gates_mod.build_extraction_index(store.extraction)
     scope_nodes = {s["node"] for s in store.partition["scopes"]}
     node_to_hash = {s["node"]: s.get("scope_hash") for s in store.partition["scopes"]}
+    node_to_scope = {s["node"]: s for s in store.partition["scopes"]}
     task_rows = backend.task_states(run_id)
+    tiering_report = backend.read_report("tiering", {}).get("tiering", {})
     for row in results:
         node = row["node"]
+        claims_emitted = unknowns_emitted = None
+        entailed = consistent = contradicted = elision_regret = None
         if row["state"] == supervisor_mod.VALIDATED and row["patch"] is not None:
             patch = dict(row["patch"])
             patch["node"] = node
@@ -1321,11 +1390,41 @@ def _apply_wave_results(backend, store, results: List[Dict], run_id: str, mode: 
             patch["unknowns"] = kept
             backend.append_patch(patch, node)
             backend.clear_inbox(node)
+            claims_emitted = len(patch.get("claims") or [])
+            unknowns_emitted = len(kept)
+            # M9.2 (6.3): output scorecard -- entailment split on this leaf's
+            # own emitted claims, against the same extraction the leaf saw.
+            verdicts = [c.get("verdict") for c in entail_mod.entail_claims(patch.get("claims") or [], store.extraction)]
+            entailed = verdicts.count(entail_mod.ENTAILED)
+            consistent = verdicts.count(entail_mod.CONSISTENT)
+            contradicted = verdicts.count(entail_mod.CONTRADICTED)
+            # M9.2 (6.4): elision regret -- did this leaf emit an unknown
+            # about a subject the digest budget had already elided as a
+            # prior claim? That is the concrete "was the answer in a row the
+            # budget elided" question `prompts.py`'s ranking function needs
+            # graded against.
+            elided_subjects = (row.get("prompt_stats") or {}).get("elided_subjects") or []
+            unknown_subjects = [str(u.get("subject", "")) for u in kept]
+            elision_regret = trajectory_mod.elision_regret(elided_subjects, unknown_subjects)
         elif row["state"] == supervisor_mod.ABANDONED:
             backend.append_patch(
                 {"schema_version": "1.0.0", "node": node, "run_id": run_id, "status": "failed",
                  "error": row["last_error"] or "abandoned after %d attempts" % row["attempts"]},
                 node + "-abandoned",
+            )
+        if trajectory is not None and repo_id is not None:
+            scope = node_to_scope.get(node, {})
+            prompt_stats = row.get("prompt_stats") or {}
+            trajectory.record_leaf_run(
+                run_id=run_id, node=node, scope_hash=node_to_hash.get(node), repo_id=repo_id,
+                model=model, scope_shape_key=trajectory_mod.scope_shape_key(scope),
+                template_version=None, tier=tiering_report.get(node, {}).get("tier"),
+                task_kind="scope", state=row["state"], attempts=row.get("attempts"),
+                claims_emitted=claims_emitted, unknowns_emitted=unknowns_emitted,
+                rows_elided=prompt_stats.get("elided_claims"), tokens_est=prompt_stats.get("tokens_est"),
+                digest_mode=prompt_stats.get("digest_mode"), entailed=entailed,
+                consistent=consistent, contradicted=contradicted, elision_regret=elision_regret,
+                sigma_claims=prompt_stats.get("sigma_claims"),
             )
     folded = _fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=mode)
     supervisor_mod.mark_folded(backend, run_id, results)
@@ -1414,11 +1513,31 @@ def cmd_run(args) -> int:
               "inherited %d unchanged scope(s), %d re-queued"
               % (old_run_id, run_id, len(unchanged), len(new_hashes) - len(unchanged)))
 
+    repo_id = registry_mod.repo_identity(paths.repo)
+    model = (args.runner_cmd.split()[0] if args.runner_cmd else "human")
+    trajectory = trajectory_mod.TrajectoryStore()
+    trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="started")
+
+    if args.no_lessons:
+        lessons_version = None
+    elif args.lessons is not None:
+        lessons_version = args.lessons
+    else:
+        lessons_version = trajectory.latest_lesson_version()  # None until the first cut (6.7)
+    backend.set_run_lessons_version(run_id, lessons_version)
+    lesson_hints: Dict = {}
+    if lessons_version is not None:
+        lesson_hints = reflect_mod.apply_lessons(trajectory.load_lessons(lessons_version))
+        print("lessons   pinned v%d" % lessons_version)
+
     if args.stale_only:
         stale = _stale_nodes(store, paths.repo)
         if not stale:
             print("stale-only  zero scopes need review")
             backend.finish_run(run_id, "complete")
+            trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="finished", reason="complete")
+            _maybe_print_lessons_hint(trajectory)
+            trajectory.close()
             backend.close()
             return 0
         wave_groups = [("stale", stale)]
@@ -1437,9 +1556,10 @@ def cmd_run(args) -> int:
     for label, nodes in wave_groups:
         results = supervisor_mod.run_wave(
             nodes, store, backend, runner, paths, run_id, validator, sched, args.mode,
-            max_attempts=args.max_attempts, skip_hashes=skip_hashes,
+            max_attempts=args.max_attempts, skip_hashes=skip_hashes, lesson_hints=lesson_hints,
         )
-        _apply_wave_results(backend, store, results, run_id, args.mode, paths)
+        _apply_wave_results(backend, store, results, run_id, args.mode, paths,
+                             trajectory=trajectory, repo_id=repo_id, model=model)
         counts: Dict[str, int] = {}
         for row in results:
             counts[row["state"]] = counts.get(row["state"], 0) + 1
@@ -1452,8 +1572,162 @@ def cmd_run(args) -> int:
         store = query_mod.Store(backend)  # re-read state.json: next wave inherits this wave's claims
 
     backend.finish_run(run_id, "complete")
+    trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="finished", reason="complete")
+    _maybe_print_lessons_hint(trajectory)
+    trajectory.close()
     backend.close()
     return 0
+
+
+def _maybe_print_lessons_hint(trajectory: "trajectory_mod.TrajectoryStore") -> None:
+    """Every `LESSONS_HINT_EVERY` finished runs (global, cross-repo cadence,
+    per the user's own decision -- cutting itself stays manual), nudge that
+    pending promotions exist and name the exact command to freeze them.
+    Silent otherwise: off-cadence, or nothing pending."""
+    count = trajectory.finished_run_count()
+    if count % trajectory_mod.LESSONS_HINT_EVERY != 0:
+        return
+    pending = trajectory.pending_promotion_count()
+    if pending == 0:
+        return
+    print("lessons   %d promotion(s) pending after %d runs -- `cdp lessons cut` to freeze them"
+          % (pending, count))
+
+
+def cmd_reflect(args) -> int:
+    """M9.3 (6.6): select this run's own outlier scopes from the trajectory
+    corpus (deterministic, M9.2's own columns), spend one real model call per
+    outlier, and keep only what comes back as a well-formed, deterministic
+    promotion (`reflect.validate_promotion`) -- everything else is discarded
+    and named, never stored as a vague lesson (R10)."""
+    paths = _paths(args)
+    backend = _open_store(paths)
+    store = query_mod.Store(backend)
+    run_id = args.run_id or str(store.manifest.get("run_id", "cdp"))
+    with trajectory_mod.TrajectoryStore() as trajectory:
+        leaf_rows = trajectory.leaf_runs_for(run_id)
+    outliers = reflect_mod.select_outliers(leaf_rows, limit=args.limit)
+    if not outliers:
+        print("reflect   0 outlier scope(s) in run %s -- nothing to reflect on" % run_id)
+        backend.write_report("reflections", {"accepted": [], "discarded": []})
+        backend.close()
+        return 0
+    runner = runner_mod.SubprocessRunner(shlex.split(args.runner_cmd), timeout_s=args.timeout)
+    prompts_dir = paths.state / "reflections"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    accepted, discarded = reflect_mod.reflect(outliers, runner, prompts_dir)
+    for d in discarded:
+        print("reflect   DISCARDED (%s): %s" % (d["node"], d["reason"]))
+    for a in accepted:
+        print("reflect   PROMOTED  (%s): %s" % (a["node"], a["promotion"]["promotion"]))
+    print("reflect   %d accepted, %d discarded" % (len(accepted), len(discarded)))
+    backend.write_report("reflections", {"accepted": accepted, "discarded": discarded})
+    backend.close()
+    if accepted:
+        with trajectory_mod.TrajectoryStore() as trajectory:
+            for a in accepted:
+                trajectory.record_promotion(run_id=run_id, node=a["node"], promotion=a["promotion"])
+    return 0
+
+
+def cmd_lessons(args) -> int:
+    """M9.3 (6.7): cut and inspect lesson-sets. A cut is a numbered,
+    immutable snapshot of every promotion `cdp reflect` has accepted since the
+    last cut -- `cdp run --lessons vN` pins one; the default (no flag) is
+    always the *latest* cut, never the live, still-growing corpus (6.7:
+    "default is latest cut, never live corpus -- a live corpus makes every
+    run unreproducible")."""
+    with trajectory_mod.TrajectoryStore() as trajectory:
+        if args.lessons_action == "cut":
+            version = trajectory.cut_lessons()
+            if version is None:
+                print("lessons   nothing pending to cut")
+            else:
+                n = len(trajectory.load_lessons(version))
+                print("lessons   cut v%d (%d promotion(s))" % (version, n))
+        elif args.lessons_action == "unpromote":
+            if args.version is None:
+                raise CdpError("`cdp lessons unpromote` needs --version")
+            if not trajectory.unpromote_cut(args.version, reason=args.reason):
+                raise CdpError("v%d is not currently promoted -- nothing to unpromote" % args.version)
+            fallback = trajectory.latest_lesson_version()
+            print("lessons   v%d unpromoted -- default `cdp run` resolution now falls back to %s"
+                  % (args.version, ("v%d" % fallback) if fallback is not None else "no lesson-set"))
+        else:  # show
+            version = args.version if args.version is not None else trajectory.latest_lesson_version()
+            if version is None:
+                print("lessons   no cut exists yet")
+                return 0
+            lessons = trajectory.load_lessons(version)
+            print("lessons   v%d (%d promotion(s))" % (version, len(lessons)))
+            for row in lessons:
+                print("  %-30s %-20s %s" % (row["node"], row["kind"], row["payload"]))
+    return 0
+
+
+def cmd_holdout(args) -> int:
+    """M9.3 (6.8): "A/B on a pinned snapshot, `--lessons none` vs `--lessons
+    vN`. Learn on repos A-E, benchmark on F, or you are measuring
+    memorisation." The A here is the deterministic tiering rule (M6.4) with
+    and without the cut's `import_channel_hint` patterns applied -- no live
+    model call, since T3 escalation is exactly the routing signal a lesson
+    can move (`graph._looks_third_party`), and it is reproducible by
+    construction. The split-is-real check (this milestone's own stress test)
+    runs first and refuses outright if it fails."""
+    paths = _paths(args)
+    backend = _open_store(paths)
+    store = query_mod.Store(backend)
+    repo_id = registry_mod.repo_identity(paths.repo)
+
+    with trajectory_mod.TrajectoryStore() as trajectory:
+        learned = trajectory.learned_repos_for_cut(args.lessons)
+        if repo_id in learned:
+            store.close()
+            raise CdpError(
+                "holdout repo %r is in v%d's own learning corpus %s -- this would "
+                "measure memorisation, not a real holdout (6.8)" % (repo_id, args.lessons, sorted(learned))
+            )
+        lessons = trajectory.load_lessons(args.lessons)
+        if not lessons:
+            store.close()
+            raise CdpError("lesson-set v%d has no rows to A/B" % args.lessons)
+        hints = reflect_mod.apply_lessons(lessons)
+
+    symbol_owner, namespace_owner = tiering_mod.build_symbol_index_for_tiering(store.extraction)
+    module_set = {m["name"] for m in store.inventory["modules"]}
+    scopes = store.partition["scopes"]
+
+    def t3_rate(extra_third_party) -> float:
+        if not scopes:
+            return 0.0
+        t3 = sum(
+            1 for s in scopes
+            if tiering_mod.compute_tier(
+                s, store.extraction, module_set, symbol_owner, namespace_owner, extra_third_party
+            )["tier"] == tiering_mod.T3
+        )
+        return t3 / len(scopes)
+
+    before = t3_rate(frozenset())
+    after = t3_rate(hints["third_party_patterns"])
+    metric = {"t3_rate_none": before, "t3_rate_lessons": after, "scopes": len(scopes)}
+
+    # Promotion bar (6.8's own open decision, settled here): a lesson-set
+    # must not *increase* T3 escalation on a repo it never learned from --
+    # an increase means its import_channel_hint patterns overfit the
+    # learning corpus rather than naming a real third-party root.
+    passed = after <= before
+    print("holdout   v%d on %s: T3 rate %.3f (none) -> %.3f (lessons) -- %s"
+          % (args.lessons, repo_id, before, after, "PROMOTE" if passed else "REJECT"))
+    backend.write_report("holdout", metric)
+    store.close()
+    if passed:
+        with trajectory_mod.TrajectoryStore() as trajectory:
+            trajectory.promote_cut(args.lessons, repo_id, metric)
+        print("holdout   v%d promoted to latest" % args.lessons)
+    else:
+        print("holdout   v%d NOT promoted -- regression on a repo outside its learning corpus" % args.lessons)
+    return 0 if passed else 1
 
 
 # ----------------------------------------------------------------- doctor
@@ -1741,6 +2015,59 @@ def cmd_link_collect(args) -> int:
     return 0
 
 
+def cmd_link_run(args) -> int:
+    """Post-Phase-9 item 5: `link prompts`/`link collect` are a manual,
+    file-handoff pair (M8.3) with no leases, no `link_task` rows, and no
+    trajectory row -- link work was invisible to `dim_task_kind=link`'s
+    routing prior/elision regret even though both already support it by
+    construction. This dispatches every ambiguous task through
+    `link.dispatch_link_task` (the same lease/retry state machine `cdp run`
+    uses for scopes, against `link_task` rather than `snapshot_task` -- R3's
+    non-entanglement holds), folds validated resolutions immediately, and
+    records one `fact_leaf_run` row per task with `task_kind="link"`.
+    """
+    paths = _paths(args)
+    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
+    try:
+        if not store.supports_link_edges():
+            raise CdpError(
+                "%s cannot back `cdp link run` -- needs the sqlite backend "
+                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(store).__name__
+            )
+        report = _read_link_report(store)
+        tasks = link_mod.build_tasks(report)
+        run_id = args.run_id or "cdp-link"
+        prompts_dir = Path(args.out).expanduser().resolve() if args.out else (paths.state / "link-tasks")
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+        runner = _build_runner(args)
+        model = args.runner_cmd.split()[0] if args.runner_cmd else "human"
+        folded = 0
+        counts: Dict[str, int] = {}
+        with trajectory_mod.TrajectoryStore() as trajectory:
+            for task in tasks:
+                row = link_mod.dispatch_link_task(
+                    task, run_id, runner, store, prompts_dir, max_attempts=args.max_attempts,
+                )
+                if row is None:
+                    continue
+                counts[row["state"]] = counts.get(row["state"], 0) + 1
+                if row["state"] == supervisor_mod.VALIDATED:
+                    folded += link_mod.fold_resolutions(report, task, row["patch"], run_id)
+                repo_id = task["candidates"][0]["caller"]["repo"]
+                trajectory.record_leaf_run(
+                    run_id=run_id, node=task["task_id"], scope_hash=task["task_id"], repo_id=repo_id,
+                    model=model, scope_shape_key=link_mod.link_task_shape_key(task),
+                    template_version=None, tier=None, task_kind="link",
+                    state=row["state"], attempts=row["attempts"],
+                )
+        store.write_link_edges(report)
+    finally:
+        store.close()
+    print("link run  %d task(s)  %s  %d resolution(s) folded"
+          % (len(tasks), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "nothing to dispatch", folded))
+    return 0
+
+
 def cmd_link_refresh(args) -> int:
     """M8.4 (5.3): re-verify a prior `link scan --db`'s contracts against
     freshly scanned state directories for the repo(s) named here, mirroring
@@ -1968,6 +2295,12 @@ def cmd_rollback(args) -> int:
     reason = args.reason or ("rollback --%s %s" % (kind.replace("_", "-"), target))
     rollback_mod.record_rollback(backend, kind, target, new_excluded, reason)
 
+    repo_id = registry_mod.repo_identity(paths.repo)
+    with trajectory_mod.TrajectoryStore() as trajectory:
+        for excluded_run_id in sorted(new_excluded):
+            trajectory.record_run_event(run_id=excluded_run_id, repo_id=repo_id,
+                                         event="rolled_back", reason=reason)
+
     print("rollback  %s %s: excluded %d run(s) (%s)"
           % (("--to-run" if kind == "to_run" else "--to-snapshot"), target,
              len(new_excluded), ", ".join(sorted(new_excluded))))
@@ -2117,6 +2450,11 @@ def cmd_validate(args) -> int:
 # repository, and would grow silently every time a file is added at the root.
 # Naming the members means a new top-level file is *not* shipped until someone
 # decides it should be.
+#
+# `mcp_server/`, `litellm_adapter/`, `agent_adapter/` (Phase 9, 7.1/7.2/7.4)
+# are deliberately absent -- they are consumed via `pip install cdp[mcp]` /
+# an MCP client config / a LangGraph or ADK agent importing `agent_adapter`,
+# never by copying into a target repo's `.claude/skills/`. Not an oversight.
 DIST_MEMBERS = ("cdp", "tests", "schema", "agents", "run.py", "SKILL.md")
 
 # `golden` is excluded deliberately: baselines are development artifacts of
@@ -2189,8 +2527,20 @@ def cmd_install(args) -> int:
     if source_agent.exists():
         shutil.copy2(source_agent, agents / "cdp-leaf.md")
     print("installed %s" % dest)
+
+    # Tier-0 (7.9): a root-level AGENTS.md works for any assistant, hook-less
+    # or not — Cursor, Codex, Copilot, Aider all read it. Placed at the
+    # target's root, not inside dest, since that is where those tools look.
+    # Never overwritten: a repo's own AGENTS.md is the operator's file.
+    agents_md = target / "AGENTS.md"
+    source_agents_md = SKILL_ROOT / "AGENTS.md"
+    if agents_md.exists():
+        print("kept      %s (already present, not overwritten)" % agents_md)
+    elif source_agents_md.exists():
+        shutil.copy2(source_agents_md, agents_md)
+        print("wrote     %s" % agents_md)
     if getattr(args, "hook", False):
-        for line in install_hook(target, dest):
+        for line in install_hook(target, dest, strict=getattr(args, "strict", False)):
             print(line)
     print("try       python3 %s scan --repo %s"
           % (dest / "run.py", target))
@@ -2202,7 +2552,7 @@ def cmd_install(args) -> int:
 HOOK_MATCHER = "Read|Grep|Glob"
 
 
-def install_hook(target: Path, dest: Path) -> List[str]:
+def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     """Register the PreToolUse nudge in `<target>/.claude/settings.json`.
 
     Before M2.6 (`PHASE/phase_2_plan.md` 2.3) this stated a hard constraint:
@@ -2243,16 +2593,21 @@ def install_hook(target: Path, dest: Path) -> List[str]:
         raise CdpError("%s does not contain a JSON object" % settings_path)
 
     command = "python3 %s" % (dest / "cdp" / "hook.py")
-    entry = {"type": "command", "command": command, "args": []}
+    entry = {"type": "command", "command": command, "args": ["--strict"] if strict else []}
     hooks = settings.setdefault("hooks", {})
     groups = hooks.setdefault("PreToolUse", [])
     for group in groups:
         if isinstance(group, dict) and group.get("matcher") == HOOK_MATCHER:
             handlers = group.setdefault("hooks", [])
-            # Idempotent: re-running `install --hook` must not stack duplicates.
-            if not any(h.get("command") == command for h in handlers
-                       if isinstance(h, dict)):
+            # Idempotent: re-running `install --hook` must not stack duplicates,
+            # and re-running with a different `--strict` choice updates the
+            # existing entry's args in place rather than leaving the old choice.
+            existing = next((h for h in handlers
+                              if isinstance(h, dict) and h.get("command") == command), None)
+            if existing is None:
                 handlers.append(entry)
+            else:
+                existing["args"] = entry["args"]
             break
     else:
         groups.append({"matcher": HOOK_MATCHER, "hooks": [entry]})
@@ -2260,9 +2615,16 @@ def install_hook(target: Path, dest: Path) -> List[str]:
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     write_json(settings_path, settings)
     notes.insert(0, "hook      PreToolUse on %s -> %s" % (HOOK_MATCHER, settings_path))
-    notes.insert(1, "          it fires only on files whose inventory role is 'source', "
-                    "at most once\n          per session, and no-ops silently when "
-                    "inventory.head != git HEAD.")
+    if strict:
+        notes.insert(1, "          strict mode: blocks the first source read of a session "
+                        "when the index is fresh\n          and covers at least %d%% of the "
+                        "repo; degrades to the nudge otherwise, and never\n          blocks "
+                        "(or nudges) twice in one session."
+                        % int(hook_mod.STRICT_MIN_COVERAGE * 100))
+    else:
+        notes.insert(1, "          it fires only on files whose inventory role is 'source', "
+                        "at most once\n          per session, and no-ops silently when "
+                        "inventory.head != git HEAD.")
     notes.append("          python3 %s --explain   to see what it injects and why"
                  % (dest / "cdp" / "hook.py"))
     return notes

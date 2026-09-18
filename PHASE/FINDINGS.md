@@ -3379,3 +3379,1771 @@ plan's own "In CI, every phase after this one" clause.
 all green, byte-identical, no re-bless needed** — `link refresh` is additive
 and untouched by the existing `scan`/`fold`/`golden` pipeline, since no
 existing command calls the new code path.
+
+---
+
+## Phase 9 (M9.1 only) — trajectory store and star schema
+
+**Scoped down from the full phase.** `phase_9_plan.md`'s four milestones
+(trajectory store; corpus/regret/routing; reflection/lesson-sets/holdout;
+distribution — MCP/LiteLLM/adapters/`SKILL.md`/strict-mode/`AGENTS.md`) are
+each independently larger than a typical prior single-session milestone.
+User chose M9.1 only after being asked explicitly (this session's first
+action, per `PHASE/EXECUTION_RULES.md`'s budget instruction: say so and ask
+before spending the budget silently on a scope this large). M9.2-M9.4 are
+unstarted.
+
+**What shipped.** `cdp/trajectory.py` (new module): a `TrajectoryStore`
+wrapping a *separate* SQLite file at `~/.cdp/trajectories.db` (override:
+`CDP_TRAJECTORY_DB`, the same env-override pattern this codebase already uses
+for `HOME`-redirection in tests — never the real home directory during
+tests). Star schema: `dim_model`/`dim_scope_shape`/`dim_template`/`dim_repo`/
+`dim_tier`/`dim_task_kind` dimensions, `fact_leaf_run` (grain: one run x scope
+dispatch) and `fact_run_event` (grain: one run-level event) facts, exactly as
+0.17/0.18 specify. Wired into `cli.py`: `cmd_run` writes a `started` event
+before dispatch and a `finished` event after (including the `--stale-only`
+early-return path), and `_apply_wave_results` writes one `fact_leaf_run` row
+per scope per wave (`VALIDATED`/`ABANDONED` state, attempts, tier, scope
+shape, claims/unknowns emitted). `cmd_rollback` writes `rolled_back` events
+for every newly-excluded run, one per run_id — the plan's own worked example
+("Phase 3's `rollback` writes `fact_run_event(rolled_back, reason)` here").
+
+**Decisions made, not left implicit (R-E13 — surfaced here since none of
+these needed a mid-session pause, all resolved by reading what already
+exists rather than by unstated judgment calls):**
+
+- **`dim_model`** is populated from the real `--runner-cmd` string's first
+  token (or `"human"` with no `--runner-cmd`), not a model name — D1 already
+  established that no model-identity tracking exists anywhere in this
+  codebase yet (`snapshot_run.model` is a nullable column nothing writes).
+  This is real, un-fabricated data (the actual command CDP invoked), labeled
+  honestly rather than invented; a real model-name column can replace it the
+  moment something upstream knows the model, without a schema change.
+- **`dim_template`** is always `"unversioned"` for the same reason (D1: no
+  template versioning exists in `prompts.py` yet). Recorded as unset rather
+  than guessed.
+- **`dim_tier`** is read from `backend.read_report("tiering", {})` (M6.4's
+  existing per-node tier record) when present, `"unset"` otherwise — never
+  fabricated for scopes M6.4's tiering pass didn't touch.
+- **`task_kind`** is always `"scope"` this session; `cdp run` has no `link`
+  dispatch path (Phase 8's `link prompts`/`link collect` are a separate,
+  non-`cdp-run` CLI surface) — `dim_task_kind` is schema-ready for `"link"`
+  the day that changes, and raises rather than silently accepting a third
+  value (a closed vocabulary enforced by code, matching this codebase's
+  existing convention for `needs`/`kind` elsewhere).
+- **`scope_shape_key`** buckets on file-count power-of-two plus the scope's
+  `by_language`/`by_role` composition — coarse by construction, since M9.2's
+  routing prior needs shape-alike neighbours across repos, not a fingerprint
+  of one scope.
+- **Compaction events are out of scope this session.** The plan's acceptance
+  criteria for M9.1 name only `fact_leaf_run`/`fact_run_event` populating
+  from real Phase 5 runs and workspace-delete survival; `cdp compact`
+  (Phase 7, M7.3) writing a `compacted` event is prose in the milestone
+  description, not one of its acceptance lines, and adding it was not free
+  (`cmd_compact` doesn't currently resolve a `repo_id` the way `cmd_run`/
+  `cmd_rollback` already do). Deferred, not silently dropped: a future
+  session should add it alongside whichever milestone next reads
+  `fact_run_event` for `compacted` rows.
+
+**Verified, not assumed.** `tests/test_trajectory.py` (new, 3 tests):
+`scope_shape_key` buckets two shapes with different file counts into the
+same key when both round to the same power-of-two; `dim_task_kind` raises on
+an out-of-vocabulary value; and a real, subprocess-driven `cdp scan` + `cdp
+run --wave-all` (fixture repo, `CDP_TRAJECTORY_DB` pointed at a scratch
+file) populates both facts, then `shutil.rmtree`s the entire workspace state
+directory and re-reads the trajectory DB — same rows, unaffected — which is
+M9.1's own "deleting the workspace store leaves the trajectory DB intact"
+acceptance line, exercised literally rather than argued.
+
+**Exercised on a real target module (R-E7), not only the fixture.**
+`sql-pool/sql-pool-api` scanned fresh into a scratch dir; `cdp run
+--wave-all` via a real external `--runner-cmd` script:
+
+```
+$ cdp run --wave-all --runner-cmd "python3 fake_runner.py"
+wave 0       2 scope(s)  validated 2
+
+run_id: cdp-7e10575adf69
+leaf rows: [{'node': 'root/(files+2)', 'state': 'validated', ...},
+            {'node': 'root/src/main/java', 'state': 'validated', ...}]
+events: [{'event': 'started', ...}, {'event': 'finished', 'reason': 'complete', ...}]
+```
+
+Both real scopes produced a `fact_leaf_run` row keyed to their real
+`scope_hash`, and the run produced its `started`/`finished` event pair —
+against real target-derived data, not a synthetic scope dict. Scratch
+directories removed after the exercise.
+
+**Real defect caught by the gate itself, fixed before the reported green
+run.** The first `make check` run (after the freeze above) failed
+`selftest`: `tests/test_store_sqlite.py`
+`TestSqliteImportBoundary.test_sqlite3_is_imported_in_exactly_one_module`
+asserts `sqlite3` is imported nowhere but `cdp/store/sqlite_backend.py` —
+`cdp/trajectory.py`'s own `import sqlite3` (a separate database, but still a
+raw sqlite3 connection) violated it. Fixed by adding
+`sqlite_backend.connect_raw(db_path)` — a thin, exported wrapper around
+`sqlite3.connect` plus the same `PRAGMA foreign_keys = ON` every other
+connection in this codebase sets — and having `trajectory.py` import that
+instead of `sqlite3` directly. This is the one intended crossing point the
+boundary test allows: `trajectory.py` needs its own connection to a
+different file with a different schema, not `WorkspaceStore` machinery, so a
+full `SqliteStore` subclass would have been the wrong fit. Re-verified: the
+boundary test and the full `test_trajectory` module both green after the
+fix, and the freeze/gate cycle was repeated (R-E3: last edit before the
+gate, not after) — no code changed between the second freeze and the
+reported green run below.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **494 tests green
+(up from 491 -- this session's 3 new `test_trajectory` cases), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed** -- confirming the trajectory
+store's writes, wired only into `cmd_run`/`cmd_rollback`, changed nothing
+about the existing `scan`/`fold`/`golden` pipeline, since neither is on that
+pipeline's path.
+
+**Not done this session, named rather than silently dropped:** M9.2
+(corpus/regret/routing-prior), M9.3 (reflection/lesson-sets/holdout), M9.4
+(distribution: MCP/LiteLLM/adapters/`SKILL.md`/strict-mode/`AGENTS.md`).
+M9.2's elision regret in particular needs `prompts.py`'s digest-elision
+instrumentation (M6.3) read back against real leaf escalations/unknowns,
+which this session's `fact_leaf_run` rows do not yet carry (no
+`elided_rows`/`digest_vs_source` column exists on the fact yet — 0.18 names
+the input fingerprint as M9.2's own addition, not M9.1's).
+
+---
+
+## Phase 9 (M9.2 only) — corpus, elision regret, routing prior
+
+**Scoped down from the full phase, asked explicitly before implementing**
+(`PHASE/EXECUTION_RULES.md`'s budget instruction): M9.3
+(reflection/lesson-sets/holdout, safety-critical under R10) and M9.4
+(distribution) are each independently as large as M9.1 was on their own, so
+this session covers 6.3/6.4/6.5 only.
+
+**Citation drift found and reported, not silently worked around.** The
+plan's `prompts.py:120` (the elision-ranking function M9.2's regret grades)
+had drifted a few lines since M9.1 landed — that line now sits inside
+`_imported_symbols`'s docstring. The actual function is `_inherit`
+(`cdp/prompts.py:142-167`; the fan-in sort that decides what gets elided is
+line 164).
+
+**What shipped.** `fact_leaf_run` gained seven columns: `rows_elided`,
+`tokens_est`, `digest_mode` (the input fingerprint, sourced from
+`build_prompt`'s own stats dict, already computed and previously discarded
+by `supervisor.dispatch_scope`) and `entailed`/`consistent`/`contradicted`/
+`elision_regret` (the output scorecard, computed in `cli._apply_wave_results`
+once a leaf's patch folds). Both halves share one row — `record_leaf_run`'s
+existing grain (`run_id` x `node`, joined to `scope_hash`) already satisfies
+the plan's "joined on `scope_hash`" requirement without a second table.
+
+**Migration, not a fresh-DB assumption.** A real `~/.cdp/trajectories.db`
+from M9.1's own earlier real-target exercises already existed on disk at
+73KB with the pre-M9.2 schema — `CREATE TABLE IF NOT EXISTS` is a no-op
+against it, so `TrajectoryStore.__init__` now runs
+`_migrate_leaf_run_columns()` (a `PRAGMA table_info` diff + `ALTER TABLE ...
+ADD COLUMN` for whatever is missing) after the `executescript`. R4 held: no
+row was altered or dropped, only nullable columns added — verified with a
+new test (`test_migration_adds_m92_columns_to_a_pre_m92_db`) that builds a
+literal pre-M9.2 schema by hand and confirms a new-shape row inserts and
+reads back correctly afterward.
+
+**Elision regret (6.4), the plan's own highest-value item, implemented as a
+named, unit-tested pure function** (`trajectory.elision_regret(elided_subjects,
+unknown_subjects)` — a set intersection), not inlined into `cli.py`'s wave
+loop, specifically so it is testable independent of the dispatch plumbing.
+`prompts.build_prompt` now also returns `elided_subjects` (previously only a
+count, `elided_claims`) in its stats dict; `supervisor.dispatch_scope`
+threads that whole stats dict back to the caller (`"prompt_stats"`, a new
+key on its return dict — previously discarded as `_stats`) so
+`_apply_wave_results` can compare a leaf's own emitted unknown subjects
+against what its own prompt elided.
+
+**Entailment (part of the output scorecard) computed against the leaf's own
+claims, not deferred to `collect`.** `entail.entail_claims` (M4.1, already
+existed, already cheap — a dict lookup against the extraction the leaf
+already saw) is called once per validated leaf inside `_apply_wave_results`;
+`cdp run`'s wave loop had never called it before (M4.1 wired it into
+`collect`'s standalone path only).
+
+**Routing prior (6.5), exactly the plan's own SQL-not-model shape.**
+`TrajectoryStore.routing_prior(scope_shape_key, task_kind)` is one query —
+`GROUP BY` folded into aggregate functions over a join across
+`dim_scope_shape`/`dim_task_kind` — returning `n`, average
+claims/unknowns/tokens, validated rate, and average elision regret for
+every prior run of a shape-alike scope. Zero model calls, deterministic by
+construction (SQL aggregates, no ordering-sensitive tie-break needed since
+nothing here picks a single winner).
+
+**Exercised on a real target module (R-E7), not only the fixture.**
+`sql-pool/sql-pool-api` scanned fresh into a scratch dir; `cdp run
+--wave-all` via a real external `--runner-cmd` script emitting one
+legitimate scope-level unknown (no claims) per scope:
+
+```
+wave 0       2 scope(s)  validated 2
+
+[{'node': 'root/(files+2)', 'rows_elided': 0, 'tokens_est': 3472,
+  'entailed': 0, 'consistent': 0, 'contradicted': 0, 'elision_regret': 0},
+ {'node': 'root/src/main/java', 'rows_elided': 0, 'tokens_est': 8886,
+  'entailed': 0, 'consistent': 0, 'contradicted': 0, 'elision_regret': 0}]
+```
+
+**Provably zero, not silently zero** (the acceptance line's other branch):
+this is a first scan with no prior claims to inherit or elide, and the fake
+runner emits zero claims, so `rows_elided`/`entailed`/`elision_regret` are
+all correctly zero by construction — not measured-and-happened-to-be-zero.
+`routing_prior` queried against each scope's own real, non-trivial shape key
+(`files<=16|langs=config,docker,gradle,java,other|roles=build,config,source,test`
+and `files<=64|langs=java|roles=source`) correctly returned `n=1` with the
+matching aggregates for each, and `n=0`/`validated_rate=None` for a shape
+with no prior rows — the concrete form of "a SQL query, not a model call"
+against real target-derived data. Scratch directories and the scratch
+trajectory DB removed after the exercise; the real `~/.cdp/trajectories.db`
+used for the migration check above was read, migrated in place, and left
+with its prior rows intact (re-verified by reading them back post-migration
+with the original, unmigrated columns still present and unchanged).
+
+**Not built this session, named rather than silently dropped:** the
+"digest-vs-source" half of the input fingerprint (0.17/M9.2 both name it,
+but `build_prompt`'s stats already carry `digest_mode` as a bool, which is
+what got wired — a source-vs-digest *comparison* on the same scope, the
+stress-table item M6.3 left for M9.2, was not attempted, since it needs two
+real leaf dispatches of the same scope in both modes, which `cdp run`'s
+single-dispatch-per-wave loop does not do today); `sigma_claims` (the count
+of imported-symbol claims specifically, distinct from `inherited_claims` —
+`build_prompt`'s stats has `imported_symbols`/`inherited_claims` but nothing
+narrower); and `task_kind="link"` rows for this corpus (Phase 8's `link
+prompts`/`link collect` still run outside `cdp run`'s dispatch loop, per
+M9.1's own note — `routing_prior` and `elision_regret` both already work for
+`link` by construction the day that changes, since neither hardcodes
+`"scope"`).
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **497 tests green
+(up from 494 — this session's 4 new `test_trajectory` cases), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed** — the new columns and the
+`entail_mod` call wired into `_apply_wave_results` changed nothing about the
+existing `scan`/`fold`/`golden` pipeline, since `cdp run` never sits on that
+pipeline's path.
+
+---
+
+## Phase 9 (M9.3, 6.6 only — reflection) — a real defect this milestone's own
+## real-target exercise found in M9.2's code, plus what shipped
+
+**Scoped down from the full M9.3** (reflection/lesson-sets/holdout), asked
+explicitly before implementing: lesson-sets (6.7, needs a cut/pin/reproduce
+mechanism and CLI wiring) and holdout A/B (6.8, needs a second repo and a
+promotion bar) are each independently as large a slice as M9.1/M9.2 were —
+deferred, not started. This session is 6.6 only: select a handful of outlier
+scopes from a run's own trajectory corpus (M9.2), spend one real model call
+per outlier, keep only what comes back as a deterministic, closed-vocabulary
+promotion.
+
+**Real defect found by this milestone's own real-target exercise
+(R-E7), in code M9.2 shipped, not this session's new code.**
+`TrajectoryStore.leaf_runs_for` (`cdp/trajectory.py`) — extended by M9.2 to
+select the new scorecard columns — dropped `claims_emitted`/
+`unknowns_emitted` from its `SELECT` entirely while adding the new ones.
+Every caller reading `claims_emitted` off a `leaf_runs_for` row therefore
+silently got `None`. This session's own `select_outliers`
+(`row.get("claims_emitted") or 0`) turned that `None` into `0`, which wrongly
+qualified *every* high-token scope as `high_spend_low_yield` regardless of
+its real yield — caught immediately on the real-target exercise below (a
+seeded scope with `claims_emitted=5`, `tokens_est=8000` was wrongly flagged
+as an outlier and reflected on) rather than on the fixture, where the test
+suite's own synthetic rows happened to construct `leaf_runs_for`'s return
+dict directly rather than round-tripping through the real query. Fixed by
+adding `claims_emitted`/`unknowns_emitted` back to the `SELECT`/dict-building
+in `leaf_runs_for`; re-verified live (below) that only the genuinely
+contradicted scope is selected afterward.
+
+**What shipped.** `cdp/reflect.py` (new module): `select_outliers(leaf_rows,
+limit=5)` — deterministic, no model call, pulled straight from M9.2's own
+corpus columns: a scope qualifies if `contradicted > 0` (gold-standard per
+`entail.py`'s own docstring) or `tokens_est >= 5000` with `claims_emitted ==
+0`, sorted worst-first, capped ("a handful per run"). `build_reflection_prompt`
+writes one scope's outlier context plus a strict closed-vocabulary output
+contract into a real prompt file. `validate_promotion` enforces R10
+structurally: `PROMOTION_KINDS = ("import_channel_hint", "prompt_fix",
+"budget_change")` share no vocabulary with a claim's own `kind` field, each
+kind has a fixed, small field allowlist, and **any extra key is rejected
+outright** — a model cannot smuggle a `subject`/`anchor`/`evidence` triple
+(claim-shaped content) through a promotion even if it tried, proven by
+`test_r10_a_claim_shaped_payload_is_structurally_impossible`
+(`tests/test_reflect.py`). `{"promotion": "none"}` (or anything that fails
+validation) is discarded with a stated reason, never stored — the plan's own
+"a store of vague lessons is the peer system's failure mode" stress test,
+enforced by `test_unactionable_reflection_is_discarded_not_stored_as_a_lesson`.
+
+**CLI: `cdp reflect --run-id ID --runner-cmd CMD [--limit N]`.** Reuses
+`runner.SubprocessRunner` verbatim (same `runner.run(prompt_path, out_path)`
+protocol `cdp run`/`link prompts` already use — no new runner abstraction).
+Writes `reports/reflections.json` (`{"accepted": [...], "discarded": [...]}`)
+via the existing `write_report`/`read_report` convention (M4.2's
+`unknown_gates`, M6.4's `tiering`), and prints one `PROMOTED`/`DISCARDED`
+line per outlier, matching the "gates" reporting style established
+throughout this codebase.
+
+**Verified, not assumed.** `tests/test_reflect.py` (new, 17 tests):
+`select_outliers`' two trigger conditions and its cap; every valid/invalid
+shape of all three promotion kinds; the R10 smuggling test above; and
+`reflect()`'s end-to-end behaviour against fake runners (accepted,
+runner-failure, no-output, and unactionable-`none` cases), each via a
+minimal `_FakeResult`/fake-runner class rather than a real subprocess, since
+the runner protocol itself is `runner.py`'s own, already covered.
+
+**Exercised on a real target module (R-E7), not only the fixture — and this
+is what caught the defect above.** `sql-pool/sql-pool-api` scanned fresh
+into a scratch dir; two real `fact_leaf_run` rows seeded directly against
+its real `run_id`/`scope_hash`es (one genuinely contradicted, one merely
+high-token but with real claims emitted — the exact case that exposed the
+`leaf_runs_for` regression). Before the fix: `cdp reflect` selected and
+reflected on **both** scopes (wrong). After the fix:
+
+```
+$ cdp reflect --repo .../sql-pool-api --state-dir ... --runner-cmd "python3 fake_runner.py"
+reflect   PROMOTED  (root/(files+2)): prompt_fix
+reflect   1 accepted, 0 discarded
+
+$ cdp reflect ... --runner-cmd "python3 fake_runner_none.py"
+reflect   DISCARDED (root/(files+2)): no actionable promotion
+reflect   0 accepted, 1 discarded
+```
+
+Only the contradicted scope selected either time; the high-token-but-real-yield
+scope correctly excluded. Scratch directories and fake runner scripts removed
+after the exercise; both this checkout's and `$TARGET_REPO`'s own working
+trees (`git status --porcelain`) were empty before and after.
+
+**Not built this session, named rather than silently dropped:** lesson-sets
+(6.7 — cut/pin/`--lessons vN`/`--no-lessons`/reproduction) and holdout A/B
+(6.8) both remain unstarted; a promotion this session produces has nowhere
+to land yet (no lesson-set exists to fold it into) — `reports/reflections.json`
+is the honest current terminus, read by nothing downstream yet, the same
+posture M9.1 took toward `cdp compact` writing a `compacted` event.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **514 tests green
+(up from 497 — this session's 17 new `test_reflect` cases), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed** — `reflect.py`/`cdp reflect`
+are additive and untouched by the existing `scan`/`fold`/`golden` pipeline,
+since no existing command calls the new code path; the `leaf_runs_for` fix
+likewise touches nothing on that pipeline's path.
+
+### Follow-up — cross-backend alignment, all three `WorkspaceStore` backends, real target module
+
+Asked explicitly after the milestone above landed: does the trajectory store
+behave consistently regardless of which `WorkspaceStore` backend a workspace
+uses. **By design it should**, since `TrajectoryStore` is deliberately
+independent of `backend` (0.17's "separate database" is separate from every
+workspace backend, not just from `FileStore`) — `cmd_run`/`cmd_rollback` open
+it once per invocation, unconditionally, regardless of which `WorkspaceStore`
+subclass `_open_store` constructed. Verified rather than assumed, against a
+real local Postgres server on port 5432 (`psycopg2` reachable at
+`host=localhost port=5432`, no fixture stand-in):
+
+- `tests/test_store_conformance.py`'s full `PostgresStoreConformance` suite
+  (75 tests total across both backends) run live against
+  `CDP_TEST_POSTGRES_DSN="host=localhost port=5432 dbname=postgres
+  user=sharmp49"` — green, including `test_supports_run_tracking_is_true`,
+  which is the exact capability `cdp run` gates on.
+- Real-target exercise: a detached worktree of `$TARGET_REPO`'s
+  `sql-pool/sql-pool-api` (pinned commit) scanned and run through all three
+  backends via `.cdp.toml`'s `backend` key, one shared
+  `CDP_TRAJECTORY_DB`:
+  - **sqlite** (default, no `.cdp.toml`): `cdp run --wave-all` validated
+    both real scopes; two `fact_leaf_run` rows and a `started`/`finished`
+    event pair landed under `run_id=cdp-7e10575adf69` (the manifest's own
+    commit-derived id).
+  - **postgres** (`backend = "postgres"`, real `dsn`/`schema`, same module,
+    same commit): validated the same two scopes identically; because the
+    commit is the same, the manifest computes the *same* `run_id` as the
+    sqlite run above — reading the shared trajectory DB back for that
+    `run_id` returns **all four** leaf rows (two per backend) and both
+    event pairs, which is the honest, expected shape for a store that is
+    genuinely cross-workspace and backend-agnostic by construction, not a
+    bug: the trajectory store was never asked to distinguish "which backend
+    produced this row," only "which run."
+  - **file** (`backend = "file"`): `cdp run` refused immediately —
+    `cdp: FileStore has no run/task tracking -- \`cdp run\` needs the sqlite
+    or postgres backend` (exit 2) — before `cmd_run` reaches the trajectory
+    setup at all (the `supports_run_tracking()` check in `cli.py`
+    (`cmd_run`) runs first), so no partial/incorrect trajectory row is ever
+    written for a backend that can't support `cdp run` in the first place.
+    Matches D3's existing account of `FileStore`'s stated refusal for
+    `cdp gc`/`cdp link scan`.
+
+Worktree, scratch state dirs, the scratch trajectory DB, and the Postgres
+test schema (`cdp_m91_target_test`, dropped via `PostgresStore.drop_schema()`
+before disconnecting) all removed after the exercise; both the main checkout
+and `$TARGET_REPO`'s own working tree (`git status --porcelain`) were empty
+before and after. No code changed by this follow-up — it is verification of
+the milestone already frozen and gated above, not a new change needing its
+own `make check` run.
+
+---
+
+## Phase 9 (M9.3, 6.7 only — lesson-sets) — cut/pin/reproduce, holdout deferred
+
+**Scoped explicitly, asked before implementing.** M9.3's two remaining
+pieces, lesson-sets (6.7) and holdout A/B (6.8), were each flagged as
+independently as large as M9.1/M9.2 were on their own — the same posture the
+6.6-only session took toward the full M9.3. Asked, and answered: **6.7 only**
+this session. 6.8 (needs a second repo and an explicit promotion bar) remains
+unstarted, named rather than silently dropped.
+
+**What shipped.** `cdp/trajectory.py`: a new `lesson_promotion` table —
+deliberately *not* part of the star (0.18's `fact_leaf_run`/`fact_run_event`
+are the star; a promotion is routing metadata cut into versions, not a new
+grain of run history). `cmd_reflect` now writes every `accepted` promotion
+here via `record_promotion` (unassigned, `cut_version IS NULL`) the moment
+`cdp reflect` accepts it — this is what "the corpus accrues continuously"
+(6.7) means concretely: the corpus is `cdp reflect`'s own accepted output
+across every run, not a separate collection step.
+
+`cut_lessons()` assigns the next integer version to every currently-pending
+row and never reassigns it — immutability by construction is what makes
+`load_lessons(v)` reproduce exactly, not a promise enforced elsewhere.
+`latest_lesson_version()` returns `None` until the first cut, which is 6.7's
+"off for run #1 (no corpus)" stated literally: `cdp run`'s own resolution
+(`--lessons N` pins explicitly, `--no-lessons` forces off, otherwise the
+latest cut or `None`) auto-enables the moment a first cut exists, with no
+separate flag needed to turn it on.
+
+**CLI.** `cdp lessons cut` / `cdp lessons show [--version N]` (new
+subcommand). `cdp run` gained a mutually-exclusive `--lessons N` /
+`--no-lessons` group; the resolved version is pinned onto the run itself via
+a new `WorkspaceStore.set_run_lessons_version` (sqlite: `UPDATE snapshot_run
+SET lessons_version=...`; postgres: same; base: raises `_no_run_tracking`,
+same guard `FileStore` already has for every other run-tracking method) —
+`snapshot_run.lessons_version` existed as an unused nullable column since
+Phase 2's D1/D2 audit; this is the first thing that writes it. `get_run` on
+both real backends now also returns it, so `cdp run --lessons 1` followed by
+reading `backend.get_run(run_id)["lessons_version"]` shows the pin verbatim
+— the plan's own "a run pins `lessons: v7` in its manifest" line, concretely.
+
+**R10, enforced at the persistence layer too, not just at
+`validate_promotion`.** A promotion already cannot carry claim-shaped
+fields by construction (`reflect.validate_promotion`'s closed per-kind
+allowlist, M9.3-reflection). This session adds
+`test_r10_a_claim_shaped_payload_cannot_survive_the_cut_load_round_trip`
+(`tests/test_trajectory.py`) asserting the *stored and reloaded* payload's
+key set is identical to what was validated — the cut/load round trip is not
+a second place a `subject`/`anchor`/`evidence`/claim field could be
+reintroduced.
+
+**Verified, not assumed.** `tests/test_trajectory.py`'s new `LessonSetTest`
+(5 tests): no-cut-means-`None`, cutting nothing pending is a no-op (never
+mints an empty version), a cut numbers and freezes exactly the pending rows
+and a later promotion is not retroactively part of an already-cut version,
+repeated loads of the same version are identical (byte-for-byte, via
+`assertEqual` on the returned list of dicts), and the R10 round-trip test
+above. 516 tests green (up from 514).
+
+**Exercised on a real target module (R-E7), not only the fixture.**
+`sql-pool/sql-pool-api` scanned fresh into a scratch dir; two real
+promotions seeded directly against the real trajectory DB (standing in for
+what `cdp reflect` would have accepted — no live model call spent on this
+session's budget, per the explicit 6.7-only scoping):
+
+```
+$ cdp lessons show
+lessons   no cut exists yet
+$ cdp lessons cut
+lessons   cut v1 (2 promotion(s))
+$ cdp run --wave-all --lessons 1 --runner-cmd "python3 fake_runner.py"
+lessons   pinned v1
+$ python3 -c '... backend.get_run(run_id) ...'
+{'run_id': 'cdp-7e10575adf69', ..., 'lessons_version': '1'}
+$ cdp run --wave-all --runner-cmd "..."      # no flag: picks latest automatically
+lessons   pinned v1
+$ cdp run --wave-all --no-lessons --runner-cmd "..."
+(no "lessons" line; lessons_version: None)
+```
+
+All three resolution paths (`--lessons N`, default-latest, `--no-lessons`)
+confirmed against a real run and a real `snapshot_run` row, not a synthetic
+dict. Scratch directory and trajectory DB removed after the exercise; main
+checkout's `git status --porcelain` was empty before and after.
+
+**Not built this session, named rather than silently dropped.** Holdout A/B
+(6.8) — needs a second repo, a promotion bar, and the cut-cadence/regression
+decisions the plan explicitly defers to this milestone — remains entirely
+unstarted. A cut lesson-set also has **no consumer yet**: nothing in
+`prompts.py`/`supervisor.py` reads `load_lessons(v)` to actually change a
+leaf's prompt content or budget — `cdp run --lessons vN` pins the version on
+the run and proves the mechanism reproduces, but a pinned lesson-set does not
+yet *do* anything to a dispatched leaf. This is the same posture M9.1's
+`compacted` event and M9.3-reflection's `reports/reflections.json` already
+took: an honest, additive terminus, not a silently absent feature. Wiring a
+`prompt_fix`/`budget_change` promotion into `prompts.build_prompt` is real
+work belonging to its own reviewed change (it touches the one module every
+leaf prompt depends on), not a rider on this session's budget.
+
+**F19 — `get_run`'s additive `lessons_version` key broke two pre-existing
+exact-`assertEqual` tests, caught by the gate itself.** Severity low, exactly
+F7's class of defect: a caller-side breakage the bundled suite's own strict
+equality checks surfaced on the first post-change `make check` run, not a
+design flaw in the change itself. `tests/test_store_sqlite.py` and
+`tests/test_store_conformance.py` each asserted `get_run(...)` against a
+three-key literal dict (`run_id`/`partition_hash`/`status`); adding a fourth
+key (`lessons_version`, always present now, `None` until a run pins a cut)
+made both fail on the very first gate run after freeze. Fixed by updating
+both literals to include `"lessons_version": None` — the correct, expected
+value for a run that never pinned a cut — not by loosening the assertion.
+Re-verified: `python3 -m unittest test_store_sqlite test_store_conformance`
+green (107 tests, 27 skipped — no live Postgres this session), then a full
+re-run of `make check TARGET_REPO=...` from a clean freeze.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **519 tests green
+(up from 516 mid-session, 514 before this milestone), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed** — `lessons.py`'s cut/pin
+mechanism, `cdp lessons`, and `--lessons`/`--no-lessons` on `cdp run` are all
+additive and untouched by the existing `scan`/`fold`/`golden` pipeline,
+since no existing command calls the new code path; the only real caller
+breakage was the two test literals above, both fixed and re-verified.
+
+---
+
+## Phase 9 (M9.4, scoped to `SKILL.md` only) — rewritten for the post-`cdp run` world
+
+Session scoped down from all of M9.4 (MCP server, LiteLLM adapter, `SKILL.md`
+rewrite, LangGraph/ADK adapters, strict mode, `AGENTS.md`) to `SKILL.md` alone
+— explicit user choice, given the 20-minute/60k-token budget and that each of
+the other five items needs its own real-input exercise (per
+`PHASE/EXECUTION_RULES.md`), not a shared one. MCP, LiteLLM, LangGraph/ADK,
+strict mode and `AGENTS.md` remain entirely unstarted; owner is whichever
+session picks up M9.4 next.
+
+**Real bug in the first draft, caught before freezing anything.** `SKILL.md`'s
+actual source is the top-level `/SKILL.md`; `.claude/skills/cdp/SKILL.md` is
+the vendored self-copy `cdp install --self` overwrites from it (`DIST_MEMBERS`,
+`cli.py:2270`). The rewrite was first applied to the vendored copy alone, then
+`install --self` was run to "sync" it — which instead clobbered the edit back
+to the stale top-level version. Caught by grepping both copies for the new
+text and finding neither had it, not assumed correct because the Edit tool
+reported success. Fixed by re-applying the rewrite to `/SKILL.md` and re-running
+`install --self`, then diffing the two copies to confirm they match.
+
+**What changed, and why, ground-truthed against the real parser/runner code,
+not assumed:**
+
+- The "wave loop" section (`scan` → `prompts --wave N` → spawn a wave in one
+  message → `collect` → `status`, repeat) is superseded by `cdp run`
+  (`cli.py:200-229`, Phase 5's M5.2/M5.3), which owns dispatch, retry
+  (`--max-attempts`), lease-based concurrency (M5.4) and resume (`--resume`,
+  M5.5) — the bookkeeping `SKILL.md` used to describe by hand.
+- `cdp run`'s own docstring (`supervisor.py:183-205`, `run_wave`) states the
+  one fact this rewrite is built around: one `cdp run` process dispatches its
+  scopes *sequentially*; concurrency across scopes in one wave comes only from
+  running a *second* `cdp run` process on a different scope, which the lease
+  (M5.4) makes safe. So the rewritten skill recommends one `cdp run --scope
+  <node>` per scope, backgrounded, with the wave's leaf subagents still spawned
+  in one message — the only way to keep the "concurrent per wave" property
+  `SKILL.md` always had, now on top of `cdp run`'s supervision instead of
+  hand-rolled `prompts`/`collect` calls.
+- Confirmed the prompt/patch path contract is unchanged before promising it in
+  prose: `dispatch_scope` (`supervisor.py:141,143`) writes
+  `.cdp/prompts/<node with / -> __>.md` and reads
+  `.cdp/patches/inbox/<node with / -> __>.json` — byte-identical to what the
+  pre-rewrite `SKILL.md` already told a leaf agent to do, so the leaf-agent
+  contract itself needed no change, only who calls `collect`/`fold`.
+- `FileRunner` (`runner.py:98-100`) — used whenever `cdp run` has no
+  `--runner-cmd` — carries its own docstring confirming it *is* "today's
+  manual `SKILL.md` loop, made explicit": exactly the behavior the rewrite
+  describes, not an invented one.
+- The hand-maintained command reference table (11 commands, several already
+  stale — no `run`, `doctor`, `link`, `gc`, `compact`, `verify`, `export`,
+  `rollback`, `diff`, `reflect`, `lessons`, `answer`, `githook`) is cut down to
+  six essentials and now points to `cdp help` for the rest. `cdp help`
+  (`cli.py:2220-2239`, `cmd_help`) is generated from the live `argparse`
+  parser via `helpdoc.describe`, so — unlike a hand-written table — it cannot
+  drift from the CLI it describes; this is a real existing mechanism, not one
+  invented for this rewrite. `cdp help --json` is the same surface as data,
+  matching the plan's note that LangGraph/ADK adapters bootstrap from it
+  (7.4, unbuilt).
+
+**Not delivered this session, stated rather than silently dropped:** the
+`--runner-cmd` real-model path is described in prose only; it was not
+exercised against a real subprocess runner this session (Phase 6's
+`scripts/claude_leaf_runner.sh` real-model exercises already cover that
+composition elsewhere in this file). No fixture or `$TARGET_REPO` scan was
+needed for a pure-docs change — `make check TARGET_REPO=...` (below) is run
+only to confirm the docs edit changed nothing about `scan`/`fold`/`golden`,
+since no command reads `SKILL.md`.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **519 tests
+green, determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed** —
+expected: a pure `SKILL.md` edit, and no command reads `SKILL.md`.
+
+---
+
+## Phase 9 (M9.4 pre-work) — interface-adapter scaffold, ahead of MCP/LiteLLM/agent-adapter implementation
+
+Not a plan milestone by number — a structural pass requested ahead of M9.4's
+real adapters, so their eventual code has a place to land that's already
+excluded from `cdp install`'s vendored copy and already wired into a test
+target that can't break `make check` for anyone without their optional
+dependencies installed. Three empty-but-real top-level packages created:
+`mcp_server/`, `litellm_adapter/`, `agent_adapter/` — each a stub `__init__.py`
+(one docstring, no placeholder API) plus a `tests/` dir with a scaffold test
+that imports the package and skips cleanly if its real optional dependency
+(`mcp`/`litellm`/`langgraph`/`google.adk`) isn't installed.
+
+**D40 — named `agent_adapter/`, not `langgraph_adapter/`, on the user's own
+steer.** LangGraph and ADK are commonly combined in one real agent (ADK for
+runtime/session, LangGraph for the graph/state machine), so a
+LangGraph-specific name would misdescribe the package once ADK support lands
+too. `agent_adapter/` is the neutral home for both, expected to grow sibling
+entry points (`agent_adapter/langgraph.py`, `agent_adapter/adk.py`) rather
+than one framework-generic shim — the two integration surfaces are not the
+same shape.
+
+**D41 — `mcp_server/`/`litellm_adapter/`, not the plan's literal `mcp/`/
+`litellm/`, because the literal names would shadow their own real
+dependency.** `run.py` inserts its own directory (repo root) at
+`sys.path[0]`, and `python3 -m` does the same via `cwd` — so a local
+directory named `mcp` would resolve before the real `mcp` PyPI package for
+any code executed from the repo root, and a package inside it that tries
+`import mcp` would import itself. Confirmed by reasoning about `sys.path`
+order rather than assumed; not reproduced with an actual shadow-and-crash,
+since nothing inside the stub imports anything yet. Caught before writing any
+files, not after.
+
+**New enforcement, not previously possible: `tests/test_core_purity.py`.**
+"Core imports no framework, ever" was true only by discipline before this
+pass — nothing stopped `cdp/` from importing `mcp`/`litellm`/`langgraph`
+directly. This test `ast.parse`s (never executes, so an import's side effect
+can't fire just from being checked) every `cdp/**/*.py` and fails naming
+every forbidden import's `file:line`, accumulating all violations rather than
+stopping at the first (same style as `test_distribution.py`). Verified it
+actually discriminates, not merely trusted to pass because the real tree is
+currently clean: called `_violations()` directly against a temp file
+containing `import litellm` and `from google.adk import Agent` and confirmed
+both were caught, with line numbers. A first attempt — editing a real
+`cdp/util.py` in place and running `unittest test_core_purity` — crashed
+before the check ever ran: `tests/helpers.py` eagerly imports several `cdp`
+submodules, one of which transitively imported the doctored file, raising a
+real `ModuleNotFoundError` at collection time rather than exercising the
+ast-based check. Reverted immediately; the isolated call above is what
+actually verifies the mechanism.
+
+**Packaging (`pyproject.toml`).** `mcp_server`, `litellm_adapter`,
+`agent_adapter` added to `[tool.setuptools] packages`; three new
+`[project.optional-dependencies]` entries (`mcp`, `litellm`, `agent`) left
+empty pending real code, mirroring the existing `postgres` extra's own
+lazy-import pattern and comment style. Base `dependencies = []` untouched —
+the property this whole pass protects.
+
+**Testing (`Makefile`).** New `check-interfaces` target (three
+`unittest discover` calls, one per package), deliberately **not** added to
+`check`'s dependency list, so `make check` — the contract every phase keeps
+green — never depends on an optional adapter's test environment being
+present.
+
+**Vendoring confirmed excluded, not just stated.** `cdp/cli.py`'s
+`DIST_MEMBERS` is unchanged (a comment was added above it naming the three
+packages and why they're absent); `cdp install --self` + a fresh
+`tests/test_distribution.py` run confirms the vendored
+`.claude/skills/cdp/` copy contains none of the three new directories.
+
+**Verification, all before freezing:**
+- `make check-interfaces`: 7 tests across the three packages, 5 skipped
+  (their real optional deps aren't installed here), 0 failed.
+- `cdp selftest`: **520 tests** (up from 519 — `test_core_purity`'s one
+  test), all green, including the vendored-copy check after re-running
+  `cdp install --self` to pick up the new source file.
+- `python3 -c "import cdp"` and `import mcp_server, litellm_adapter,
+  agent_adapter`: all four import cleanly with zero third-party packages
+  installed.
+- `make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **520 tests
+  green (up from 519), determinism (fixture+target), `fold --check`
+  (fixture+target), golden (fixture+target) all green, byte-identical, no
+  re-bless needed** — confirms nothing about core's own behaviour moved;
+  this pass touches no file `scan`/`fold`/`golden` reads, only new sibling
+  packages, one new core-only test, and comments.
+
+---
+
+## Phase 9 (M9.4, 7.1 only) — MCP server, real tools, no real SDK to test against
+
+**Scoped to 7.1 only**, asked before implementing (LiteLLM/strict mode/
+`AGENTS.md` remain each their own session's worth — same posture the M9.1-M9.3
+sessions and the M9.4 `SKILL.md`/scaffold sessions above already took).
+
+**D42 — `query.dispatch` extracted from `cmd_query` into `query.py` itself,
+before writing any MCP code.** The alternative was letting `mcp_server`
+duplicate `cmd_query`'s ~15-line `if kind == ...` ladder, which is exactly the
+kind of second copy that drifts (the same argument D41 already makes about
+naming, applied to logic instead of a directory name). `query.dispatch(store,
+kind, term, **kwargs)` is now the one place that maps a `kind` to the right
+`QUERIES[kind]` call; `cli.cmd_query` calls it and raises `CdpError` on the
+`ValueError`s it raises (`query %s needs a term`, the never-budgeted check),
+preserving the CLI's existing error text and exit behaviour exactly.
+`tests/test_pipeline.py`'s `test_query_answers_from_a_fresh_scan` (and the
+rest of the suite) passed unchanged, confirming the refactor is behaviour-
+preserving, not just plausible.
+
+**What shipped, three files, no `mcp` SDK dependency in two of them:**
+
+- `mcp_server/tools.py` — `cdp_query`/`cdp_scan`/`cdp_status` as plain
+  functions. Repo/state-dir resolution reuses `cli._paths`/`_open_store`
+  (same `.cdp.toml` -> registry -> cwd/.cdp order, D3) rather than
+  reimplementing it, so a tool answers from the same store a `cdp`
+  invocation in that directory would. `cdp_scan` calls `cli.cmd_scan`
+  directly (the real pipeline, not a reimplementation) with `docs=False`
+  (skip markdown rendering — a tool call has no use for it) and returns
+  `query.dispatch(store, "stats")` against the freshly-scanned store, since
+  a scan has no single natural return value of its own. `cdp_status`
+  reconstructs the exact dict `cmd_status` prints as text (coverage,
+  freshness buckets via `freshness.bucket_counts`, this run's task rows via
+  `store.backend.task_rows`) rather than shelling out to the CLI and parsing
+  its stdout back.
+- `mcp_server/schemas.py` — the three tools' descriptions/JSON schemas, and
+  `estimate_at_rest_tokens()`: chars/4 over each tool's `name` +
+  `description` + `inputSchema`, the **same estimator** `cdp prompts
+  --measure` already uses (`cdp.prompts.CHARS_PER_TOKEN_EST`), so this
+  number and that one are comparable rather than two independently-invented
+  units. **Measured: 649 tokens_est for all three tools** (378/167/104
+  per tool) — against the plan's own 13-tool/49.2k-token reference point,
+  not asserted to be small. A synthetic 13-tool schema set (10 copies of
+  `cdp_query`'s schema appended) costs >3x the real 3-tool number under the
+  same estimator — the plan's own stress-test row ("MCP tool count grows to
+  13 ... the token-at-rest objection returns in full") reproduced
+  mechanically, kept as a permanent test rather than a one-off calculation.
+- `mcp_server/server.py` — the real `mcp.server.Server` wiring
+  (`create_server`/`main`), **written against the SDK's documented shape but
+  not run against it**: `mcp` is not installed in this environment
+  (confirmed: `python3 -c "import mcp"` -> `ModuleNotFoundError`). Per
+  `PHASE/EXECUTION_RULES.md` R-E6 (design for the uncertainty rather than
+  guess further), the risk is isolated to this one file's SDK-facing half —
+  `_call(name, arguments)`, the dispatch `list_tools`/`call_tool` delegate
+  to, carries no SDK import and is fully tested. `create_server()` raises a
+  clear `ImportError` naming `pip install cdp[mcp]` when the SDK is absent
+  (verified: this is the path this session's own test suite actually
+  exercises), rather than a server silently missing tools.
+
+**Verified, all before freezing:**
+- `make check-interfaces` (`mcp_server`/`litellm_adapter`/`agent_adapter`):
+  10 + 2 + 3 tests, all green (5 skipped for absent optional SDKs, as before).
+- **Real-target exercise (R-E7), not just the fixture:** `sql-pool/sql-pool-api`
+  via `tools.cdp_scan`/`cdp_query`/`cdp_status` directly (no CLI subprocess) —
+  `scan claims 41 symbols 413 scopes 2`, `unknowns 0`, `status run_id
+  cdp-7e10575adf69 head 7e10575adf69` — the exact 41-claim/413-symbol numbers
+  Phase 4's own real-target exercises recorded for this module, confirming
+  the tool layer answers identically to the CLI it wraps rather than a
+  silently-different number. Scratch state dir removed after.
+- `make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+  freeze, result recorded once it completes — see below) is the confirmation
+  that `query.dispatch`'s extraction changed nothing about `cmd_query`'s
+  observable behaviour and that the new `mcp_server` files (outside `cdp/`)
+  changed nothing about `scan`/`fold`/`golden`.
+
+**Not delivered this session, named rather than silently dropped:** the real
+MCP transport (`create_server`/`main`) run against an actual `mcp` client;
+LiteLLM adapter, strict mode, `AGENTS.md` (M9.4's other four items, each
+scoped down and asked about in this same session before picking MCP first).
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **520 tests
+green, determinism (fixture+target), `fold --check` (fixture+target), golden
+(fixture+target) all green, byte-identical, no re-bless needed** — confirms
+`query.dispatch`'s extraction is behaviour-preserving and the new
+`mcp_server` files changed nothing about `scan`/`fold`/`golden`.
+
+---
+
+## Phase 9 (M9.4, strict mode only) — blocks the first source read, gated on coverage *and* HEAD
+
+**Scoped to strict mode only**, asked before implementing (LiteLLM adapter,
+`AGENTS.md`, LangGraph/ADK adapters — the plan's other three remaining M9.4
+items — each still their own session's worth, same posture every prior M9.4
+session took).
+
+**What shipped, in `cdp/hook.py` (the existing PreToolUse nudge, extended, not
+replaced) and `cdp/cli.py`:**
+
+- The nudge's gating logic (state reachable, `inventory.head == git HEAD`,
+  role `source`) was extracted from `decide()` into a new `_gate(event)`
+  helper that also reads `state.json`'s `coverage.fraction` while the store is
+  already open — one code path both the existing nudge and the new strict
+  path share, rather than two copies that drift.
+- `strict_decide(event)` reuses `_gate` and the same one-shot
+  `claim_session` marker `decide()` already uses, so a block (or the nudge it
+  degrades to) fires **at most once per session**, exactly the plan's own
+  "triggers at most once per session, never gets stuck" — copied as a
+  constraint, not just a phrase. It returns `{"block": True, ...}` only when
+  `coverage.fraction >= STRICT_MIN_COVERAGE` (new constant, **0.95** — an open
+  decision this plan explicitly left unset, picked high because blocking is
+  the higher-cost mistake of the two directions); otherwise `{"block": False,
+  ...}`, the ordinary nudge text.
+- **The stress test named in the plan** ("Strict mode at 100% coverage but
+  stale index") is enforced by construction, not just tested: `_gate` already
+  returns `None` the moment `inventory.head != git HEAD`, before
+  `strict_decide` ever looks at coverage, so a stale-but-fully-covered index
+  degrades to silence, never a block. `tests/test_hook.py`
+  `test_full_coverage_but_stale_head_still_degrades_to_a_nudge` pins it.
+- `payload(message, block=False)` grew the block half of the PreToolUse
+  contract: `permissionDecision: "deny"` + `permissionDecisionReason`, which
+  the existing nudge path never sets (still no `permissionDecision` at all,
+  same as before — `test_payload_reports_no_permission_decision` unchanged).
+  **Not verified against a live harness** — same posture the module's own
+  docstring already takes toward `additionalContext`: `mcp_server`'s
+  MCP-SDK-facing half was "written against the documented shape, not run
+  against it" for the identical reason (nothing in this environment can fire
+  a real PreToolUse block to observe the result). Named as unverified rather
+  than asserted.
+- `cdp install --hook --strict` (`cli.py`) writes `args: ["--strict"]` on the
+  installed hook entry; `hook.main()` reads `"--strict" in argv` and calls
+  `strict_decide` instead of `decide`. Re-running `install --hook` with a
+  different `--strict` choice **updates the existing entry's args in place**
+  rather than leaving the stale choice (a real gap in the pre-existing
+  idempotency check, found while wiring this: it matched by `command` string
+  alone and never touched `args`) — `tests/test_hook.py`
+  `test_install_strict_writes_the_flag_and_reinstall_updates_it` covers both
+  directions.
+
+**Verified, not assumed:**
+- `tests/test_hook.py`: 7 new tests (`StrictModeTest`, plus one each in
+  `HookSafetyTest`/`InstallHookTest`) — below-threshold degrades, full
+  coverage blocks, full-coverage-but-stale-HEAD still degrades (the named
+  stress test), one-shot-per-session holds for a block too, the real CLI
+  subprocess with `--strict` emits `permissionDecision: "deny"`, and the
+  install/reinstall args-update roundtrip. All 22 pre-existing `test_hook`
+  tests pass unchanged (the refactor into `_gate` is behaviour-preserving).
+- **Real-target exercise (R-E7), not just the fixture:**
+  `sql-pool/sql-pool-api` scanned fresh into a scratch dir (real coverage
+  0.0 — a bare `scan` with no agent dispatch, matching the earlier real
+  fixture reading exactly). `strict_decide` against the real, previously
+  unseen `ServerResource.java` path returned `{"block": False, ...}` — the
+  honest degrade, not forced. The same store's `state.coverage.fraction` was
+  then set to 1.0 directly (the only way to exercise the block branch without
+  a live multi-agent `cdp run`, which this session's budget does not include)
+  and the identical call returned `{"block": True, "message": "Blocked: the
+  index covers 100% of this repository at 7e10575adf69..."}` — a real repo
+  path, a real commit sha, a real file, both directions proven on the same
+  scan. Scratch directory removed after the exercise.
+
+**Not delivered this session, named rather than silently dropped:** a live
+harness firing a real `PreToolUse` block and confirming Claude Code actually
+refuses the read (no such harness is reachable from inside this session);
+`STRICT_MIN_COVERAGE`'s value (0.95) is a judgment call, not derived from any
+labelled corpus — Phase 9's holdout/benchmark machinery (M9.2/M9.3) has
+nothing yet that grades a *blocking* threshold, only claim quality, so there
+is no data this session could have fit it to.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **527 tests green
+(up from 520 — the 7 new strict-mode tests), determinism (fixture+target),
+`fold --check` (fixture+target), golden (fixture+target) all green,
+byte-identical, no re-bless needed** — confirms `hook.py`'s `_gate`
+extraction is behaviour-preserving and strict mode changed nothing about
+`scan`/`fold`/`golden`, since no existing command calls the new code paths.
+
+---
+
+## Phase 9 (M9.4, §7.9 only) — Tier-0 `AGENTS.md`, exercised on a real module
+
+Scoped to §7.9 only, asked before implementing (same posture every prior
+M9.4 session took): LiteLLM adapter (7.2) and LangGraph/ADK adapters (7.4)
+remain docstring-only stubs, each its own session's worth.
+
+**Where it lives, and why not inside `DIST_MEMBERS`.** A root-level
+`AGENTS.md` is the convention Cursor/Codex/Copilot/Aider actually read —
+none of them look inside `.claude/skills/cdp/`. `DIST_MEMBERS`
+(`cdp/cli.py:2260`) is copied to `<target>/.claude/skills/cdp/`, the wrong
+place for this file, so `cmd_install` gained a second, separate copy step
+that writes `<target>/AGENTS.md` directly, alongside the existing
+`.claude/agents/cdp-leaf.md` copy.
+
+**Never overwritten, on purpose** — the same posture `githook install`
+already takes toward a foreign hook (`PHASE/FINDINGS.md`, Phase 3 M3.8): an
+`AGENTS.md` already present is the operator's own file, and `install`
+prints `kept ... (already present, not overwritten)` rather than silently
+replacing it. Verified against this repository's own re-install
+(`cdp install --self`): the root `AGENTS.md` this session created was left
+untouched, confirmed by the printed line above.
+
+**Content**: the Tier-0 question→command table, reproduced from
+`SKILL.md:35-46` per the plan's own citation, plus the coverage-before-
+absence and stale-index rules `SKILL.md` already states for a hook-capable
+session — the same rules apply with no hook to enforce them, just stated as
+guidance instead of a block.
+
+**Verified, not assumed:**
+- `tests/test_distribution.py` `AgentsMdInstallTest` (2 new tests): a fresh
+  target gets `AGENTS.md` with the expected command table; a target with its
+  own pre-existing `AGENTS.md` keeps it byte-for-byte.
+- **Real-target exercise (R-E7):** `sql-pool/sql-pool-api` copied into a
+  scratch target directory, `cdp install <target>` run against it (not
+  `--self`) — printed `wrote .../AGENTS.md`. Then, simulating exactly what a
+  hook-less assistant does — no `cdp` CLI, no Claude Code, just the two shell
+  commands the new file itself documents — `python3
+  .claude/skills/cdp/run.py scan --repo sql-pool-api` and `... query stats`
+  were run directly from that target directory and produced a real,
+  correct census (48 tracked files, 1 module, 41 claims, 2 unknowns) —
+  concrete proof the Tier-0 path needs nothing beyond a shell and Python
+  3.9, the plan's own claim for this item. Scratch directory removed after.
+
+**Not delivered this session, named rather than silently dropped:** no live
+non-Claude assistant (Cursor/Codex/Copilot/Aider) was available to fire an
+actual session against this file — the exercise above stands in for "any
+assistant that can run a shell command" by running the shell commands
+directly, which is the whole content of the Tier-0 claim, but it is not the
+same as watching a real Cursor/Aider session read `AGENTS.md` and act on it.
+LiteLLM adapter (7.2), LangGraph/ADK adapters (7.4), and the MCP server's
+still-open "3 tools" cap (7.1, already shipped, not re-litigated here)
+remain the rest of M9.4.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **529 tests green (up from 527 — the 2 new AgentsMdInstallTest cases), determinism (fixture+target), `fold --check` (fixture+target), golden (fixture+target) all green, byte-identical, no re-bless needed** — confirms the new install step is additive and changed nothing about `scan`/`fold`/`golden`'s own pipeline.
+
+---
+
+## Phase 9 (M9.4, 7.2 only) — LiteLLM adapter, real preflight against a real subprocess pipeline
+
+Scoped to 7.2 only (LangGraph/ADK adapters, 7.4, remain the one unstarted
+M9.4 item, still its own session's worth — same posture every prior M9.4
+session took). `litellm` is not installed in this environment (`python3 -c
+"import litellm"` -> `ModuleNotFoundError`), so this session follows the
+`mcp_server.server` precedent exactly: isolate the SDK-facing call into one
+function, test everything else without the SDK present.
+
+**What shipped, `litellm_adapter/__init__.py`:**
+
+- `_complete(model, prompt_text, ...)` — the only line that imports
+  `litellm`. Raises a clear `ImportError` naming `pip install cdp[litellm]`
+  when absent (verified: this is the path this session's own tests
+  actually exercise, same as `mcp_server.server.create_server`).
+- `LiteLLMRunner` — the `Runner` protocol (`cdp/runner.py`:
+  `run(prompt_path, patch_path) -> RunResult`). No exception escapes `run()`
+  (runner.py Rule 1) — an SDK exception, a malformed response shape, and a
+  missing prompt file are all caught and returned as `RunResult(ok=False,
+  error=...)`, verified by three separate tests each forcing one of those
+  paths via a stubbed `_complete`. Unparseable model output is `ok=True`
+  with no patch written — matching runner.py's own contract exactly
+  ("a well-formed-but-wrong patch is `collect`'s job... not the runner's");
+  `cdp run` is what classifies an absent patch as yield collapse, not this
+  adapter. Reuses `cdp.doctor._extract_json` for the "outermost `{...}`
+  span" parse rather than a second copy (same reuse argument D42 already
+  makes).
+- `preflight(model)` — the answer to this milestone's own stress test
+  ("LiteLLM to a local 8B that collapses -- `doctor` catches it. Verify the
+  adapter surfaces `doctor`'s verdict before a full run, not after."):
+  shells out to the real `cdp scan` then `cdp doctor --runner-cmd "python3
+  -m litellm_adapter --model <model>"` against `tests/fixtures/minirepo` in
+  a scratch state dir, and returns the real aggregate verdict
+  (`schema_validity_rate`/`yield_collapse_rate`/`recall`/
+  `false_unknown_rate`) plus an `ok` bit. Reuses the actual doctor harness
+  rather than re-deriving inventory/extraction/xref/schedule by hand — the
+  same "one place, not a second copy" argument as `_extract_json` above,
+  one level up.
+- `python3 -m litellm_adapter --model M prompt.md patch.json` (`__main__.py`
+  + `_run_argv`) — the `SubprocessRunner` shape `cdp run --runner-cmd`/`cdp
+  doctor --runner-cmd` already expect, same convention as
+  `scripts/claude_leaf_runner.sh`. `--preflight` prints the verdict JSON and
+  exits nonzero on failure, so a caller can gate a real `cdp run` invocation
+  on it from a shell (`litellm_adapter --preflight --model M && cdp run
+  --runner-cmd "..."`).
+
+**Real-input exercise (R-E7), not just stubbed unit tests — and it is
+exactly the stress test's own scenario, not a synthetic stand-in for it.**
+`preflight("fake-model-no-such-provider")` was run for real: real
+subprocess `cdp scan` of `tests/fixtures/minirepo`, real subprocess `cdp
+doctor` dispatching a real `SubprocessRunner` that shells out to `python3 -m
+litellm_adapter`, which correctly raises the `ImportError` (no `litellm`
+installed) and reports a runner-level failure back through `doctor_scope`.
+`preflight` returned `ok: False` — the model can't even be called, in a
+harness with no local 8B to actually collapse, but this is the identical
+shape doctor would report for one that does: `schema_valid=False,
+runner_ok=False`. This proves the whole preflight pipeline end to end
+(three real subprocesses chained, scratch state dir, real fixture) rather
+than only proving `LiteLLMRunner.run()`'s error handling in isolation.
+
+**Verified, all before freezing:**
+- `make check-interfaces`: `litellm_adapter` now 9 tests (up from 2 scaffold
+  tests), 1 skipped (`litellm` genuinely absent), 0 failed; `mcp_server`
+  (10) and `agent_adapter` (3, still scaffold-only) unchanged.
+- `python3 -m litellm_adapter --model x prompt.md patch.json` run directly
+  (not through a test) against a real prompt file from an actual
+  `tests/fixtures/minirepo` scan: printed the expected `ImportError` message
+  to stderr and exited 1 — the CLI entry point itself behaves correctly
+  under the SDK-absent condition, not only when driven through `unittest`.
+- `cdp install --self`: confirmed (per `DIST_MEMBERS`'s comment, D41)
+  `litellm_adapter/` is still absent from the vendored
+  `.claude/skills/cdp/` copy — this adapter stays outside the zero-dependency
+  distribution, same as `mcp_server`/`agent_adapter`.
+- `pyproject.toml`'s `litellm` extra changed from `[]` to `["litellm"]` —
+  the one line that stops being a placeholder now that real code depends on
+  it; `mcp`/`agent` stay `[]`, unchanged, since those two adapters are still
+  stubs.
+- `make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+  freeze, result recorded once it completes — see below) is the
+  confirmation that this adapter, entirely outside `cdp/`, changed nothing
+  about `scan`/`fold`/`golden`'s own pipeline.
+
+**Not delivered this session, named rather than silently dropped:** a real
+call against an actual LiteLLM-routed model (local or hosted) — `litellm`
+is not installed here, so `LiteLLMRunner.run()`'s real HTTP/subprocess path
+through the SDK is written against its documented `completion(...)` shape
+but not run against it, the same posture `mcp_server.server`'s SDK-facing
+half already takes. LangGraph/ADK adapters (7.4) remain the one fully
+unstarted M9.4 item — `agent_adapter/` is still scaffold-only.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **529 tests
+green (unchanged — this session's new tests live in `litellm_adapter/`,
+which `check-interfaces`, not `check`, runs), determinism (fixture+target),
+`fold --check` (fixture+target), golden (fixture+target) all green,
+byte-identical, no re-bless needed** — confirms the adapter, entirely
+outside `cdp/`, changed nothing about `scan`/`fold`/`golden`'s own pipeline.
+
+---
+
+## Phase 9 (M9.3, 6.8 only) — holdout A/B, the missing lesson-consumer found and built to make it measurable
+
+Asked before implementing (per R-E13): attempt 6.8 or defer it, given its own
+class ("independently as large as M9.1/M9.2") and this session's 20-minute
+budget. User chose attempt.
+
+**A defect surfaced immediately, before any holdout code was written**:
+`--lessons vN`/`--no-lessons` were wired into `cdp run`'s manifest
+(`cli.py:1468-1476`) but nothing ever *read* a loaded lesson-set to change
+behaviour — `apply_lessons` did not exist. A holdout A/B of a no-op is a
+measurement of nothing, so this session's first real work was building the
+consumer 6.7/6.8 both assumed already existed:
+
+- `reflect.apply_lessons(lessons)` (new): turns cut, pinned promotion rows
+  into the two routing knobs `prompts.py`/`graph.py` actually expose --
+  `import_channel_hint` patterns (unioned) and a `max_inherited` override
+  (last `budget_change` wins, append order). `prompt_fix` promotions round-trip
+  through but are not yet consumed anywhere (no code renders `instruction`
+  into a prompt section) -- named, not silently dropped.
+- `graph._looks_third_party(fqn, extra_patterns=())` / `tiering.compute_tier`
+  / `tiering.scope_unresolved_imports` all gained the same `extra_third_party`
+  parameter, threaded through `prompts.build_prompt` -> `cdp prompts
+  --lessons vN` and `supervisor.dispatch_scope`/`run_wave` -> `cdp run`
+  (which already resolved `lessons_version`; it now also calls
+  `apply_lessons` and passes the hints through). This is the one lever a
+  lesson can pull today, and it is exactly the real gap `TARGET.md`'s M6.4
+  finding named: `com.rms.auth.framework.*`/`org.mapstruct.*` are real
+  third-party roots this repo's `graph._looks_third_party` hardcoded list
+  does not recognise -- an `import_channel_hint` lesson is the mechanism
+  meant to close that, at routing time, never at claim-content time (R10).
+
+**Promotion gating (6.8's own point — a cut is not "latest" for free):**
+`trajectory.py` gained a `lesson_cut` table (`promoted` bit,
+`holdout_repo`, `holdout_metric`). `cut_lessons()` now inserts an
+unpromoted row; `latest_lesson_version()` only returns a *promoted* version
+(a regression from the pre-6.8 semantics, deliberately -- the existing
+fixture test asserting `latest_lesson_version()==1` right after a bare cut
+was updated to reflect the new gate, `tests/test_trajectory.py`
+`LessonSetTest`). `--lessons vN` still pins an unpromoted cut explicitly,
+same as before.
+
+**The A/B itself (`cdp holdout --lessons vN`, new command), and the open
+decisions this milestone named but declined to settle in advance:**
+
+- **Metric, decided here:** T3-escalation rate under `tiering.compute_tier`,
+  with vs without the cut's `import_channel_hint` patterns applied, over
+  every scope of the holdout repo's own already-completed scan. Chosen
+  because it needs **zero live model calls** — the tiering rule is
+  deterministic by construction (M6.4) — matching 6.5's own "no model
+  involved" posture and keeping the whole A/B inside this session's budget.
+  The plan's own stress test ("verify the split is real") is the harder
+  requirement this milestone actually meets; the benchmark-coverage version
+  of 6.8 (live models, `benchmarks/run_benchmark.py`, a repo pair large
+  enough to need real A-E/F selection) is **not** attempted here and remains
+  open, named rather than faked.
+- **Split-is-real check, decided here:** `trajectory.learned_repos_for_cut`
+  joins `lesson_promotion.run_id -> fact_leaf_run.run_id -> dim_repo`; `cdp
+  holdout` refuses outright (`CdpError`, nonzero exit) if the target repo's
+  own `repo_identity` appears in that set — "a repo outside the learning
+  set" enforced, not merely asserted. Exercised for real:
+  `tests/test_holdout.py::test_holdout_refuses_a_repo_in_the_cuts_own_learning_corpus`.
+- **Promotion bar, decided here:** the cut must not *increase* T3 rate on
+  the holdout repo (`after <= before`); an increase would mean the pattern
+  overfits the learning corpus rather than naming a real third-party root.
+  **Caveat, found by reasoning about the metric rather than hidden after
+  the fact:** with only `import_channel_hint` hints in play, T3 rate is
+  *structurally monotonic non-increasing* — a hint can only turn an
+  already-unresolved import into a recognised one, never the reverse — so
+  the REJECT branch of this bar is currently unreachable in practice. It
+  remains real code (a `budget_change`/`prompt_fix`-driven regression is a
+  different, not-yet-built, path), but the promotion bar as shipped cannot
+  presently be exercised on its failing side without a second, adversarial
+  lesson kind this session did not build.
+- **What "regression on the holdout triggers"**, the plan's third open
+  question: nothing beyond non-promotion. `latest_lesson_version()` simply
+  stays at whatever the last *promoted* cut was; `cdp run`'s default
+  behaviour is unaffected. No rollback/alerting mechanism was asked for or
+  built.
+- **Cut cadence** remains genuinely open, unaddressed this session (no
+  scheduling code, manual `cdp lessons cut` only) — same as every prior
+  M9.3 session recorded it.
+
+**Verified, all before freezing (R-E3):**
+- `tests/test_reflect.py::ApplyLessonsTest` (4 new tests): pattern union,
+  last-budget-change-wins, prompt_fix round-trips with no claim-shaped
+  field, empty-lessons no-op.
+- `tests/test_trajectory.py::HoldoutSplitTest` (1 new test) +
+  `LessonSetTest`'s updated assertion (promote_cut required before
+  `latest_lesson_version` moves).
+- `tests/test_holdout.py` (2 new tests, real subprocess end-to-end, two
+  *distinct* real fixture repos — `minirepo` as the learned repo,
+  `solorepo` as the holdout, never the same directory): a real promotion
+  recorded only against `minirepo`, cut, `cdp holdout --repo solorepo
+  --lessons 1` promotes it, and a subsequent real `cdp run --repo solorepo`
+  (no `--lessons` flag) picks up v1 as the default latest, confirmed by its
+  own printed `lessons   pinned v1` line. The second test confirms the
+  same-repo refusal against a real scan, not a mocked one.
+- **Real-target exercise (R-E7):** `sql-pool/sql-pool-api` scanned fresh
+  into `/tmp/m98_scratch` (removed after); a synthetic promotion recorded
+  against a *different*, fake repo id; `cdp holdout --repo
+  sql-pool/sql-pool-api --lessons 1` ran against this real target module,
+  printed `T3 rate 1.000 (none) -> 1.000 (lessons) -- PROMOTE`, and
+  promoted the cut. The rate did not move on this specific module — expected,
+  since M6.4's own finding already established this module's T3 scopes have
+  other unresolved imports independent of the one tested pattern — but the
+  full real pipeline (scan, promotion recording, cut, deterministic A/B,
+  promotion write) ran end to end against real target data without error.
+
+**Not delivered this session, named rather than silently dropped:** the
+live-model, `benchmarks/run_benchmark.py`-style holdout (coverage A-E vs F)
+that the plan's own prose leans toward is not built — the deterministic
+tiering-rate A/B above is the real, budget-compatible substitute this
+session chose and is defensible against R10 and the stress table, but it is
+a narrower instrument than a full benchmark comparison. `prompt_fix`
+promotions are validated, cut, and round-tripped but not yet rendered into
+an actual prompt section. Cut cadence remains unaddressed. LangGraph/ADK
+adapters (7.4) remain the one fully unstarted M9.4 item — the plan itself
+calls 7.4 "on demand" and it is not named in Phase 9's own exit criteria,
+so it was not attempted this session.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **536 tests green
+(up from 529 — the 4 `ApplyLessonsTest` + 1 `HoldoutSplitTest` + 2
+`test_holdout` cases), determinism (fixture+target), `fold --check`
+(fixture+target), golden (fixture+target) all green, byte-identical, no
+re-bless needed** — confirms the tiering/`build_prompt`/`run_wave` threading
+this session added is dormant unless a lesson-set is actually pinned, so it
+changed nothing about the existing `scan`/`fold`/`golden` pipeline.
+
+## Phase 9 (M9.4, 7.4 only) — LangGraph/ADK adapters, the last named item
+
+Prior sessions closed every other Phase 9 exit criterion; this one was
+explicitly asked for by the user even though the plan itself marks 7.4
+"on demand" and Phase 9's exit criteria don't name it.
+
+**Design.** `agent_adapter/__init__.py` is the SDK-free core:
+`tool_specs()` reuses `mcp_server.tools.TOOLS` (the same
+`cdp_scan`/`cdp_query`/`cdp_status` three tools 7.1 already settled as the
+right L4 surface) and sources each one's description from `cdp help
+--json`'s command summaries (`cdp/helpdoc.describe`) rather than
+hand-writing one — a description cannot drift from the CLI it wraps, same
+argument `cmd_help` already makes for itself. Raises `KeyError` if `scan`/
+`query`/`status` ever disappear from the help surface, rather than silently
+dropping a tool. `agent_adapter/langgraph.py` and `agent_adapter/adk.py` are
+thin converters: each imports its SDK only inside its one function
+(`litellm_adapter`'s `_complete` isolation precedent, R-E6) and both were
+verified *not* installed in this environment
+(`python3 -c "import langchain_core"` / `"import google.adk"` ->
+`ModuleNotFoundError`), so each is written against its SDK's documented
+shape — `StructuredTool.from_function(func, name, description)` for
+LangGraph/LangChain, `FunctionTool(func)` for ADK (confirmed from ADK's
+public docs and GitHub source, not a local install: ADK inspects the
+function's own docstring/signature/type hints and takes no separate
+description argument) — but neither is executed against the real package.
+`pyproject.toml`'s `agent` extra, previously empty, now names
+`langgraph`/`langchain-core`/`google-adk`.
+
+**Decision left implicit by the plan, made explicit here:** 7.4 shares
+7.1's three-tool surface rather than exposing a wider one (e.g. `answer`,
+`refresh`, `run`) at L4. Consistent with the plan's own framing ("RCA,
+reviewer agents" — read/query consumers, not orchestration consumers) and
+with 7.1's own three-tool cap rationale (`idea`+`pycharm` at 49.2k tokens
+at rest) extended to a second interface.
+
+**Tests** (`agent_adapter/tests/test_agent_adapter.py`, 8 cases, run by
+`make check-interfaces` not `make check`): `tool_specs()` covers exactly
+`mcp_server.tools.TOOLS`'s three names; each spec's description is
+non-empty and its `func` is the identical object `mcp_server.tools` holds
+(not a copy); a mocked missing help-command raises `KeyError` rather than
+silently shrinking the tool set; both wrappers raise a clear `ImportError`
+naming the missing package (the only branch exercisable without the real
+SDKs).
+
+**Real-target exercise (R-E7):** `tool_specs()['cdp_scan'].func` and
+`['cdp_status'].func` called directly (no CLI subprocess, no framework)
+against `sql-pool/sql-pool-api` into a scratch state dir: `scan claims 41
+symbols 413`, `status run_id/head cdp-7e10575adf69
+7e10575adf69a193da7f547aed088f7409f1f7c4` — the identical numbers every
+prior Phase 9 real-target exercise of this same module has produced,
+confirming this adapter answers from the same code path as the CLI and
+`mcp_server`, not a third reimplementation. Scratch directory removed
+after.
+
+**Not delivered, named rather than silently dropped:** neither SDK's
+`FunctionTool`/`StructuredTool` construction is exercised against the real
+package — this environment has neither installed, and installing either
+was out of this session's scope. `agent` extra install itself is
+unverified. Only the 3-tool L4 surface is wrapped; a wider agent-side
+surface (mutating commands) was a deliberate non-goal per the design
+decision above, not an oversight.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **536 tests
+green, determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed** —
+`agent_adapter`'s own 8 tests run under `make check-interfaces`, exercised
+separately above. Phase 9's exit criteria, including the on-demand 7.4
+item, are now all closed.
+
+## Post-Phase-9 follow-up — the "cut cadence" open decision, resolved: a nudge, not an auto-cut
+
+Phase 9's own text left cut cadence unaddressed by design ("open decisions to
+make here, not before"). Asked directly: the user's answer is **cutting stays
+manual** (`cdp lessons cut`, unchanged) but **every `LESSONS_HINT_EVERY=5`
+finished runs** (a global, cross-repo count — `trajectory.finished_run_count()`
+over `fact_run_event WHERE event='finished'`, matching the corpus's own
+cross-workspace scope, not a per-repo one), `cdp run` prints a one-line nudge
+naming how many promotions are pending and the exact command to freeze them,
+*only if* something is actually pending — silent otherwise, both off-cadence
+and on-cadence-with-nothing-pending.
+
+`cdp/trajectory.py`: new `finished_run_count()` and the `LESSONS_HINT_EVERY`
+constant. `cdp/cli.py`: new `_maybe_print_lessons_hint()`, called from both
+`cmd_run` exit paths (the `--stale-only` early return and the normal
+end-of-wave-groups path) right after the `finished` run event is recorded.
+
+**Tests** (`tests/test_trajectory.py`, 4 new cases): `finished_run_count` is
+global across repos and only counts `finished`, not `started`; the hint is
+silent off-cadence even with promotions pending; silent on-cadence with
+nothing pending; and on-cadence with pending promotions it names the count
+and `cdp lessons cut` verbatim.
+
+**Real-target exercise (R-E7).** `sql-pool/sql-pool-api` scanned fresh into
+`/tmp/hint_scratch` (removed after); `cdp run --wave-all` driven five times
+through a real external `--runner-cmd` fake runner against this real module
+(each real end-to-end `cmd_run` invocation, not a synthetic event insert) —
+`finished_run_count()` read back as exactly 5. A pending promotion was seeded
+directly (no `cdp reflect` call spent — reflection itself is orthogonal to
+this milestone) and `_maybe_print_lessons_hint` against that real store
+printed:
+
+    lessons   1 promotion(s) pending after 5 runs -- `cdp lessons cut` to freeze them
+
+Scratch directory and its trajectory DB removed after the exercise (this
+change writes to `~/.cdp/trajectories.db` by default in normal operation;
+the exercise used `CDP_TRAJECTORY_DB` override to avoid touching the real
+one).
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+freeze, result recorded once it completes — see below) is the confirmation
+that this additive change to `cmd_run`'s end-of-run path didn't move
+anything in the `scan`/`fold`/`golden` pipeline, since the hint fires only
+inside `cdp run`, which that pipeline never invokes.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **540 tests
+green (up from 536 — this session's 4 `LessonsHintTest`/`finished_run_count`
+cases), determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed.**
+
+## Post-Phase-9 follow-up — the live-model holdout (M9.3, 6.8's other half), built, and two real bugs it found
+
+The deterministic T3-rate `cdp holdout` only proves a lesson doesn't worsen
+tiering escalation; asked directly, the user chose to spend real API budget
+building the coverage-based A/B the plan's own prose leans toward, on the
+real held-out module `sql-pool/sql-pool-api` (never in any cut's own
+`learned_repos_for_cut`), with a real, seeded `import_channel_hint` cut
+(`com.rms.auth.framework`, `org.mapstruct` — the exact two previously-
+unrecognised third-party roots M6.4's own finding named for this module).
+
+**Why this needed a new script, not just re-running `run_benchmark.py`:**
+unlike the deterministic holdout (pure SQL over already-scanned state),
+lessons only steer leaf *dispatch* (`build_prompt`/tiering), so a real A/B
+needs the held-out module scanned and leaf-dispatched **twice** with a real
+model — once `--lessons none`, once with the cut pinned — before either
+state exists to benchmark. `benchmarks/run_live_holdout.py` (new, out of
+core, same posture as `run_benchmark.py`): seed + cut a lesson into a
+**scratch** trajectory DB (`--trajectory-db`, never `~/.cdp/trajectories.db`),
+dispatch both arms with a real `haiku` leaf model via the existing
+`scripts/claude_leaf_runner.sh`, then benchmark each resulting state with a
+small hand-verified 3-question gold set (`benchmarks/holdout_live_questions.json`)
+using a real haiku reader + sonnet judge, mirroring `run_benchmark.py`'s own
+`coverage_of` scoring.
+
+**Bug 1 (real, found on the first live dispatch, fixed): the leaf agent
+prompt never stated the schema's own anchor length ceiling.** Both scopes of
+`sql-pool-api` came back `abandoned` after 3 attempts each — every attempt's
+`evidence[].anchor` exceeded `schema/patch-1.0.0.json`'s `maxLength: 400`
+(the anchor def states a **12-char minimum** prominently but never mentions
+400). `agents/cdp-leaf.md` (canonical source — NOT `.claude/agents/` or
+`.claude/skills/cdp/agents/`, which are install/vendor targets `cdp install
+--self` overwrites) now states the ceiling explicitly and tells the model
+"two or three lines is normally enough — never quote a whole method body."
+Re-dispatching the identical prompt/model/module after the fix: both scopes
+`validated`, zero abandons. Propagated via `cdp install --self` to both
+downstream copies.
+
+**Bug 2 (real, found on the first live benchmark run, fixed): the reader
+model could read the gold-fact file directly and did.** `run_live_holdout.py`
+initially granted `Read,Grep,Glob,Bash` (`run_benchmark.py`'s own tool list)
+— fine for M6.2, whose target repo was a separate checkout, but this harness
+runs with cwd inside **this** repo, which also contains
+`benchmarks/holdout_live_questions.json`. Arm A's first h03 answer opened
+with "Based on the benchmark questions in the repository" — the model had
+read its own gold answers off disk, not from `cdp query`. Fixed by dropping
+to `--tools Bash` only (still `--allowedTools Bash(*cdp.cli*)`), forcing
+every answer through the actual query surface. Re-run after the fix produced
+materially different, lower numbers for both arms — confirming the first
+run's coverage was contaminated, not measuring anything real.
+
+**Result (post-fix, the real one):** `coverage 0.444 (none) -> 0.167
+(lessons) — REJECT`. Not promoted. Read at face value this says the lesson
+hurt; the honest caveat, stated rather than hidden: **n=3 questions, one
+sample per arm, no repeat sampling** — h03 (the one question the lesson
+should plausibly move, since it asks exactly about the two hinted packages)
+scored **0.0 in both arms**, because neither arm's model found a `cdp query`
+subcommand that surfaces third-party imports at all (a real capability gap,
+independent of lessons — imports.json / symbol tables are built for
+internally-defined symbols, not for naming what a scope imports from
+outside). h02's swing (1.0 -> 0.0-then-clarifying-question) looks like
+single-call model variance (a haiku reader asking a clarifying question
+instead of just running `cdp query`), not a systematic lessons effect. **This
+sample size cannot support "lessons hurt" as a general claim** — the honest
+read is that the mechanism now works end to end (seed, cut, dual real
+dispatch, dual real benchmark, promote/reject decision), but three questions
+against one small module is far too little signal to trust the number
+itself, exactly the concern that made a live-model holdout expensive in the
+first place. The deterministic T3-rate `cdp holdout` remains the sound
+production gate; this script is available for a larger question set/repo
+when that budget exists.
+
+Not delivered: no repeat sampling (would need 3-5x the spend already
+recorded above); no second held-out repo (would need a second gold question
+set, verified by hand the same way this one was); a `cdp query` subcommand
+for third-party-import lookups (the actual gap h03 surfaced) was not built —
+named as a real, separate finding, not silently absorbed into this one.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+freeze, result recorded once it completes — see below): confirms the
+`agents/cdp-leaf.md` fix and the new out-of-core `benchmarks/` script didn't
+move anything in the `scan`/`fold`/`golden`/`selftest` pipeline.
+
+## Post-Phase-9 follow-up — `prompt_fix` promotions rendered into an actual prompt section
+
+Asked directly (control question: "what stops a bad `prompt_fix`?"): R10's
+content firewall (`validate_promotion` gives it no claim-shaped field to
+smuggle content through) plus the existing `--no-lessons`/`--lessons vN`
+escape hatches were judged sufficient for now; a `cdp lessons unpromote <v>`
+revert command was scoped and costed but deferred, not built this session.
+
+**The gap this closes:** `reflect.apply_lessons()` already built a
+`prompt_fixes: List[Dict]` from a cut's promotions, but nothing downstream
+ever read it — a promoted `prompt_fix` was validated, cut, pinned, and
+completely inert. `cdp/prompts.py`'s `build_prompt()` gains a `prompt_fixes`
+parameter and a new `_apply_prompt_fixes()` helper: after `named_sections` is
+built (all 7 of `reflect.KNOWN_PROMPT_SECTIONS` — `header`/`files`/
+`structure`/`inherited`/`gaps`/`digest`/`task`), each fix's `instruction` is
+appended to the section its `section` field names, as `**Lesson:** <text>`.
+General by construction — one mechanism for all 7 sections, not a
+header-only or digest-only special case. A fix targeting `digest` is
+silently absent whenever `digest_mode=False`, since that section is never
+built for that call — stated in the docstring as expected, not a bug.
+Wired through both real call sites that already thread `lesson_hints`
+(`cli.py`'s `cmd_prompts`, `supervisor.py`'s `run_wave`); `doctor.py`'s
+`build_prompt` call takes no lessons and is unaffected (default `()`).
+
+**Tests** (`tests/test_digest.py`, 5 new cases, `PromptFixTest`): no-op with
+an empty list; a `header`-targeted fix appears exactly once; a
+`digest`-targeted fix is silently absent without `digest_mode`; the same fix
+appears when `digest_mode=True`; multiple fixes on one section all render.
+
+**Real-target exercise (R-E7).** A real `prompt_fix` (`section: "task"`,
+"Double-check every route path against ApiConstants before citing it.") was
+seeded into a scratch trajectory DB, cut, and promoted; `cdp prompts
+--lessons 1` against a fresh scan of `sql-pool/sql-pool-api` wrote it
+verbatim into both scopes' real prompt files (`root/(files+2)`,
+`root/src/main/java`), confirmed by `grep` on the actual written `.md`
+files, not a unit-test string. Scratch DB and state dir removed after.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner` (launched after
+freeze, result recorded once it completes — see below): confirms
+`build_prompt`'s new parameter (default `()`, opt-in) changed nothing about
+the existing `scan`/`fold`/`golden` pipeline, since neither takes lessons.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **545 tests green
+(up from 540 — this session's 5 new `PromptFixTest` cases), determinism
+(fixture+target), `fold --check` (fixture+target), golden (fixture+target)
+all green, byte-identical, no re-bless needed.**
+
+## Session handoff — 3 of 7 post-Phase-9 gaps closed; 4 remain, one decision pending
+
+Every remaining Phase 9 "Not delivered" marker was enumerated and split into
+two kinds: environment-blocked (no real MCP/LiteLLM/LangGraph/ADK SDK
+installed, no live non-Claude assistant, no live `PreToolUse` harness — not
+actionable by more code) and 7 genuine code/design gaps, asked about one at a
+time and worked in order. Status at handoff:
+
+**Closed this session:**
+1. **Cut cadence** — resolved as a nudge, not an auto-cut: `cdp run` prints
+   `lessons N promotion(s) pending after M runs -- \`cdp lessons cut\`` every
+   `LESSONS_HINT_EVERY=5` finished runs (global, cross-repo), only when
+   something's actually pending. `cdp/trajectory.py` (`finished_run_count`,
+   `LESSONS_HINT_EVERY`), `cdp/cli.py` (`_maybe_print_lessons_hint`). See
+   "Post-Phase-9 follow-up — the 'cut cadence' open decision" above.
+2. **Live-model benchmark-style holdout** — built (`benchmarks/
+   run_live_holdout.py` + `benchmarks/holdout_live_questions.json`), real
+   spend, dual real leaf-dispatch + real reader/judge. Found and fixed two
+   real bugs along the way: (a) `agents/cdp-leaf.md` never stated the
+   schema's 400-char anchor ceiling, only the 12-char floor, causing
+   abandoned scopes on the first live run; (b) the benchmark harness let the
+   reader model read its own gold-fact file off disk (fixed: `--tools Bash`
+   only). Real post-fix result: `coverage 0.444 (none) -> 0.167 (lessons) --
+   REJECT`, explicitly caveated as too small a sample (n=3, one draw per arm)
+   to trust as a real verdict — a genuine, separate capability gap surfaced
+   too (no `cdp query` subcommand names a scope's third-party imports at
+   all). See "Post-Phase-9 follow-up — the live-model holdout" above.
+3. **`prompt_fix` rendering** — `build_prompt()` now consumes `prompt_fixes`
+   generally across all 7 `KNOWN_PROMPT_SECTIONS`, not just header/digest.
+   See "Post-Phase-9 follow-up — `prompt_fix` promotions rendered" above.
+
+**Decision made, build deferred pending further analysis:** `cdp lessons
+unpromote <v>` — a revert path for a promoted cut that later shows harm.
+Costed at small (one `UPDATE ... SET promoted=0`, `latest_lesson_version()`
+already falls back correctly with zero extra logic, a CLI subcommand, ~40
+lines of tests, one real-target exercise). **User's explicit call: build it,
+but only after further analysis** — not scheduled to a specific future
+trigger yet; the open questions worth resolving before implementing are (a)
+should unpromote be silent or leave an audit trail (`unpromoted_at`/
+`unpromote_reason` columns on `lesson_cut`, matching R4's write-always
+posture elsewhere in this store), and (b) should un-promoting the *latest*
+cut auto-fall-back to the next-highest promoted version for any run already
+mid-flight with `--lessons latest` resolved, or only affect future
+resolutions.
+
+**Not started — 4 remaining code/design gaps, in the order the user set:**
+
+4. **Correction (this session):** item 4 as written below is stale — M8.2-M8.5
+   were **not** "not started". They were built and committed in `5c160e7`
+   ("Phase 8 (M8.1-M8.5): cross-repo link — cdp link scan/prompts/collect/
+   refresh/query"), with their own completed sections above at "Phase 8
+   (M8.2 only)" (line ~3102), "Phase 8 (M8.3 only)" (~3206), "Phase 8 (M8.4)"
+   (~3300) and "Phase 8 (M8.5)" (~3360) — `cmd_link_query`/`link_mod.
+   query_service`/`summarise_query` (unmatched-as-named-section), the LLM
+   adjudication tier, `link refresh`, and the non-entanglement test all exist
+   and are wired into `cli.py` today. Whatever prompted this list item to be
+   written as "not started" was a documentation error, not a rediscovered
+   gap — confirmed by re-reading git log and the cited line ranges directly
+   rather than trusting this entry's own prior wording. Original (stale) text
+   preserved below for the record, not as a live TODO:
+
+   ~~M8.2 (`link query --service` view over unmatched persist/entity edges),
+   M8.3 (LLM adjudication tier for ambiguous matches + `needs_other_repo`
+   routing — the largest of the four, a real model-call path), M8.4 (`link
+   refresh`, mirroring Phase 3's refresh design for the cross-repo case),
+   M8.5 (the non-entanglement test — moot until M8.3 lands a store table to
+   assert against). Not yet asked which sub-items to build; my standing
+   suggestion was M8.2 alone (cheapest, pure read-path).~~
+5. **`link` tasks never run through `cdp run`** — no leases/`snapshot_task`
+   rows/wave scheduling for `dim_task_kind=link`, so trajectory learning
+   (routing_prior, elision_regret) is blind to link work even though both
+   already work for `link` by construction (M9.1's own note — neither
+   hardcodes `"scope"`). Real schema work (`dim_task_kind` rows), same
+   deferral posture F9/D7 already took toward similarly-scoped work.
+6. **Source-vs-digest same-scope comparison** (M6.3's own stress-table item,
+   left for M9.2, still not attempted) — needs two real leaf dispatches of
+   the *same* scope in both modes, which `cdp run`'s single-dispatch-per-wave
+   loop does not support today. Real dispatch-loop change, not a small patch.
+7. **`sigma_claims`** — the count of imported-symbol claims specifically
+   (narrower than `inherited_claims`, which `build_prompt`'s stats already
+   has). Smallest of the four remaining; likely a one-line stats addition
+   once picked up.
+
+**To resume in a new session:** read this block, then `PHASE/phase_9_plan.md`
++ `PHASE/EXECUTION_RULES.md` as before, and pick up at item 4. All of items
+1-3's code is committed to the working tree (uncommitted in git — see
+`git status`), gated green (545 tests) as of this handoff.
+
+## Item 7 closed — `sigma_claims`, a direct-import-touch count narrower than `inherited_claims`
+
+User chose item 7 alone this session (items 5/6 are real schema/dispatch-loop
+work, out of budget). `_inherit`'s existing `touches` boolean (`prompts.py`)
+already distinguished a claim reached because its subject is literally one of
+the scope's own imported symbols from one pulled in only via a sibling
+module's `module_deps` fallback (`entrypoint`/`data_model`/`ownership`/
+`deployable` kinds) — that distinction just wasn't counted separately.
+Factored into `_is_sigma_claim(claim, imported)`, reused by both `_inherit`
+and a new `stats["sigma_claims"]` line in `build_prompt` (`cdp/prompts.py`).
+
+Plumbed through to the trajectory input fingerprint the same way
+`rows_elided`/`tokens_est`/`digest_mode` already are: new `sigma_claims`
+column on `fact_leaf_run` (schema + `_LEAF_RUN_MIGRATION_COLUMNS`, so a
+pre-existing `trajectories.db` gets it via `ALTER TABLE`, not a
+`CREATE TABLE IF NOT EXISTS` no-op), a new kwarg on
+`TrajectoryStore.record_leaf_run`, read back in `leaf_runs_for`, and wired at
+the one real call site (`cdp/cli.py`'s post-fold `record_leaf_run(...)`) from
+`prompt_stats.get("sigma_claims")`. Mirrored into
+`.claude/skills/cdp/cdp/{prompts,trajectory,cli}.py` — that tree had been
+kept byte-identical to `cdp/` before this change (diffed to confirm) and
+`cdp install --self` re-syncs it anyway.
+
+**Exercised on a real module**, not just the fixture (`sql-pool/sql-pool-api`,
+scratch scan + `cdp prompts --wave 0`, read back via
+`backend.read_report("prompts")` rather than trusting stdout): both real
+scopes show `sigma_claims == inherited_claims` (12/12, 20/20). That equality
+is the honest result for a *single-module* scan, the same caveat M6.4's
+tiering exercise already recorded: the dep-fallback path needs a sibling
+module present in `schedule["module_deps"]`, which a standalone single-module
+scan never has. The two counts diverging is therefore a cross-module-scan
+result to look for later, not something this exercise could produce with the
+scan shape available. `cdp run --wave-all` against a hand-written
+`--runner-cmd` fake was attempted to also exercise the `record_leaf_run`
+write path directly, but was abandoned after two schema-shape misses (missing
+`status`, then a `node` mismatch) rather than continuing to spend budget on
+a call site that is a single dict `.get()` already verified correct by the
+`prompts` report above — the risk this leaves unverified is confined to that
+one `.get()` line, not the stats computation itself.
+
+`cd tests && python3 -m unittest test_trajectory test_digest`: 28/28 green,
+no fixture changes needed (no existing test asserted a fixed column count or
+`fact_leaf_run` column list). `make check TARGET_REPO=/Users/sharmp49/git/code_scanner`
+launched after freeze: **545 tests green, determinism (fixture+target),
+`fold --check` (fixture+target), golden (fixture+target) all green,
+byte-identical, no re-bless needed** — `sigma_claims` is additive (a new
+optional stats key and DB column), and no existing golden artifact captures
+either the `prompts` report or `fact_leaf_run` rows, so nothing in the
+blessed baseline could move.
+
+## Item 5 — link tasks now run through leases and `link_task`, and record to the trajectory store as `dim_task_kind=link`
+
+User chose item 5 (of the 4 remaining post-Phase-9 gaps named in the prior
+session's handoff), after being asked which to pick up next this session.
+Before this, `link prompts`/`link collect` were a manual, file-handoff pair
+with no lease, no per-task state row, and no trajectory record — link work
+was invisible to `dim_task_kind=link`'s routing prior/elision regret even
+though both already supported the dimension by construction (M9.1's own
+note: neither hardcodes `"scope"`).
+
+**Schema (SCHEMA_V7, `cdp/store/sqlite_backend.py`).** `link_task` (created
+schema-only at M2.5, never populated) gets `state`/`attempts`/
+`dispatched_at`/`lease_until`/`last_error`/`patch_hash`/`wall_ms` — the same
+columns `snapshot_task` already has. Its existing `scope_hash` column now
+holds a link task's `task_id`; same column name deliberately, so the
+generic lease/task helpers below work against either table unmodified.
+`link_run` (the `link.*` counterpart of `snapshot_run`) is left untouched —
+nothing needs a run-level row yet, and forcing one would have required
+`begin_run`'s `snapshot_id` FK, which a `--db`-only link store has no
+snapshot context to satisfy.
+
+**Generalised, not duplicated (`sqlite_backend.py`).** `upsert_task`/
+`acquire_lease`/`heartbeat_lease`/`release_lease` were refactored into
+private `_upsert_task`/`_acquire_lease`/`_heartbeat_lease`/`_release_lease`
+taking a `table` parameter, with the original public names becoming thin
+`table="snapshot_task"` wrappers and new `upsert_link_task`/
+`acquire_link_lease`/`heartbeat_link_lease`/`release_link_lease`/
+`link_task_states` wrapping `table="link_task"`. Existing scope-task callers
+are unchanged in behaviour (verified: `test_store_sqlite`/`test_supervisor`
+green with no assertion touched).
+
+**`supervisor._LeaseHeartbeat` generalised the same way.** It took
+`(backend, run_id, scope_hash, lease_seconds, interval)` and called
+`backend.heartbeat_lease(...)` directly, hardcoding the scope-task path. Now
+takes a zero-arg `heartbeat_fn` callable; `dispatch_scope`'s call site
+becomes `_LeaseHeartbeat(lambda: backend.heartbeat_lease(run_id, scope_hash,
+lease_seconds), heartbeat_seconds)`, and `link.dispatch_link_task` reuses the
+same class with `heartbeat_link_lease` closed over instead. One test call
+site (`tests/test_supervisor.py::LeaseTest::
+test_heartbeat_keeps_a_live_holders_lease_from_being_reclaimed`) constructed
+`_LeaseHeartbeat` with the old positional signature and needed updating to
+match — found by running the narrow module, not by the target gate.
+
+**`link.dispatch_link_task` (new, `cdp/link.py`)** mirrors
+`supervisor.dispatch_scope`'s retry loop (`PENDING -> DISPATCHED -> RETURNED
+-> VALIDATED/EMPTY/INVALID -> retry up to `max_attempts` -> ABANDONED`)
+against `link_task` instead of `snapshot_task`. Validation is
+`validate_task_patch` alone (no separate anchor-liveness check the way
+`_classify_returned` runs `verify_patch` for a scope's claims against live
+source — a link task's own citation check, "every anchor must be one shown
+in the prompt," already is the fabrication guard for this shape, M8.3). A
+new `link_task_shape_key(task)` is `dim_scope_shape`'s counterpart for a link
+task: bucketed candidate count plus protocol, the same coarseness
+`trajectory.scope_shape_key` uses and for the same reason (M9.2's routing
+prior needs shape-alike neighbours, not per-task fingerprints).
+
+**New CLI surface: `cdp link run`.** Reads a persisted `link scan --db`
+report, builds ambiguous tasks (`build_tasks`, unchanged), dispatches each
+through `dispatch_link_task` with real leases, folds every `VALIDATED`
+task's resolutions immediately (`fold_resolutions`, unchanged), and records
+one `trajectory.record_leaf_run(task_kind="link", ...)` row per task —
+`repo_id` taken from the task's first candidate's caller repo (a link task is
+inherently cross-repo; the caller is the more natural "owner" of the
+question being asked). `link prompts`/`link collect`'s existing file-handoff
+path is untouched — `link run` is additive, not a replacement, so no
+existing test or documented workflow needed migrating.
+
+**Exercised on real modules, not just the fixture.** `sql-pool/sql-pool-api`
+and `service-api` each scanned fresh into scratch dirs, `cdp link scan --db`
+persisted (2,697 links, 0 heuristic — the same real finding M8.1/M8.3 already
+recorded for this pair). One synthetic heuristic link was written directly
+into the persisted report (same technique M8.3's own session used to exercise
+its adjudication path, since this pair produces none naturally) with real
+repo paths as both sides. `cdp link run --runner-cmd "python3
+/tmp/item5_fake_runner.py"` (a real subprocess, not an in-process stub)
+answered correctly:
+
+```
+link run  1 task(s)  validated 1  1 resolution(s) folded
+```
+
+Confirmed by reading state back directly, not trusting the summary line:
+`sqlite3 index.db "select run_id, scope_hash, state, attempts from
+link_task"` showed one real row (`cdp-link | link-<hash> | validated | 1`);
+`fact_leaf_run` in the real `~/.cdp/trajectories.db` (no `CDP_TRAJECTORY_DB`
+override was set for this exercise — an oversight, corrected below) carried
+a real `task_kind_dim` resolving to `'link'` (id 2, alongside `'scope'` at id
+1 — `dim_task_kind`'s two-row closed vocabulary, both now populated for
+real) and `scope_shape_dim` resolving to `protocol=http_out|candidates<=1`.
+The one synthetic row this exercise wrote to the real, cross-workspace
+trajectory corpus was deleted afterward (`DELETE FROM fact_leaf_run WHERE
+run_id='cdp-link' AND node LIKE 'link-%'`) since it was fabricated test data,
+not a real learning signal, and no lesson cut had consumed it yet — R4's
+write-always posture governs real corpus rows, not a same-session cleanup of
+a row this exercise itself created by mistake. Scratch scan/db/prompt
+directories removed after.
+
+**Not done, named rather than silently dropped:** no wave/schedule grouping
+for link tasks the way `sched["waves"]` groups scopes (`link run` dispatches
+every ambiguous task in one flat pass — link tasks have no cross-task
+dependency structure the way scopes' `module_deps` does, so a single pass is
+the honest granularity, not a missing feature); `--resume`/partition-drift
+handling for link runs (a link report has no `partition_hash` equivalent
+today); no `link_run`-row-level `started`/`finished` `fact_run_event` pair
+(only per-task `fact_leaf_run` rows are written — the M9.1 run-event pair is
+scope-run-shaped and a link run has no clear equivalent of "the whole run
+finished" beyond "every task was dispatched," which the caller already knows
+from its own loop).
+
+`cd tests && python3 -m unittest test_store_sqlite test_supervisor test_link
+test_trajectory`: 84/84 green. `cdp install --self` (required — `cli.py`/
+`link.py`/`supervisor.py`/`store/sqlite_backend.py` all changed) then `cd
+tests && python3 -m unittest discover`: **549 tests green (up from 545,
+skipped=30)**.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **549 tests
+green, determinism (fixture+target), `fold --check` (fixture+target), golden
+(fixture+target) all green, byte-identical, no re-bless needed** — the new
+`link_task` columns/state machine and `link run` CLI surface are additive
+and untouched by the existing `scan`/`fold`/`golden` pipeline, since no
+existing gate command calls `cdp link run` (the same posture every prior
+Phase 8/9 additive-feature entry in this file records).
+
+## Item 6 — closed as a decision, not built: source-vs-digest comparison does not belong on `cdp run`
+
+The remaining post-Phase-9 gap (source-vs-digest same-scope comparison,
+`prompts.py:120`'s ranking function's own stress-table item, M9.2 left it
+unattempted since `cdp run`'s wave loop dispatches each scope once per run).
+A design was drafted this session — a `--compare-digest` flag on `cdp run`
+that would dispatch the named scope a second time in digest mode via a new
+lease/task-state-free `run_shadow_dispatch` in `supervisor.py`, recording a
+second `fact_leaf_run` row for the pair without folding its patch — and
+**rejected by the user before implementation**: the actual need behind this
+item is feeding the trajectory corpus paired source/digest data so
+`routing_prior` (6.5) can eventually judge digest safety per scope shape,
+which is a benchmarking concern, not a production dispatch-loop feature. This
+codebase already keeps that distinction (`cdp doctor`, `benchmarks/
+run_benchmark.py`, `benchmarks/run_live_holdout.py` are standalone tools, not
+`cdp run` flags), and folding a diagnostic second dispatch into the command
+real automation depends on would blur it.
+
+**If picked up later, the right shape:** a standalone `benchmarks/`-style
+script that dispatches one scope twice (source, then digest) via the
+existing `build_prompt`/runner/`_classify_returned` pieces directly, and
+records both outcomes to the trajectory store — never touching
+`cdp/supervisor.py` or `cdp/cli.py`. Not built this session. No code changed,
+no tests added, no gate run needed.
+
+**Manual, no-code alternative for a one-off data point** (same pattern
+M6.4's `root/automation` comparison already used, still available any time):
+scan a module into two scratch state dirs, `cdp prompts --wave N` in one and
+`cdp prompts --wave N --digest` in the other, dispatch each through the same
+real model, and compare `cdp query stats`/`prompts` report output by hand.
+Gives a real number for one scope; does not write anything to the
+trajectory corpus.
+
+With this, all 7 post-Phase-9 follow-up gaps are accounted for: 3 closed and
+shipped (cut cadence, live-model holdout, `prompt_fix` rendering), one
+already done before this handoff trail existed (M8.2-M8.5, corrected above),
+`sigma_claims` and link-tasks-through-leases both closed and shipped, and
+this one — source-vs-digest comparison — closed as a considered decision not
+to build it into the CLI. `cdp lessons unpromote` remains the only item still
+explicitly deferred pending further design analysis, per the user's own
+earlier call.
+
+## `cdp lessons unpromote` — built, both open design questions resolved
+
+Picked up in a later session. The two questions the "deferred pending further
+analysis" entry above left open are both answered by this implementation,
+not left for a future one:
+
+**(a) Audit trail, not silent.** `lesson_cut` gains `unpromoted_at`/
+`unpromote_reason` columns (`_LESSON_CUT_MIGRATION_COLUMNS`, same
+`ALTER TABLE`-on-missing-column migration pattern `_LEAF_RUN_MIGRATION_COLUMNS`
+already established for a pre-existing `trajectories.db`). `unpromote_cut`
+flips `promoted` back to 0 but never clears `holdout_repo`/`holdout_metric` —
+R4's write-always posture: the promotion still happened, this only records a
+later decision on top of it, the same way `fact_run_event(rolled_back,
+reason)` doesn't erase the run it applies to.
+
+**(b) Fallback is automatic, by construction, and only affects future
+resolutions.** `latest_lesson_version()` was already a fresh `MAX(version)
+FROM lesson_cut WHERE promoted=1` query with no caching (M9.3's own code, not
+touched here) — so `unpromote_cut` needs no special fallback logic at all.
+The very next default-mode `cdp run` (no explicit `--lessons`) re-resolves
+and gets whichever *other* cut has the highest version number among those
+still promoted, or no lesson-set if none remain promoted — exercised directly
+below. A run already mid-flight is unaffected either way, because `cmd_run`
+resolves and pins its own `lessons_version` once at start; an explicit
+`--lessons vN` pin is also unaffected, since it never reads `promoted` at
+all — only the implicit default does.
+
+`cdp lessons unpromote --version N [--reason TEXT]` on the CLI; refuses
+(`CdpError`, exit 2) when `N` is not currently promoted, naming that as the
+reason rather than silently no-opping.
+
+**Exercised for real**, not just the fixture: `CDP_TRAJECTORY_DB` pointed at
+a scratch file (never the real `~/.cdp/trajectories.db`), a promotion
+recorded and cut via the real `TrajectoryStore` API, promoted via
+`promote_cut`, then the actual installed CLI (`python3 -m cdp.cli lessons
+unpromote --version 1 --reason "..."`) run for real:
+
+```
+$ cdp lessons show
+lessons   v1 (1 promotion(s))
+$ cdp lessons unpromote --version 1 --reason "regressed on repo X in a live check"
+lessons   v1 unpromoted -- default `cdp run` resolution now falls back to no lesson-set
+$ cdp lessons show
+lessons   no cut exists yet
+$ cdp lessons unpromote --version 1
+cdp: v1 is not currently promoted -- nothing to unpromote          (exit 2)
+```
+
+Fallback to a second, still-promoted cut (not just the "no cut left" case
+above) and the R4 audit-trail claim (`holdout_repo` unchanged, `unpromote_
+reason` recorded) are both covered by new unit tests in
+`tests/test_trajectory.py` (`test_unpromote_reverts_promoted_flag_but_keeps_
+holdout_record`, `test_unpromote_falls_back_to_next_highest_promoted_cut`,
+`test_unpromote_a_cut_that_is_not_promoted_is_a_noop`) — 19/19 green in
+`test_trajectory` alone. Mirrored into `.claude/skills/cdp/cdp/{trajectory,
+cli}.py` via `cdp install --self`.
+
+`make check TARGET_REPO=/Users/sharmp49/git/code_scanner`: **552 tests green
+(up from 549), determinism (fixture+target), `fold --check` (fixture+target),
+golden (fixture+target) all green, byte-identical, no re-bless needed** —
+additive only (a new `lesson_cut` migration, a new CLI subcommand action, no
+existing call site changed), matching every other additive Phase 9/
+post-Phase-9 entry in this file.
+
+With this, every post-Phase-9 follow-up item named in the handoff trail is
+closed: three shipped earlier, item 4 corrected (already done), items 5 and
+7 shipped, item 6 closed as a decision not to build, and now `unpromote`
+shipped with both of its own open questions resolved rather than deferred
+again.
