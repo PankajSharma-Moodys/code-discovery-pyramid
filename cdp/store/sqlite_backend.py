@@ -201,10 +201,28 @@ ALTER TABLE link_task ADD COLUMN patch_hash TEXT;
 ALTER TABLE link_task ADD COLUMN wall_ms INTEGER;
 """
 
+# This cycle's web layer: `/api/status`'s freshness bucketing was shelling
+# out to `git log` on every request (`freshness.file_churned_between`, one
+# process per anchored file). This table persists that answer keyed by
+# exactly the three things it depends on -- `(path, since_sha, head_sha)` is
+# fully determined, so a hit never goes stale for a commit pair already
+# computed. `churned` is nullable: `NULL` records `file_churned_between`
+# returning `None` (unwalkable range) as a cached fact too, so a request
+# handler never re-shells to find that out either.
+SCHEMA_V8 = """
+CREATE TABLE IF NOT EXISTS churn_cache (
+    path TEXT NOT NULL,
+    since_sha TEXT NOT NULL,
+    head_sha TEXT NOT NULL,
+    churned INTEGER,
+    PRIMARY KEY (path, since_sha, head_sha)
+);
+"""
+
 #: Forward-only migrations, one script per version. Adding a version is
 #: appending here, never editing an earlier entry.
 MIGRATIONS: Tuple[str, ...] = (
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7,
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
 )
 
 
@@ -356,6 +374,36 @@ class SqliteStore(WorkspaceStore):
     def read_link_edges(self) -> List[Dict]:
         rows = self._conn.execute("SELECT payload FROM link_edge ORDER BY id").fetchall()
         return [json.loads(r[0]) for r in rows]
+
+    # ------------------------------------------------------- churn cache
+
+    def supports_churn_cache(self) -> bool:
+        return True
+
+    def churn_lookup(self, path: str, since_sha: str, head_sha: str) -> Tuple[bool, Optional[bool]]:
+        """`(hit, churned)` -- `hit=False` means no cached answer exists yet
+        (caller must decide whether to compute and populate one); `hit=True,
+        churned=None` means a cached-but-unknown answer (an unwalkable range,
+        `file_churned_between`'s own `None` case) rather than "no data"."""
+        row = self._conn.execute(
+            "SELECT churned FROM churn_cache WHERE path=? AND since_sha=? AND head_sha=?",
+            (path, since_sha, head_sha),
+        ).fetchone()
+        if row is None:
+            return False, None
+        return True, (None if row[0] is None else bool(row[0]))
+
+    def write_churn_cache(self, entries: List[Tuple[str, str, str, Optional[bool]]]) -> None:
+        """`entries` are `(path, since_sha, head_sha, churned)` -- `churned`
+        may be `None` (an unwalkable range, cached as a fact same as a real
+        answer). `INSERT OR REPLACE`: a key is fully determined by its three
+        column values, so a repeat write is always the same answer, never a
+        conflicting one."""
+        self._conn.executemany(
+            "INSERT OR REPLACE INTO churn_cache (path, since_sha, head_sha, churned) VALUES (?, ?, ?, ?)",
+            [(p, s, h, None if c is None else int(c)) for p, s, h, c in entries],
+        )
+        self._conn.commit()
 
     def delete_snapshot(self, snapshot_id: int) -> None:
         """Drops a snapshot and everything scoped to it. Never called for the

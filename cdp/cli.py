@@ -275,6 +275,7 @@ def _parser() -> argparse.ArgumentParser:
     ho.set_defaults(func=cmd_holdout)
 
     st = add("status", "waves, node statuses and coverage")
+    st.add_argument("--json", action="store_true")
     st.set_defaults(func=cmd_status)
 
     df = add("diff", "typed structural deltas between two scanned snapshots")
@@ -1382,7 +1383,7 @@ def cmd_refresh(args) -> int:
              generated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")),
     )
 
-    buckets = freshness_mod.bucket_counts(folded["claims"], paths.repo, new_head)
+    buckets = freshness_mod.bucket_counts(folded["claims"], paths.repo, new_head, store=backend)
     after_demoted = len(folded.get("unknowns", []))
     say("refresh   %s -> %s" % (prev_head[:12], new_head[:12]))
     if not history_ok:
@@ -1433,7 +1434,7 @@ def _stale_nodes(store: "query_mod.Store", repo: Path) -> List[str]:
     cache: freshness_mod.ChurnCache = {}
     nodes = set()
     for claim in store.state.get("claims", []):
-        if freshness_mod.claim_bucket(claim, repo, head, cache) != freshness_mod.LIVE:
+        if freshness_mod.claim_bucket(claim, repo, head, cache, store=store.backend) != freshness_mod.LIVE:
             owners = claim.get("source_nodes") or ([claim["source_node"]] if claim.get("source_node") else [])
             nodes.update(owners)
     return sorted(nodes)
@@ -1907,54 +1908,118 @@ def cmd_doctor(args) -> int:
 # ----------------------------------------------------------------- status
 
 
-@_locked(shared=True)
-def cmd_status(args) -> int:
-    paths = _paths(args)
+def status(paths: "Paths") -> Dict:
+    """Pure computation behind `cmd_status` -- no printing, no locking.
+
+    This is the seam `web/api` reads through indirectly (via its own
+    read-only driver, not this function -- see `web/api/store_reader.py`'s
+    docstring for why) and the seam `cdp status --json` calls directly.
+    Extracted verbatim from the loop that used to be `cmd_status`'s body;
+    the text report below is now a formatter over this dict, not a second
+    computation of it.
+    """
     store = query_mod.Store(_open_store(paths))
     sched = store._load("schedule")
     state = store.state
     statuses = state.get("nodes", {})
-    print("run       %s @ %s" % (store.manifest.get("run_id", "?"), store.inventory["head"][:12]))
-    print("coverage  %.1f%% (%d/%d tracked files)"
-          % (100 * state["coverage"]["fraction"], state["coverage"]["files_complete"],
-             state["coverage"]["files_total"]))
     head = store.inventory.get("head")
+
+    result: Dict = {
+        "run_id": store.manifest.get("run_id", "?"),
+        "head": head,
+        "coverage": {
+            "fraction": state["coverage"]["fraction"],
+            "files_complete": state["coverage"]["files_complete"],
+            "files_total": state["coverage"]["files_total"],
+        },
+        "freshness": None,
+        "waves": [],
+        "tasks": [],
+    }
+
     if head and head != "unpinned" and state.get("claims"):
         # 0.9/3.6: three buckets over live claims, none a subset of the others --
         # "anchored but unreviewed" is what `run --stale-only` (Phase 5) targets.
-        buckets = freshness_mod.bucket_counts(state["claims"], paths.repo, head)
-        print("freshness %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn"
-              % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
-                 buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN]))
-        if buckets[freshness_mod.STALE] + buckets[freshness_mod.UNREVIEWED] > 0:
-            print("tip       cdp run --stale-only to re-dispatch just the stale/anchored-but-unreviewed scope(s)")
+        buckets = freshness_mod.bucket_counts(state["claims"], paths.repo, head, store=store.backend)
+        result["freshness"] = {
+            "live": buckets[freshness_mod.LIVE],
+            "stale": buckets[freshness_mod.STALE],
+            "unreviewed": buckets[freshness_mod.UNREVIEWED],
+            "unknown_churn": buckets[freshness_mod.UNKNOWN_CHURN],
+        }
+
     for wave in sched["waves"]:
         done = sum(1 for n in wave["nodes"] if statuses.get(n) == "complete")
-        print("wave %-2d L%s  %d/%d complete  %d files, %d loc"
-              % (wave["wave"], wave["level"], done, len(wave["nodes"]),
-                 wave["file_count"], wave["loc"]))
-        for node in wave["nodes"]:
-            print("    %-9s %s" % (statuses.get(node, "pending"), node))
+        result["waves"].append({
+            "wave": wave["wave"],
+            "level": wave["level"],
+            "done": done,
+            "total": len(wave["nodes"]),
+            "file_count": wave["file_count"],
+            "loc": wave["loc"],
+            "nodes": [{"node": n, "status": statuses.get(n, "pending")} for n in wave["nodes"]],
+        })
 
     # M5.2: `cdp run`'s per-run task table -- `snapshot_task`, not `nodes[]`
     # above (that is the patch log's own status; this is the supervisor's
     # dispatch bookkeeping for the run named on the first line).
     run_id = str(store.manifest.get("run_id", "cdp"))
+    result["run_id"] = run_id
     rows = store.backend.task_rows(run_id)
     if rows:
         node_of_hash = {s.get("scope_hash"): s["node"] for s in store.partition["scopes"]}
-        print("\ntasks     run %s" % run_id)
-        incomplete = False
         for row in rows:
-            node = node_of_hash.get(row["scope_hash"], row["scope_hash"])
+            result["tasks"].append({
+                "node": node_of_hash.get(row["scope_hash"], row["scope_hash"]),
+                "state": row["state"] or "pending",
+                "attempts": row["attempts"] or 0,
+                "last_error": row["last_error"],
+            })
+
+    store.close()
+    return result
+
+
+def _print_status(result: Dict) -> None:
+    print("run       %s @ %s" % (result["run_id"], (result["head"] or "?")[:12]))
+    cov = result["coverage"]
+    print("coverage  %.1f%% (%d/%d tracked files)"
+          % (100 * cov["fraction"], cov["files_complete"], cov["files_total"]))
+    fresh = result["freshness"]
+    if fresh is not None:
+        print("freshness %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn"
+              % (fresh["live"], fresh["stale"], fresh["unreviewed"], fresh["unknown_churn"]))
+        if fresh["stale"] + fresh["unreviewed"] > 0:
+            print("tip       cdp run --stale-only to re-dispatch just the stale/anchored-but-unreviewed scope(s)")
+    for wave in result["waves"]:
+        print("wave %-2d L%s  %d/%d complete  %d files, %d loc"
+              % (wave["wave"], wave["level"], wave["done"], wave["total"],
+                 wave["file_count"], wave["loc"]))
+        for n in wave["nodes"]:
+            print("    %-9s %s" % (n["status"], n["node"]))
+
+    if result["tasks"]:
+        print("\ntasks     run %s" % result["run_id"])
+        incomplete = False
+        for row in result["tasks"]:
             print("    %-14s %-40s attempts %d%s"
-                  % (row["state"] or "pending", node, row["attempts"] or 0,
+                  % (row["state"], row["node"], row["attempts"],
                      "  %s" % row["last_error"] if row["last_error"] else ""))
             if row["state"] not in (supervisor_mod.FOLDED,):
                 incomplete = True
         if incomplete:
-            print("next      cdp run --resume --run-id %s to continue the incomplete task(s) above" % run_id)
-    store.close()
+            print("next      cdp run --resume --run-id %s to continue the incomplete task(s) above"
+                  % result["run_id"])
+
+
+@_locked(shared=True)
+def cmd_status(args) -> int:
+    paths = _paths(args)
+    result = status(paths)
+    if getattr(args, "json", False):
+        print(json.dumps(result, sort_keys=True))
+    else:
+        _print_status(result)
     return 0
 
 

@@ -31,12 +31,17 @@ postgres = ["psycopg2-binary"]
 mcp = []
 litellm = ["litellm"]
 agent = ["langgraph", "langchain-core", "google-adk"]
+# `web/` (Phase 0, `PLAN.md`/`WEB_RESEARCH.md`): same one-level-up pattern as
+# mcp/litellm/agent above -- the dependency lives in the sibling package, not
+# in `cdp` itself. `tests/test_core_purity.py`'s `FORBIDDEN_EXACT` keeps
+# `cdp/` from importing any of these.
+web = ["fastapi", "uvicorn", "starlette", "pydantic", "sse-starlette"]
 
 [project.scripts]
 cdp = "cdp.cli:main"
 
 [tool.setuptools]
-packages = ["cdp", "cdp.lang", "mcp_server", "litellm_adapter", "agent_adapter"]
+packages = ["cdp", "cdp.lang", "mcp_server", "litellm_adapter", "agent_adapter", "web", "web.api"]
 
 # Known limitation, stated rather than papered over: `cli.SKILL_ROOT` is
 # `cdp/../`, so `schema/` and `tests/` are resolved as siblings of the package.

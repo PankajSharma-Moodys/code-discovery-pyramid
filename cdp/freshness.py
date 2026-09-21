@@ -25,9 +25,12 @@ untouched for two years is live, not stale.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
 
 from .util import run_git
+
+if TYPE_CHECKING:
+    from .store import WorkspaceStore
 
 LIVE = "live"
 STALE = "stale"
@@ -76,7 +79,36 @@ def file_churned_between(repo: Path, rel_path: str, since_sha: str, head_sha: st
 ChurnCache = Dict[Tuple[str, str, str], Optional[bool]]
 
 
-def claim_bucket(claim: Dict, repo: Path, head_sha: str, cache: Optional[ChurnCache] = None) -> str:
+def _resolve_churn(
+    repo: Path, rel: str, since_sha: str, head_sha: str,
+    cache: ChurnCache, store: Optional["WorkspaceStore"],
+) -> Optional[bool]:
+    """One `(rel, since_sha, head_sha)` answer, checked in this order: the
+    in-process `cache` dict (cheapest, scoped to one `bucket_counts` call),
+    then `store`'s persistent `churn_cache` table if the backend has one
+    (survives across processes/requests), and only on a miss in both does
+    this actually shell out to `git log` -- then writes the answer back to
+    both, so the next caller (in this process or another) never re-pays for
+    the same commit pair."""
+    key = (rel, since_sha, head_sha)
+    if key in cache:
+        return cache[key]
+    if store is not None and store.supports_churn_cache():
+        hit, churned = store.churn_lookup(rel, since_sha, head_sha)
+        if hit:
+            cache[key] = churned
+            return churned
+    result = file_churned_between(repo, rel, since_sha, head_sha)
+    cache[key] = result
+    if store is not None and store.supports_churn_cache():
+        store.write_churn_cache([(rel, since_sha, head_sha, result)])
+    return result
+
+
+def claim_bucket(
+    claim: Dict, repo: Path, head_sha: str,
+    cache: Optional[ChurnCache] = None, store: Optional["WorkspaceStore"] = None,
+) -> str:
     """LIVE / STALE / UNREVIEWED / UNKNOWN_CHURN for one kept (non-demoted) claim."""
     reviewed_at = claim.get("claim_reviewed_at")
     if not reviewed_at:
@@ -86,10 +118,7 @@ def claim_bucket(claim: Dict, repo: Path, head_sha: str, cache: Optional[ChurnCa
     unknown = False
     for anchor in claim.get("evidence") or []:
         rel = str(anchor.get("file"))
-        key = (rel, str(reviewed_at), head_sha)
-        if key not in cache:
-            cache[key] = file_churned_between(repo, rel, str(reviewed_at), head_sha)
-        result = cache[key]
+        result = _resolve_churn(repo, rel, str(reviewed_at), head_sha, cache, store)
         if result is None:
             unknown = True
         elif result:
@@ -101,9 +130,11 @@ def claim_bucket(claim: Dict, repo: Path, head_sha: str, cache: Optional[ChurnCa
     return LIVE
 
 
-def bucket_counts(claims: Sequence[Dict], repo: Path, head_sha: str) -> Dict[str, int]:
+def bucket_counts(
+    claims: Sequence[Dict], repo: Path, head_sha: str, store: Optional["WorkspaceStore"] = None,
+) -> Dict[str, int]:
     cache: ChurnCache = {}
     counts = {LIVE: 0, STALE: 0, UNREVIEWED: 0, UNKNOWN_CHURN: 0}
     for claim in claims:
-        counts[claim_bucket(claim, repo, head_sha, cache)] += 1
+        counts[claim_bucket(claim, repo, head_sha, cache, store)] += 1
     return counts

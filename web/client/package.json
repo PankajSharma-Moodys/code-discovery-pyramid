@@ -1,0 +1,17 @@
+{
+  "name": "@cdp/web-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed client for cdp's web API (web/api/app.py), generated from its OpenAPI schema.",
+  "scripts": {
+    "generate": "cd ../.. && python -c \"import json; from web.api.app import app; json.dump(app.openapi(), open('web/openapi.json', 'w'), indent=2)\" && openapi-typescript web/openapi.json -o web/client/schema.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.3"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.7.0"
+  }
+}

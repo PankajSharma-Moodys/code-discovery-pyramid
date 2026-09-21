@@ -232,6 +232,20 @@ class WorkspaceStore(ABC):
         knows this backend has nothing to say."""
         return []
 
+    # --------------------------------------------------------- churn cache
+
+    def supports_churn_cache(self) -> bool:
+        """`False` by default -- `FileStore` has no `churn_cache` table.
+        A caller without a persistent cache falls back to computing churn
+        directly (`freshness.file_churned_between`) rather than failing."""
+        return False
+
+    def churn_lookup(self, path: str, since_sha: str, head_sha: str) -> Tuple[bool, Optional[bool]]:
+        return False, None
+
+    def write_churn_cache(self, entries: List[Tuple[str, str, str, Optional[bool]]]) -> None:
+        pass
+
     def dump_archive(self, partition: Optional[Dict] = None) -> List[Dict]:
         """M7.5: raw archived rows for `cdp export --format archive`. Same
         capability gate as `compact` -- a backend that cannot archive has

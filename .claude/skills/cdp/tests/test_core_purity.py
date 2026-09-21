@@ -23,7 +23,10 @@ CDP_ROOT = SKILL_ROOT / "cdp"
 #: Top-level module names no `cdp/` file may import. Matched on the first
 #: dotted segment, so `google.adk` is caught by `google` and `langchain_x` by
 #: its own prefix check below.
-FORBIDDEN_EXACT = {"mcp", "litellm", "langgraph", "fastmcp", "google"}
+FORBIDDEN_EXACT = {
+    "mcp", "litellm", "langgraph", "fastmcp", "google",
+    "fastapi", "uvicorn", "starlette", "pydantic",
+}
 FORBIDDEN_PREFIXES = ("langchain",)
 
 

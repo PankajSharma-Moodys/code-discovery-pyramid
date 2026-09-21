@@ -1,0 +1,2268 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "cdp web api",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/status": {
+      "get": {
+        "summary": "Get Status",
+        "operationId": "get_status_api_status_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/query": {
+      "get": {
+        "summary": "Get Query",
+        "description": "Thin wrapper over `cdp.query.dispatch` -- the query layer is never\nreimplemented (`WEB_RESEARCH.md` \u00a77.0/\u00a77.2.1). Response shape varies by\n`kind` (each `QUERIES[kind]` returns its own dict), so there is\ndeliberately no fixed `response_model` here -- same posture as\n`cdp query --json`, which prints this same raw dict.",
+        "operationId": "get_query_api_query_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "one of cdp.query.QUERIES",
+              "title": "Kind"
+            },
+            "description": "one of cdp.query.QUERIES"
+          },
+          {
+            "name": "term",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Term"
+            }
+          },
+          {
+            "name": "budget",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Budget"
+            }
+          },
+          {
+            "name": "claim_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Claim Kind"
+            }
+          },
+          {
+            "name": "module",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Module"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "max-hops",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max-Hops"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Query Api Query Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trace": {
+      "get": {
+        "summary": "Get Trace",
+        "description": "`WEB_RESEARCH.md` \u00a77.1's literal `/api/trace?from=&to=&max-hops=`\nsurface, as a convenience alias over `/api/query` rather than a second\ndispatch path: `entry` maps to `kind=trace`, `frm`/`to` (without `entry`)\nmaps to `kind=paths` -- the two query kinds the Atlas path-trace feature\n(`WEB_RESEARCH.md` \u00a73, \"this single feature is the demo\") needs.",
+        "operationId": "get_trace_api_trace_get",
+        "parameters": [
+          {
+            "name": "entry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "dataflow entry point",
+              "title": "Entry"
+            },
+            "description": "dataflow entry point"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "max-hops",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max-Hops"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Trace Api Trace Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source": {
+      "get": {
+        "summary": "Get Source",
+        "description": "Reads the repo working tree directly -- not the CDP store/index.db\n(`WEB_RESEARCH.md` \u00a77.1: net-new capability, no other endpoint serves raw\nfile bytes). `file` is attacker-controllable input from a browser, so\nthis is a new trust boundary: containment is checked via `resolve()` +\n`is_relative_to()` *before* any file I/O, never via a caught exception\nafter an attempted open. A 400 (not 403) is used for escapes, so the\nresponse doesn't distinguish \"outside the root\" from \"doesn't exist\" and\ncan't be used to probe the filesystem.",
+        "operationId": "get_source_api_source_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo root to confine reads to",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo root to confine reads to"
+          },
+          {
+            "name": "file",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "path, repo-relative POSIX string",
+              "title": "File"
+            },
+            "description": "path, repo-relative POSIX string"
+          },
+          {
+            "name": "line",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "1-indexed line to center on",
+              "title": "Line"
+            },
+            "description": "1-indexed line to center on"
+          },
+          {
+            "name": "ctx",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "lines of context around `line` (clamped)",
+              "default": 20,
+              "title": "Ctx"
+            },
+            "description": "lines of context around `line` (clamped)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph": {
+      "get": {
+        "summary": "Get Graph",
+        "operationId": "get_graph_api_graph_get",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "altitude: L0 (symbols), L1 (files), L2 (territory), L3 (module dependency)",
+              "title": "Level"
+            },
+            "description": "altitude: L0 (symbols), L1 (files), L2 (territory), L3 (module dependency)"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "filter to one scope's/module's neighborhood (L0-L2)",
+              "title": "Scope"
+            },
+            "description": "filter to one scope's/module's neighborhood (L0-L2)"
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/node/{node_id}": {
+      "get": {
+        "summary": "Get Node",
+        "operationId": "get_node_api_node__node_id__get",
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Node Id"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos": {
+      "get": {
+        "summary": "Get Repos",
+        "description": "Every state dir this machine's `cdp` registry knows about, with\nper-repo freshness (current git HEAD vs. the pinned snapshot's\n`as_of` commit). A registry entry whose state dir vanished, whose\n`index.db` is missing/locked, or whose git call fails gets its own\n`error` row instead of 500ing the whole list (mirrors `get_status`'s\n`StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped\nto one row here instead of the whole response).",
+        "operationId": "get_repos_api_repos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReposResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/doctor": {
+      "get": {
+        "summary": "Get Doctor",
+        "description": "`<state>/doctor/*.json` is a plain filesystem directory\n(`cli.py:1858,1885`), not an `index.db` artifact -- no `ReadOnlyConnection`\ninvolved, no backend-polymorphism risk. 404 if the directory doesn't\nexist or has no reports yet (nobody has run `cdp doctor` here).",
+        "operationId": "get_doctor_api_doctor_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoctorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/link": {
+      "get": {
+        "summary": "Get Link",
+        "description": "Thin wrapper over the existing pure `link.query_service`\n(`cdp/link.py:217`) -- `link_edge` is a disposable, fully-replaced-on-scan\ntable (`sqlite_backend.py:356`'s docstring), so no manifest-pinning\nconcern here, just a plain read.",
+        "operationId": "get_link_api_link_get",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "repo/service identifier to filter to",
+              "title": "Service"
+            },
+            "description": "repo/service identifier to filter to"
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trajectory": {
+      "get": {
+        "summary": "Get Trajectory",
+        "description": "`~/.cdp/trajectories.db` is a separate, cross-workspace, cumulative\ncorpus (`cdp/trajectory.py` module docstring) -- not scoped to `repo=`/\n`state_dir=` the way every other endpoint above is.",
+        "operationId": "get_trajectory_api_trajectory_get",
+        "parameters": [
+          {
+            "name": "shape",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "exact scope_shape_key to filter to",
+              "title": "Shape"
+            },
+            "description": "exact scope_shape_key to filter to"
+          },
+          {
+            "name": "budget",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "max rows, newest first",
+              "default": 100,
+              "title": "Budget"
+            },
+            "description": "max rows, newest first"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrajectoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diff": {
+      "get": {
+        "summary": "Get Diff",
+        "description": "Sha-mode only (`WEB_RESEARCH.md` \u00a77.1's `/api/diff?old=&new=`) --\ndir-mode needs two arbitrary filesystem state directories, out of scope\nfor a repo-scoped read endpoint. Delegates to the existing pure\n`diffs_mod.diff_snapshots` (`cdp/diffs.py:30`); the query-semantics\ninvariant (\u00a77.2.1) is preserved since that function is the same one\n`cmd_diff --old-sha/--new-sha` calls (`cli.py:2058-2107`).",
+        "operationId": "get_diff_api_diff_get",
+        "parameters": [
+          {
+            "name": "old",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Old"
+            }
+          },
+          {
+            "name": "new",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "New"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "summary": "Get Events",
+        "operationId": "get_events_api_events_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "defaults to the latest snapshot's manifest run_id",
+              "title": "Run Id"
+            },
+            "description": "defaults to the latest snapshot's manifest run_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run": {
+      "post": {
+        "summary": "Post Run",
+        "description": "Shells out to `cdp run` (`web/api/jobs.py`'s `spawn_or_join`) rather\nthan calling `supervisor` in-process -- the subprocess inherits the real\nlock, `--resume`'s lease logic, and the repo-mismatch guard for free. A\nsecond POST while one is in flight for this `(repo, state_dir)` returns\nthe same job's handle (`status=\"joined\"`), not a second process.",
+        "operationId": "post_run_api_run_post",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "wave-all | stale-only | scope:<node> | wave:<n>",
+              "default": "wave-all",
+              "title": "Target"
+            },
+            "description": "wave-all | stale-only | scope:<node> | wave:<n>"
+          },
+          {
+            "name": "resume",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "pass --resume through so a restarted job can rejoin",
+              "default": true,
+              "title": "Resume"
+            },
+            "description": "pass --resume through so a restarted job can rejoin"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/refresh": {
+      "post": {
+        "summary": "Post Refresh",
+        "operationId": "post_refresh_api_refresh_post",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "cdp refresh --mode",
+              "default": "strict",
+              "title": "Mode"
+            },
+            "description": "cdp refresh --mode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ClaimResponse": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "anchor_verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Verified At"
+          },
+          "claim_reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Reviewed At"
+          },
+          "author_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject",
+          "kind",
+          "confidence",
+          "evidence"
+        ],
+        "title": "ClaimResponse"
+      },
+      "CoverageResponse": {
+        "properties": {
+          "fraction": {
+            "type": "number",
+            "title": "Fraction"
+          },
+          "files_complete": {
+            "type": "integer",
+            "title": "Files Complete"
+          },
+          "files_total": {
+            "type": "integer",
+            "title": "Files Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fraction",
+          "files_complete",
+          "files_total"
+        ],
+        "title": "CoverageResponse"
+      },
+      "DataflowAnchorResponse": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "line"
+        ],
+        "title": "DataflowAnchorResponse"
+      },
+      "DataflowEdgeResponse": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence"
+          },
+          "module": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Module"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataflowAnchorResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "channel",
+          "confidence"
+        ],
+        "title": "DataflowEdgeResponse"
+      },
+      "DiffResponse": {
+        "properties": {
+          "old_sha": {
+            "type": "string",
+            "title": "Old Sha"
+          },
+          "new_sha": {
+            "type": "string",
+            "title": "New Sha"
+          },
+          "diff": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Diff"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_sha",
+          "new_sha",
+          "diff"
+        ],
+        "title": "DiffResponse",
+        "description": "`cdp.diffs.diff_snapshots`'s return value, passed through as-is\n(`WEB_RESEARCH.md` \u00a77.1's `/api/diff` -- a typed structural delta, not a\ntext diff). Left loose/`dict`-typed like `/api/query`'s response: the\nshape is `cdp/diffs.py`'s own, not re-modeled field-for-field here."
+      },
+      "DoctorResponse": {
+        "properties": {
+          "models": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Models"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "DoctorResponse",
+        "description": "`GET /api/doctor` -- reads `<state>/doctor/*.json` straight off disk\n(`cdp/cli.py:1885`'s write side), no `index.db` involved. `models` keys on\nthe model name each report was written under; `table` is\n`doctor.compatibility_table`'s same text rendering, included for parity\nwith the CLI's own printed output when >1 model is present."
+      },
+      "EvidenceResponse": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "line"
+        ],
+        "title": "EvidenceResponse"
+      },
+      "FreshnessResponse": {
+        "properties": {
+          "live": {
+            "type": "integer",
+            "title": "Live"
+          },
+          "stale": {
+            "type": "integer",
+            "title": "Stale"
+          },
+          "unreviewed": {
+            "type": "integer",
+            "title": "Unreviewed"
+          },
+          "unknown_churn": {
+            "type": "integer",
+            "title": "Unknown Churn"
+          }
+        },
+        "type": "object",
+        "required": [
+          "live",
+          "stale",
+          "unreviewed",
+          "unknown_churn"
+        ],
+        "title": "FreshnessResponse"
+      },
+      "GraphEdgeResponse": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "kind"
+        ],
+        "title": "GraphEdgeResponse",
+        "description": "`kind` carries the divergence signal `WEB_RESEARCH.md` \u00a73's Lens section\ncalls out: L3 edges are `declared` / `observed` / `both`; L2 edges (from\n`xref.coupling`) are `coupling`."
+      },
+      "GraphNodeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "file_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Count"
+          },
+          "by_role": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Role"
+          },
+          "by_language": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Language"
+          },
+          "oversized": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oversized"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "GraphNodeResponse",
+        "description": "One node per module (L3) or scope (L2). Fields that don't apply at a\ngiven level are left `None`/empty rather than the model forking in two."
+      },
+      "GraphResponse": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNodeResponse"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdgeResponse"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Levels",
+            "default": []
+          },
+          "cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Cycles",
+            "default": []
+          },
+          "divergence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Divergence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "repo": {
+            "type": "string",
+            "title": "Repo"
+          },
+          "state_dir": {
+            "type": "string",
+            "title": "State Dir"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status",
+          "pid",
+          "kind",
+          "repo",
+          "state_dir"
+        ],
+        "title": "JobResponse",
+        "description": "`POST /api/run`/`POST /api/refresh` (`WEB_RESEARCH.md` \u00a77.2.4) --\n`status` is `\"started\"` for a freshly spawned subprocess or `\"joined\"`\nwhen a job for this `(repo, state_dir)` was already in flight and this\ncall returned that same job's handle instead of racing a second process\n(single-flight, not a queue -- see `web/api/jobs.py`)."
+      },
+      "LinkQueryResponse": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "unmatched": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unmatched"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "links",
+          "unmatched"
+        ],
+        "title": "LinkQueryResponse"
+      },
+      "NodeResponse": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimResponse"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "unknowns_count": {
+            "type": "integer",
+            "title": "Unknowns Count"
+          },
+          "edges_in": {
+            "items": {
+              "$ref": "#/components/schemas/DataflowEdgeResponse"
+            },
+            "type": "array",
+            "title": "Edges In"
+          },
+          "edges_out": {
+            "items": {
+              "$ref": "#/components/schemas/DataflowEdgeResponse"
+            },
+            "type": "array",
+            "title": "Edges Out"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "namespace",
+          "claims",
+          "unknowns_count",
+          "edges_in",
+          "edges_out"
+        ],
+        "title": "NodeResponse"
+      },
+      "RepoInfoResponse": {
+        "properties": {
+          "repo_id": {
+            "type": "string",
+            "title": "Repo Id"
+          },
+          "state_dir": {
+            "type": "string",
+            "title": "State Dir"
+          },
+          "repo_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo Path"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head"
+          },
+          "as_of_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of Commit"
+          },
+          "behind": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Behind"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repo_id",
+          "state_dir"
+        ],
+        "title": "RepoInfoResponse",
+        "description": "One `cdp.store.registry` entry, per `GET /api/repos`. `head` is the\n*current* HEAD of the repo's working tree (`git rev-parse HEAD`, run at\nrequest time); `as_of_commit` is the commit the pinned snapshot's\n`inventory` was built against (same source `cdp.query._as_of` reads).\n`behind` is `0` when the two match, an exact `git rev-list --count`\nwhen cheaply derivable, or `None` (never a fabricated number) when the\nworking tree moved, isn't a git repo, or the git call otherwise failed.\n`error` is set (and every other field but `repo_id`/`state_dir` left\n`None`) when this one registry entry couldn't be resolved at all --\na broken entry never fails the whole list."
+      },
+      "ReposResponse": {
+        "properties": {
+          "repos": {
+            "items": {
+              "$ref": "#/components/schemas/RepoInfoResponse"
+            },
+            "type": "array",
+            "title": "Repos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repos"
+        ],
+        "title": "ReposResponse"
+      },
+      "ScopeSummaryResponse": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "title": "Node"
+          },
+          "module": {
+            "type": "string",
+            "title": "Module"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          },
+          "loc": {
+            "type": "integer",
+            "title": "Loc"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node",
+          "module",
+          "file_count",
+          "loc"
+        ],
+        "title": "ScopeSummaryResponse"
+      },
+      "SourceResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "start_line": {
+            "type": "integer",
+            "title": "Start Line"
+          },
+          "end_line": {
+            "type": "integer",
+            "title": "End Line"
+          },
+          "total_lines": {
+            "type": "integer",
+            "title": "Total Lines"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "start_line",
+          "end_line",
+          "total_lines",
+          "lines"
+        ],
+        "title": "SourceResponse",
+        "description": "`GET /api/source` -- file bytes for the code-peek pane\n(`WEB_RESEARCH.md` \u00a77.1, net-new: no other endpoint serves raw file\ncontent). `path` is the repo-relative POSIX string as requested (same\nformat `cdp/inventory.py` stores in the `inventory` artifact, so it's\nconsistent with what claims/anchors already reference)."
+      },
+      "StatusResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageResponse"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waves": {
+            "items": {
+              "$ref": "#/components/schemas/WaveResponse"
+            },
+            "type": "array",
+            "title": "Waves"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            },
+            "type": "array",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "coverage",
+          "waves",
+          "tasks"
+        ],
+        "title": "StatusResponse"
+      },
+      "TaskResponse": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "title": "Node"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node",
+          "state",
+          "attempts"
+        ],
+        "title": "TaskResponse"
+      },
+      "TrajectoryResponse": {
+        "properties": {
+          "shape": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/TrajectoryRunResponse"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runs"
+        ],
+        "title": "TrajectoryResponse"
+      },
+      "TrajectoryRunResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "node": {
+            "type": "string",
+            "title": "Node"
+          },
+          "repo_id": {
+            "type": "string",
+            "title": "Repo Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "scope_shape": {
+            "type": "string",
+            "title": "Scope Shape"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "task_kind": {
+            "type": "string",
+            "title": "Task Kind"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts"
+          },
+          "wall_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wall Ms"
+          },
+          "claims_emitted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claims Emitted"
+          },
+          "unknowns_emitted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknowns Emitted"
+          },
+          "elision_regret": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elision Regret"
+          },
+          "entailed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entailed"
+          },
+          "consistent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistent"
+          },
+          "contradicted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contradicted"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "node",
+          "repo_id",
+          "model",
+          "scope_shape",
+          "tier",
+          "task_kind",
+          "created_at"
+        ],
+        "title": "TrajectoryRunResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WaveNodeResponse": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "title": "Node"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node",
+          "status"
+        ],
+        "title": "WaveNodeResponse"
+      },
+      "WaveResponse": {
+        "properties": {
+          "wave": {
+            "type": "integer",
+            "title": "Wave"
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          },
+          "loc": {
+            "type": "integer",
+            "title": "Loc"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/WaveNodeResponse"
+            },
+            "type": "array",
+            "title": "Nodes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wave",
+          "level",
+          "done",
+          "total",
+          "file_count",
+          "loc",
+          "nodes"
+        ],
+        "title": "WaveResponse"
+      }
+    }
+  }
+}
