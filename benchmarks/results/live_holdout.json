@@ -1,0 +1,106 @@
+{
+  "rows_a": [
+    {
+      "id": "h01",
+      "coverage": 0.3333333333333333,
+      "verdicts": [
+        {
+          "fact": "SqlPoolApplication",
+          "verdict": "covered"
+        },
+        {
+          "fact": "extends RmsApiApplication",
+          "verdict": "absent"
+        },
+        {
+          "fact": "calls run(args)",
+          "verdict": "absent"
+        }
+      ],
+      "answer": "Based on the code analysis from CDP, here's what I found:\n\n## Main Application Class\n\nThe main application class is **`SqlPoolApplication`** (fully qualified: `rms.unifiedstore.sqlpool.api.SqlPoolApplication`), located at `src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java:29`.\n\n## What the main() Method Does\n\nThe `main()` method (line 33) is the entry point for the SQL Pool Management API application. According to the analysis, it:\n\n1. **Logs the version** - Calls `LOG.info(\"Sql Pool Management version \" + version)` to output the current application version\n2. **Bootstraps a Dropwizard application** - Declared as a process boundary, indicating it's a separately-startable unit that initializes the HTTP server framework\n\nThe application structure shows this is a **hybrid Dropwizard + Spring** setup where:\n- **Dropwizard** provides the HTTP container and Jersey JAX-RS framework\n- **Spring** provides dependency injection and service beans\n\n## Application Capabilities\n\nThe application exposes a REST API with 15 routes for managing SQL pools, including:\n- **Health checks** (`/health`)\n- **Pool management** (GET/PATCH `/v1/pools`)\n- **Reservation management** (GET/POST/PATCH/DELETE `/v1/reservations`)\n- **Server management** (GET/POST/PATCH/DELETE `/v1/servers`)\n\nThe main() method's responsibility is to initialize this entire web service infrastructure."
+    },
+    {
+      "id": "h02",
+      "coverage": 1.0,
+      "verdicts": [
+        {
+          "fact": "/v1/reservations",
+          "verdict": "covered"
+        },
+        {
+          "fact": "ApiConstants.SQL_POOL_RESERVATION_PATH",
+          "verdict": "covered"
+        }
+      ],
+      "answer": "Based on the search results, the base path for **ReservationResource** is **`/v1/reservations`**, and the `@Path` constant comes from the **`ApiConstants`** class (specifically `ApiConstants.SQL_POOL_RESERVATION_PATH`).\n\nThe CDP analysis shows that this constant is referenced in `/src/main/java/RMS/UnifiedStore/sqlpool/api/model/constants/ApiConstants.java:7` and used throughout the ReservationResource class methods."
+    },
+    {
+      "id": "h03",
+      "coverage": 0.0,
+      "verdicts": [
+        {
+          "fact": "com.rms.auth.framework",
+          "verdict": "absent"
+        },
+        {
+          "fact": "org.mapstruct",
+          "verdict": "absent"
+        }
+      ],
+      "answer": "The current working directory (`/Users/sharmp49/hackathon/code_scanner`) doesn't appear to contain Java, C#, or Scala files with `ServicePrincipal` or `@Mapper` imports.\n\nAre you asking about a module in a different repository, such as `/Users/sharmp49/git/code_scanner/sql-pool/sql-pool-api`? If so, please clarify the module name or file path, and I can search that repository for the packages these imports come from."
+    }
+  ],
+  "rows_b": [
+    {
+      "id": "h01",
+      "coverage": 0.5,
+      "verdicts": [
+        {
+          "fact": "SqlPoolApplication",
+          "verdict": "covered"
+        },
+        {
+          "fact": "extends RmsApiApplication",
+          "verdict": "absent"
+        },
+        {
+          "fact": "calls run(args)",
+          "verdict": "partial"
+        }
+      ],
+      "answer": "Based on my analysis of the sql-pool-api repository, here's what I found:\n\n## Main Application Class\n\n**Class:** `rms.unifiedstore.sqlpool.api.SqlPoolApplication`  \n**Location:** `src/main/java/RMS/UnifiedStore/sqlpool/api/SqlPoolApplication.java:33`\n\n## What the main() Method Does\n\nThe `main()` method is the **entry point** for the application. It's part of a **Dropwizard framework** application (as indicated by the `dropwizard-service-config.yml` configuration file).\n\nIn a typical Dropwizard application, the `main()` method:\n1. Creates an instance of `SqlPoolApplication`\n2. Calls the `run()` method with command-line arguments\n3. The `run()` method then:\n   - Loads configuration from `dropwizard-service-config.yml`\n   - Calls the `initialize()` method to set up the application\n   - Starts the embedded Jetty HTTP server\n\n## What the Application Does\n\nThe `SqlPoolApplication` serves as a REST API server for managing:\n- **SQL Pools** - Pool configurations (GET, PATCH)\n- **Servers** - Server registration and management (POST, GET, PATCH, DELETE)\n- **Reservations** - Resource reservations (POST, GET, PATCH, DELETE)\n- **Health checks** - Health status endpoint at `/health`\n\nThe application exposes 15 REST endpoints total, with REST resources handling HTTP requests and mappers converting between DTOs and domain models."
+    },
+    {
+      "id": "h02",
+      "coverage": 0.0,
+      "verdicts": [
+        {
+          "fact": "/v1/reservations",
+          "verdict": "absent"
+        },
+        {
+          "fact": "ApiConstants.SQL_POOL_RESERVATION_PATH",
+          "verdict": "absent"
+        }
+      ],
+      "answer": "Can you clarify which repository contains the ReservationResource? Is it in the sql-pool-api repo or another location? I can search for it once I know where to look."
+    },
+    {
+      "id": "h03",
+      "coverage": 0.0,
+      "verdicts": [
+        {
+          "fact": "com.rms.auth.framework",
+          "verdict": "absent"
+        },
+        {
+          "fact": "org.mapstruct",
+          "verdict": "absent"
+        }
+      ],
+      "answer": "Could you clarify which module or file you're asking about? I'm searching the sql-pool-api repository, but I'm not finding references to `ServicePrincipal` or `@Mapper` annotations in the indexed symbols.\n\nAre you asking about:\n- A specific Java/Kotlin file path?\n- A particular class or component?\n- Or is this from a different codebase?\n\nOnce you provide more context, I can identify the exact packages being imported for authentication and DTO mapping."
+    }
+  ],
+  "coverage_none": 0.4444444444444444,
+  "coverage_lessons": 0.16666666666666666
+}

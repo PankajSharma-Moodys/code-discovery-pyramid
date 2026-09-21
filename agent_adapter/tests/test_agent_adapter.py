@@ -9,7 +9,9 @@ failure mode, since neither SDK is present in this environment.
 
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -82,6 +84,73 @@ class AdkWrapperTest(unittest.TestCase):
 
         with self.assertRaises(ImportError):
             build_adk_tools()
+
+
+class LangGraphLeafTest(unittest.TestCase):
+    def test_raises_without_a_model(self) -> None:
+        from agent_adapter.langgraph_leaf import run_leaf
+
+        with unittest.mock.patch("pathlib.Path.read_text", return_value="node: x\nrun_id: y\n"):
+            with self.assertRaises(ValueError):
+                run_leaf(Path("prompt.md"), Path("patch.json"), model=None)
+
+    def test_invalid_patch_from_model_is_written_as_failed(self) -> None:
+        from agent_adapter.langgraph_leaf import run_leaf
+
+        class _FakeStructuredModel:
+            def invoke(self, _messages):
+                return {"schema_version": "1.0.0"}  # missing required fields
+
+        class _FakeModel:
+            def with_structured_output(self, _schema, include_raw=False):
+                return _FakeStructuredModel()
+
+        try:
+            import langchain_core  # noqa: F401
+        except ImportError:
+            self.skipTest("langchain-core not installed -- pip install cdp[agent]")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            prompt_path = Path(tmp) / "prompt.md"
+            prompt_path.write_text("node: root/x\nrun_id: r1\n")
+            inbox_path = Path(tmp) / "patch.json"
+
+            run_leaf(prompt_path, inbox_path, model=_FakeModel())
+
+            written = json.loads(inbox_path.read_text())
+            self.assertEqual(written["status"], "failed")
+            self.assertEqual(written["node"], "root/x")
+            self.assertIn("error", written)
+
+
+class AdkLeafTest(unittest.TestCase):
+    def test_raises_without_an_agent(self) -> None:
+        from agent_adapter.adk_leaf import run_leaf
+
+        with unittest.mock.patch("pathlib.Path.read_text", return_value="node: x\nrun_id: y\n"):
+            with self.assertRaises(ValueError):
+                run_leaf(Path("prompt.md"), Path("patch.json"), agent=None)
+
+    def test_raises_a_clear_error_without_google_adk(self) -> None:
+        try:
+            import google.adk  # noqa: F401
+        except ImportError:
+            pass
+        else:
+            self.skipTest("google-adk is installed -- this test only covers its absence")
+        from agent_adapter.adk_leaf import run_leaf
+
+        class _FakeAgent:
+            tools = []
+
+            def run(self, _prompt):
+                raise AssertionError("should not reach agent.run without google.adk")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            prompt_path = Path(tmp) / "prompt.md"
+            prompt_path.write_text("node: root/x\nrun_id: r1\n")
+            with self.assertRaises(ImportError):
+                run_leaf(prompt_path, Path(tmp) / "patch.json", agent=_FakeAgent())
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import functools
 import os
 import re
 import shlex
@@ -52,6 +53,7 @@ from . import reflect as reflect_mod
 from . import refresh as refresh_mod
 from . import resolve as resolve_mod
 from . import rollback as rollback_mod
+from . import lock as lock_mod
 from . import runner as runner_mod
 from . import schedule as schedule_mod
 from . import snapshot as snapshot_mod
@@ -275,9 +277,18 @@ def _parser() -> argparse.ArgumentParser:
     st = add("status", "waves, node statuses and coverage")
     st.set_defaults(func=cmd_status)
 
-    df = add("diff", "typed structural deltas between two scanned state directories")
-    df.add_argument("old_state", help="state directory of the earlier snapshot")
-    df.add_argument("new_state", help="state directory of the later snapshot")
+    df = add("diff", "typed structural deltas between two scanned snapshots")
+    df.add_argument("old_state", nargs="?", default=None,
+                     help="state directory of the earlier snapshot (pass together with "
+                          "new_state); omit and use --old-sha/--new-sha instead")
+    df.add_argument("new_state", nargs="?", default=None,
+                     help="state directory of the later snapshot")
+    df.add_argument("--old-sha", default=None, metavar="SHA",
+                     help="diff --repo's earlier snapshot by commit sha instead of a "
+                          "directory (default: --repo's current/latest scanned snapshot)")
+    df.add_argument("--new-sha", default=None, metavar="SHA",
+                     help="diff --repo's later snapshot by commit sha instead of a "
+                          "directory (default: --repo's current/latest scanned snapshot)")
     df.add_argument("--json", action="store_true")
     df.set_defaults(func=cmd_diff)
 
@@ -444,8 +455,15 @@ def _parser() -> argparse.ArgumentParser:
     i.add_argument("target", nargs="?", help="repository to install into")
     i.add_argument("--self", action="store_true",
                    help="refresh this repository's own vendored .claude/skills/cdp copy")
+    i.add_argument("--framework", choices=["claude-code", "langgraph", "adk", "none"],
+                   default="claude-code",
+                   help="which agent framework will drive the leaf wave loop "
+                        "(default claude-code); langgraph/adk print pip-install "
+                        "and import guidance instead of writing .claude/agents/, "
+                        "none skips agent registration entirely")
     i.add_argument("--hook", action="store_true",
-                   help="also install the PreToolUse nudge (requires in-repo state)")
+                   help="also install the PreToolUse nudge (requires in-repo state; "
+                        "claude-code only)")
     i.add_argument("--strict", action="store_true",
                    help="with --hook, block the first source read of a session "
                         "instead of nudging, when the index is fresh and its "
@@ -554,6 +572,34 @@ def _open_store(paths: "Paths") -> WorkspaceStore:
     return SqliteStore(paths.state / "index.db")
 
 
+def _locked(shared: bool, timeout_s: float = lock_mod.DEFAULT_TIMEOUT_S):
+    """Decorator: take the per-repo lock (`cdp/lock.py`) for this command's
+    entire body before it touches the store, release it on any exit path.
+
+    Resolves `paths`/backend kind itself, independently of whatever the
+    wrapped `cmd_*` does with `_paths(args)`/`_open_store(paths)` -- both are
+    pure functions of `args`, so computing them twice is cheap and keeps this
+    decorator a pure wrapper that never has to reach into the function body.
+    `shared=True` (read-consistency only: query/docs/status/diff/export/
+    verify/doctor) lets concurrent readers proceed; `shared=False` (anything
+    that appends a patch, writes an artifact, moves the snapshot pointer, or
+    touches task/rollback state) blocks every other locked command, reader
+    or writer alike, for as long as this one runs.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(args):
+            paths = _paths(args)
+            kind, pg = _resolve_backend(paths.repo)
+            with lock_mod.repo_lock(paths, kind, pg, shared=shared, timeout_s=timeout_s):
+                return func(args)
+
+        return wrapper
+
+    return decorator
+
+
 def _check_repo_matches_manifest(paths: "Paths", manifest: Dict) -> None:
     """Fail loudly rather than silently verifying every anchor against the
     wrong tree -- found live: `cdp run` defaulted `--repo` to cwd when
@@ -613,6 +659,7 @@ def _extra_excludes(args, repo: Path) -> List[str]:
     return registry_mod.team_excludes(repo) + list(getattr(args, "exclude", None) or [])
 
 
+@_locked(shared=False)
 def cmd_scan(args) -> int:
     paths = _paths(args)
     say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
@@ -856,6 +903,7 @@ def _apply_as_of(store: "query_mod.Store", commit: str) -> None:
     store.as_of_run_id = run_id
 
 
+@_locked(shared=True)
 def cmd_query(args) -> int:
     store = query_mod.Store(_open_store(_paths(args)))
     if getattr(args, "as_of", None):
@@ -875,6 +923,9 @@ def cmd_query(args) -> int:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(query_mod.render(result))
+        if result.get("elided", 0) > 0 and not result.get("budget_note"):
+            print("tip       --budget <bigger N> to see the rest (%d row(s) elided)"
+                  % result["elided"])
     store.close()
     return 0
 
@@ -895,12 +946,14 @@ def _render_docs(store: "query_mod.Store", out: Path) -> List[Path]:
     )
 
 
+@_locked(shared=True)
 def cmd_docs(args) -> int:
     paths = _paths(args)
     store = query_mod.Store(_open_store(paths))
     out = Path(args.out).expanduser().resolve() if args.out else paths.state / "docs"
     for path in _render_docs(store, out):
         print(path)
+    print("next      open %s/00-overview.md, or cdp query stats" % out)
     store.close()
     return 0
 
@@ -908,6 +961,7 @@ def cmd_docs(args) -> int:
 # ---------------------------------------------------------------- prompts
 
 
+@_locked(shared=False)
 def cmd_prompts(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths)
@@ -979,13 +1033,31 @@ def cmd_prompts(args) -> int:
         backend.close()
         return 0
     fired = [w for w in written if w["budget_fired"]]
+    tightened = [w for w in written if w.get("prompt_tightened")]
+    exhausted = [w for w in written if w.get("prompt_budget_exhausted")]
     print("wrote %d prompt(s) to %s" % (len(written), out_dir))
     for row in written:
+        flags = []
+        if row["budget_fired"]:
+            flags.append("BUDGET FIRED (%d elided)" % row["elided_claims"])
+        if row.get("prompt_tightened"):
+            flags.append("TIGHTENED (%s)" % ", ".join(row["prompt_tightened"]))
+        if row.get("prompt_budget_exhausted"):
+            flags.append("OVER max_prompt_tokens=%s EVEN AT FLOOR" % row.get("max_prompt_tokens"))
         print("  wave %-2s %-60s %2d files, sigma %d claim(s)%s"
               % (row["wave"], row["node"], row["files"], row["inherited_claims"],
-                 "  BUDGET FIRED (%d elided)" % row["elided_claims"] if row["budget_fired"] else ""))
+                 "  " + "; ".join(flags) if flags else ""))
     if not fired:
         print("\ninherited-sigma budget never fired; the 200-claim default is not binding here.")
+    if tightened:
+        print("%d scope(s) exceeded max_prompt_tokens and were auto-tightened." % len(tightened))
+    if exhausted:
+        print("%d scope(s) still exceed max_prompt_tokens after every lever was floored -- "
+              "raise --max-leaf-files/--max-leaf-loc down, or accept the overrun." % len(exhausted))
+    if written:
+        print("next      hand each prompt in %s to a leaf, then cdp collect" % out_dir)
+        if not args.digest:
+            print("tip       --digest builds full-file prompts instead of citations")
     backend.close()
     return 0
 
@@ -1020,6 +1092,7 @@ def _print_token_report(written: List[Dict]) -> None:
 # ---------------------------------------------------------------- collect
 
 
+@_locked(shared=False)
 def cmd_collect(args) -> int:
     """Validate, verify and append every patch an agent left in the inbox.
 
@@ -1140,6 +1213,8 @@ def cmd_collect(args) -> int:
     if stats["escalation_rate"] is not None:
         print("escalation %.3f (M6.3: fraction of claims that needed source beyond the digest)"
               % stats["escalation_rate"])
+    if accepted:
+        print("next      cdp fold --check")
     backend.close()
     return 0
 
@@ -1158,6 +1233,7 @@ def _escalation_rate(patches: List[Dict]) -> Optional[float]:
 # ------------------------------------------------------------------- fold
 
 
+@_locked(shared=False)
 def cmd_fold(args) -> int:
     paths = _paths(args)
     backend = _open_store(paths)
@@ -1180,10 +1256,12 @@ def cmd_fold(args) -> int:
     print("folded %d patch(es) -> %d claims, %d unknowns, coverage %.1f%%"
           % (folded["provenance"]["patch_count"], len(folded["claims"]),
              len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
+    print("next      cdp query stats")
     backend.close()
     return 0
 
 
+@_locked(shared=True)
 def cmd_verify(args) -> int:
     """M7.4 (2.5): same mechanism as `fold --check`, extended over the cold
     archive when `--full` is given -- the audit story that makes `compact`
@@ -1199,18 +1277,23 @@ def cmd_verify(args) -> int:
     if problems:
         for problem in problems:
             print("FAIL  %s" % problem)
+        print("next      cdp rollback --to-run <the offending run> to exclude it, "
+              "or cdp fold to recompute and re-check")
         return 1
     if args.full:
         print("ok    state.json = fold(merge, patches/ + archive/, xref.json)")
         print("ok    archive rows match their recorded content hash")
     else:
         print("ok    state.json = fold(merge, patches/, xref.json)")
+        print("tip       cdp verify --full to also audit the cold archive "
+              "(needs cdp compact to have run first)")
     return 0
 
 
 # --------------------------------------------------------------- refresh
 
 
+@_locked(shared=False)
 def cmd_refresh(args) -> int:
     """M3.3: re-verify every live claim against HEAD, zero model calls.
 
@@ -1317,6 +1400,7 @@ def cmd_refresh(args) -> int:
         % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
            buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN],
            after_demoted - before_demoted))
+    say("next      cdp query stats")
     backend.close()
     return 0
 
@@ -1440,6 +1524,7 @@ def _next_run_id(backend, base_run_id: str) -> str:
     return "%s-r%d" % (base_run_id, n)
 
 
+@_locked(shared=False)
 def cmd_run(args) -> int:
     """M5.3: `read schedule -> dispatch a wave -> collect -> adjudicate ->
     fold -> next wave`. `prompts`/`collect` still work standalone (M5.1's
@@ -1553,6 +1638,7 @@ def cmd_run(args) -> int:
     else:  # --wave-all
         wave_groups = [(w["wave"], w["nodes"]) for w in sched["waves"]]
 
+    any_incomplete = False
     for label, nodes in wave_groups:
         results = supervisor_mod.run_wave(
             nodes, store, backend, runner, paths, run_id, validator, sched, args.mode,
@@ -1569,10 +1655,14 @@ def cmd_run(args) -> int:
             if row["state"] != supervisor_mod.VALIDATED:
                 print("  %-9s %-40s attempts %d  %s"
                       % (row["state"], row["node"], row["attempts"], row["last_error"] or ""))
+                any_incomplete = True
         store = query_mod.Store(backend)  # re-read state.json: next wave inherits this wave's claims
 
     backend.finish_run(run_id, "complete")
     trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="finished", reason="complete")
+    print("next      cdp query stats, or cdp fold --check")
+    if any_incomplete:
+        print("tip       cdp run --resume --run-id %s to retry the incomplete/failed scope(s)" % run_id)
     _maybe_print_lessons_hint(trajectory)
     trajectory.close()
     backend.close()
@@ -1594,6 +1684,7 @@ def _maybe_print_lessons_hint(trajectory: "trajectory_mod.TrajectoryStore") -> N
           % (pending, count))
 
 
+@_locked(shared=False)
 def cmd_reflect(args) -> int:
     """M9.3 (6.6): select this run's own outlier scopes from the trajectory
     corpus (deterministic, M9.2's own columns), spend one real model call per
@@ -1627,6 +1718,8 @@ def cmd_reflect(args) -> int:
         with trajectory_mod.TrajectoryStore() as trajectory:
             for a in accepted:
                 trajectory.record_promotion(run_id=run_id, node=a["node"], promotion=a["promotion"])
+        print("next      cdp lessons cut to freeze %d pending promotion(s), then "
+              "cdp holdout --lessons vN <held-out-repo> to A/B before trusting it" % len(accepted))
     return 0
 
 
@@ -1645,6 +1738,8 @@ def cmd_lessons(args) -> int:
             else:
                 n = len(trajectory.load_lessons(version))
                 print("lessons   cut v%d (%d promotion(s))" % (version, n))
+                print("next      cdp run --lessons v%d to pin it, or cdp holdout --lessons v%d "
+                      "<held-out-repo> to A/B it first" % (version, version))
         elif args.lessons_action == "unpromote":
             if args.version is None:
                 raise CdpError("`cdp lessons unpromote` needs --version")
@@ -1653,6 +1748,8 @@ def cmd_lessons(args) -> int:
             fallback = trajectory.latest_lesson_version()
             print("lessons   v%d unpromoted -- default `cdp run` resolution now falls back to %s"
                   % (args.version, ("v%d" % fallback) if fallback is not None else "no lesson-set"))
+            print("next      cdp run --lessons vN uses the new fallback automatically; "
+                  "pass --no-lessons to opt out entirely")
         else:  # show
             version = args.version if args.version is not None else trajectory.latest_lesson_version()
             if version is None:
@@ -1662,9 +1759,12 @@ def cmd_lessons(args) -> int:
             print("lessons   v%d (%d promotion(s))" % (version, len(lessons)))
             for row in lessons:
                 print("  %-30s %-20s %s" % (row["node"], row["kind"], row["payload"]))
+            print("tip       cdp lessons cut freezes new promotions since this cut; "
+                  "cdp lessons unpromote --version N reverts one")
     return 0
 
 
+@_locked(shared=False)
 def cmd_holdout(args) -> int:
     """M9.3 (6.8): "A/B on a pinned snapshot, `--lessons none` vs `--lessons
     vN`. Learn on repos A-E, benchmark on F, or you are measuring
@@ -1725,6 +1825,8 @@ def cmd_holdout(args) -> int:
         with trajectory_mod.TrajectoryStore() as trajectory:
             trajectory.promote_cut(args.lessons, repo_id, metric)
         print("holdout   v%d promoted to latest" % args.lessons)
+        print("next      cdp run --lessons v%d (or omit --lessons; v%d is now the latest cut)"
+              % (args.lessons, args.lessons))
     else:
         print("holdout   v%d NOT promoted -- regression on a repo outside its learning corpus" % args.lessons)
     return 0 if passed else 1
@@ -1733,6 +1835,7 @@ def cmd_holdout(args) -> int:
 # ----------------------------------------------------------------- doctor
 
 
+@_locked(shared=True)
 def cmd_doctor(args) -> int:
     """M6.1 (4.10): dispatch one runner over every scope of an already-scanned
     repo, score each patch against the hand-authored golden set (currently
@@ -1793,6 +1896,9 @@ def cmd_doctor(args) -> int:
             models[data["model"]] = data
     if len(models) > 1:
         print("\n" + doctor_mod.compatibility_table(models))
+    else:
+        print("next      cdp doctor --model <other> to compare, once more than one "
+              "model has a report here")
 
     backend.close()
     return 0
@@ -1801,6 +1907,7 @@ def cmd_doctor(args) -> int:
 # ----------------------------------------------------------------- status
 
 
+@_locked(shared=True)
 def cmd_status(args) -> int:
     paths = _paths(args)
     store = query_mod.Store(_open_store(paths))
@@ -1819,6 +1926,8 @@ def cmd_status(args) -> int:
         print("freshness %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn"
               % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
                  buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN]))
+        if buckets[freshness_mod.STALE] + buckets[freshness_mod.UNREVIEWED] > 0:
+            print("tip       cdp run --stale-only to re-dispatch just the stale/anchored-but-unreviewed scope(s)")
     for wave in sched["waves"]:
         done = sum(1 for n in wave["nodes"] if statuses.get(n) == "complete")
         print("wave %-2d L%s  %d/%d complete  %d files, %d loc"
@@ -1835,11 +1944,16 @@ def cmd_status(args) -> int:
     if rows:
         node_of_hash = {s.get("scope_hash"): s["node"] for s in store.partition["scopes"]}
         print("\ntasks     run %s" % run_id)
+        incomplete = False
         for row in rows:
             node = node_of_hash.get(row["scope_hash"], row["scope_hash"])
             print("    %-14s %-40s attempts %d%s"
                   % (row["state"] or "pending", node, row["attempts"] or 0,
                      "  %s" % row["last_error"] if row["last_error"] else ""))
+            if row["state"] not in (supervisor_mod.FOLDED,):
+                incomplete = True
+        if incomplete:
+            print("next      cdp run --resume --run-id %s to continue the incomplete task(s) above" % run_id)
     store.close()
     return 0
 
@@ -1847,20 +1961,93 @@ def cmd_status(args) -> int:
 # ------------------------------------------------------------------- diff
 
 
+def _open_diff_side(state_dir: Path) -> "query_mod.Store":
+    """Directory-pair mode: detect which directory-shaped backend is
+    actually present instead of assuming `SqliteStore` -- `FileStore`'s
+    loose-JSON layout is just as diffable, it was simply never tried.
+    Postgres has no per-snapshot directory at all, so it can't be reached
+    this way; that's what `--repo`/`--old-sha`/`--new-sha` is for."""
+    state_dir = state_dir.expanduser().resolve()
+    if (state_dir / "index.db").is_file():
+        return query_mod.Store(state_dir)
+    if (state_dir / "graph.json").is_file():
+        return query_mod.Store(FileStore(state_dir))
+    raise CdpError(
+        "no CDP state at %s -- run `scan` first. If this is postgres-backed "
+        "state, `cdp diff <dir> <dir>` can't read it (postgres has no "
+        "per-snapshot directory) -- use `cdp diff --repo ... --old-sha ... "
+        "--new-sha ...` instead." % state_dir
+    )
+
+
+def _current_snapshot_sha(backend: WorkspaceStore, repo_id: str) -> str:
+    backend.use_latest_snapshot()
+    sid = backend.snapshot_id()
+    row = next((r for r in backend.list_snapshots() if r["id"] == sid), None)
+    if row is None:
+        raise CdpError("no scanned snapshot for %s -- run `cdp scan` first" % repo_id)
+    return row["commit_sha"]
+
+
+@_locked(shared=True)
 def cmd_diff(args) -> int:
-    old = query_mod.Store(Path(args.old_state).expanduser().resolve())
-    new = query_mod.Store(Path(args.new_state).expanduser().resolve())
-    result = diffs_mod.diff_snapshots(old.graph, old.xref, old.state, new.graph, new.xref, new.state)
+    dir_mode = args.old_state is not None or args.new_state is not None
+    sha_mode = args.old_sha is not None or args.new_sha is not None
+    if dir_mode and sha_mode:
+        raise CdpError("pass either two state directories or --old-sha/--new-sha, not both")
+
+    if dir_mode:
+        if args.old_state is None or args.new_state is None:
+            raise CdpError("directory mode needs both old_state and new_state")
+        old = _open_diff_side(Path(args.old_state))
+        new = _open_diff_side(Path(args.new_state))
+        try:
+            old_graph, old_xref, old_state = old.graph, old.xref, old.state
+            new_graph, new_xref, new_state = new.graph, new.xref, new.state
+        finally:
+            old.close()
+            new.close()
+    else:
+        if not sha_mode:
+            raise CdpError("need either two state directories, or --old-sha/--new-sha")
+        paths = _paths(args)
+        backend = _open_store(paths)
+        try:
+            if not backend.supports_snapshot_history():
+                raise CdpError(
+                    "%s can't back `cdp diff --old-sha/--new-sha` -- it holds "
+                    "exactly one snapshot per directory, with no commit-sha "
+                    "lineage to select from. Use `cdp diff <old_dir> <new_dir>` "
+                    "instead, or switch this repo's backend to sqlite/postgres."
+                    % type(backend).__name__
+                )
+            repo_id = registry_mod.repo_identity(paths.repo)
+            old_sha = args.old_sha or _current_snapshot_sha(backend, repo_id)
+            new_sha = args.new_sha or _current_snapshot_sha(backend, repo_id)
+
+            backend.use_snapshot(repo_id, old_sha)
+            old_store = query_mod.Store(backend, use_latest=False)
+            old_graph, old_xref, old_state = old_store.graph, old_store.xref, old_store.state
+
+            backend.use_snapshot(repo_id, new_sha)
+            new_store = query_mod.Store(backend, use_latest=False)
+            new_graph, new_xref, new_state = new_store.graph, new_store.xref, new_store.state
+        finally:
+            backend.close()
+
+    result = diffs_mod.diff_snapshots(old_graph, old_xref, old_state, new_graph, new_xref, new_state)
     if args.json:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print("\n".join(diffs_mod.summarise(result)))
+        print("tip       cdp query symbol/table <name> for full context on a changed item above")
     return 0
 
 
 # -------------------------------------------------------------------- link
 
 
+@_locked(shared=False)
 def cmd_link_scan(args) -> int:
     """M8.1: read-only across N already-scanned state directories -- N may be
     1, since `link.scan_links` explodes each state dir's pooled edges by
@@ -1902,6 +2089,11 @@ def cmd_link_scan(args) -> int:
         print(__import__("json").dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print("\n".join(link_mod.summarise(report)))
+        print("next      cdp link query --service <name>")
+        heuristic = report.get("totals", {}).get("heuristic", 0)
+        if heuristic:
+            print("tip       cdp link prompts --out <dir> to resolve the %d ambiguous match(es)"
+                  % heuristic)
     return 0
 
 
@@ -1913,6 +2105,7 @@ def _read_link_report(store) -> Dict:
     }
 
 
+@_locked(shared=False)
 def cmd_link_prompts(args) -> int:
     """M8.3 (5.2): the LLM tier fires only on ambiguous (`heuristic`) matches
     a prior `link scan --db` already persisted. Writes one prompt per
@@ -1957,9 +2150,13 @@ def cmd_link_prompts(args) -> int:
             ran += 1
     print("link prompts  %d ambiguous task(s) -> %s%s"
           % (len(tasks), out_dir, "  (ran %d via --runner-cmd)" % ran if runner else ""))
+    if tasks and runner is None:
+        print("next      hand each prompt in %s/tasks to a leaf, drop its patch in "
+              "%s/inbox, then cdp link collect --in %s" % (out_dir, out_dir, out_dir))
     return 0
 
 
+@_locked(shared=False)
 def cmd_link_collect(args) -> int:
     """M8.3 (5.2): validate -> verify -> entail -> fold, for link-task
     patches only -- `link.validate_task_patch` is the validate+verify+entail
@@ -2012,9 +2209,12 @@ def cmd_link_collect(args) -> int:
           % (accepted, len(rejected), folded))
     for name, errors in rejected:
         print("  REJECTED %s: %s" % (name, "; ".join(errors[:4])))
+    if folded:
+        print("next      cdp link query --service <name>")
     return 0
 
 
+@_locked(shared=False)
 def cmd_link_run(args) -> int:
     """Post-Phase-9 item 5: `link prompts`/`link collect` are a manual,
     file-handoff pair (M8.3) with no leases, no `link_task` rows, and no
@@ -2065,9 +2265,12 @@ def cmd_link_run(args) -> int:
         store.close()
     print("link run  %d task(s)  %s  %d resolution(s) folded"
           % (len(tasks), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "nothing to dispatch", folded))
+    if folded:
+        print("next      cdp link query --service <name>")
     return 0
 
 
+@_locked(shared=False)
 def cmd_link_refresh(args) -> int:
     """M8.4 (5.3): re-verify a prior `link scan --db`'s contracts against
     freshly scanned state directories for the repo(s) named here, mirroring
@@ -2111,9 +2314,11 @@ def cmd_link_refresh(args) -> int:
         print(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print("\n".join(link_mod.summarise_refresh(report)))
+        print("next      cdp link query --service <name>")
     return 0
 
 
+@_locked(shared=True)
 def cmd_link_query(args) -> int:
     """M8.2 (5.6): reads back the `link.*` rows a prior `link scan --db`
     persisted and renders what touches one service -- links either direction,
@@ -2142,6 +2347,7 @@ def cmd_link_query(args) -> int:
 # --------------------------------------------------------------------- gc
 
 
+@_locked(shared=False)
 def cmd_gc(args) -> int:
     """M3.6/0.10: a snapshot is kept iff HEAD, pinned, or cited by a live
     claim's `anchor_verified_at`/`claim_reviewed_at`.
@@ -2183,11 +2389,14 @@ def cmd_gc(args) -> int:
             print("          drop %s%s" % ((s["commit_sha"] or "?")[:12], " [dry-run]" if args.dry_run else ""))
             if not args.dry_run:
                 store.delete_snapshot(s["id"])
+        if drop and not args.dry_run:
+            print("tip       cdp compact to also fold superseded patches into the cold archive")
     finally:
         store.close()
     return 0
 
 
+@_locked(shared=False)
 def cmd_compact(args) -> int:
     """M7.3/2.4: move superseded `complete` generations to the cold archive.
     `--keep-generations` is a performance knob, never a retention decision --
@@ -2211,6 +2420,8 @@ def cmd_compact(args) -> int:
         else:
             print("compact   moved %d superseded patch(es) to the archive, kept %d%s"
                   % (result["moved"], result["kept"], " [dry-run]" if args.dry_run else ""))
+            if result["moved"] and not args.dry_run:
+                print("tip       cdp export --format archive to inspect the cold archive")
     finally:
         store.close()
     return 0
@@ -2219,6 +2430,7 @@ def cmd_compact(args) -> int:
 # ---------------------------------------------------------------- export
 
 
+@_locked(shared=True)
 def cmd_export(args) -> int:
     """M7.5 (0.19): four fixed output shapes -- `cdp/export.py` has the full
     account of each."""
@@ -2229,6 +2441,8 @@ def cmd_export(args) -> int:
         if args.format == "json":
             written = export_mod.export_json(store, dest)
             print("export    json      %d artifact(s)/report(s) -> %s" % (len(written), dest))
+            print("tip       --format patches for a reviewable dump, "
+                  "--format archive to include the cold archive")
         elif args.format == "patches":
             n = export_mod.export_patches(store, dest)
             print("export    patches   %d patch(es) -> %s" % (n, dest))
@@ -2252,6 +2466,7 @@ def cmd_export(args) -> int:
 # ---------------------------------------------------------------- rollback
 
 
+@_locked(shared=False)
 def cmd_rollback(args) -> int:
     """M3.7: exclude a run's patches from the fold, without deleting them (R5).
 
@@ -2306,6 +2521,9 @@ def cmd_rollback(args) -> int:
              len(new_excluded), ", ".join(sorted(new_excluded))))
     print("folded    %d claim(s), %d unknown(s), coverage %.1f%%"
           % (len(folded["claims"]), len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
+    print("next      cdp query stats to confirm the exclusion took effect")
+    if not args.reason:
+        print("tip       --reason \"...\" records why, in the rollback ledger, for whoever reads it later")
     backend.close()
     return 0
 
@@ -2318,6 +2536,7 @@ def _git_identity(repo: Path) -> str:
     return "%s <%s>" % (name, email) if email else name
 
 
+@_locked(shared=False)
 def cmd_answer(args) -> int:
     """M4.4: a human claim against an unknown, through the *entire* pipeline
     -- validate, verify the anchor, entail, fold -- exactly like a leaf
@@ -2396,6 +2615,8 @@ def cmd_answer(args) -> int:
                   and (u.get("resolved_by") or {}).get("claim_id") == claim["id"]]
     for u in discharged:
         print("          discharged: %s" % u["question"])
+    if kept:
+        print("next      cdp query unknowns to see what's still open")
     backend.close()
     return 0 if kept else 1
 
@@ -2496,6 +2717,34 @@ def cmd_githook(args) -> int:
     return 0
 
 
+def register_leaf_agent(target: Path, framework: str) -> None:
+    """Point `target` at whatever produces leaf patches for `framework`.
+
+    `claude-code` is the only framework with a file to copy: `.claude/agents/`
+    is a Claude Code discovery convention, and `cdp-leaf.md` is meaningless to
+    anything else. `langgraph`/`adk` leaves are Python the target repo's own
+    graph/agent code imports (`agent_adapter.langgraph_leaf`/`adk_leaf`), so
+    -- like `agent_adapter/` itself, which `DIST_MEMBERS` deliberately never
+    vendors -- there is nothing to copy; printing the install/import guidance
+    is the entire "installation". `none` registers nothing, for repos driving
+    leaves purely through `cdp run --wave-all --runner-cmd`.
+    """
+    if framework == "claude-code":
+        agents = target / ".claude" / "agents"
+        agents.mkdir(parents=True, exist_ok=True)
+        source_agent = SKILL_ROOT / "agents" / "cdp-leaf.md"
+        if source_agent.exists():
+            shutil.copy2(source_agent, agents / "cdp-leaf.md")
+            print("installed %s" % (agents / "cdp-leaf.md"))
+    elif framework in ("langgraph", "adk"):
+        module = "agent_adapter.%s_leaf" % framework
+        print("no files copied for --framework %s -- in %s, run:" % (framework, target))
+        print("  pip install cdp[agent]")
+        print("  from %s import run_leaf" % module)
+    elif framework == "none":
+        pass
+
+
 def cmd_install(args) -> int:
     """Copy the skill into another repository. This is the portability story.
 
@@ -2518,15 +2767,16 @@ def cmd_install(args) -> int:
     if not target.is_dir():
         raise CdpError("not a directory: %s" % target)
 
+    framework = getattr(args, "framework", "claude-code")
+    if getattr(args, "hook", False) and framework != "claude-code":
+        raise CdpError("--hook installs a Claude Code PreToolUse nudge; "
+                        "it does not apply to --framework %s" % framework)
+
     dest = target / ".claude" / "skills" / "cdp"
     copy_distribution(dest)
-
-    agents = target / ".claude" / "agents"
-    agents.mkdir(parents=True, exist_ok=True)
-    source_agent = SKILL_ROOT / "agents" / "cdp-leaf.md"
-    if source_agent.exists():
-        shutil.copy2(source_agent, agents / "cdp-leaf.md")
     print("installed %s" % dest)
+
+    register_leaf_agent(target, framework)
 
     # Tier-0 (7.9): a root-level AGENTS.md works for any assistant, hook-less
     # or not — Cursor, Codex, Copilot, Aider all read it. Placed at the
@@ -2544,6 +2794,8 @@ def cmd_install(args) -> int:
             print(line)
     print("try       python3 %s scan --repo %s"
           % (dest / "run.py", target))
+    print("tip       --hook to auto-refresh state on every commit, "
+          "--framework {langgraph,adk} for non-Claude-Code leaves")
     return 0
 
 

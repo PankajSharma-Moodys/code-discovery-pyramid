@@ -44,6 +44,19 @@ CHARS_PER_TOKEN_EST = 4
 #: the digest says so rather than silently truncating.
 MAX_DIGEST_CHARS_PER_FILE = 6000
 
+#: Whole-prompt ceiling, in the same crude tokens_est unit as everywhere else
+#: in this module. Unlike `--max-leaf-files`/`--max-leaf-loc` (bound what a
+#: leaf *reads*) or `max_inherited` (bound the *inherited* section alone),
+#: this bounds the assembled prompt file as a whole. Enforced by tightening
+#: the same three levers `build_prompt` already exposes -- inherited-sigma
+#: budget, then digest per-file cap, then structure row cap -- cheapest
+#: (least information lost) first, and it fires and logs rather than
+#: shipping an over-budget prompt silently.
+DEFAULT_MAX_PROMPT_TOKENS = 10_000
+
+MIN_DIGEST_CHARS_PER_FILE = 500
+MIN_STRUCTURE_ROWS = 10
+
 
 def build_prompt(
     scope: Dict,
@@ -59,55 +72,90 @@ def build_prompt(
     symbol_index: Optional[Tuple[Dict[str, List[str]], Dict[str, List[str]]]] = None,
     extra_third_party: Set[str] = frozenset(),
     prompt_fixes: Sequence[Dict] = (),
+    max_prompt_tokens: Optional[int] = DEFAULT_MAX_PROMPT_TOKENS,
 ) -> Tuple[str, Dict]:
     node = scope["node"]
     module = scope["module"]
     scope_files = set(scope["files"])
 
     imported = _imported_symbols(extraction, scope_files)
-    inherited, elided = _inherit(prior_claims, imported, module, schedule, max_inherited)
     structure = _structure(extraction, scope_files)
+    budget_chars = max_prompt_tokens * CHARS_PER_TOKEN_EST if max_prompt_tokens else None
 
-    named_sections: List[Tuple[str, str]] = [
-        ("header", _header(node, module, scope, run_id)),
-        ("files", _files_section(inventory, scope, digest_mode)),
-        ("structure", _structure_section(structure)),
-        ("inherited", _inherited_section(inherited, elided, max_inherited)),
-        ("gaps", _gaps_section(xref, scope_files)),
-    ]
-    digest_fingerprint = None
-    if digest_mode:
-        digest_text, digest_fingerprint = _digest_section(scope, repo_root)
-        named_sections.append(("digest", digest_text))
-    named_sections.append(("task", _task_section(node, run_id, digest_mode)))
+    cur_max_inherited = max_inherited
+    cur_digest_cap = MAX_DIGEST_CHARS_PER_FILE
+    cur_structure_rows = MAX_STRUCTURE_ROWS
+    tightened: List[str] = []
+    prompt_budget_exhausted = False
 
-    # M9.3 (6.7) follow-up: a promoted `prompt_fix` was validated, cut and
-    # pinned but never actually rendered anywhere -- consumed here the same
-    # way `import_channel_hint`/`budget_change` already are. Applied by
-    # `section` name against these exact same section labels (`reflect.py`'s
-    # `KNOWN_PROMPT_SECTIONS` is this list, not an invented one), so a fix
-    # aimed at `digest` is silently absent on a T3/non-digest scope -- that
-    # section was never built for this call, not a bug.
-    if prompt_fixes:
-        by_section: Dict[str, List[str]] = {}
-        for fix in prompt_fixes:
-            by_section.setdefault(fix["section"], []).append(fix["instruction"])
-        named_sections = [
-            (name, _apply_prompt_fixes(text, by_section.get(name)))
-            for name, text in named_sections
+    while True:
+        inherited, elided = _inherit(prior_claims, imported, module, schedule, cur_max_inherited)
+
+        named_sections: List[Tuple[str, str]] = [
+            ("header", _header(node, module, scope, run_id)),
+            ("files", _files_section(inventory, scope, digest_mode)),
+            ("structure", _structure_section(structure, row_cap=cur_structure_rows)),
+            ("inherited", _inherited_section(inherited, elided, cur_max_inherited)),
+            ("gaps", _gaps_section(xref, scope_files)),
         ]
+        digest_fingerprint = None
+        if digest_mode:
+            digest_text, digest_fingerprint = _digest_section(scope, repo_root, char_cap=cur_digest_cap)
+            named_sections.append(("digest", digest_text))
+        named_sections.append(("task", _task_section(node, run_id, digest_mode)))
 
-    # M5.6 (4.9): `CDP_CLI_SCOPE.md` marks per-leaf fixed overhead
-    # "unverified -- measure first". `header`/`task` are the two sections
-    # whose size is a function of `node`/`run_id` only, not of the scope's
-    # content -- the part of the prompt that scales with *scope count*, not
-    # code size, which is exactly what a wrong cost curve would look like.
-    # `CHARS_PER_TOKEN_EST` is the crude chars/4 estimate (`cdp prompts --measure`'s
-    # own docstring says so) -- close enough to size the fixed/variable split,
-    # not a claim about any real tokenizer's output.
-    section_chars = {name: len(text) for name, text in named_sections}
+        # M9.3 (6.7) follow-up: a promoted `prompt_fix` was validated, cut and
+        # pinned but never actually rendered anywhere -- consumed here the same
+        # way `import_channel_hint`/`budget_change` already are. Applied by
+        # `section` name against these exact same section labels (`reflect.py`'s
+        # `KNOWN_PROMPT_SECTIONS` is this list, not an invented one), so a fix
+        # aimed at `digest` is silently absent on a T3/non-digest scope -- that
+        # section was never built for this call, not a bug.
+        if prompt_fixes:
+            by_section: Dict[str, List[str]] = {}
+            for fix in prompt_fixes:
+                by_section.setdefault(fix["section"], []).append(fix["instruction"])
+            named_sections = [
+                (name, _apply_prompt_fixes(text, by_section.get(name)))
+                for name, text in named_sections
+            ]
+
+        # M5.6 (4.9): `CDP_CLI_SCOPE.md` marks per-leaf fixed overhead
+        # "unverified -- measure first". `header`/`task` are the two sections
+        # whose size is a function of `node`/`run_id` only, not of the scope's
+        # content -- the part of the prompt that scales with *scope count*, not
+        # code size, which is exactly what a wrong cost curve would look like.
+        # `CHARS_PER_TOKEN_EST` is the crude chars/4 estimate (`cdp prompts --measure`'s
+        # own docstring says so) -- close enough to size the fixed/variable split,
+        # not a claim about any real tokenizer's output.
+        section_chars = {name: len(text) for name, text in named_sections}
+        total_chars = sum(section_chars.values())
+
+        if budget_chars is None or total_chars <= budget_chars:
+            break
+
+        # Whole-prompt budget fired. Tighten the cheapest (least
+        # information-losing) lever first, cheapest again next iteration,
+        # and fall through to the next lever once this one is exhausted --
+        # same "fires and logs, never silent" rule as the inherited-sigma
+        # budget itself.
+        if cur_max_inherited > 0:
+            cur_max_inherited = cur_max_inherited // 2
+            tightened.append("inherited(%d)" % cur_max_inherited)
+        elif digest_mode and cur_digest_cap > MIN_DIGEST_CHARS_PER_FILE:
+            cur_digest_cap = max(MIN_DIGEST_CHARS_PER_FILE, cur_digest_cap // 2)
+            tightened.append("digest(%d)" % cur_digest_cap)
+        elif cur_structure_rows > MIN_STRUCTURE_ROWS:
+            cur_structure_rows = max(MIN_STRUCTURE_ROWS, cur_structure_rows // 2)
+            tightened.append("structure(%d)" % cur_structure_rows)
+        else:
+            # Every lever is already at its floor and the prompt still does
+            # not fit -- ship it anyway (a leaf with no prompt is worse) but
+            # say so loudly rather than silently exceeding the budget.
+            prompt_budget_exhausted = True
+            break
+
     fixed_chars = section_chars["header"] + section_chars["task"]
-    total_chars = sum(section_chars.values())
 
     stats = {
         "node": node,
@@ -127,6 +175,9 @@ def build_prompt(
         "fixed_tokens_est": fixed_chars // CHARS_PER_TOKEN_EST,
         "digest_mode": digest_mode,
         "digest_fingerprint": digest_fingerprint,
+        "max_prompt_tokens": max_prompt_tokens,
+        "prompt_tightened": tightened or None,
+        "prompt_budget_exhausted": prompt_budget_exhausted,
     }
     if symbol_index is not None:
         symbol_owner, namespace_owner = symbol_index
@@ -252,7 +303,9 @@ def _files_section(inventory: Dict, scope: Dict, digest_mode: bool = False) -> s
     )
 
 
-def _digest_section(scope: Dict, repo_root: Optional[Path]) -> Tuple[str, str]:
+def _digest_section(
+    scope: Dict, repo_root: Optional[Path], char_cap: int = MAX_DIGEST_CHARS_PER_FILE
+) -> Tuple[str, str]:
     """M6.3 (4.2): the leaf's input becomes this text, not a filesystem.
 
     Full file text, capped per file at `MAX_DIGEST_CHARS_PER_FILE` -- a
@@ -282,8 +335,8 @@ def _digest_section(scope: Dict, repo_root: Optional[Path]) -> Tuple[str, str]:
                 "mode named in FINDINGS.md F16" % (path, repo_root, exc)
             ) from exc
         truncated = False
-        if len(text) > MAX_DIGEST_CHARS_PER_FILE:
-            text = text[:MAX_DIGEST_CHARS_PER_FILE]
+        if len(text) > char_cap:
+            text = text[:char_cap]
             truncated = True
         numbered = "\n".join(
             "%5d| %s" % (i, line) for i, line in enumerate(text.splitlines(), start=1)
@@ -294,14 +347,16 @@ def _digest_section(scope: Dict, repo_root: Optional[Path]) -> Tuple[str, str]:
             parts.append(
                 "> **truncated at %d chars.** If the claim you need depends on what's past "
                 "this point, that is an escalation -- read the rest of `%s` directly and say so."
-                % (MAX_DIGEST_CHARS_PER_FILE, path)
+                % (char_cap, path)
             )
     fingerprint = sha256_text("\n".join(pieces))
     parts.append("\n`digest_fingerprint`: `%s`" % fingerprint)
     return "\n".join(parts), fingerprint
 
 
-def _structure_section(structure: Dict) -> str:
+def _structure_section(structure: Dict, row_cap: int = MAX_STRUCTURE_ROWS) -> str:
+    constants_cap = max(10, row_cap // 2)  # 60 at the default row_cap=120, same as before this was parameterised
+
     parts = ["## Structure already extracted (do not re-derive this)\n"]
     parts.append(
         "A deterministic Java/Python/JS/Go extractor has already produced the declarations, "
@@ -315,16 +370,16 @@ def _structure_section(structure: Dict) -> str:
 
     if structure["defines"]:
         parts.append("### Types declared here\n")
-        for row in structure["defines"][:MAX_STRUCTURE_ROWS]:
+        for row in structure["defines"][:row_cap]:
             parts.append("- `%s` — %s %s, `%s:%d`" % (
                 row["fqn"], row["visibility"], row["kind"], row["anchor"]["file"], row["anchor"]["line"]))
-        if len(structure["defines"]) > MAX_STRUCTURE_ROWS:
-            parts.append("- ... and %d more" % (len(structure["defines"]) - MAX_STRUCTURE_ROWS))
+        if len(structure["defines"]) > row_cap:
+            parts.append("- ... and %d more" % (len(structure["defines"]) - row_cap))
         parts.append("")
 
     if structure["constants"]:
         parts.append("### Constants and config keys declared here\n")
-        for row in structure["constants"][:60]:
+        for row in structure["constants"][:constants_cap]:
             value = row.get("value")
             parts.append("- `%s` = %s — `%s:%d`" % (
                 row["fqn"], repr(value) if value is not None else "?",
@@ -333,12 +388,12 @@ def _structure_section(structure: Dict) -> str:
 
     if structure["edges"]:
         parts.append("### Typed channel edges found here\n")
-        for row in structure["edges"][:MAX_STRUCTURE_ROWS]:
+        for row in structure["edges"][:row_cap]:
             parts.append("- `%s` --%s--> `%s` — `%s:%d`" % (
                 truncate(row["source"], 70), row["channel"], truncate(row["target"], 70),
                 row["anchor"]["file"], row["anchor"]["line"]))
-        if len(structure["edges"]) > MAX_STRUCTURE_ROWS:
-            parts.append("- ... and %d more" % (len(structure["edges"]) - MAX_STRUCTURE_ROWS))
+        if len(structure["edges"]) > row_cap:
+            parts.append("- ... and %d more" % (len(structure["edges"]) - row_cap))
 
     return "\n".join(parts)
 

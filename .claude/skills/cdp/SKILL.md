@@ -104,11 +104,22 @@ lands, `cdp run` validates it, hands a schema violation back to the same scope
 up to `--max-attempts` times, and folds — you never call `prompts`/`collect`/
 `fold` by hand for this.
 
-One `cdp run` process dispatches its scopes **sequentially** — a lease is what
-lets a *second* `cdp run` process safely take a different scope of the same
-wave at the same time. So the concurrency this skill used to get from "spawn a
-whole wave in one message" now comes from running one `cdp run --scope <node>`
-per scope, in parallel:
+The `FileRunner` contract (drop a prompt, wait for a patch) is what keeps `cdp`
+model-agnostic — nothing in `cdp run` cares who or what fills in the patch.
+**`--runner-cmd` is the default, portable way to do that**: it shells out to
+`command <prompt-path> <patch-path>` per scope, so `cdp run --wave-all
+--runner-cmd "<command>"` drives an entire reconstruction with whatever model
+or script `<command>` wraps — Claude, another vendor's CLI, a local model, even
+a human editor — with no dependency on the orchestrator you're running inside:
+
+```bash
+python3 .claude/skills/cdp/run.py run --wave-all --runner-cmd "/path/to/your-model-cli"
+```
+
+**If you happen to be a Claude Code session**, you have a second option that
+trades portability for concurrency: run one `cdp run --scope <node>` per scope
+in the background (a lease is what lets a *second* `cdp run` process safely
+take a different scope of the same wave at the same time)...
 
 ```bash
 python3 .claude/skills/cdp/run.py status                    # scopes in the next wave
@@ -116,19 +127,22 @@ python3 .claude/skills/cdp/run.py run --scope root/gateway &  # one per scope,
 python3 .claude/skills/cdp/run.py run --scope root/billing &  # backgrounded
 ```
 
-Then, **in one message**, spawn a `cdp-leaf` subagent per scope you just
+...then, **in one message**, spawn a `cdp-leaf` subagent per scope you just
 started — the prompt contract is unchanged:
 
 > Read `.cdp/prompts/<node>.md` and follow it. Read only the files it lists.
 > Write your patch to `.cdp/patches/inbox/<node-with-slashes-as-__>.json`.
 
+This is a Claude-Code-specific convenience, not a requirement — the `Agent`
+tool only ever launches Claude Code agents, so it makes leaves Claude by
+construction. Use it for the concurrency when that's fine; use `--runner-cmd`
+whenever the model behind the leaves needs to be a deliberate choice rather
+than an artifact of which tool happened to be driving.
+
 Each backgrounded `cdp run --scope` notices its own patch file, validates,
 folds and exits on its own. `cdp status` confirms the wave finished; repeat for
 the next wave. `cdp run --wave-all` does every wave, one scope at a time, and
-is the right choice when there is no subagent to run concurrently with it (e.g.
-driving a real model via `--runner-cmd`, which shells out to `command
-<prompt-path> <patch-path>` per scope instead of waiting on a human/subagent to
-drop the file).
+is the right choice whenever there is no subagent to run concurrently with it.
 
 If a run is interrupted, `cdp run --resume` reclaims scopes whose lease lapsed
 mid-flight and continues the same `run_id`; it never re-bills a scope that
@@ -138,6 +152,19 @@ Never hand-edit `.cdp/state.json`. It is a materialized view over the patch log;
 `fold --check` will catch you, and a fact that is not derivable from its
 provenance is exactly what this tool exists to prevent.
 
+**Do not interrupt an in-flight CDP task.** Once a wave is dispatched — a
+backgrounded `cdp run --scope` process, a spawned `cdp-leaf` subagent, or a
+`cdp run --wave-all`/`--runner-cmd` invocation running to completion — let it
+finish on its own. Do not `TaskStop` a running leaf, kill a backgrounded
+`cdp run` process, or re-dispatch the same scope while one is already
+in flight, just because the user's request changed direction, context is
+running low, or the task is taking a while. A killed leaf produces no patch
+and its cost is already spent; the lease it held simply sits until it lapses,
+which `cdp run --resume` will reclaim later anyway — interrupting buys nothing
+and throws away the spend. Check `cdp status` for what is in flight before
+touching any of it. If the user explicitly asks to abort a run, that is their
+call to make, not something to do unprompted.
+
 ---
 
 ## Installing into another repository
@@ -146,7 +173,15 @@ provenance is exactly what this tool exists to prevent.
 python3 .claude/skills/cdp/run.py install /path/to/other/repo
 ```
 
-Copies the skill and the `cdp-leaf` agent definition. Then, from that repo:
+Copies the skill and, by default, the `cdp-leaf` Claude Code agent definition.
+`--framework {claude-code,langgraph,adk,none}` controls that last part: the
+default `claude-code` is what's shown above; `langgraph`/`adk` write no
+`.claude/agents/` file and instead print `pip install cdp[agent]` plus the
+`agent_adapter.langgraph_leaf`/`adk_leaf` import to wire into your own
+graph/agent code — those modules are the leaf-runner equivalent of
+`cdp-leaf.md` for repos that aren't Claude Code; `none` skips agent
+registration for repos driving leaves purely through `cdp run --wave-all
+--runner-cmd`. Then, from that repo:
 
 ```bash
 python3 .claude/skills/cdp/run.py scan --in-repo
@@ -189,7 +224,15 @@ file it cannot drift from the actual CLI. `cdp help --json` gives the same
 surface as data, for a non-Claude driver to bootstrap against.
 
 Budgets: `--max-leaf-files` (40), `--max-leaf-loc` (6000), `--max-concurrent`
-(12), `--max-hops` (8).
+(12), `--max-hops` (8), inherited-sigma claims (200, `prompts.py`'s
+`max_inherited`). The assembled leaf prompt itself is capped at 10K
+tokens_est (`prompts.py`'s `DEFAULT_MAX_PROMPT_TOKENS`, no CLI flag yet) —
+over budget, CDP auto-tightens inherited claims, then digest per-file chars,
+then structure rows, in that order, and logs what it cut (`cdp prompts` /
+`cdp run` output flags `TIGHTENED`/`OVER ... EVEN AT FLOOR`). Each `cdp-leaf`
+subagent spawn is separately capped at `maxTurns: 60` (`agents/cdp-leaf.md`)
+as a turn-count proxy for a ~50K-token execution ceiling, since Claude Code
+has no direct per-subagent token quota.
 
 ### What CDP will not tell you
 

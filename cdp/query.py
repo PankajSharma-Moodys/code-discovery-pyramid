@@ -48,7 +48,7 @@ class Store:
     the properties every renderer and query reads.
     """
 
-    def __init__(self, backend: Union["WorkspaceStore", Path, str]) -> None:
+    def __init__(self, backend: Union["WorkspaceStore", Path, str], use_latest: bool = True) -> None:
         if isinstance(backend, WorkspaceStore):
             self.backend = backend
         else:
@@ -59,8 +59,12 @@ class Store:
         # A view over the store reads the *current* state by default -- the
         # most recent snapshot, not whichever one `_snapshot_id()`'s lazy
         # `id=1` fallback happens to land on. See `use_latest_snapshot`'s
-        # docstring for the bug this closes.
-        self.backend.use_latest_snapshot()
+        # docstring for the bug this closes. `use_latest=False` opts out --
+        # for a caller that already activated a specific snapshot itself
+        # (e.g. `cdp diff`'s sha mode via `use_snapshot`), this call would
+        # otherwise silently override that choice back to "latest".
+        if use_latest:
+            self.backend.use_latest_snapshot()
         self._cache: Dict[str, Any] = {}
 
     def close(self) -> None:

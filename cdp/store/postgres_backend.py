@@ -207,6 +207,25 @@ class PostgresStore(WorkspaceStore):
         self._snapshot = cur.fetchone()[0]
         self._conn.commit()
 
+    def supports_snapshot_history(self) -> bool:
+        return True
+
+    def use_snapshot(self, repo_id: str, commit_sha: str) -> None:
+        cur = self._cur()
+        cur.execute(
+            "SELECT id FROM snapshot_meta WHERE repo_id=%s AND commit_sha=%s",
+            (repo_id, commit_sha),
+        )
+        row = cur.fetchone()
+        self._conn.commit()
+        if row is None:
+            available = [r["commit_sha"] for r in self.list_snapshots() if r["repo_id"] == repo_id]
+            raise CdpError(
+                "no scanned snapshot for %s@%s -- scanned commits for this repo: %s"
+                % (repo_id, commit_sha, ", ".join(available) or "(none -- run `cdp scan`)")
+            )
+        self._snapshot = row[0]
+
     def mark_durable(self) -> None:
         cur = self._cur()
         cur.execute("SELECT ephemeral FROM snapshot_meta WHERE id=%s", (self._snapshot_id(),))

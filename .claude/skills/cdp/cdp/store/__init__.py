@@ -52,6 +52,32 @@ class WorkspaceStore(ABC):
         one that coexists with the old rather than overwriting it.
         """
 
+    def supports_snapshot_history(self) -> bool:
+        """Whether this backend can select a snapshot by commit sha at all
+        (`SqliteStore`, `PostgresStore`). `False` by default (`FileStore`
+        holds exactly one implicit snapshot). Checked by `cdp diff`'s sha
+        mode up front, same posture as `supports_run_tracking` -- otherwise
+        a `list_snapshots()`-returns-`[]` read-side default would cascade
+        into the same confusing "run scan first" that `cdp gc` used to give
+        against `FileStore` when a scan plainly had run."""
+        return False
+
+    def use_snapshot(self, repo_id: str, commit_sha: str) -> None:
+        """Activate an *already-scanned* snapshot for reads, read-only --
+        unlike `begin_snapshot`, never creates a row and never touches
+        recency ordering (`cdp diff`'s sha mode needs to read an old
+        snapshot without promoting it to "latest" for every other command
+        against a shared store). Backends without snapshot lineage
+        (`FileStore`) cannot select by sha at all -- there is exactly one
+        implicit snapshot per directory -- so the default here fails
+        loudly rather than silently ignoring the request.
+        """
+        raise CdpError(
+            "%s holds exactly one snapshot per directory and can't select "
+            "by commit sha -- use `cdp diff <old_dir> <new_dir>` instead"
+            % type(self).__name__
+        )
+
     def mark_durable(self) -> None:
         """Assert this snapshot's claims may be cited by durable lineage.
 

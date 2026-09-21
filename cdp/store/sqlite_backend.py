@@ -286,6 +286,22 @@ class SqliteStore(WorkspaceStore):
         self._conn.commit()
         self._snapshot = cur.lastrowid
 
+    def supports_snapshot_history(self) -> bool:
+        return True
+
+    def use_snapshot(self, repo_id: str, commit_sha: str) -> None:
+        row = self._conn.execute(
+            "SELECT id FROM snapshot_meta WHERE repo_id=? AND commit_sha=?",
+            (repo_id, commit_sha),
+        ).fetchone()
+        if row is None:
+            available = [r["commit_sha"] for r in self.list_snapshots() if r["repo_id"] == repo_id]
+            raise CdpError(
+                "no scanned snapshot for %s@%s -- scanned commits for this repo: %s"
+                % (repo_id, commit_sha, ", ".join(available) or "(none -- run `cdp scan`)")
+            )
+        self._snapshot = row[0]
+
     def mark_durable(self) -> None:
         row = self._conn.execute(
             "SELECT ephemeral FROM snapshot_meta WHERE id=?", (self._snapshot_id(),)
