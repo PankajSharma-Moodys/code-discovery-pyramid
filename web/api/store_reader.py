@@ -165,6 +165,17 @@ class ReadOnlyConnection:
         ).fetchall()
         return [r[0] for r in rows]
 
+    def snapshot_history(self, repo_id: str) -> list:
+        """Like `known_shas`, plus `created_at` for the time scrubber's
+        timeline display. Skips the empty-sha placeholder row a fresh
+        `.cdp` directory starts with (never a valid `/api/diff` argument)."""
+        rows = self._conn().execute(
+            "SELECT commit_sha, created_at FROM snapshot_meta "
+            "WHERE repo_id=? AND commit_sha != '' ORDER BY id",
+            (repo_id,),
+        ).fetchall()
+        return [{"commit_sha": r[0], "created_at": r[1]} for r in rows]
+
     def churn_lookup(self, path: str, since_sha: str, head_sha: str) -> "tuple[bool, Optional[bool]]":
         """Read-only lookup against `churn_cache` (`SCHEMA_V8`,
         `cdp/store/sqlite_backend.py`) -- never shells to `git log`. Returns

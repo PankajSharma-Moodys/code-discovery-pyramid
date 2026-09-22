@@ -1,0 +1,158 @@
+/* Dark-first, provenance-legible palette (WEB_RESEARCH.md §5). Colour never
+   carries epistemic meaning alone -- every semantic-triad consumer also
+   varies stroke style (solid/dashed/dotted) and a glyph, for colourblind
+   users. */
+:root {
+  --atlas-bg-0: #07090c;
+  --atlas-bg-1: #0d1116;
+  --atlas-bg-2: #151a21;
+  --atlas-border: #262c36;
+  --atlas-text: #d7dbe0;
+  --atlas-text-dim: #8b93a1;
+
+  --atlas-accent: #22e0ff; /* electric cyan -- focus/flow only */
+
+  /* Semantic triad -- never decorative. */
+  --atlas-verified: #34d97a; /* solid stroke, check glyph */
+  --atlas-inferred: #f2b84b; /* dashed stroke, tilde glyph */
+  --atlas-unknown: #b98bff; /* dotted stroke, question glyph */
+  --atlas-contested: #ff5c72; /* dotted stroke, cross glyph -- human claim
+    contradicted by extraction (schema/patch-1.0.0.json's `confidence` def);
+    distinct from unknown, never merged into it */
+
+  --atlas-radius: 10px;
+  --atlas-motion-fast: 180ms;
+  --atlas-motion-layout: 480ms;
+  --atlas-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --atlas-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --atlas-motion-hover: 140ms;
+
+  /* Ambient depth (UI_DESIGN_PLAN.md §4) -- applied once on the app shell,
+     never per-panel. Panels keep solid bg-1/2 fills over this, so text
+     contrast is unaffected -- verified against tokens.css's own ramp. */
+  --atlas-mesh-bg: radial-gradient(60% 50% at 10% 0%, color-mix(in srgb, #6a5cff 18%, transparent), transparent 70%),
+    radial-gradient(50% 40% at 90% 100%, color-mix(in srgb, var(--atlas-accent) 12%, transparent), transparent 70%);
+
+  --atlas-elev-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --atlas-elev-2: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 16px 48px -16px rgba(0, 0, 0, 0.7);
+  --atlas-glow-ring: 0 0 0 1px color-mix(in srgb, var(--atlas-accent) 40%, transparent),
+    0 0 24px color-mix(in srgb, var(--atlas-accent) 25%, transparent);
+
+  --atlas-display-size: clamp(1.75rem, 2vw + 1rem, 2.75rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --atlas-motion-fast: 0ms;
+    --atlas-motion-layout: 0ms;
+    --atlas-motion-hover: 0ms;
+    --atlas-motion-spring: linear;
+  }
+}
+
+@keyframes atlas-hop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes atlas-ask-bar-idle-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--atlas-accent) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--atlas-accent) 0%, transparent);
+  }
+}
+
+@keyframes atlas-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-ask-bar-trigger,
+  .atlas-bar-fill--pending::after {
+    animation: none !important;
+  }
+}
+
+/* Elevated card base (UI_DESIGN_PLAN.md §5) -- replaces the flat
+   `border + p-4` pattern repeated across every panel. `.atlas-card--hero`
+   promotes one panel per screen per §3 principle 2. */
+.atlas-card {
+  border-radius: var(--atlas-radius);
+  border: 1px solid var(--atlas-border);
+  background: color-mix(in srgb, var(--atlas-bg-1) 90%, transparent);
+  box-shadow: var(--atlas-elev-1);
+  backdrop-filter: blur(12px);
+  transition:
+    transform var(--atlas-motion-hover) var(--atlas-ease),
+    box-shadow var(--atlas-motion-hover) var(--atlas-ease),
+    border-color var(--atlas-motion-hover) var(--atlas-ease);
+}
+
+.atlas-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--atlas-accent) 35%, var(--atlas-border));
+  box-shadow: var(--atlas-elev-2);
+}
+
+.atlas-card--hero {
+  box-shadow: var(--atlas-elev-2);
+}
+
+.atlas-btn-primary {
+  transition:
+    box-shadow var(--atlas-motion-hover) var(--atlas-ease),
+    transform var(--atlas-motion-hover) var(--atlas-ease);
+}
+
+.atlas-btn-primary:hover:not(:disabled),
+.atlas-btn-primary:focus-visible:not(:disabled) {
+  box-shadow: var(--atlas-glow-ring);
+  transform: translateY(-1px);
+}
+
+.atlas-btn-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.atlas-ask-bar-trigger {
+  animation: atlas-ask-bar-idle-pulse 2.6s ease-in-out infinite;
+}
+
+.atlas-ask-bar-trigger:hover {
+  animation-play-state: paused;
+  box-shadow: var(--atlas-glow-ring);
+}
+
+.atlas-stat-display {
+  font-size: var(--atlas-display-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.atlas-bar-fill--pending {
+  position: relative;
+  overflow: hidden;
+}
+
+.atlas-bar-fill--pending::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  animation: atlas-shimmer 1.4s linear infinite;
+}

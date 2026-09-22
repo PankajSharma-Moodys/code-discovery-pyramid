@@ -390,6 +390,65 @@
         }
       }
     },
+    "/api/sources": {
+      "get": {
+        "summary": "Get Sources",
+        "description": "`dataflow.sources[]` listing -- there is no `kind=sources` in\n`cdp.query.QUERIES` (`trace`/`paths` consume sources internally via\n`_resolve_entry`, but nothing lists them for a picker). Same posture as\n`get_link`/`get_doctor`: read the artifact directly rather than invent\na query-dispatch kind for a plain listing.",
+        "operationId": "get_sources_api_sources_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/source": {
       "get": {
         "summary": "Get Source",
@@ -631,8 +690,38 @@
     "/api/repos": {
       "get": {
         "summary": "Get Repos",
-        "description": "Every state dir this machine's `cdp` registry knows about, with\nper-repo freshness (current git HEAD vs. the pinned snapshot's\n`as_of` commit). A registry entry whose state dir vanished, whose\n`index.db` is missing/locked, or whose git call fails gets its own\n`error` row instead of 500ing the whole list (mirrors `get_status`'s\n`StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped\nto one row here instead of the whole response).",
+        "description": "Every state dir this machine's `cdp` registry knows about, with\nper-repo freshness (current git HEAD vs. the pinned snapshot's\n`as_of` commit). A registry entry whose state dir vanished, whose\n`index.db` is missing/locked, or whose git call fails gets its own\n`error` row instead of 500ing the whole list (mirrors `get_status`'s\n`StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped\nto one row here instead of the whole response).\n\nThe registry only maps a repo's *git-remote identity* to a state dir\n(`cdp.store.registry.register`, called from `cmd_scan`) -- a repo\nscanned before that identity existed in the registry (e.g. this repo,\nwhose origin was never `register`ed under its current remote) has no\nentry at all, even though `/api/status` resolves its state dir fine via\nthe same `resolve_state_dir` fallback chain every other endpoint uses.\nWithout this, `repos.repos[0]` (the frontend's single-repo assumption,\n`RepoHealthStrip.tsx`) would silently show whichever *other* repo\nhappens to sort first in the registry. So: resolve the caller's actual\n`repo`/`state_dir` the normal way, and put that entry first -- matching\nan existing registry row by resolved state dir if one names the same\ndirectory, else synthesizing one so the current repo is never invisible\nor shadowed by an unrelated stale entry.",
         "operationId": "get_repos_api_repos_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -640,6 +729,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReposResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -776,6 +875,65 @@
         }
       }
     },
+    "/api/links": {
+      "get": {
+        "summary": "Get Links",
+        "description": "All persisted link edges, unfiltered -- the constellation view's data\nsource (`/api/link?service=` is a single-service lookup, not a listing).\nSame store/error handling as `/api/link` above.",
+        "operationId": "get_links_api_links_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinksResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/trajectory": {
       "get": {
         "summary": "Get Trajectory",
@@ -820,6 +978,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrajectoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/snapshots": {
+      "get": {
+        "summary": "Get Snapshots",
+        "description": "This repo's scanned-commit history (`snapshot_meta`), oldest first --\nthe time scrubber's timeline and the valid `/api/diff` `old`/`new`\nvalues.",
+        "operationId": "get_snapshots_api_snapshots_get",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotsResponse"
                 }
               }
             }
@@ -1115,6 +1332,295 @@
               "title": "Mode"
             },
             "description": "cdp refresh --mode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/job/{job_id}": {
+      "get": {
+        "summary": "Get Job",
+        "description": "Poll for a job's completion when there is no task table to watch --\n`POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such\ncaller; `/api/run`/`/api/refresh` instead poll `/api/status`.",
+        "operationId": "get_job_api_job__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hookup/preview": {
+      "get": {
+        "summary": "Get Hookup Preview",
+        "description": "`WEB_RESEARCH.md` \u00a74 item 1: \"shows the exact files it will copy and\nthe `--runner-cmd` it will wire\" -- the file-list half, read-only.",
+        "operationId": "get_hookup_preview_api_hookup_preview_get",
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "repository to install into",
+              "title": "Target"
+            },
+            "description": "repository to install into"
+          },
+          {
+            "name": "framework",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "claude-code | langgraph | adk | none",
+              "default": "claude-code",
+              "title": "Framework"
+            },
+            "description": "claude-code | langgraph | adk | none"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hookup/install": {
+      "post": {
+        "summary": "Post Hookup Install",
+        "description": "Shells out to `cdp install`, same posture as `/api/run`/`/api/refresh`\n(`register_leaf_agent`/`copy_distribution`, `cli.py:2754-2864`) -- but\nunlike those, a file copy is fast and idempotent, so this runs\nsynchronously rather than through `jobs_mod.spawn_or_join`.",
+        "operationId": "post_hookup_install_api_hookup_install_post",
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "repository to install into",
+              "title": "Target"
+            },
+            "description": "repository to install into"
+          },
+          {
+            "name": "framework",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "claude-code | langgraph | adk | none",
+              "default": "claude-code",
+              "title": "Framework"
+            },
+            "description": "claude-code | langgraph | adk | none"
+          },
+          {
+            "name": "hook",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "also install the PreToolUse nudge (claude-code only)",
+              "default": false,
+              "title": "Hook"
+            },
+            "description": "also install the PreToolUse nudge (claude-code only)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hookup/mcp-tools": {
+      "get": {
+        "summary": "Get Hookup Mcp Tools",
+        "description": "The three `mcp_server` tools with a copy-to-clipboard client config\n(`WEB_RESEARCH.md` \u00a74 item 1) -- read from `mcp_server/schemas.py`, never\nrestated (\u00a77.2's \"client of the CLI's semantics, not a second\nimplementation\").",
+        "operationId": "get_hookup_mcp_tools_api_hookup_mcp_tools_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpToolsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hookup/liveness": {
+      "post": {
+        "summary": "Post Hookup Liveness",
+        "description": "\"Is it alive?\" (`WEB_RESEARCH.md` \u00a74 item 1): dispatches `cdp doctor`\nat one throwaway scope. Reuses `jobs_mod.spawn_or_join` (already generic\nover `kind`) so a second liveness POST while one is in flight joins\nrather than races it, same single-flight semantics as `/api/run`. Result\nis read back through the existing `GET /api/doctor` once the job\n(`GET /api/job/:id`) finishes.",
+        "operationId": "post_hookup_liveness_api_hookup_liveness_post",
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "already-scanned repository to probe",
+              "title": "Target"
+            },
+            "description": "already-scanned repository to probe"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          },
+          {
+            "name": "runner_cmd",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "cdp doctor --runner-cmd",
+              "title": "Runner Cmd"
+            },
+            "description": "cdp doctor --runner-cmd"
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "cdp doctor --model label",
+              "title": "Model"
+            },
+            "description": "cdp doctor --model label"
+          },
+          {
+            "name": "node",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "scope to probe; defaults to the cheapest one",
+              "title": "Node"
+            },
+            "description": "scope to probe; defaults to the cheapest one"
+          },
+          {
+            "name": "timeout",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "cdp doctor --timeout",
+              "default": 300.0,
+              "title": "Timeout"
+            },
+            "description": "cdp doctor --timeout"
           }
         ],
         "responses": {
@@ -1615,6 +2121,84 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "InstallPreviewResponse": {
+        "properties": {
+          "skill_dest": {
+            "type": "string",
+            "title": "Skill Dest"
+          },
+          "skill_members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skill Members"
+          },
+          "leaf_agent_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaf Agent File"
+          },
+          "framework_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Framework Note"
+          },
+          "agents_md_path": {
+            "type": "string",
+            "title": "Agents Md Path"
+          },
+          "agents_md_action": {
+            "type": "string",
+            "title": "Agents Md Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill_dest",
+          "skill_members",
+          "agents_md_path",
+          "agents_md_action"
+        ],
+        "title": "InstallPreviewResponse",
+        "description": "`GET /api/hookup/preview` -- read-only description of what `cdp\ninstall --framework <framework> <target>` would do, without running it\n(`WEB_RESEARCH.md` \u00a74 item 1: \"shows the exact files it will copy\")."
+      },
+      "InstallResultResponse": {
+        "properties": {
+          "returncode": {
+            "type": "integer",
+            "title": "Returncode"
+          },
+          "stdout": {
+            "type": "string",
+            "title": "Stdout"
+          },
+          "stderr": {
+            "type": "string",
+            "title": "Stderr"
+          }
+        },
+        "type": "object",
+        "required": [
+          "returncode",
+          "stdout",
+          "stderr"
+        ],
+        "title": "InstallResultResponse",
+        "description": "`POST /api/hookup/install` -- `cdp install` is a fast, idempotent\nfile-copy, so unlike `/api/run`/`/api/refresh` this runs synchronously\nand returns the finished result rather than a `JobResponse` to poll."
+      },
       "JobResponse": {
         "properties": {
           "job_id": {
@@ -1632,6 +2216,27 @@
           "kind": {
             "type": "string",
             "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status",
+          "pid",
+          "kind"
+        ],
+        "title": "JobResponse",
+        "description": "`POST /api/run`/`POST /api/refresh` (`WEB_RESEARCH.md` \u00a77.2.4) --\n`status` is `\"started\"` for a freshly spawned subprocess or `\"joined\"`\nwhen a job for this `(repo, state_dir)` was already in flight and this\ncall returned that same job's handle instead of racing a second process\n(single-flight, not a queue -- see `web/api/jobs.py`)."
+      },
+      "JobStatusResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
           },
           "repo": {
             "type": "string",
@@ -1640,19 +2245,33 @@
           "state_dir": {
             "type": "string",
             "title": "State Dir"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "returncode": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returncode"
           }
         },
         "type": "object",
         "required": [
           "job_id",
-          "status",
-          "pid",
           "kind",
           "repo",
-          "state_dir"
+          "state_dir",
+          "running"
         ],
-        "title": "JobResponse",
-        "description": "`POST /api/run`/`POST /api/refresh` (`WEB_RESEARCH.md` \u00a77.2.4) --\n`status` is `\"started\"` for a freshly spawned subprocess or `\"joined\"`\nwhen a job for this `(repo, state_dir)` was already in flight and this\ncall returned that same job's handle instead of racing a second process\n(single-flight, not a queue -- see `web/api/jobs.py`)."
+        "title": "JobStatusResponse",
+        "description": "`GET /api/job/:id` -- lets a caller that already holds a `job_id` (from\na `JobResponse`) poll for completion without a task table to watch, which\nis what `/api/status`'s poll gives `/api/run`/`/api/refresh` but `POST\n/api/hookup/liveness`'s `cdp doctor` subprocess has none of."
       },
       "LinkQueryResponse": {
         "properties": {
@@ -1684,6 +2303,79 @@
           "unmatched"
         ],
         "title": "LinkQueryResponse"
+      },
+      "LinksResponse": {
+        "properties": {
+          "links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "unmatched": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unmatched"
+          }
+        },
+        "type": "object",
+        "required": [
+          "links",
+          "unmatched"
+        ],
+        "title": "LinksResponse",
+        "description": "All persisted `link_edge` rows (`ReadOnlyConnection.read_link_edges`),\nunfiltered by service -- the constellation view's data source. Same\nloose `dict`-typed shape as `LinkQueryResponse` (straight from\n`link.scan_links`'s own output), split by `kind` (\"link\" vs\n\"unmatched\")."
+      },
+      "McpToolResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input Schema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "input_schema"
+        ],
+        "title": "McpToolResponse"
+      },
+      "McpToolsResponse": {
+        "properties": {
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/McpToolResponse"
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "client_config": {
+            "type": "string",
+            "title": "Client Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tools",
+          "client_config"
+        ],
+        "title": "McpToolsResponse",
+        "description": "`GET /api/hookup/mcp-tools` -- read straight from\n`mcp_server.schemas.TOOL_SCHEMAS`, never restated (\u00a77.2's \"client of the\nCLI's semantics, not a second implementation\")."
       },
       "NodeResponse": {
         "properties": {
@@ -1860,6 +2552,90 @@
         ],
         "title": "ScopeSummaryResponse"
       },
+      "SnapshotMetaResponse": {
+        "properties": {
+          "commit_sha": {
+            "type": "string",
+            "title": "Commit Sha"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commit_sha",
+          "created_at"
+        ],
+        "title": "SnapshotMetaResponse"
+      },
+      "SnapshotsResponse": {
+        "properties": {
+          "repo_id": {
+            "type": "string",
+            "title": "Repo Id"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotMetaResponse"
+            },
+            "type": "array",
+            "title": "Snapshots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshots"
+        ],
+        "title": "SnapshotsResponse",
+        "description": "Ordered (oldest-first) list of this repo's scanned commits\n(`snapshot_meta`, via `ReadOnlyConnection.known_shas`/`snapshot_history`)\n-- the time scrubber's timeline, and the set of shas valid as `/api/diff`\n`old`/`new` params."
+      },
+      "SourceEntryResponse": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "title": "Node"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "trigger": {
+            "type": "string",
+            "title": "Trigger"
+          },
+          "module": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Module"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataflowAnchorResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "node",
+          "channel",
+          "trigger"
+        ],
+        "title": "SourceEntryResponse"
+      },
       "SourceResponse": {
         "properties": {
           "path": {
@@ -1896,6 +2672,27 @@
         ],
         "title": "SourceResponse",
         "description": "`GET /api/source` -- file bytes for the code-peek pane\n(`WEB_RESEARCH.md` \u00a77.1, net-new: no other endpoint serves raw file\ncontent). `path` is the repo-relative POSIX string as requested (same\nformat `cdp/inventory.py` stores in the `inventory` artifact, so it's\nconsistent with what claims/anchors already reference)."
+      },
+      "SourcesResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceEntryResponse"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "sources"
+        ],
+        "title": "SourcesResponse"
       },
       "StatusResponse": {
         "properties": {

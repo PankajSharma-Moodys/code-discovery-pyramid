@@ -45,6 +45,13 @@ class Job:
     def pid(self) -> int:
         return self.process.pid
 
+    @property
+    def returncode(self) -> Optional[int]:
+        """`None` while running, the process exit code once it isn't --
+        `poll()` is the same non-blocking check `is_running` uses, so calling
+        both never blocks on a still-running subprocess."""
+        return self.process.poll()
+
 
 _lock = threading.Lock()
 _jobs: Dict[Tuple[str, str], Job] = {}

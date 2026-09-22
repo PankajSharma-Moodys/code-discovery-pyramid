@@ -74,7 +74,7 @@ class EventsEndpointTest(unittest.TestCase):
         self.assertEqual(kinds[-1], "complete")
 
         task_event = next(e for e in events if e[0] == "task")[1]
-        self.assertEqual(task_event["scope_hash"], "scope-a")
+        self.assertEqual(task_event["node"], "scope-a")
         self.assertEqual(task_event["state"], "complete")
 
         wave_event = next(e for e in events if e[0] == "wave")[1]

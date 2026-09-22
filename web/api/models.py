@@ -96,6 +96,19 @@ class DataflowEdgeResponse(BaseModel):
     anchor: Optional[DataflowAnchorResponse] = None
 
 
+class SourceEntryResponse(BaseModel):
+    node: str
+    channel: str
+    trigger: str
+    module: Optional[str] = None
+    anchor: Optional[DataflowAnchorResponse] = None
+
+
+class SourcesResponse(BaseModel):
+    count: int
+    sources: List[SourceEntryResponse]
+
+
 class ScopeSummaryResponse(BaseModel):
     node: str
     module: str
@@ -207,6 +220,17 @@ class LinkQueryResponse(BaseModel):
     unmatched: List[dict]
 
 
+class LinksResponse(BaseModel):
+    """All persisted `link_edge` rows (`ReadOnlyConnection.read_link_edges`),
+    unfiltered by service -- the constellation view's data source. Same
+    loose `dict`-typed shape as `LinkQueryResponse` (straight from
+    `link.scan_links`'s own output), split by `kind` ("link" vs
+    "unmatched")."""
+
+    links: List[dict]
+    unmatched: List[dict]
+
+
 class TrajectoryRunResponse(BaseModel):
     run_id: str
     node: str
@@ -243,6 +267,21 @@ class DiffResponse(BaseModel):
     diff: dict
 
 
+class SnapshotMetaResponse(BaseModel):
+    commit_sha: str
+    created_at: str
+
+
+class SnapshotsResponse(BaseModel):
+    """Ordered (oldest-first) list of this repo's scanned commits
+    (`snapshot_meta`, via `ReadOnlyConnection.known_shas`/`snapshot_history`)
+    -- the time scrubber's timeline, and the set of shas valid as `/api/diff`
+    `old`/`new` params."""
+
+    repo_id: str
+    snapshots: List[SnapshotMetaResponse]
+
+
 class JobResponse(BaseModel):
     """`POST /api/run`/`POST /api/refresh` (`WEB_RESEARCH.md` §7.2.4) --
     `status` is `"started"` for a freshly spawned subprocess or `"joined"`
@@ -254,8 +293,58 @@ class JobResponse(BaseModel):
     status: str
     pid: int
     kind: str
+
+
+class JobStatusResponse(BaseModel):
+    """`GET /api/job/:id` -- lets a caller that already holds a `job_id` (from
+    a `JobResponse`) poll for completion without a task table to watch, which
+    is what `/api/status`'s poll gives `/api/run`/`/api/refresh` but `POST
+    /api/hookup/liveness`'s `cdp doctor` subprocess has none of."""
+
+    job_id: str
+    kind: str
     repo: str
     state_dir: str
+    running: bool
+    returncode: Optional[int] = None
+
+
+class InstallPreviewResponse(BaseModel):
+    """`GET /api/hookup/preview` -- read-only description of what `cdp
+    install --framework <framework> <target>` would do, without running it
+    (`WEB_RESEARCH.md` §4 item 1: "shows the exact files it will copy")."""
+
+    skill_dest: str
+    skill_members: List[str]
+    leaf_agent_file: Optional[str] = None
+    framework_note: Optional[str] = None
+    agents_md_path: str
+    agents_md_action: str
+
+
+class InstallResultResponse(BaseModel):
+    """`POST /api/hookup/install` -- `cdp install` is a fast, idempotent
+    file-copy, so unlike `/api/run`/`/api/refresh` this runs synchronously
+    and returns the finished result rather than a `JobResponse` to poll."""
+
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+class McpToolResponse(BaseModel):
+    name: str
+    description: str
+    input_schema: dict
+
+
+class McpToolsResponse(BaseModel):
+    """`GET /api/hookup/mcp-tools` -- read straight from
+    `mcp_server.schemas.TOOL_SCHEMAS`, never restated (§7.2's "client of the
+    CLI's semantics, not a second implementation")."""
+
+    tools: List[McpToolResponse]
+    client_config: str
 
 
 class SourceResponse(BaseModel):

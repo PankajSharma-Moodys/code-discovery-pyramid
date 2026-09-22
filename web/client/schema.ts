@@ -69,6 +69,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sources
+         * @description `dataflow.sources[]` listing -- there is no `kind=sources` in
+         *     `cdp.query.QUERIES` (`trace`/`paths` consume sources internally via
+         *     `_resolve_entry`, but nothing lists them for a picker). Same posture as
+         *     `get_link`/`get_doctor`: read the artifact directly rather than invent
+         *     a query-dispatch kind for a plain listing.
+         */
+        get: operations["get_sources_api_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/source": {
         parameters: {
             query?: never;
@@ -146,6 +170,20 @@ export interface paths {
          *     `error` row instead of 500ing the whole list (mirrors `get_status`'s
          *     `StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped
          *     to one row here instead of the whole response).
+         *
+         *     The registry only maps a repo's *git-remote identity* to a state dir
+         *     (`cdp.store.registry.register`, called from `cmd_scan`) -- a repo
+         *     scanned before that identity existed in the registry (e.g. this repo,
+         *     whose origin was never `register`ed under its current remote) has no
+         *     entry at all, even though `/api/status` resolves its state dir fine via
+         *     the same `resolve_state_dir` fallback chain every other endpoint uses.
+         *     Without this, `repos.repos[0]` (the frontend's single-repo assumption,
+         *     `RepoHealthStrip.tsx`) would silently show whichever *other* repo
+         *     happens to sort first in the registry. So: resolve the caller's actual
+         *     `repo`/`state_dir` the normal way, and put that entry first -- matching
+         *     an existing registry row by resolved state dir if one names the same
+         *     directory, else synthesizing one so the current repo is never invisible
+         *     or shadowed by an unrelated stale entry.
          */
         get: operations["get_repos_api_repos_get"];
         put?: never;
@@ -202,6 +240,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Links
+         * @description All persisted link edges, unfiltered -- the constellation view's data
+         *     source (`/api/link?service=` is a single-service lookup, not a listing).
+         *     Same store/error handling as `/api/link` above.
+         */
+        get: operations["get_links_api_links_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trajectory": {
         parameters: {
             query?: never;
@@ -216,6 +276,28 @@ export interface paths {
          *     `state_dir=` the way every other endpoint above is.
          */
         get: operations["get_trajectory_api_trajectory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Snapshots
+         * @description This repo's scanned-commit history (`snapshot_meta`), oldest first --
+         *     the time scrubber's timeline and the valid `/api/diff` `old`/`new`
+         *     values.
+         */
+        get: operations["get_snapshots_api_snapshots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -301,6 +383,120 @@ export interface paths {
         put?: never;
         /** Post Refresh */
         post: operations["post_refresh_api_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job
+         * @description Poll for a job's completion when there is no task table to watch --
+         *     `POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such
+         *     caller; `/api/run`/`/api/refresh` instead poll `/api/status`.
+         */
+        get: operations["get_job_api_job__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hookup/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Hookup Preview
+         * @description `WEB_RESEARCH.md` §4 item 1: "shows the exact files it will copy and
+         *     the `--runner-cmd` it will wire" -- the file-list half, read-only.
+         */
+        get: operations["get_hookup_preview_api_hookup_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hookup/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Hookup Install
+         * @description Shells out to `cdp install`, same posture as `/api/run`/`/api/refresh`
+         *     (`register_leaf_agent`/`copy_distribution`, `cli.py:2754-2864`) -- but
+         *     unlike those, a file copy is fast and idempotent, so this runs
+         *     synchronously rather than through `jobs_mod.spawn_or_join`.
+         */
+        post: operations["post_hookup_install_api_hookup_install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hookup/mcp-tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Hookup Mcp Tools
+         * @description The three `mcp_server` tools with a copy-to-clipboard client config
+         *     (`WEB_RESEARCH.md` §4 item 1) -- read from `mcp_server/schemas.py`, never
+         *     restated (§7.2's "client of the CLI's semantics, not a second
+         *     implementation").
+         */
+        get: operations["get_hookup_mcp_tools_api_hookup_mcp_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hookup/liveness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Hookup Liveness
+         * @description "Is it alive?" (`WEB_RESEARCH.md` §4 item 1): dispatches `cdp doctor`
+         *     at one throwaway scope. Reuses `jobs_mod.spawn_or_join` (already generic
+         *     over `kind`) so a second liveness POST while one is in flight joins
+         *     rather than races it, same single-flight semantics as `/api/run`. Result
+         *     is read back through the existing `GET /api/doctor` once the job
+         *     (`GET /api/job/:id`) finishes.
+         */
+        post: operations["post_hookup_liveness_api_hookup_liveness_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -485,6 +681,40 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * InstallPreviewResponse
+         * @description `GET /api/hookup/preview` -- read-only description of what `cdp
+         *     install --framework <framework> <target>` would do, without running it
+         *     (`WEB_RESEARCH.md` §4 item 1: "shows the exact files it will copy").
+         */
+        InstallPreviewResponse: {
+            /** Skill Dest */
+            skill_dest: string;
+            /** Skill Members */
+            skill_members: string[];
+            /** Leaf Agent File */
+            leaf_agent_file?: string | null;
+            /** Framework Note */
+            framework_note?: string | null;
+            /** Agents Md Path */
+            agents_md_path: string;
+            /** Agents Md Action */
+            agents_md_action: string;
+        };
+        /**
+         * InstallResultResponse
+         * @description `POST /api/hookup/install` -- `cdp install` is a fast, idempotent
+         *     file-copy, so unlike `/api/run`/`/api/refresh` this runs synchronously
+         *     and returns the finished result rather than a `JobResponse` to poll.
+         */
+        InstallResultResponse: {
+            /** Returncode */
+            returncode: number;
+            /** Stdout */
+            stdout: string;
+            /** Stderr */
+            stderr: string;
+        };
+        /**
          * JobResponse
          * @description `POST /api/run`/`POST /api/refresh` (`WEB_RESEARCH.md` §7.2.4) --
          *     `status` is `"started"` for a freshly spawned subprocess or `"joined"`
@@ -501,10 +731,27 @@ export interface components {
             pid: number;
             /** Kind */
             kind: string;
+        };
+        /**
+         * JobStatusResponse
+         * @description `GET /api/job/:id` -- lets a caller that already holds a `job_id` (from
+         *     a `JobResponse`) poll for completion without a task table to watch, which
+         *     is what `/api/status`'s poll gives `/api/run`/`/api/refresh` but `POST
+         *     /api/hookup/liveness`'s `cdp doctor` subprocess has none of.
+         */
+        JobStatusResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Kind */
+            kind: string;
             /** Repo */
             repo: string;
             /** State Dir */
             state_dir: string;
+            /** Running */
+            running: boolean;
+            /** Returncode */
+            returncode?: number | null;
         };
         /** LinkQueryResponse */
         LinkQueryResponse: {
@@ -518,6 +765,47 @@ export interface components {
             unmatched: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * LinksResponse
+         * @description All persisted `link_edge` rows (`ReadOnlyConnection.read_link_edges`),
+         *     unfiltered by service -- the constellation view's data source. Same
+         *     loose `dict`-typed shape as `LinkQueryResponse` (straight from
+         *     `link.scan_links`'s own output), split by `kind` ("link" vs
+         *     "unmatched").
+         */
+        LinksResponse: {
+            /** Links */
+            links: {
+                [key: string]: unknown;
+            }[];
+            /** Unmatched */
+            unmatched: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** McpToolResponse */
+        McpToolResponse: {
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Input Schema */
+            input_schema: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * McpToolsResponse
+         * @description `GET /api/hookup/mcp-tools` -- read straight from
+         *     `mcp_server.schemas.TOOL_SCHEMAS`, never restated (§7.2's "client of the
+         *     CLI's semantics, not a second implementation").
+         */
+        McpToolsResponse: {
+            /** Tools */
+            tools: components["schemas"]["McpToolResponse"][];
+            /** Client Config */
+            client_config: string;
         };
         /** NodeResponse */
         NodeResponse: {
@@ -580,6 +868,38 @@ export interface components {
             /** Loc */
             loc: number;
         };
+        /** SnapshotMetaResponse */
+        SnapshotMetaResponse: {
+            /** Commit Sha */
+            commit_sha: string;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * SnapshotsResponse
+         * @description Ordered (oldest-first) list of this repo's scanned commits
+         *     (`snapshot_meta`, via `ReadOnlyConnection.known_shas`/`snapshot_history`)
+         *     -- the time scrubber's timeline, and the set of shas valid as `/api/diff`
+         *     `old`/`new` params.
+         */
+        SnapshotsResponse: {
+            /** Repo Id */
+            repo_id: string;
+            /** Snapshots */
+            snapshots: components["schemas"]["SnapshotMetaResponse"][];
+        };
+        /** SourceEntryResponse */
+        SourceEntryResponse: {
+            /** Node */
+            node: string;
+            /** Channel */
+            channel: string;
+            /** Trigger */
+            trigger: string;
+            /** Module */
+            module?: string | null;
+            anchor?: components["schemas"]["DataflowAnchorResponse"] | null;
+        };
         /**
          * SourceResponse
          * @description `GET /api/source` -- file bytes for the code-peek pane
@@ -599,6 +919,13 @@ export interface components {
             total_lines: number;
             /** Lines */
             lines: string[];
+        };
+        /** SourcesResponse */
+        SourcesResponse: {
+            /** Count */
+            count: number;
+            /** Sources */
+            sources: components["schemas"]["SourceEntryResponse"][];
         };
         /** StatusResponse */
         StatusResponse: {
@@ -832,6 +1159,39 @@ export interface operations {
             };
         };
     };
+    get_sources_api_sources_get: {
+        parameters: {
+            query?: {
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_source_api_source_get: {
         parameters: {
             query: {
@@ -944,7 +1304,11 @@ export interface operations {
     };
     get_repos_api_repos_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -958,6 +1322,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReposResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1030,6 +1403,39 @@ export interface operations {
             };
         };
     };
+    get_links_api_links_get: {
+        parameters: {
+            query?: {
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_trajectory_api_trajectory_get: {
         parameters: {
             query?: {
@@ -1051,6 +1457,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrajectoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_snapshots_api_snapshots_get: {
+        parameters: {
+            query?: {
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1179,6 +1618,168 @@ export interface operations {
                 state_dir?: string | null;
                 /** @description cdp refresh --mode */
                 mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_api_job__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_hookup_preview_api_hookup_preview_get: {
+        parameters: {
+            query: {
+                /** @description repository to install into */
+                target: string;
+                /** @description claude-code | langgraph | adk | none */
+                framework?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_hookup_install_api_hookup_install_post: {
+        parameters: {
+            query: {
+                /** @description repository to install into */
+                target: string;
+                /** @description claude-code | langgraph | adk | none */
+                framework?: string;
+                /** @description also install the PreToolUse nudge (claude-code only) */
+                hook?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallResultResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_hookup_mcp_tools_api_hookup_mcp_tools_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpToolsResponse"];
+                };
+            };
+        };
+    };
+    post_hookup_liveness_api_hookup_liveness_post: {
+        parameters: {
+            query: {
+                /** @description already-scanned repository to probe */
+                target: string;
+                state_dir?: string | null;
+                /** @description cdp doctor --runner-cmd */
+                runner_cmd: string;
+                /** @description cdp doctor --model label */
+                model: string;
+                /** @description scope to probe; defaults to the cheapest one */
+                node?: string | null;
+                /** @description cdp doctor --timeout */
+                timeout?: number;
             };
             header?: never;
             path?: never;

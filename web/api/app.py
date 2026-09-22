@@ -2,13 +2,18 @@
 backend API layer.
 
 `GET /api/status` (Phase 0), `/api/query` + `/api/trace` (thin wrappers over
-`cdp.query.dispatch`), `/api/graph` (L0/L1/L2/L3 -- L4 constellation is cut
-this cycle, no second registered repo to back it honestly, see `PLAN.md`),
+`cdp.query.dispatch`), `/api/graph` (L0/L1/L2/L3 -- there is no L4 altitude
+in the module/scope graph; the L4 module-link constellation is a separate
+concept, served unfiltered by `/api/links` below and rendered by its own
+standalone frontend canvas, not a drill-down level of this endpoint),
 `/api/node/{id}` (node-ID resolution via `web/api/nodeid.py`), `/api/source`
 (repo-tree file reads, path-traversal confined), `/api/repos` (registry
 listing + freshness), and the read wrappers `/api/doctor`, `/api/link`,
-`/api/trajectory`, `/api/diff`. No mutation endpoints yet -- those need the
-single-flight semantics `WEB_RESEARCH.md` §7.2.4 still leaves open.
+`/api/links` (all persisted intra-repo link edges, unfiltered -- backs the
+module-link constellation view), `/api/trajectory`, `/api/diff`,
+`/api/snapshots` (scanned-commit timeline -- backs the time scrubber). No
+mutation endpoints yet -- those need the single-flight semantics
+`WEB_RESEARCH.md` §7.2.4 still leaves open.
 
 Handlers are `def`, not `async def` (§6.1.1): everything below touches
 `sqlite3` or `subprocess`, both blocking, so Starlette runs them in the
@@ -19,6 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 from typing import Optional
@@ -34,6 +41,7 @@ from cdp import query as query_mod
 from cdp import util as cdp_util
 from cdp.store import registry as registry_mod
 
+from . import hookup as hookup_mod
 from . import jobs as jobs_mod
 from . import nodeid
 from .auth import require_mutation_auth
@@ -41,12 +49,19 @@ from .models import (
     DiffResponse,
     DoctorResponse,
     GraphResponse,
+    InstallPreviewResponse,
+    InstallResultResponse,
     JobResponse,
+    JobStatusResponse,
     LinkQueryResponse,
+    LinksResponse,
+    McpToolsResponse,
     NodeResponse,
     ReposResponse,
     RepoInfoResponse,
+    SnapshotsResponse,
     SourceResponse,
+    SourcesResponse,
     StatusResponse,
     TrajectoryResponse,
 )
@@ -255,6 +270,26 @@ def get_trace(
         subject=None, frm=frm, to=to, max_hops=max_hops,
         repo=repo, state_dir=state_dir,
     )
+
+
+@app.get("/api/sources", response_model=SourcesResponse)
+def get_sources(
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> SourcesResponse:
+    """`dataflow.sources[]` listing -- there is no `kind=sources` in
+    `cdp.query.QUERIES` (`trace`/`paths` consume sources internally via
+    `_resolve_entry`, but nothing lists them for a picker). Same posture as
+    `get_link`/`get_doctor`: read the artifact directly rather than invent
+    a query-dispatch kind for a plain listing."""
+    try:
+        store = _open_query_store(Path(repo), state_dir)
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    sources = store.dataflow.get("sources", [])
+    return SourcesResponse(count=len(sources), sources=sources)
 
 
 _SOURCE_CTX_MAX = 500
@@ -531,8 +566,9 @@ def _build_graph_l2(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
 def _build_graph(repo: Path, state_dir: Optional[str], level: str, scope: Optional[str]) -> dict:
     if level not in _GRAPH_LEVELS:
         raise UnsupportedGraphLevel(
-            "level %r is not built this cycle -- levels available: %s "
-            "(L4 constellation is cut this cycle, no second registered repo)"
+            "level %r is not a graph altitude -- levels available: %s "
+            "(the module-link constellation is a separate concept, served "
+            "unfiltered by /api/links, not an altitude of this endpoint)"
             % (level, ", ".join(_GRAPH_LEVELS))
         )
     resolved_state_dir = resolve_state_dir(repo, state_dir)
@@ -756,16 +792,49 @@ def get_node(
 
 
 @app.get("/api/repos", response_model=ReposResponse)
-def get_repos() -> ReposResponse:
+def get_repos(
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> ReposResponse:
     """Every state dir this machine's `cdp` registry knows about, with
     per-repo freshness (current git HEAD vs. the pinned snapshot's
     `as_of` commit). A registry entry whose state dir vanished, whose
     `index.db` is missing/locked, or whose git call fails gets its own
     `error` row instead of 500ing the whole list (mirrors `get_status`'s
     `StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped
-    to one row here instead of the whole response)."""
+    to one row here instead of the whole response).
+
+    The registry only maps a repo's *git-remote identity* to a state dir
+    (`cdp.store.registry.register`, called from `cmd_scan`) -- a repo
+    scanned before that identity existed in the registry (e.g. this repo,
+    whose origin was never `register`ed under its current remote) has no
+    entry at all, even though `/api/status` resolves its state dir fine via
+    the same `resolve_state_dir` fallback chain every other endpoint uses.
+    Without this, `repos.repos[0]` (the frontend's single-repo assumption,
+    `RepoHealthStrip.tsx`) would silently show whichever *other* repo
+    happens to sort first in the registry. So: resolve the caller's actual
+    `repo`/`state_dir` the normal way, and put that entry first -- matching
+    an existing registry row by resolved state dir if one names the same
+    directory, else synthesizing one so the current repo is never invisible
+    or shadowed by an unrelated stale entry."""
+    entries = _all_registry_entries()
+
+    current_state_dir = resolve_state_dir(Path(repo), state_dir)
+    current_repo_id: Optional[str] = None
+    for repo_id, state_path_str in entries.items():
+        if Path(state_path_str).expanduser().resolve() == current_state_dir:
+            current_repo_id = repo_id
+            break
+    if current_repo_id is None:
+        current_repo_id = registry_mod.repo_identity(Path(repo).expanduser().resolve())
+
+    ordered_ids = [current_repo_id] + sorted(rid for rid in entries if rid != current_repo_id)
+    state_dirs = dict(entries)
+    state_dirs.setdefault(current_repo_id, str(current_state_dir))
+
     repos = []
-    for repo_id, state_path_str in sorted(_all_registry_entries().items()):
+    for repo_id in ordered_ids:
+        state_path_str = state_dirs[repo_id]
         try:
             repos.append(RepoInfoResponse(**_build_repo_info(repo_id, state_path_str)))
         except (StoreUnavailable, StoreLocked) as exc:
@@ -834,6 +903,28 @@ def get_link(
     return LinkQueryResponse(service=service, links=result["links"], unmatched=result["unmatched"])
 
 
+@app.get("/api/links", response_model=LinksResponse)
+def get_links(
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> LinksResponse:
+    """All persisted link edges, unfiltered -- the constellation view's data
+    source (`/api/link?service=` is a single-service lookup, not a listing).
+    Same store/error handling as `/api/link` above."""
+    resolved_state_dir = resolve_state_dir(Path(repo), state_dir)
+    db_path = resolved_state_dir / "index.db"
+    conn = ReadOnlyConnection(db_path)
+    try:
+        edges = conn.read_link_edges()
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    links = [e["data"] for e in edges if e.get("kind") == "link"]
+    unmatched = [e["data"] for e in edges if e.get("kind") == "unmatched"]
+    return LinksResponse(links=links, unmatched=unmatched)
+
+
 @app.get("/api/trajectory", response_model=TrajectoryResponse)
 def get_trajectory(
     shape: Optional[str] = Query(None, description="exact scope_shape_key to filter to"),
@@ -850,6 +941,27 @@ def get_trajectory(
     except TrajectoryLocked as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return TrajectoryResponse(shape=shape, runs=runs)
+
+
+@app.get("/api/snapshots", response_model=SnapshotsResponse)
+def get_snapshots(
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> SnapshotsResponse:
+    """This repo's scanned-commit history (`snapshot_meta`), oldest first --
+    the time scrubber's timeline and the valid `/api/diff` `old`/`new`
+    values."""
+    resolved_state_dir = resolve_state_dir(Path(repo), state_dir)
+    db_path = resolved_state_dir / "index.db"
+    conn = ReadOnlyConnection(db_path)
+    repo_id = registry_mod.repo_identity(Path(repo).expanduser().resolve())
+    try:
+        history = conn.snapshot_history(repo_id)
+    except StoreUnavailable:
+        history = []
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return SnapshotsResponse(repo_id=repo_id, snapshots=history)
 
 
 def _diff_side(conn: ReadOnlyConnection, snapshot_id: int) -> tuple:
@@ -907,14 +1019,20 @@ def get_diff(
 _EVENTS_POLL_SECONDS = 1.0
 
 
-async def _events_stream(conn: ReadOnlyConnection, run_id: str, request: Request):
+async def _events_stream(conn: ReadOnlyConnection, run_id: str, request: Request, node_of_hash: dict):
     """The only `async def` handler in the app (§6.1.1) -- everything it
     touches is a blocking `sqlite3` call, run off the event loop via
     `run_in_threadpool` each poll rather than blocking it. Diffs successive
     `task_rows` polls by `scope_hash` so a client only gets an event for a
     row that actually changed, not a full resend every second; a periodic
     `wave` event carries the aggregate done/total regardless of whether any
-    single task changed, so a slow client can still show progress."""
+    single task changed, so a slow client can still show progress.
+
+    Emits the resolved `node` name (not the raw `scope_hash`) in each task
+    event, same translation `_build_status` does via `node_of_hash` -- the
+    frontend's live overlay (`useRunEvents`) keys off `StatusResponse.tasks[].node`,
+    so a mismatched key here silently drops every live update in favor of
+    the 4s poll."""
     prev: dict = {}
     while True:
         if await request.is_disconnected():
@@ -927,7 +1045,7 @@ async def _events_stream(conn: ReadOnlyConnection, run_id: str, request: Request
                 yield {
                     "event": "task",
                     "data": json.dumps({
-                        "scope_hash": scope_hash, "state": state,
+                        "node": node_of_hash.get(scope_hash, scope_hash), "state": state,
                         "attempts": attempts, "last_error": last_error,
                     }),
                 }
@@ -957,12 +1075,14 @@ async def get_events(
         if run_id is None:
             manifest = conn.read_artifact(snapshot_id, "manifest", default={})
             run_id = str(manifest.get("run_id", "cdp"))
+        partition = conn.read_artifact(snapshot_id, "partition", default={"scopes": []})
     except StoreUnavailable as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except StoreLocked as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return EventSourceResponse(_events_stream(conn, run_id, request))
+    node_of_hash = {s.get("scope_hash"): s["node"] for s in partition["scopes"]}
+    return EventSourceResponse(_events_stream(conn, run_id, request, node_of_hash))
 
 
 def _run_extra_args(target: str, resume: bool) -> list:
@@ -1020,4 +1140,100 @@ def post_refresh(
     return JobResponse(
         job_id=job.job_id, status="joined" if joined else "started",
         pid=job.pid, kind=job.kind, repo=repo, state_dir=resolved_state_dir,
+    )
+
+
+@app.get("/api/job/{job_id}", response_model=JobStatusResponse)
+def get_job(job_id: str) -> JobStatusResponse:
+    """Poll for a job's completion when there is no task table to watch --
+    `POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such
+    caller; `/api/run`/`/api/refresh` instead poll `/api/status`."""
+    job = jobs_mod.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="unknown job_id %r (server restart loses these)" % job_id)
+    return JobStatusResponse(
+        job_id=job.job_id, kind=job.kind, repo=job.repo, state_dir=job.state_dir,
+        running=job.is_running(), returncode=job.returncode,
+    )
+
+
+@app.get("/api/hookup/preview", response_model=InstallPreviewResponse)
+def get_hookup_preview(
+    target: str = Query(..., description="repository to install into"),
+    framework: str = Query("claude-code", description="claude-code | langgraph | adk | none"),
+) -> InstallPreviewResponse:
+    """`WEB_RESEARCH.md` §4 item 1: "shows the exact files it will copy and
+    the `--runner-cmd` it will wire" -- the file-list half, read-only."""
+    target_path = Path(target).expanduser().resolve()
+    if not target_path.is_dir():
+        raise HTTPException(status_code=400, detail="not a directory: %s" % target_path)
+    if framework not in ("claude-code", "langgraph", "adk", "none"):
+        raise HTTPException(status_code=400, detail="unknown framework %r" % framework)
+    return InstallPreviewResponse(**hookup_mod.preview_install(target_path, framework))
+
+
+@app.post("/api/hookup/install", response_model=InstallResultResponse, dependencies=[Depends(require_mutation_auth)])
+def post_hookup_install(
+    target: str = Query(..., description="repository to install into"),
+    framework: str = Query("claude-code", description="claude-code | langgraph | adk | none"),
+    hook: bool = Query(False, description="also install the PreToolUse nudge (claude-code only)"),
+) -> InstallResultResponse:
+    """Shells out to `cdp install`, same posture as `/api/run`/`/api/refresh`
+    (`register_leaf_agent`/`copy_distribution`, `cli.py:2754-2864`) -- but
+    unlike those, a file copy is fast and idempotent, so this runs
+    synchronously rather than through `jobs_mod.spawn_or_join`."""
+    target_path = Path(target).expanduser().resolve()
+    if not target_path.is_dir():
+        raise HTTPException(status_code=400, detail="not a directory: %s" % target_path)
+    command = [sys.executable, "-m", "cdp", "install", str(target_path), "--framework", framework]
+    if hook:
+        command.append("--hook")
+    try:
+        proc = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="cdp install timed out after 30s") from exc
+    return InstallResultResponse(returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr)
+
+
+@app.get("/api/hookup/mcp-tools", response_model=McpToolsResponse)
+def get_hookup_mcp_tools() -> McpToolsResponse:
+    """The three `mcp_server` tools with a copy-to-clipboard client config
+    (`WEB_RESEARCH.md` §4 item 1) -- read from `mcp_server/schemas.py`, never
+    restated (§7.2's "client of the CLI's semantics, not a second
+    implementation")."""
+    return McpToolsResponse(tools=hookup_mod.mcp_tools(), client_config=hookup_mod.MCP_CLIENT_CONFIG)
+
+
+@app.post("/api/hookup/liveness", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
+def post_hookup_liveness(
+    target: str = Query(..., description="already-scanned repository to probe"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    runner_cmd: str = Query(..., description="cdp doctor --runner-cmd"),
+    model: str = Query(..., description="cdp doctor --model label"),
+    node: Optional[str] = Query(None, description="scope to probe; defaults to the cheapest one"),
+    timeout: float = Query(300.0, description="cdp doctor --timeout"),
+) -> JobResponse:
+    """"Is it alive?" (`WEB_RESEARCH.md` §4 item 1): dispatches `cdp doctor`
+    at one throwaway scope. Reuses `jobs_mod.spawn_or_join` (already generic
+    over `kind`) so a second liveness POST while one is in flight joins
+    rather than races it, same single-flight semantics as `/api/run`. Result
+    is read back through the existing `GET /api/doctor` once the job
+    (`GET /api/job/:id`) finishes."""
+    resolved_state_dir = resolve_state_dir(Path(target), state_dir)
+    db_path = resolved_state_dir / "index.db"
+    conn = ReadOnlyConnection(db_path)
+    try:
+        snapshot_id = conn.latest_pinned_snapshot()
+        partition = conn.read_artifact(snapshot_id, "partition")
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail="%s -- run `cdp scan` first" % exc) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    probe_node = node or hookup_mod.cheapest_scope_node(partition)
+    extra_args = ["--runner-cmd", runner_cmd, "--model", model, "--node", probe_node, "--timeout", str(timeout)]
+    job, joined = jobs_mod.spawn_or_join("doctor", target, str(resolved_state_dir), extra_args)
+    return JobResponse(
+        job_id=job.job_id, status="joined" if joined else "started",
+        pid=job.pid, kind=job.kind, repo=target, state_dir=str(resolved_state_dir),
     )
