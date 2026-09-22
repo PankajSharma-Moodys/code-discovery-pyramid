@@ -209,6 +209,27 @@
             }
           },
           {
+            "name": "exclude_role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "drop rows whose file role matches (repeatable) -- mirrors `cdp query --exclude-role`",
+              "title": "Exclude Role"
+            },
+            "description": "drop rows whose file role matches (repeatable) -- mirrors `cdp query --exclude-role`"
+          },
+          {
             "name": "repo",
             "in": "query",
             "required": false,
@@ -566,6 +587,27 @@
               "title": "Scope"
             },
             "description": "filter to one package's/scope's neighborhood"
+          },
+          {
+            "name": "hide_roles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "drop nodes whose file role matches (repeatable), plus any edge touching one",
+              "title": "Hide Roles"
+            },
+            "description": "drop nodes whose file role matches (repeatable), plus any edge touching one"
           },
           {
             "name": "repo",
@@ -2240,6 +2282,17 @@
               }
             ],
             "title": "Members"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
           }
         },
         "type": "object",

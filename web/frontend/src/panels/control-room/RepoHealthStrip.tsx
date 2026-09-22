@@ -18,11 +18,12 @@ export function RepoHealthStrip() {
   const refreshMode = useControlRoomStore((s) => s.refreshMode);
   const refresh = useRefreshMutation();
 
-  // Single-repo demo (`DEFAULT_REPO_PARAMS`, `client.ts`) -- no picker yet.
-  // `/api/repos` (`app.py:get_repos`) resolves `DEFAULT_REPO_PARAMS` itself
-  // and guarantees index 0 is that repo's row, even when its registry entry
-  // is missing entirely or another repo sorts first alphabetically -- so
-  // this is never "whichever repo happens to be first in the registry".
+  // `RepoPicker` (global, `App.tsx`) is the actual switcher now -- this strip
+  // just shows whichever repo `store/repoStore.ts` currently points at.
+  // `/api/repos` (`app.py:get_repos`) resolves the active `repo`/`state_dir`
+  // itself and guarantees index 0 is that repo's row, even when its registry
+  // entry is missing entirely or another repo sorts first alphabetically --
+  // so this is never "whichever repo happens to be first in the registry".
   const repo = repos?.repos[0];
 
   const coverage = status?.coverage;

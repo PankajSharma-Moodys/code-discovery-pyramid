@@ -175,6 +175,11 @@ class GraphNodeResponse(BaseModel):
     degree: Optional[int] = None
     node_id: Optional[str] = None
     members: Optional[List[str]] = None
+    # `cdp` inventory role (`source`/`test`/`config`/...) of the file this node
+    # resolves to. `None` when the node has no single backing file (an L3
+    # package/type-bucket super-node whose members disagree, or a `type:`-
+    # prefixed L2 node like `table:`/`route:` with no file of its own).
+    role: Optional[str] = None
 
 
 class GraphEdgeResponse(BaseModel):

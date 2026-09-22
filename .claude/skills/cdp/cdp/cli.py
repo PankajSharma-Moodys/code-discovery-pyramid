@@ -153,6 +153,10 @@ def _parser() -> argparse.ArgumentParser:
     q.add_argument("--kind", dest="claim_kind", default=None, help="filter claims by kind")
     q.add_argument("--module", default=None)
     q.add_argument("--subject", default=None)
+    q.add_argument("--exclude-role", action="append", default=None, metavar="ROLE",
+                   help="drop rows whose file has this role (test, build, ci, "
+                        "config, docs, asset, schema, source); repeatable. "
+                        "Not supported for `stats`/`coverage`.")
     q.add_argument("--from", dest="frm", default=None)
     q.add_argument("--to", dest="to", default=None)
     # One knob, not seven. `--limit` used to sit beside eleven unrelated
@@ -916,6 +920,7 @@ def cmd_query(args) -> int:
             store, args.kind, args.term, budget=args.budget,
             claim_kind=args.claim_kind, module=args.module, subject=args.subject,
             frm=args.frm, to=args.to, max_hops=args.max_hops,
+            exclude_role=args.exclude_role,
         )
     except ValueError as exc:
         raise CdpError(str(exc))

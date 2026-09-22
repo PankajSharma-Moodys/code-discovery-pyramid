@@ -299,10 +299,16 @@ def _more(indent: str, total: int, shown: Sequence[Any]) -> List[str]:
     return ["%s... %d more (elided by the budget)" % (indent, missing)] if missing > 0 else []
 
 
+def _role_index(store: Store) -> Dict[str, str]:
+    """`path -> role`, built once per query rather than re-scanned per row."""
+    return {f["path"]: f["role"] for f in store.inventory["files"]}
+
+
 # ------------------------------------------------------------------ queries
 
 
-def q_symbol(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
+def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
+             exclude_role: Optional[Sequence[str]] = None) -> Dict:
     """Definition sites, used-by, and collisions for a symbol.
 
     Accepts a fully-qualified name or a suffix — `DServer` finds
@@ -310,6 +316,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
     types the FQN.
     """
     budget = budget or Budget()
+    roles = _role_index(store) if exclude_role else {}
     xref = store.xref
     exact = xref["symbols"].get(name)
     keys = [name] if exact else [
@@ -323,6 +330,14 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
     out = []
     for key in keys:
         entry = xref["symbols"][key]
+        sites = entry["sites"]
+        if exclude_role:
+            # A symbol drops from the answer only once every one of its
+            # definition sites is excluded-role -- one real site is enough
+            # to keep it.
+            sites = [s for s in sites if roles.get(s["anchor"].get("file")) not in exclude_role]
+            if not sites:
+                continue
         users = xref["used_by"].get(key, [])
         claims = [c for c in store.state["claims"] if c.get("subject") == key or _matches(c.get("statement", ""), key.rsplit(".", 1)[-1])]
         out.append(
@@ -332,7 +347,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
                 "visibility": entry["visibility"],
                 "modules": entry["modules"],
                 "value": entry.get("value"),
-                "defined_at": [cite(s["anchor"]) for s in entry["sites"]],
+                "defined_at": [cite(s["anchor"]) for s in sites],
                 "collision": bool(entry.get("collision")),
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
@@ -347,9 +362,14 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
     return _finish({"query": "symbol", "name": name, "found": out}, store, budget)
 
 
-def q_file(store: Store, path: str, budget: Optional[Budget] = None) -> Dict:
+def q_file(store: Store, path: str, budget: Optional[Budget] = None,
+           exclude_role: Optional[Sequence[str]] = None) -> Dict:
     budget = budget or Budget()
-    files = [f for f in store.inventory["files"] if f["path"] == path or _matches(f["path"], path)]
+    files = [
+        f for f in store.inventory["files"]
+        if (f["path"] == path or _matches(f["path"], path))
+        and not (exclude_role and f["role"] in exclude_role)
+    ]
     if not files:
         return _finish({"query": "file", "path": path, "found": []}, store, budget)
     out = []
@@ -435,11 +455,19 @@ def q_module(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
 
 
 def q_routes(store: Store, pattern: Optional[str] = None,
-             budget: Optional[Budget] = None) -> Dict:
+             budget: Optional[Budget] = None,
+             exclude_role: Optional[Sequence[str]] = None) -> Dict:
     budget = budget or Budget()
     routes = store.xref["routes"] + store.xref["unresolved_routes"]
     if pattern:
         routes = [r for r in routes if _matches(r["route"], pattern) or _matches(r["verb"], pattern)]
+    if exclude_role:
+        roles = _role_index(store)
+        # Dropped only if every evidence anchor is excluded-role.
+        routes = [
+            r for r in routes
+            if any(roles.get(a.get("file")) not in exclude_role for a in r["evidence"])
+        ]
     return _finish(
         {
             "query": "routes",
@@ -463,7 +491,8 @@ def q_routes(store: Store, pattern: Optional[str] = None,
 
 
 def q_table(store: Store, name: Optional[str] = None,
-            budget: Optional[Budget] = None) -> Dict:
+            budget: Optional[Budget] = None,
+            exclude_role: Optional[Sequence[str]] = None) -> Dict:
     """Who owns, writes and reads each table.
 
     "What breaks if I change this table" reduces to the union of the three
@@ -475,12 +504,15 @@ def q_table(store: Store, name: Optional[str] = None,
     blast-radius conclusion follows directly from it.
     """
     budget = budget or Budget()
+    roles = _role_index(store) if exclude_role else {}
     buckets: Dict[str, Dict[str, List[Dict]]] = {}
     for edge in store.extraction["io_edges"]:
         if not edge["target"].startswith("table:"):
             continue
         table = edge["target"][len("table:") :]
         if name and not _matches(table, name):
+            continue
+        if exclude_role and roles.get(edge["anchor"].get("file")) in exclude_role:
             continue
         slot = buckets.setdefault(table, {"schema_own": [], "persist": [], "read": []})
         if edge["channel"] in slot:
@@ -509,14 +541,18 @@ def q_table(store: Store, name: Optional[str] = None,
 
 
 def q_config(store: Store, key: Optional[str] = None,
-             budget: Optional[Budget] = None) -> Dict:
+             budget: Optional[Budget] = None,
+             exclude_role: Optional[Sequence[str]] = None) -> Dict:
     budget = budget or Budget()
+    roles = _role_index(store) if exclude_role else {}
     rows: Dict[str, Dict] = {}
     for row in store.extraction["defines"]:
         if row["kind"] != "config_key" or not row["fqn"].startswith("config:"):
             continue
         name = row["fqn"][len("config:") :]
         if key and not _matches(name, key):
+            continue
+        if exclude_role and roles.get(row["anchor"].get("file")) in exclude_role:
             continue
         slot = rows.setdefault(name, {"key": name, "declared": [], "read": [], "values": []})
         slot["declared"].append(cite(row["anchor"]))
@@ -529,6 +565,8 @@ def q_config(store: Store, key: Optional[str] = None,
         if key and not _matches(name, key):
             continue
         if edge["source"].startswith("config-file:"):
+            continue
+        if exclude_role and roles.get(edge["anchor"].get("file")) in exclude_role:
             continue
         rows.setdefault(name, {"key": name, "declared": [], "read": [], "values": []})["read"].append(
             {"by": edge["source"], "at": cite(edge["anchor"])}
@@ -590,7 +628,8 @@ def q_paths(
     )
 
 
-def q_search(store: Store, text: str, budget: Optional[Budget] = None) -> Dict:
+def q_search(store: Store, text: str, budget: Optional[Budget] = None,
+             exclude_role: Optional[Sequence[str]] = None) -> Dict:
     budget = budget or Budget()
     claims = [
         c for c in store.state["claims"]
@@ -598,7 +637,10 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None) -> Dict:
     ]
     symbols = [k for k in store.xref["symbols"] if _matches(k, text)]
     unknowns = [u for u in store.state["unknowns"] if _matches(u.get("question", ""), text)]
-    files = [f["path"] for f in store.inventory["files"] if _matches(f["path"], text)]
+    files = [
+        f["path"] for f in store.inventory["files"]
+        if _matches(f["path"], text) and not (exclude_role and f["role"] in exclude_role)
+    ]
     return _finish(
         {
             "query": "search",
@@ -623,6 +665,7 @@ def q_claims(
     module: Optional[str] = None,
     subject: Optional[str] = None,
     budget: Optional[Budget] = None,
+    exclude_role: Optional[Sequence[str]] = None,
 ) -> Dict:
     budget = budget or Budget()
     claims = store.state["claims"]
@@ -632,6 +675,13 @@ def q_claims(
         claims = [c for c in claims if _matches(c.get("subject", ""), subject)]
     if module:
         claims = [c for c in claims if _matches(_claim_module(c, store) or "", module)]
+    if exclude_role:
+        roles = _role_index(store)
+        # Dropped only if every evidence anchor is excluded-role.
+        claims = [
+            c for c in claims
+            if any(roles.get(a.get("file")) not in exclude_role for a in c.get("evidence", []))
+        ]
     return _finish(
         {"query": "claims", "count": len(claims), "claims": budget.take(claims)},
         store, budget,
@@ -639,11 +689,18 @@ def q_claims(
 
 
 def q_unknowns(store: Store, module: Optional[str] = None,
-               budget: Optional[Budget] = None) -> Dict:
+               budget: Optional[Budget] = None,
+               exclude_role: Optional[Sequence[str]] = None) -> Dict:
     budget = budget or Budget()
     unknowns = store.state["unknowns"]
     if module:
         unknowns = [u for u in unknowns if _matches(str(u.get("source_node", "")), module)]
+    if exclude_role:
+        roles = _role_index(store)
+        unknowns = [
+            u for u in unknowns
+            if roles.get((u.get("anchor") or {}).get("file")) not in exclude_role
+        ]
     grouped: Dict[str, List[Dict]] = {}
     for row in budget.take(unknowns):
         grouped.setdefault(str(row.get("source_node", "(unattributed)")), []).append(row)
@@ -690,6 +747,7 @@ def q_trace(
     entry: str,
     max_hops: int = 8,
     budget: Optional[Budget] = None,
+    exclude_role: Optional[Sequence[str]] = None,
 ) -> Dict:
     """The minimal cited file set needed to answer a question about an entry point.
 
@@ -737,10 +795,13 @@ def q_trace(
     callers = store.xref["used_by"].get(resolved["node"], [])
 
     rows = _trace_files(store, resolved, reached, callers)
-    # The entry point itself is never budgeted away. `--budget 0` must return the
-    # entry and a count of what it dropped; an empty set with no explanation
-    # reads as "nothing here", which is the one thing trace must never say.
+    # The entry point itself is never budgeted away, and the same holds for
+    # role exclusion: the caller named it explicitly, so dropping it would be
+    # more surprising than a stray test-role hop further down the trail.
     head, rest = rows[:1], rows[1:]
+    if exclude_role:
+        roles = _role_index(store)
+        rest = [r for r in rest if roles.get(r["file"]) not in exclude_role]
     files = head + budget.take(rest)
     paths_shown = {row["file"] for row in files}
 
@@ -1341,6 +1402,7 @@ def dispatch(
     frm: Optional[str] = None,
     to: Optional[str] = None,
     max_hops: Optional[int] = None,
+    exclude_role: Optional[Sequence[str]] = None,
 ) -> Dict:
     """One dispatch table for `kind` -> the right `QUERIES[kind]` call, shared
     by `cli.cmd_query` and `mcp_server` (7.1) so the MCP tool answers exactly
@@ -1354,21 +1416,30 @@ def dispatch(
             "before concluding that something is absent, and a budgeted "
             "guardrail cannot detect a budgeted answer." % kind
         )
+    if unbudgeted and exclude_role:
+        raise ValueError(
+            "`query %s` does not support --exclude-role: it is a whole-repo "
+            "census, and silently dropping rows would misreport it." % kind
+        )
     b = None if unbudgeted else Budget(budget)
 
-    if kind in ("symbol", "file", "module", "search"):
+    if kind in ("symbol", "file", "search"):
         if not term:
             raise ValueError("`query %s` needs a term" % kind)
+        return fn(store, term, budget=b, exclude_role=exclude_role)
+    if kind == "module":
+        if not term:
+            raise ValueError("`query module` needs a term")
         return fn(store, term, budget=b)
     if kind == "trace":
         if not term:
             raise ValueError("`query trace` needs an entry point")
         kwargs = {} if max_hops is None else {"max_hops": max_hops}
-        return fn(store, term, budget=b, **kwargs)
+        return fn(store, term, budget=b, exclude_role=exclude_role, **kwargs)
     if kind in ("routes", "table", "config", "unknowns"):
-        return fn(store, term, budget=b)
+        return fn(store, term, budget=b, exclude_role=exclude_role)
     if kind == "paths":
         return fn(store, frm, to, budget=b)
     if kind == "claims":
-        return fn(store, claim_kind or term, module, subject, budget=b)
+        return fn(store, claim_kind or term, module, subject, budget=b, exclude_role=exclude_role)
     return fn(store)

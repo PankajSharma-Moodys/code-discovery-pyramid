@@ -20,6 +20,9 @@ export interface RawGraphNode {
   node_id?: string | null;
   members?: string[] | null;
   level?: number | null;
+  /** `cdp` inventory file role (`source`/`test`/...), `null` when the node
+   * has no single backing file. Powers the legend's "Hide tests" toggle. */
+  role?: string | null;
 }
 
 export interface RawGraphEdge {
@@ -135,6 +138,7 @@ export function buildGraph(data: RawGraph, ranked: boolean): Graph {
       shape: shapeOf(node.type),
       degree,
       memberCount: node.members?.length ?? 0,
+      role: node.role ?? null,
       x: 0,
       y: 0,
       size: nodeSize(degree, maxDegree),

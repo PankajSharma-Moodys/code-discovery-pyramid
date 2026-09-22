@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { cdp, DEFAULT_REPO_PARAMS } from "./client.ts";
+import { cdp } from "./client.ts";
+import { useRepoParams } from "./repoParams.ts";
 import { mutationClient } from "./mutationClient.ts";
 import { MutationAuthError } from "./controlRoomHooks.ts";
 import { useControlRoomStore } from "../store/controlRoomStore.ts";
@@ -59,6 +60,7 @@ export function useMcpTools() {
 
 export function useLivenessMutation() {
   const authToken = useControlRoomStore((s) => s.authToken);
+  const { state_dir } = useRepoParams();
 
   return useMutation({
     mutationFn: async (vars: {
@@ -69,7 +71,7 @@ export function useLivenessMutation() {
         params: {
           query: {
             target: vars.target,
-            state_dir: DEFAULT_REPO_PARAMS.state_dir,
+            state_dir,
             runner_cmd: vars.runnerCmd,
             model: vars.model,
             node: vars.node,
@@ -101,11 +103,12 @@ export function useJobStatus(jobId: string | null, enabled: boolean) {
 }
 
 export function useDoctorReport(target: string, enabled: boolean) {
+  const { state_dir } = useRepoParams();
   return useQuery({
-    queryKey: ["doctor", target],
+    queryKey: ["doctor", target, state_dir],
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/doctor", {
-        params: { query: { repo: target, state_dir: DEFAULT_REPO_PARAMS.state_dir } },
+        params: { query: { repo: target, state_dir } },
       });
       if (error) throw error;
       return data;

@@ -1,5 +1,90 @@
 # Frontend TODO — gaps vs `WEB_RESEARCH.md` / `PLAN.md`
 
+## Query-time role exclusion (2026-09-22) — all three levels shipped
+
+Three-level plan: CLI → web API/graph → frontend UI. All three shipped this
+session.
+
+- [x] **Level 1 — `cdp query --exclude-role`.** `cdp/query.py`: shared
+      `_role_index(store)` (`path -> role` off `store.inventory["files"]`),
+      threaded through `q_symbol`, `q_file`, `q_search`, `q_trace`,
+      `q_routes`, `q_table`, `q_config`, `q_claims`, `q_unknowns`, and
+      `dispatch()`. `q_module`/`q_conflicts` intentionally left unfiltered
+      (no clean per-file row to filter on); `q_stats`/`q_coverage` reject the
+      flag outright — they're whole-repo census/QA checks and silently
+      dropping rows would misreport them. `cdp/cli.py`: new repeatable
+      `--exclude-role ROLE` flag on `query`. Verified live against this
+      repo's own `.cdp/index.db` (test-role rows drop, source-role rows
+      survive, `stats`/`coverage` reject the flag with the intended error)
+      and `make selftest`/`golden`/`determinism`/`fold` all still green.
+      **Gotcha for next time:** `.claude/skills/cdp/cdp/` is a *generated*
+      vendor copy of the real source at top-level `cdp/` — edit the source,
+      then run `python3 -m cdp.cli install --self` to regenerate the vendor
+      copy; don't hand-edit the vendored tree (`test_distribution.py` catches
+      exactly this drift).
+- [x] **Level 2 — web API passthrough + graph role tagging.** `/api/query`
+      (`web/api/app.py`) now takes `exclude_role: Optional[List[str]] =
+      Query(None)` and forwards it into `dispatch(...)` — mirrors the CLI
+      flag exactly (verified live: `stats`/`coverage` still 400 with the same
+      message, `search`/`file` accept and apply it). `/api/graph` gains a
+      `role` field on every node at every level, not just `L1`'s file nodes —
+      a new shared `_role_index(conn, snapshot_id)` (the web-connection
+      equivalent of `cdp.query._role_index(store)`) resolves `path -> role`
+      off the `inventory` artifact:
+      - `L1` (files): direct `roles.get(path)`, as spec'd.
+      - `L2`/`L3` (`_dataflow_graph`, `_build_graph_l3`): **not** spec'd
+        originally, added after finding the frontend never renders `L1` at
+        all (`atlasStore.ts`'s `DESCEND_ORDER`/`ASCEND_ORDER` only ever show
+        `L2`/`L3` — `ATLAS_REDESIGN.md` cut `L1` from the ladder for having
+        almost no import edges). A bare `L2` id resolves a role only when it
+        is backed by an `xref` symbol (`sites[0].file` → role); a `type:`-
+        prefixed reference node (`table:`, `route:`, ...) has no file of its
+        own and stays `role=None`. `L3` package/type-bucket nodes inherit a
+        role only when every member that resolves one agrees — any
+        disagreement, or no member resolving one at all, leaves it `None`
+        rather than picking a majority that would misreport the rest.
+      - New `hide_roles` query param on `/api/graph` drops every node whose
+        `role` is in the list (never a `role=None` node) and any edge
+        touching a dropped node, before the response and its `legend` are
+        built — the level 3 escape hatch. `web/client/schema.ts` /
+        `web/openapi.json` regenerated via `npm run generate` in
+        `web/client` (the project's existing FastAPI→`openapi-typescript`
+        codegen step — not hand-edited).
+      Verified live against this repo's own index (`TestClient` + a real
+      `uvicorn` process): `L1` 413→192 nodes under `hide_roles=test`; `L2`
+      role counts `{None: 283, test: 12, source: 58}`; no edge in a filtered
+      response ever touches a dropped node; `web/tests` (96 passed) and
+      `make selftest` (561 passed) both green.
+- [x] **Level 3 — frontend toggle.** "Hide tests" toggle added to
+      `GraphLegend.tsx` (styled to match its existing `atlas-card` language —
+      only rendered when the current altitude actually has `role=test`
+      nodes, shows the count). Below `ROLE_HIDE_CLIENT_THRESHOLD`
+      (`theme/graphEncoding.ts`, `2000`) it sets `hidden: true` on matching
+      nodes/edges in `AtlasCanvas`'s Sigma reducers against the
+      already-fetched graph — no refetch, `graph` (the `graphology` object)
+      is never rebuilt, only `sigma.refresh({skipIndexation: true})` runs, so
+      it costs a frame like a lens switch does. Above the threshold, the
+      toggle instead enables a second `useGraph(..., {hideRoles: ["test"]})`
+      query (`api/hooks.ts`) and swaps to its (smaller, pre-filtered) result.
+      Toggle state (`hideTests`) is a plain `useState` in `AtlasCanvas` —
+      session-only, not persisted, as spec'd.
+      **Threshold caveat:** this environment had no browser automation
+      available (no Playwright/similar tool), so `2000` was *not* verified
+      against a live Sigma canvas on a large real repo, contrary to plan.
+      What was measured: the reducer's own `Set.has` membership check costs
+      <3ms even at 50,000 synthetic nodes, so the real bottleneck is Sigma's
+      WebGL repaint, not this logic — `2000` is a documented estimate inside
+      the range Sigma's own docs/community benchmarks call comfortably
+      interactive, chosen conservatively. Every graph this repo itself
+      produces today (`L2` tops out at 353 nodes) stays far under it either
+      way, so this session's own testing never exercised the escape-hatch
+      path against a real large graph. Re-verify live with Playwright against
+      a bigger repo before trusting the exact number.
+      Also not done: no browser/Playwright verification of the UI at all in
+      this session (`tsc -b`, `oxlint`, and a production `vite build` all
+      pass; the toggle's visual behavior was not eyeballed in a running
+      browser).
+
 ## `ATLAS_REDESIGN.md` P0–P3 (2026-09-22)
 
 Shipped P0 through P3; P4 (vignette, panel saturation, LOD labels) and P2's

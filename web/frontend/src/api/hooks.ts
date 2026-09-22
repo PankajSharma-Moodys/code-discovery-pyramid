@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { cdp, DEFAULT_REPO_PARAMS } from "./client.ts";
+import { cdp } from "./client.ts";
+import { useRepoParams } from "./repoParams.ts";
 import type { Altitude } from "./nodeId.ts";
 import { toNodeId } from "./nodeId.ts";
 import type { DiffShape } from "./diffTypes.ts";
@@ -9,17 +10,31 @@ import type { TraceResult } from "./traceTypes.ts";
 import type { AskQuery } from "../store/askBarStore.ts";
 import { type ConfidenceBucket } from "../theme/confidence.ts";
 
-const repoParams = () => ({
-  repo: DEFAULT_REPO_PARAMS.repo,
-  state_dir: DEFAULT_REPO_PARAMS.state_dir,
-});
-
-export function useGraph(level: Altitude, scope: string | null) {
+/** `hideRoles`: the server-side escape hatch (`hide_roles=`) for graphs too
+ * big to filter client-side -- `AtlasCanvas` only passes it once its
+ * already-fetched node count crosses `ROLE_HIDE_CLIENT_THRESHOLD`, and
+ * `enabled: false` (via `options.enabled`) until then so this stays a no-op
+ * second query rather than firing on every mount. */
+export function useGraph(
+  level: Altitude,
+  scope: string | null,
+  options?: { hideRoles?: string[]; enabled?: boolean },
+) {
+  const repoParams = useRepoParams();
+  const hideRoles = options?.hideRoles ?? [];
   return useQuery({
-    queryKey: ["graph", level, scope, repoParams()],
+    queryKey: ["graph", level, scope, hideRoles, repoParams],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/graph", {
-        params: { query: { level, scope: scope ?? undefined, ...repoParams() } },
+        params: {
+          query: {
+            level,
+            scope: scope ?? undefined,
+            hide_roles: hideRoles.length ? hideRoles : undefined,
+            ...repoParams,
+          },
+        },
       });
       if (error) throw error;
       return data;
@@ -28,12 +43,13 @@ export function useGraph(level: Altitude, scope: string | null) {
 }
 
 export function useNode(nodeId: string | null) {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["node", nodeId, repoParams()],
+    queryKey: ["node", nodeId, repoParams],
     enabled: nodeId !== null,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/node/{node_id}", {
-        params: { path: { node_id: nodeId! }, query: repoParams() },
+        params: { path: { node_id: nodeId! }, query: repoParams },
       });
       if (error) throw error;
       return data;
@@ -72,12 +88,13 @@ export function useNodesConfidence(
   scope: string | null,
   enabled: boolean,
 ): Map<string, ConfidenceBucket> {
+  const repoParams = useRepoParams();
   const { data } = useQuery({
-    queryKey: ["confidence", level, scope, repoParams()],
+    queryKey: ["confidence", level, scope, repoParams],
     enabled,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/confidence", {
-        params: { query: { level, scope: scope ?? undefined, ...repoParams() } },
+        params: { query: { level, scope: scope ?? undefined, ...repoParams } },
       });
       if (error) throw error;
       return data;
@@ -94,11 +111,12 @@ export function useNodesConfidence(
 }
 
 export function useSources() {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["sources", repoParams()],
+    queryKey: ["sources", repoParams],
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/sources", {
-        params: { query: repoParams() },
+        params: { query: repoParams },
       });
       if (error) throw error;
       return data;
@@ -107,12 +125,13 @@ export function useSources() {
 }
 
 export function useTrace(entry: string | null) {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["trace", entry, repoParams()],
+    queryKey: ["trace", entry, repoParams],
     enabled: entry !== null,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/trace", {
-        params: { query: { entry: entry!, ...repoParams() } },
+        params: { query: { entry: entry!, ...repoParams } },
       });
       if (error) throw error;
       return data as unknown as TraceResult;
@@ -124,8 +143,9 @@ export function useTrace(entry: string | null) {
  * no-fixed-shape posture as `useTrace` above (`web/api/app.py:get_query`
  * deliberately has no `response_model` -- kind picks the shape). */
 export function useAskQuery(query: AskQuery | null) {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["ask-query", query, repoParams()],
+    queryKey: ["ask-query", query, repoParams],
     enabled: query !== null,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/query", {
@@ -135,7 +155,7 @@ export function useAskQuery(query: AskQuery | null) {
             term: query!.term,
             from: query!.frm,
             to: query!.to,
-            ...repoParams(),
+            ...repoParams,
           },
         },
       });
@@ -153,12 +173,13 @@ export function useAskQuery(query: AskQuery | null) {
  * no canvas altitude in this pass (`store/atlasStore.ts`'s `ALTITUDES` is
  * L3-L1 only), this just needs the name list. */
 export function useSymbolTypeahead() {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["symbol-typeahead", repoParams()],
+    queryKey: ["symbol-typeahead", repoParams],
     staleTime: Infinity,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/graph", {
-        params: { query: { level: "L0", ...repoParams() } },
+        params: { query: { level: "L0", ...repoParams } },
       });
       if (error) throw error;
       return (data?.nodes ?? []).map((n) => n.id);
@@ -169,11 +190,12 @@ export function useSymbolTypeahead() {
 /** Time scrubber's timeline -- ordered (oldest-first) real scanned commits
  * from `snapshot_meta`, via `GET /api/snapshots`. */
 export function useSnapshots() {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["snapshots", repoParams()],
+    queryKey: ["snapshots", repoParams],
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/snapshots", {
-        params: { query: repoParams() },
+        params: { query: repoParams },
       });
       if (error) throw error;
       return data;
@@ -184,12 +206,13 @@ export function useSnapshots() {
 /** Structural delta between two scanned commits (`cdp.diffs.diff_snapshots`,
  * passed through as-is) -- the time scrubber's per-scrub payload. */
 export function useDiff(oldSha: string | null, newSha: string | null) {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["diff", oldSha, newSha, repoParams()],
+    queryKey: ["diff", oldSha, newSha, repoParams],
     enabled: oldSha !== null && newSha !== null && oldSha !== newSha,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/diff", {
-        params: { query: { old: oldSha!, new: newSha!, ...repoParams() } },
+        params: { query: { old: oldSha!, new: newSha!, ...repoParams } },
       });
       if (error) throw error;
       return data ? { ...data, diff: data.diff as unknown as DiffShape } : data;
@@ -200,11 +223,12 @@ export function useDiff(oldSha: string | null, newSha: string | null) {
 /** All persisted intra-repo link edges (`GET /api/links`), unfiltered --
  * the module-link constellation view's data source. */
 export function useLinks() {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["links", repoParams()],
+    queryKey: ["links", repoParams],
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/links", {
-        params: { query: repoParams() },
+        params: { query: repoParams },
       });
       if (error) throw error;
       if (!data) return data;
@@ -217,12 +241,13 @@ export function useLinks() {
 }
 
 export function useSourceFile(file: string | null, line: number | null) {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["source", file, line, repoParams()],
+    queryKey: ["source", file, line, repoParams],
     enabled: file !== null,
     queryFn: async () => {
       const { data, error } = await cdp.GET("/api/source", {
-        params: { query: { file: file!, line: line ?? undefined, repo: repoParams().repo } },
+        params: { query: { file: file!, line: line ?? undefined, repo: repoParams.repo } },
       });
       if (error) throw error;
       return data;

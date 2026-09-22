@@ -25,6 +25,14 @@ interface GraphLegendProps {
   confidenceCounts: Partial<Record<ConfidenceBucket, number>>;
   divergence?: { declared_edges?: number; observed_edges?: number; declared_not_observed?: unknown[]; observed_not_declared?: unknown[] } | null;
   shapesResolved: boolean;
+  /** How many nodes on this altitude carry a `test` role -- `0` hides the
+   * toggle entirely rather than offering a control with nothing to do. */
+  testNodeCount: number;
+  hideTests: boolean;
+  onToggleHideTests: (next: boolean) => void;
+  /** `true` once the toggle crossed `ROLE_HIDE_CLIENT_THRESHOLD` and is
+   * refetching a server-filtered graph instead of dimming client-side. */
+  usingServerFilter: boolean;
 }
 
 const FAMILY_ORDER: Family[] = ["code", "runtime", "state"];
@@ -48,6 +56,10 @@ export function GraphLegend({
   confidenceCounts,
   divergence,
   shapesResolved,
+  testNodeCount,
+  hideTests,
+  onToggleHideTests,
+  usingServerFilter,
 }: GraphLegendProps) {
   const [open, setOpen] = useState(true);
 
@@ -78,6 +90,37 @@ export function GraphLegend({
       {open && (
         <div className="flex flex-col gap-3 overflow-y-auto px-3 pb-3">
           <p style={{ color: "var(--atlas-text-dim)" }}>{LENS_CAPTION[lens]}</p>
+
+          {testNodeCount > 0 && (
+            <button
+              onClick={() => onToggleHideTests(!hideTests)}
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+              style={{
+                background: hideTests ? "color-mix(in srgb, var(--atlas-accent) 14%, transparent)" : "transparent",
+                border: `1px solid ${hideTests ? "var(--atlas-accent)" : "var(--atlas-border)"}`,
+              }}
+              aria-pressed={hideTests}
+            >
+              <span className="flex flex-col">
+                <span className="font-medium" style={{ color: "var(--atlas-text)" }}>
+                  Hide tests
+                </span>
+                <span style={{ color: "var(--atlas-text-dim)" }}>
+                  {testNodeCount} node{testNodeCount === 1 ? "" : "s"}
+                  {usingServerFilter ? " — refetching filtered graph" : ""}
+                </span>
+              </span>
+              <span
+                className="relative h-4 w-7 shrink-0 rounded-full transition-colors"
+                style={{ background: hideTests ? "var(--atlas-accent)" : "var(--atlas-border)" }}
+              >
+                <span
+                  className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform"
+                  style={{ transform: hideTests ? "translateX(0.85rem)" : "translateX(0.15rem)" }}
+                />
+              </span>
+            </button>
+          )}
 
           {lens !== "confidence" &&
             FAMILY_ORDER.filter((family) => byFamily.has(family)).map((family) => (

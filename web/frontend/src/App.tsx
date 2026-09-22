@@ -7,6 +7,7 @@ import { ControlRoom } from "./panels/control-room/ControlRoom.tsx";
 import { InspectorRail } from "./panels/InspectorRail.tsx";
 import { LensSwitcher } from "./panels/LensSwitcher.tsx";
 import { PeekCard } from "./panels/PeekCard.tsx";
+import { RepoPicker } from "./panels/RepoPicker.tsx";
 import { TimeScrubber } from "./panels/TimeScrubber.tsx";
 import { TracePanel } from "./panels/TracePanel.tsx";
 import { useAtlasStore } from "./store/atlasStore.ts";
@@ -91,6 +92,7 @@ function AppShell() {
       {view === "atlas" && <Atlas />}
       {view === "control-room" && <ControlRoom />}
       {view === "links" && <LinksCanvas />}
+      <RepoPicker />
       <ViewSwitcher view={view} setView={setView} showLinks={showLinks} />
       <AskBar />
     </div>

@@ -722,6 +722,8 @@ export interface components {
             node_id?: string | null;
             /** Members */
             members?: string[] | null;
+            /** Role */
+            role?: string | null;
         };
         /** GraphResponse */
         GraphResponse: {
@@ -1165,6 +1167,8 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 "max-hops"?: number | null;
+                /** @description drop rows whose file role matches (repeatable) -- mirrors `cdp query --exclude-role` */
+                exclude_role?: string[] | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
                 state_dir?: string | null;
@@ -1315,6 +1319,8 @@ export interface operations {
                 level: string;
                 /** @description filter to one package's/scope's neighborhood */
                 scope?: string | null;
+                /** @description drop nodes whose file role matches (repeatable), plus any edge touching one */
+                hide_roles?: string[] | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
                 state_dir?: string | null;

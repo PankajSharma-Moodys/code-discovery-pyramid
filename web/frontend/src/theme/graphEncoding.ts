@@ -172,6 +172,26 @@ export function edgeAlpha(confidence: string | null | undefined): string {
  * says exactly that. Sigma's `ratio` grows as you zoom *out*. */
 export const SHAPE_ZOOM_THRESHOLD = 1.35;
 
+/** Above this many already-fetched nodes, the legend's "Hide tests" toggle
+ * stops dimming client-side and refetches via `/api/graph?hide_roles=test`
+ * instead (`AtlasCanvas`).
+ *
+ * Not measured against a live Sigma canvas: this environment had no browser
+ * automation available to drive the real dev server (the Playwright
+ * convention this repo otherwise uses for canvas work), so this is a
+ * documented estimate, not a live measurement. What *was* measured: the
+ * reducer-side cost of the hidden-set membership check itself (a `Set.has`
+ * per node/edge) is under 3ms even at 50,000 nodes -- negligible next to
+ * Sigma's WebGL repaint, which is the actual bottleneck and scales with node
+ * + edge count. 2,000 is picked conservatively inside the range Sigma's own
+ * docs and community benchmarks describe as comfortably interactive for
+ * force-directed WebGL rendering (smooth well past this on modern hardware,
+ * degrading well beyond it too), while every graph this repo itself produces
+ * today (L2 tops out at 353 nodes) stays far under it either way. Revisit
+ * with a live Playwright run against a larger real repo before trusting this
+ * number at the edges. */
+export const ROLE_HIDE_CLIENT_THRESHOLD = 2000;
+
 export function resolveCssColor(value: string, fallback = "#8b93a1"): string {
   if (typeof document === "undefined") return fallback;
   if (!value.startsWith("--")) return value;

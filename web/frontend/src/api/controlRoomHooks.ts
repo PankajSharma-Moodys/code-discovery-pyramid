@@ -1,13 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { cdp, DEFAULT_REPO_PARAMS } from "./client.ts";
+import { cdp } from "./client.ts";
+import { useRepoParams } from "./repoParams.ts";
 import { mutationClient } from "./mutationClient.ts";
 import { useControlRoomStore, serializeTarget } from "../store/controlRoomStore.ts";
-
-const repoParams = () => ({
-  repo: DEFAULT_REPO_PARAMS.repo,
-  state_dir: DEFAULT_REPO_PARAMS.state_dir,
-});
 
 /** SSE fallback/complement per `WEB_RESEARCH.md` §9: a dropped connection or
  * sleeping tab must never be the only source of truth, so this also polls --
@@ -15,10 +11,11 @@ const repoParams = () => ({
 const STATUS_POLL_MS = 4000;
 
 export function useStatus() {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["status", repoParams()],
+    queryKey: ["status", repoParams],
     queryFn: async () => {
-      const { data, error } = await cdp.GET("/api/status", { params: { query: repoParams() } });
+      const { data, error } = await cdp.GET("/api/status", { params: { query: repoParams } });
       if (error) throw error;
       return data;
     },
@@ -26,11 +23,17 @@ export function useStatus() {
   });
 }
 
+/** `repo`/`state_dir` here decide which registry entry `get_repos` guarantees
+ * is index 0 (`app.py:get_repos`'s docstring), not just which one it lists --
+ * so this has to track the picker's current selection, not always this
+ * app's own cwd, or `RepoHealthStrip`/`RepoPicker` would show the wrong repo
+ * as "current" the moment you switch away from it. */
 export function useRepos() {
+  const repoParams = useRepoParams();
   return useQuery({
-    queryKey: ["repos"],
+    queryKey: ["repos", repoParams],
     queryFn: async () => {
-      const { data, error } = await cdp.GET("/api/repos");
+      const { data, error } = await cdp.GET("/api/repos", { params: { query: repoParams } });
       if (error) throw error;
       return data;
     },
@@ -58,12 +61,13 @@ function raiseAuthOr<T>(result: { data?: T; error?: unknown; response: Response 
 export function useRunMutation() {
   const queryClient = useQueryClient();
   const authToken = useControlRoomStore((s) => s.authToken);
+  const repoParams = useRepoParams();
 
   return useMutation({
     mutationFn: async (vars: { target: import("../store/controlRoomStore.ts").DispatchTarget; resume: boolean }) => {
       const client = mutationClient(authToken);
       const result = await client.POST("/api/run", {
-        params: { query: { ...repoParams(), target: serializeTarget(vars.target), resume: vars.resume } },
+        params: { query: { ...repoParams, target: serializeTarget(vars.target), resume: vars.resume } },
       });
       return raiseAuthOr(result);
     },
@@ -74,12 +78,13 @@ export function useRunMutation() {
 export function useRefreshMutation() {
   const queryClient = useQueryClient();
   const authToken = useControlRoomStore((s) => s.authToken);
+  const repoParams = useRepoParams();
 
   return useMutation({
     mutationFn: async (vars: { mode: string }) => {
       const client = mutationClient(authToken);
       const result = await client.POST("/api/refresh", {
-        params: { query: { ...repoParams(), mode: vars.mode } },
+        params: { query: { ...repoParams, mode: vars.mode } },
       });
       return raiseAuthOr(result);
     },
@@ -119,13 +124,13 @@ const EMPTY_EVENTS: RunEventsState = { tasks: new Map(), wave: null, complete: f
 export function useRunEvents(enabled: boolean): RunEventsState {
   const [state, setState] = useState<RunEventsState>(EMPTY_EVENTS);
   const sourceRef = useRef<EventSource | null>(null);
+  const { repo, state_dir } = useRepoParams();
 
   useEffect(() => {
     if (!enabled) {
       setState(EMPTY_EVENTS);
       return;
     }
-    const { repo, state_dir } = repoParams();
     const params = new URLSearchParams({ repo });
     if (state_dir) params.set("state_dir", state_dir);
     const source = new EventSource(`/api/events?${params.toString()}`);
@@ -156,7 +161,9 @@ export function useRunEvents(enabled: boolean): RunEventsState {
       source.close();
       sourceRef.current = null;
     };
-  }, [enabled]);
+    // Reconnects on a repo switch, not just on `enabled` -- an open
+    // `EventSource` keeps streaming the *old* repo's task events otherwise.
+  }, [enabled, repo, state_dir]);
 
   return state;
 }

@@ -10,6 +10,7 @@ import {
   edgeWidth,
   FAMILY_VAR,
   resolveCssColor,
+  ROLE_HIDE_CLIENT_THRESHOLD,
   SHAPE_ZOOM_THRESHOLD,
   type Family,
 } from "../theme/graphEncoding.ts";
@@ -29,6 +30,10 @@ const CONFIDENCE_GLYPH: Record<string, string> = {
 };
 
 const DIM_EDGE = "#222834";
+
+/** Roles the legend's "Hide tests" toggle drops -- one role today, kept as a
+ * list since `hide_roles`/`exclude_role` are already repeatable server-side. */
+const HIDDEN_TEST_ROLES = ["test"];
 
 /** Edge colour under the Flow lens. Seven channels is more than three hues
  * can hold, so this is the one place the three-family cap is relaxed -- and
@@ -144,7 +149,33 @@ export function AtlasCanvas() {
   const lens = useAtlasStore((s) => s.lens);
   const diffHighlight = useAtlasStore((s) => s.diffHighlight);
 
-  const { data, isLoading, error } = useGraph(altitude, scope);
+  // Session-only, component state (`web/frontend/TODO.md`'s level 3): not
+  // persisted to localStorage or the backend, resets on reload.
+  const [hideTests, setHideTests] = useState(false);
+
+  const baseline = useGraph(altitude, scope);
+  const baselineNodeCount = baseline.data?.nodes.length ?? 0;
+  // Below the threshold, hiding is instant client-side dimming off data
+  // already in memory (no second request). Above it, that same dimming would
+  // mean shipping and holding a mostly-hidden payload just to throw most of
+  // it away in the reducer, so the toggle instead refetches the smaller,
+  // pre-filtered graph the server already knows how to build.
+  const overThreshold = baselineNodeCount > ROLE_HIDE_CLIENT_THRESHOLD;
+  const filtered = useGraph(altitude, scope, {
+    hideRoles: HIDDEN_TEST_ROLES,
+    enabled: hideTests && overThreshold,
+  });
+  const useServerFilter = hideTests && overThreshold;
+  const { data, isLoading, error } = useServerFilter ? filtered : baseline;
+  // Client-side dimming only applies when the server hasn't already dropped
+  // the rows -- otherwise a `test`-role node simply isn't in `data` at all.
+  const hideClientSide = hideTests && !overThreshold;
+
+  const testNodeCount = useMemo(
+    () => (baseline.data?.nodes ?? []).filter((n) => HIDDEN_TEST_ROLES.includes(n.role ?? "")).length,
+    [baseline.data],
+  );
+
   const confidenceById = useNodesConfidence(altitude, scope, lens === "confidence");
 
   const graph = useMemo(() => {
@@ -161,6 +192,7 @@ export function AtlasCanvas() {
     hoveredNodeId,
     selectedNodeId,
     diffHighlight,
+    hideClientSide,
     shapesResolved: true,
     palette: null as Palette | null,
   });
@@ -185,8 +217,14 @@ export function AtlasCanvas() {
           const bucket = s.confidenceById.get(node) ?? "unreviewed";
           const isFocus = node === s.hoveredNodeId || node === s.selectedNodeId;
           const isDiffAdded = s.diffHighlight?.added.includes(node) ?? false;
+          const isHiddenRole =
+            s.hideClientSide && HIDDEN_TEST_ROLES.includes((attrs.role as string | null) ?? "");
 
           const res: Record<string, unknown> = { ...attrs };
+          if (isHiddenRole) {
+            res.hidden = true;
+            return res;
+          }
           res.type = s.shapesResolved ? (attrs.shape as string) : "dot";
 
           if (s.lens === "confidence") {
@@ -222,6 +260,15 @@ export function AtlasCanvas() {
           const s = stateRef.current;
           const source = graph.source(edge);
           const target = graph.target(edge);
+
+          if (s.hideClientSide) {
+            const srcRole = graph.getNodeAttribute(source, "role") as string | null;
+            const tgtRole = graph.getNodeAttribute(target, "role") as string | null;
+            if (HIDDEN_TEST_ROLES.includes(srcRole ?? "") || HIDDEN_TEST_ROLES.includes(tgtRole ?? "")) {
+              return { ...attrs, hidden: true };
+            }
+          }
+
           // Only a focus id that exists *in this graph* counts. An id left
           // over from another altitude would otherwise put every edge in the
           // dimmed branch with nothing highlighted -- a canvas that looks
@@ -329,8 +376,9 @@ export function AtlasCanvas() {
     s.hoveredNodeId = hoveredNodeId;
     s.selectedNodeId = selectedNodeId;
     s.diffHighlight = diffHighlight;
+    s.hideClientSide = hideClientSide;
     sigmaRef.current?.refresh({ skipIndexation: true });
-  }, [lens, confidenceById, hoveredNodeId, selectedNodeId, diffHighlight]);
+  }, [lens, confidenceById, hoveredNodeId, selectedNodeId, diffHighlight, hideClientSide]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -422,6 +470,10 @@ export function AtlasCanvas() {
           confidenceCounts={confidenceCounts}
           divergence={altitude === "L3" ? (data.divergence as never) : null}
           shapesResolved={shapesResolved}
+          testNodeCount={testNodeCount}
+          hideTests={hideTests}
+          onToggleHideTests={setHideTests}
+          usingServerFilter={useServerFilter}
         />
       )}
 

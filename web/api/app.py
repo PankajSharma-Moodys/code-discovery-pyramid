@@ -28,7 +28,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -215,6 +215,9 @@ def get_query(
     frm: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = Query(None),
     max_hops: Optional[int] = Query(None, alias="max-hops"),
+    exclude_role: Optional[List[str]] = Query(
+        None, description="drop rows whose file role matches (repeatable) -- mirrors `cdp query --exclude-role`"
+    ),
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
 ) -> dict:
@@ -239,6 +242,7 @@ def get_query(
             store, kind, term,
             budget=budget, claim_kind=claim_kind, module=module,
             subject=subject, frm=frm, to=to, max_hops=max_hops,
+            exclude_role=exclude_role,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -358,6 +362,26 @@ def get_source(
 _GRAPH_LEVELS = ("L0", "L1", "L2", "L3")
 
 
+def _role_index(conn: ReadOnlyConnection, snapshot_id: int) -> Dict[str, str]:
+    """`path -> role`, off the `inventory` artifact -- the web-connection
+    equivalent of `cdp.query._role_index(store)`, which reads the same
+    `store.inventory["files"]` off a `Store` rather than a `ReadOnlyConnection`."""
+    inventory = conn.read_artifact(snapshot_id, "inventory", default={"files": []})
+    return {f["path"]: f["role"] for f in inventory.get("files", []) or []}
+
+
+def _drop_roles(nodes: list, edges: list, hide_roles: "set[str]") -> "tuple[list, list]":
+    """Drops every node whose `role` matches `hide_roles`, and any edge
+    touching a dropped node -- the server-side escape hatch for graphs too
+    big to filter client-side. A node with `role=None` (no single backing
+    file -- a synthetic L3 super-node or a `type:`-prefixed L2 node) is never
+    dropped: `hide_roles` names roles to hide, not "everything unresolved"."""
+    keep_ids = {n["id"] for n in nodes if n.get("role") not in hide_roles}
+    nodes = [n for n in nodes if n["id"] in keep_ids]
+    edges = [e for e in edges if e["source"] in keep_ids and e["target"] in keep_ids]
+    return nodes, edges
+
+
 class UnsupportedGraphLevel(Exception):
     """`level` is a recognised altitude (`WEB_RESEARCH.md` §3) this cycle's
     plan explicitly excludes (L0/L1/L4), or an unrecognised string. The route
@@ -439,13 +463,14 @@ def _build_graph_l1(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     extract = conn.read_artifact(snapshot_id, "extract", default={"imports": []})
     xref = conn.read_artifact(snapshot_id, "xref", default={"symbols": {}})
     symbols: dict = xref.get("symbols", {}) or {}
+    roles = _role_index(conn, snapshot_id)
 
     scopes = partition.get("scopes", [])
     if scope is not None:
         scopes = [s for s in scopes if s["node"] == scope]
     files = {f for s in scopes for f in s.get("files", [])}
 
-    nodes = [{"id": f, "label": f, "level": None} for f in sorted(files)]
+    nodes = [{"id": f, "label": f, "level": None, "role": roles.get(f)} for f in sorted(files)]
 
     edges = []
     for imp in extract.get("imports", []) or []:
@@ -460,10 +485,10 @@ def _build_graph_l1(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
             continue
         edges.append({"source": src_file, "target": tgt_file, "kind": "import", "weight": None})
         if src_file not in files:
-            nodes.append({"id": src_file, "label": src_file, "level": None})
+            nodes.append({"id": src_file, "label": src_file, "level": None, "role": roles.get(src_file)})
             files.add(src_file)
         if tgt_file not in files:
-            nodes.append({"id": tgt_file, "label": tgt_file, "level": None})
+            nodes.append({"id": tgt_file, "label": tgt_file, "level": None, "role": roles.get(tgt_file)})
             files.add(tgt_file)
 
     return {
@@ -493,6 +518,7 @@ def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     base = _dataflow_graph(conn, snapshot_id)
 
     group_of = {node["id"]: encoding.package_of(node["id"]) for node in base["nodes"]}
+    role_of = {node["id"]: node.get("role") for node in base["nodes"]}
 
     members: dict = {}
     for raw_id, group in group_of.items():
@@ -520,6 +546,12 @@ def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     nodes = []
     for group in sorted(members):
         kind = encoding.package_type(group, members[group])
+        # Uniform only: if every member that resolves a role agrees, the
+        # package inherits it (a "tests" package rolls up to role=test); any
+        # disagreement -- or no member resolving one at all -- leaves it
+        # `None` rather than picking a majority that would misreport the rest.
+        member_roles = {role_of.get(m) for m in members[group]} - {None}
+        role = next(iter(member_roles)) if len(member_roles) == 1 else None
         nodes.append({
             "id": group,
             "label": encoding.package_label(group),
@@ -530,6 +562,7 @@ def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
             "node_id": None,  # synthetic super-node: no single resolvable subject
             "members": sorted(members[group]),
             "file_count": len(members[group]),
+            "role": role,
         })
 
     if scope is not None:
@@ -627,7 +660,9 @@ def _dataflow_graph(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
     `sym:` or `module:` for `/api/node`, never to add nodes."""
     dataflow = conn.read_artifact(snapshot_id, "dataflow", default={"edges": []})
     xref = conn.read_artifact(snapshot_id, "xref", default={"symbols": {}})
-    symbols = set((xref.get("symbols") or {}).keys())
+    symbol_table: dict = xref.get("symbols") or {}
+    symbols = set(symbol_table.keys())
+    roles = _role_index(conn, snapshot_id)
 
     raw_edges = dataflow.get("edges", []) or []
 
@@ -645,6 +680,8 @@ def _dataflow_graph(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
     nodes = []
     for raw_id in sorted(ids):
         kind = encoding.type_of(raw_id)
+        sym = symbol_table.get(raw_id)
+        sym_file = sym["sites"][0].get("file") if sym and sym.get("sites") else None
         nodes.append({
             "id": raw_id,
             "label": encoding.short_label(raw_id),
@@ -654,6 +691,11 @@ def _dataflow_graph(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
             "degree": degree.get(raw_id, 0),
             "node_id": nodeid.from_dataflow_id(raw_id, symbols),
             "members": None,
+            # Only resolvable for a bare id backed by an `xref` symbol (a
+            # function/route/table *definition*, not a `type:`-prefixed
+            # reference node like `table:`/`config:` which has no file of its
+            # own) -- `None` otherwise, never guessed from a caller's file.
+            "role": roles.get(sym_file) if sym_file else None,
         })
 
     edges = [
@@ -672,7 +714,13 @@ def _dataflow_graph(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-def _build_graph(repo: Path, state_dir: Optional[str], level: str, scope: Optional[str]) -> dict:
+def _build_graph(
+    repo: Path,
+    state_dir: Optional[str],
+    level: str,
+    scope: Optional[str],
+    hide_roles: Optional[List[str]] = None,
+) -> dict:
     if level not in _GRAPH_LEVELS:
         raise UnsupportedGraphLevel(
             "level %r is not a graph altitude -- levels available: %s "
@@ -686,23 +734,33 @@ def _build_graph(repo: Path, state_dir: Optional[str], level: str, scope: Option
     snapshot_id = conn.latest_pinned_snapshot()
 
     if level == "L0":
-        return _build_graph_l0(conn, snapshot_id, scope)
-    if level == "L1":
-        return _build_graph_l1(conn, snapshot_id, scope)
-    if level == "L3":
-        return _build_graph_l3(conn, snapshot_id, scope)
-    return _build_graph_l2(conn, snapshot_id, scope)
+        result = _build_graph_l0(conn, snapshot_id, scope)
+    elif level == "L1":
+        result = _build_graph_l1(conn, snapshot_id, scope)
+    elif level == "L3":
+        result = _build_graph_l3(conn, snapshot_id, scope)
+    else:
+        result = _build_graph_l2(conn, snapshot_id, scope)
+
+    if hide_roles:
+        result["nodes"], result["edges"] = _drop_roles(result["nodes"], result["edges"], set(hide_roles))
+        if result.get("legend"):
+            result["legend"] = _legend(result["nodes"])
+    return result
 
 
 @app.get("/api/graph", response_model=GraphResponse)
 def get_graph(
     level: str = Query(..., description="altitude: L0 (symbols), L1 (files), L2 (typed dataflow nodes), L3 (packages)"),
     scope: Optional[str] = Query(None, description="filter to one package's/scope's neighborhood"),
+    hide_roles: Optional[List[str]] = Query(
+        None, description="drop nodes whose file role matches (repeatable), plus any edge touching one"
+    ),
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
 ) -> GraphResponse:
     try:
-        result = _build_graph(Path(repo), state_dir, level, scope)
+        result = _build_graph(Path(repo), state_dir, level, scope, hide_roles)
     except UnsupportedGraphLevel as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
     except StoreUnavailable as exc:

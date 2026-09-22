@@ -9,8 +9,6 @@ import { createCdpClient } from "@cdp/web-client";
  */
 export const cdp = createCdpClient({ baseUrl: "" });
 
-/** Fixed for this pass -- no repo picker yet, single-repo demo (this
- * repo's own `.cdp/index.db`). Every hook below threads these through so
- * adding a picker later is a matter of lifting this into view state, not
- * touching each call site. */
-export const DEFAULT_REPO_PARAMS = { repo: ".", state_dir: undefined as string | undefined };
+/** The active repo now lives in `store/repoStore.ts` (the picker) --
+ * `useRepoParams` (`api/repoParams.ts`) is the reactive read every hook
+ * uses instead of this. */
