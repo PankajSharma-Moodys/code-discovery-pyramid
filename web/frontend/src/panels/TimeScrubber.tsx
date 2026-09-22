@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDiff, useSnapshots } from "../api/hooks.ts";
 import { useAtlasStore } from "../store/atlasStore.ts";
+import { CollapsiblePanel } from "./CollapsiblePanel.tsx";
 
 /** How long an `AtlasCanvas` pulse/fade stays lit before clearing, so
  * scrubbing to a new position always re-triggers a fresh, visible pulse
@@ -48,27 +49,25 @@ export function TimeScrubber() {
 
   if (snapshots.length < 2) {
     return (
-      <div
-        className="absolute bottom-0 right-0 z-20 w-[22rem] p-3 text-xs"
-        style={{ color: "var(--atlas-text-dim)" }}
-      >
-        time scrubber needs at least 2 scanned commits ({snapshots.length} available -- run `cdp scan` again after
-        another commit)
-      </div>
+      <CollapsiblePanel title="What changed between commits?" side="right" width="26rem">
+        <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          Only {snapshots.length} scanned commit{snapshots.length === 1 ? "" : "s"} so far, and
+          comparing needs two. Scan again after your next commit and this becomes a timeline.
+        </div>
+      </CollapsiblePanel>
     );
   }
 
   return (
-    <div
-      className="absolute bottom-0 right-0 z-20 w-[26rem] border-l border-t p-3 text-sm backdrop-blur-md"
-      style={{
-        background: "color-mix(in srgb, var(--atlas-bg-1) 92%, transparent)",
-        borderColor: "var(--atlas-border)",
-        color: "var(--atlas-text)",
-        boxShadow: "var(--atlas-elev-2)",
-      }}
+    <CollapsiblePanel
+      title="What changed between commits?"
+      side="right"
+      width="26rem"
+      badge={`${snapshots.length} scans`}
     >
-      <div className="mb-2 font-medium">Time scrubber</div>
+      <div className="mb-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+        Drag to compare two scanned commits. Modules that appeared pulse on the map.
+      </div>
       <input
         type="range"
         min={0}
@@ -104,6 +103,6 @@ export function TimeScrubber() {
           )}
         </div>
       )}
-    </div>
+    </CollapsiblePanel>
   );
 }

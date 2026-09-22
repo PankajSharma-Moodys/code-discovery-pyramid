@@ -42,7 +42,13 @@ export function TrajectoryExplorer() {
 
   return (
     <div className="atlas-card flex flex-col gap-4 p-4" style={cardStyle}>
-      <h2 className="text-sm font-medium">Trajectory explorer</h2>
+      <div>
+        <h2 className="text-sm font-medium">What did past runs cost, and what did they learn?</h2>
+        <p className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          One row per leaf agent run, from the shared trajectory store. Filter to find the runs that
+          spent tokens without producing claims.
+        </p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select

@@ -1,4 +1,5 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { cdp, DEFAULT_REPO_PARAMS } from "./client.ts";
 import type { Altitude } from "./nodeId.ts";
 import { toNodeId } from "./nodeId.ts";
@@ -6,7 +7,7 @@ import type { DiffShape } from "./diffTypes.ts";
 import type { LinkEntry, UnmatchedEntry } from "./linkTypes.ts";
 import type { TraceResult } from "./traceTypes.ts";
 import type { AskQuery } from "../store/askBarStore.ts";
-import { dominantConfidence, type ConfidenceBucket } from "../theme/confidence.ts";
+import { type ConfidenceBucket } from "../theme/confidence.ts";
 
 const repoParams = () => ({
   repo: DEFAULT_REPO_PARAMS.repo,
@@ -43,36 +44,53 @@ export function useNode(nodeId: string | null) {
 /** `level`/`rawId` version of {@link useNode} -- callers with a raw
  * `/api/graph` id (never namespace-prefixed, see `nodeId.ts`) don't need to
  * remember the mapping at the call site. */
-export function useNodeAt(level: Altitude, rawId: string | null) {
-  return useNode(rawId === null ? null : toNodeId(level, rawId));
+export function useNodeAt(level: Altitude, rawId: string | null, apiNodeId?: string | null) {
+  // Prefer the id the server already resolved (`GraphNodeResponse.node_id`) --
+  // since ATLAS_REDESIGN.md P0, a raw L2 id's namespace depends on
+  // `xref.symbols` and cannot be derived here. `toNodeId` stays as the
+  // fallback for altitudes whose ids are derivable (L1 file paths) and for
+  // callers that never had a server-resolved id to pass.
+  const resolved =
+    apiNodeId !== undefined ? apiNodeId : rawId === null ? null : toNodeId(level, rawId);
+  return useNode(resolved);
 }
 
-/** Confidence lens data: one `/api/node/:id` per currently-loaded node,
- * rolled up to a single `ConfidenceBucket` per node via
- * `dominantConfidence`. Only meant to be mounted while the Confidence lens
- * is active and scoped to one altitude's node set (tens of nodes at this
- * repo's scale, not the whole graph) -- see `PLAN.md`'s lens design. */
-export function useNodesConfidence(level: Altitude, rawIds: string[]): Map<string, ConfidenceBucket> {
-  const results = useQueries({
-    queries: rawIds.map((rawId) => ({
-      queryKey: ["node", toNodeId(level, rawId), repoParams()],
-      queryFn: async () => {
-        const { data, error } = await cdp.GET("/api/node/{node_id}", {
-          params: { path: { node_id: toNodeId(level, rawId) }, query: repoParams() },
-        });
-        if (error) throw error;
-        return data;
-      },
-    })),
+/**
+ * Confidence lens data: one bulk `/api/confidence` call per altitude.
+ *
+ * This used to issue one `/api/node/:id` per visible node, with a comment
+ * noting that was fine at "tens of nodes". `ATLAS_REDESIGN.md` P0 made L2 the
+ * 353-node typed dataflow graph, which turned every lens toggle into 353
+ * requests that each re-read and re-classified the same three artifacts. The
+ * server now does that classification once (`_build_confidence`).
+ *
+ * A node absent from `buckets` has no claim about it and is `unreviewed` --
+ * the endpoint deliberately omits those rather than emitting a row per node.
+ */
+export function useNodesConfidence(
+  level: Altitude,
+  scope: string | null,
+  enabled: boolean,
+): Map<string, ConfidenceBucket> {
+  const { data } = useQuery({
+    queryKey: ["confidence", level, scope, repoParams()],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await cdp.GET("/api/confidence", {
+        params: { query: { level, scope: scope ?? undefined, ...repoParams() } },
+      });
+      if (error) throw error;
+      return data;
+    },
   });
 
-  const byId = new Map<string, ConfidenceBucket>();
-  rawIds.forEach((rawId, i) => {
-    const node = results[i]?.data;
-    if (!node) return;
-    byId.set(rawId, dominantConfidence(node.claims.map((c) => c.confidence)));
-  });
-  return byId;
+  return useMemo(() => {
+    const byId = new Map<string, ConfidenceBucket>();
+    for (const [rawId, bucket] of Object.entries(data?.buckets ?? {})) {
+      byId.set(rawId, bucket as ConfidenceBucket);
+    }
+    return byId;
+  }, [data]);
 }
 
 export function useSources() {

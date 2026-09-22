@@ -69,35 +69,82 @@ export function RepoHealthStrip() {
       </div>
 
       {coverage && (
-        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
-          <span>
-            coverage {coverage.files_complete}/{coverage.files_total}{" "}
-          </span>
-          <span className="atlas-stat-display" style={{ fontSize: "1.25rem", color: "var(--atlas-text)" }}>
-            {Math.round(coverage.fraction * 100)}%
-          </span>
-          <div className="h-2 flex-1 overflow-hidden rounded" style={{ background: "var(--atlas-bg-2)" }}>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-baseline gap-2 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+            <span>How much of the repo has been read?</span>
+            <span
+              className="atlas-stat-display"
+              style={{ fontSize: "1.25rem", color: "var(--atlas-text)" }}
+            >
+              {Math.round(coverage.fraction * 100)}%
+            </span>
+            <span>
+              {coverage.files_complete.toLocaleString()} of {coverage.files_total.toLocaleString()}{" "}
+              files
+            </span>
+          </div>
+
+          <div className="h-2 w-full overflow-hidden rounded" style={{ background: "var(--atlas-bg-2)" }}>
             <div
               className={refresh.isPending ? "atlas-bar-fill--pending h-full" : "h-full"}
-              style={{ width: `${Math.round(coverage.fraction * 100)}%`, background: "var(--atlas-verified)" }}
+              style={{
+                width: `${Math.max(coverage.fraction * 100, coverage.files_complete > 0 ? 2 : 0)}%`,
+                background: "var(--atlas-verified)",
+              }}
             />
           </div>
+
+          {/* ATLAS_REDESIGN.md sec 5: an empty bar at 0% used to read as an
+              alarm -- something broken -- when it only ever means no wave has
+              run against this snapshot. Say that, and make the next action the
+              thing right next to it. */}
+          {coverage.files_complete === 0 && (
+            <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+              Nothing read yet — this isn't an error. Dispatch a wave below to start filling this
+              in.
+            </div>
+          )}
         </div>
       )}
 
       {freshness && freshnessTotal > 0 && (
-        <div className="flex h-2 overflow-hidden rounded">
-          {FRESHNESS_ORDER.map(({ key, color, label }) => {
-            const count = freshness[key];
-            if (count === 0) return null;
-            return (
-              <div
-                key={key}
-                title={`${label}: ${count}`}
-                style={{ width: `${(count / freshnessTotal) * 100}%`, background: color }}
-              />
-            );
-          })}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+            How much of what we know is still true?
+          </span>
+          <div className="flex h-2 overflow-hidden rounded">
+            {FRESHNESS_ORDER.map(({ key, color, label }) => {
+              const count = freshness[key];
+              if (count === 0) return null;
+              return (
+                <div
+                  key={key}
+                  title={`${label}: ${count}`}
+                  style={{ width: `${(count / freshnessTotal) * 100}%`, background: color }}
+                />
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-x-3 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+            {FRESHNESS_ORDER.map(({ key, color, label }) =>
+              freshness[key] === 0 ? null : (
+                <span key={key}>
+                  <span style={{ color }}>■</span> {freshness[key]} {label}
+                </span>
+              ),
+            )}
+          </div>
+
+          {/* Same trap as the coverage bar (ATLAS_REDESIGN.md sec 5): before
+              any wave runs, every claim is `unknown_churn`, which paints the
+              whole bar in the contested colour and reads as "176 things are
+              broken". It means the opposite -- nothing has been checked yet. */}
+          {freshness.unknown_churn === freshnessTotal && (
+            <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+              Every claim is unchecked against the current commit, which is why this bar is one
+              colour — not because anything failed. Refresh to sort them.
+            </div>
+          )}
         </div>
       )}
 

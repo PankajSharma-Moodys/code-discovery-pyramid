@@ -1,18 +1,24 @@
 /**
- * `/api/graph?level=` returns **raw** artifact keys as node ids -- a bare
- * module name at L3, a `partition` scope node string (`"root/foo"`) at L2,
- * a file path at L1 -- never namespace-prefixed. `/api/node/:id` requires
- * the namespaced form (`module:`, `scope:`, `file:`, per
- * `web/api/nodeid.py`). Verified against the running backend while
- * planning this: calling `/api/node/module:(root)` (namespaced) resolves;
- * calling it with the raw graph id alone does not. Centralized here so no
- * call site has to remember the mapping.
+ * `/api/graph?level=` returns **raw** artifact keys as node ids -- a package
+ * or type-bucket name at L3, a `dataflow` endpoint at L2, a file path at L1 --
+ * while `/api/node/:id` requires the namespaced form (`module:`, `sym:`,
+ * `table:`, `route:`, ... per `web/api/nodeid.py`).
+ *
+ * Since `ATLAS_REDESIGN.md` P0 made L2 the typed dataflow graph, that mapping
+ * is **no longer derivable on the client**: whether a bare id like
+ * `web.api.models.JobResponse` is a `sym:` or a `module:` depends on
+ * `xref.symbols`, which only the server reads. So the server now resolves it
+ * and ships it as `GraphNodeResponse.node_id`, and the canvas carries it
+ * through `atlasStore`'s `hoveredApiNodeId`/`selectedApiNodeId`.
+ *
+ * {@link toNodeId} remains only for the altitudes whose ids *are* derivable
+ * (L1 file paths) and as the fallback when a node has no server-resolved id.
  */
 export type Altitude = "L3" | "L2" | "L1";
 
 const PREFIX: Record<Altitude, string> = {
   L3: "module:",
-  L2: "scope:",
+  L2: "module:",
   L1: "file:",
 };
 

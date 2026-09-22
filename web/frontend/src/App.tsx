@@ -54,15 +54,26 @@ function ViewSwitcher({
 function Atlas() {
   const altitude = useAtlasStore((s) => s.altitude);
   const hoveredNodeId = useAtlasStore((s) => s.hoveredNodeId);
+  const hoveredApiNodeId = useAtlasStore((s) => s.hoveredApiNodeId);
   const selectedNodeId = useAtlasStore((s) => s.selectedNodeId);
+  const selectedApiNodeId = useAtlasStore((s) => s.selectedApiNodeId);
   const selectNode = useAtlasStore((s) => s.selectNode);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       <AtlasCanvas />
       <LensSwitcher />
-      <PeekCard altitude={altitude} hoveredRawId={hoveredNodeId} />
-      <InspectorRail altitude={altitude} selectedRawId={selectedNodeId} onClose={() => selectNode(null)} />
+      <PeekCard
+        altitude={altitude}
+        hoveredRawId={hoveredNodeId}
+        hoveredApiNodeId={hoveredApiNodeId}
+      />
+      <InspectorRail
+        altitude={altitude}
+        selectedRawId={selectedNodeId}
+        selectedApiNodeId={selectedApiNodeId}
+        onClose={() => selectNode(null, null)}
+      />
       <TracePanel />
       <TimeScrubber />
     </div>

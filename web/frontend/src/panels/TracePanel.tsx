@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSourceFile, useSources, useTrace } from "../api/hooks.ts";
 import { useAtlasStore } from "../store/atlasStore.ts";
+import { CollapsiblePanel } from "./CollapsiblePanel.tsx";
 
 const CONFIDENCE_COLOR: Record<string, string> = {
   high: "var(--atlas-verified)",
@@ -35,21 +36,17 @@ export function TracePanel() {
   );
 
   return (
-    <div
-      className="absolute bottom-0 left-0 z-20 max-h-[45%] w-[28rem] overflow-y-auto border-r border-t p-3 text-sm backdrop-blur-md"
-      style={{
-        background: "color-mix(in srgb, var(--atlas-bg-1) 92%, transparent)",
-        borderColor: "var(--atlas-border)",
-        color: "var(--atlas-text)",
-        boxShadow: "var(--atlas-elev-2)",
-      }}
+    <CollapsiblePanel
+      title="Where does a request actually go?"
+      side="left"
+      width="28rem"
+      defaultOpen={activeTraceEntry !== null}
+      badge={sources?.count ? `${sources.count} entry points` : undefined}
     >
-      <div className="mb-2 font-medium">Path trace</div>
-
       {!activeTraceEntry && (
         <>
           <div className="mb-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
-            pick a dataflow entry point ({sources?.count ?? 0} available)
+            Pick an entry point and CDP walks the real dataflow from it, citing each hop.
           </div>
           <ul className="max-h-48 space-y-1 overflow-y-auto">
             {sources?.sources.map((s, i) => (
@@ -157,6 +154,6 @@ export function TracePanel() {
           )}
         </>
       )}
-    </div>
+    </CollapsiblePanel>
   );
 }

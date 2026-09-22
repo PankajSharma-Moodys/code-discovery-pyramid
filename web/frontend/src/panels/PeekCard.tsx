@@ -8,17 +8,22 @@ const CURSOR_OFFSET = { x: 16, y: 16 };
 interface PeekCardProps {
   altitude: Altitude;
   hoveredRawId: string | null;
+  /** Server-resolved namespaced id (`GraphNodeResponse.node_id`). `null` for
+   * an L3 package super-node, which is synthetic and has nothing to look up --
+   * the card then shows what the canvas already knows instead of firing a
+   * request that would 404. */
+  hoveredApiNodeId: string | null;
 }
 
 /** Follows the cursor with a fixed offset so it never covers the hovered
  * node itself. 120ms open delay per `WEB_RESEARCH.md` §3 -- a fast pass-over
  * shouldn't flash a card. */
-export function PeekCard({ altitude, hoveredRawId }: PeekCardProps) {
+export function PeekCard({ altitude, hoveredRawId, hoveredApiNodeId }: PeekCardProps) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const timerRef = useRef<number | null>(null);
 
-  const { data } = useNodeAt(altitude, visible ? hoveredRawId : null);
+  const { data } = useNodeAt(altitude, null, visible ? hoveredApiNodeId : null);
 
   useEffect(() => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -38,7 +43,23 @@ export function PeekCard({ altitude, hoveredRawId }: PeekCardProps) {
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
-  if (!visible || !hoveredRawId || !data) return null;
+  if (!visible || !hoveredRawId) return null;
+
+  // Synthetic super-node (or a node the store can't resolve): say what it is
+  // rather than showing an empty card.
+  if (!hoveredApiNodeId || !data) {
+    return (
+      <div
+        className="atlas-card pointer-events-none fixed z-20 w-64 p-3 text-sm"
+        style={{ left: pos.x + CURSOR_OFFSET.x, top: pos.y + CURSOR_OFFSET.y, color: "var(--atlas-text)" }}
+      >
+        <div className="mb-1 truncate font-medium">{hoveredRawId}</div>
+        <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          {hoveredApiNodeId ? "loading…" : "a group — double-click to see what's inside"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

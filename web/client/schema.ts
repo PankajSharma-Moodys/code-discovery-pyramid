@@ -137,6 +137,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/confidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Confidence */
+        get: operations["get_confidence_api_confidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/node/{node_id}": {
         parameters: {
             query?: never;
@@ -524,6 +541,22 @@ export interface components {
             /** Author Kind */
             author_kind?: string | null;
         };
+        /**
+         * ConfidenceResponse
+         * @description `GET /api/confidence` -- one bulk `{raw graph id -> bucket}` map for a
+         *     whole altitude, replacing the per-node `/api/node` fan-out the confidence
+         *     lens used to do (353 requests at L2 after `ATLAS_REDESIGN.md` P0). Buckets
+         *     are the `theme/confidence.ts` vocabulary: `high` / `medium` / `low` /
+         *     `contested` / `unreviewed`.
+         */
+        ConfidenceResponse: {
+            /** Level */
+            level: string;
+            /** Buckets */
+            buckets: {
+                [key: string]: unknown;
+            };
+        };
         /** CoverageResponse */
         CoverageResponse: {
             /** Fraction */
@@ -611,9 +644,12 @@ export interface components {
         };
         /**
          * GraphEdgeResponse
-         * @description `kind` carries the divergence signal `WEB_RESEARCH.md` §3's Lens section
-         *     calls out: L3 edges are `declared` / `observed` / `both`; L2 edges (from
-         *     `xref.coupling`) are `coupling`.
+         * @description `kind` carries the channel the edge was extracted from -- `call`,
+         *     `persist`, `process_boundary`, `http_in`, `read`, `config_read`,
+         *     `schema_own` at L2/L3 (`dataflow.edges[].channel`), `import` at L1, and
+         *     the divergence signal `declared` / `observed` / `both` wherever the
+         *     `graph` artifact is the source. `count` is how many underlying edges a
+         *     rolled-up L3 edge stands for (always 1 at L2).
          */
         GraphEdgeResponse: {
             /** Source */
@@ -624,11 +660,38 @@ export interface components {
             kind: string;
             /** Weight */
             weight?: number | null;
+            /** Confidence */
+            confidence?: string | null;
+            /** Count */
+            count?: number | null;
+        };
+        /**
+         * GraphLegendEntry
+         * @description One row of the canvas legend, computed from the same tables that drive
+         *     the encoding so the legend can never drift from what is drawn.
+         */
+        GraphLegendEntry: {
+            /** Type */
+            type: string;
+            /** Label */
+            label: string;
+            /** Family */
+            family: string;
+            /** Count */
+            count: number;
         };
         /**
          * GraphNodeResponse
-         * @description One node per module (L3) or scope (L2). Fields that don't apply at a
-         *     given level are left `None`/empty rather than the model forking in two.
+         * @description One node per package (L3) or typed `dataflow` node (L2). Fields that
+         *     don't apply at a given level are left `None`/empty rather than the model
+         *     forking in two.
+         *
+         *     `type`/`family`/`degree` are `ATLAS_REDESIGN.md` §3's visual-encoding
+         *     channels, computed server-side so both canvases and the legend read the
+         *     same source of truth. `node_id` is the *namespaced* (`web/api/nodeid.py`)
+         *     form the inspector can hand straight to `/api/node/{id}` -- `None` for a
+         *     synthetic L3 package super-node, which has no single underlying subject.
+         *     `members` is only populated at L3 (the raw L2 ids rolled into this one).
          */
         GraphNodeResponse: {
             /** Id */
@@ -649,6 +712,16 @@ export interface components {
             } | null;
             /** Oversized */
             oversized?: boolean | null;
+            /** Type */
+            type?: string | null;
+            /** Family */
+            family?: string | null;
+            /** Degree */
+            degree?: number | null;
+            /** Node Id */
+            node_id?: string | null;
+            /** Members */
+            members?: string[] | null;
         };
         /** GraphResponse */
         GraphResponse: {
@@ -674,6 +747,11 @@ export interface components {
             divergence?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Legend
+             * @default []
+             */
+            legend: components["schemas"]["GraphLegendEntry"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1233,9 +1311,9 @@ export interface operations {
     get_graph_api_graph_get: {
         parameters: {
             query: {
-                /** @description altitude: L0 (symbols), L1 (files), L2 (territory), L3 (module dependency) */
+                /** @description altitude: L0 (symbols), L1 (files), L2 (typed dataflow nodes), L3 (packages) */
                 level: string;
-                /** @description filter to one scope's/module's neighborhood (L0-L2) */
+                /** @description filter to one package's/scope's neighborhood */
                 scope?: string | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
@@ -1254,6 +1332,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_confidence_api_confidence_get: {
+        parameters: {
+            query: {
+                /** @description altitude, same vocabulary as /api/graph */
+                level: string;
+                /** @description same scope filter as /api/graph */
+                scope?: string | null;
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfidenceResponse"];
                 };
             };
             /** @description Validation Error */

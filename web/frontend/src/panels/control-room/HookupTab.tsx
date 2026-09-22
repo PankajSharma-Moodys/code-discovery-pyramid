@@ -45,7 +45,12 @@ export function HookupTab() {
 
   return (
     <div className="atlas-card flex flex-col gap-4 p-4" style={cardStyle}>
-      <h2 className="text-sm font-medium">Agent-layer hookup</h2>
+      <div>
+        <h2 className="text-sm font-medium">How do I wire CDP into my agent?</h2>
+        <p className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          Preview and install the adapter for a framework, then check it answers back.
+        </p>
+      </div>
 
       {/* 1. Preview + install */}
       <section className="flex flex-col gap-2 text-sm">

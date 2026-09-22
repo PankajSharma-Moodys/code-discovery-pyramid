@@ -1,104 +1,91 @@
-import * as dagre from "@dagrejs/dagre";
 import { AnimatePresence, motion } from "framer-motion";
-import forceAtlas2 from "graphology-layout-forceatlas2";
-import Graph from "graphology";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import { useGraph, useNodesConfidence } from "../api/hooks.ts";
 import type { Altitude } from "../api/nodeId.ts";
 import { useAtlasStore } from "../store/atlasStore.ts";
-import { confidenceColor } from "../theme/confidence.ts";
+import { confidenceColor, type ConfidenceBucket } from "../theme/confidence.ts";
+import {
+  edgeAlpha,
+  edgeWidth,
+  FAMILY_VAR,
+  resolveCssColor,
+  SHAPE_ZOOM_THRESHOLD,
+  type Family,
+} from "../theme/graphEncoding.ts";
+import { AltitudeSwitcher } from "./AltitudeSwitcher.tsx";
+import { buildGraph, fitToViewport } from "./graphLayout.ts";
+import { GraphLegend } from "./GraphLegend.tsx";
+import { sigmaSettings } from "./sigmaPrograms.ts";
 
-const STRUCTURE_NODE_COLOR = "#8b93a1";
-const STRUCTURE_EDGE_COLOR = "#262c36";
-
-/** `WEB_RESEARCH.md` §3's Divergence lens: only `_build_graph_l3`
- * (`web/api/app.py:476-489`) tags edges `declared`/`observed`/`both` --
- * other altitudes have no divergence signal, so the lens is a no-op there
- * (handled by falling back to the structure color when `kind` isn't one of
- * these three). Edge size is the redundant non-color channel (glyph/dash
- * stroke would need a custom sigma edge program, out of scope this pass;
- * flagged in the plan) -- `both` renders thickest since it's the most
- * corroborated case. */
-const DIVERGENCE_EDGE_COLOR: Record<string, string> = {
-  both: "var(--atlas-verified)",
-  declared: "var(--atlas-inferred)",
-  observed: "var(--atlas-unknown)",
-};
-const DIVERGENCE_EDGE_SIZE: Record<string, number> = { both: 2, declared: 1.4, observed: 1.4 };
-
-/** Small glyph suffix on the node label is the non-color redundancy for the
- * Confidence lens (`WEB_RESEARCH.md` §5: colour must never carry epistemic
- * meaning alone). Matches `tokens.css`'s documented glyphs per bucket. */
+/** Non-color redundancy for the Confidence lens (`WEB_RESEARCH.md` §5:
+ * colour must never carry epistemic meaning alone). Matches `tokens.css`'s
+ * documented glyphs per bucket. */
 const CONFIDENCE_GLYPH: Record<string, string> = {
   high: " ✓",
   medium: " ~",
   low: " ?",
   contested: " ✕",
 };
-const CONFIDENCE_SIZE: Record<string, number> = { high: 8, medium: 7, low: 6, contested: 6, unreviewed: 5 };
 
-function resolveCssColor(value: string): string {
-  if (!value.startsWith("var(")) return value;
-  const varName = value.slice(4, -1).trim();
-  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || value;
+const DIM_EDGE = "#222834";
+
+/** Edge colour under the Flow lens. Seven channels is more than three hues
+ * can hold, so this is the one place the three-family cap is relaxed -- and
+ * it is safe precisely because the Flow lens shows *edges* against a legend
+ * that is a vertical list, not an all-pairs canvas comparison. Node fills
+ * still carry only the three families underneath. */
+const FLOW_EDGE_VAR: Record<string, string> = {
+  http_in: "--atlas-family-runtime",
+  process_boundary: "--atlas-family-runtime",
+  call: "--atlas-family-code",
+  read: "--atlas-family-state",
+  config_read: "--atlas-family-state",
+  persist: "--atlas-family-state",
+  schema_own: "--atlas-accent",
+};
+
+const FLOW_EDGE_WIDTH: Record<string, number> = {
+  http_in: 2.2,
+  process_boundary: 1.4,
+  call: 1.4,
+  read: 1.6,
+  config_read: 1.2,
+  persist: 2.2,
+  schema_own: 2.2,
+};
+
+/** Resolved once per mount. Sigma parses colours into WebGL float buffers, so
+ * handing it a `var(...)` string silently yields black. */
+interface Palette {
+  family: Record<Family, string>;
+  hollow: string;
+  dimEdge: string;
+  accent: string;
+  border: string;
+  confidence: Record<string, string>;
 }
 
-const ALTITUDES: Altitude[] = ["L3", "L2", "L1"];
-
-/** Dagre ranks straight from the same dependency edges `/api/graph` already
- * returns -- `graph.levels` (the server's own topological layering) isn't
- * fed into dagre directly since dagre has no public per-node rank-pinning
- * API; letting dagre rank a DAG from its edges reproduces the same
- * layering for any node with an edge, which is every non-isolated module.
- * Isolated nodes (no edges) fall into dagre's default rank 0, which is an
- * honest "unconstrained" position, not a wrong one. */
-function layoutL3(graph: Graph): void {
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 90 });
-  g.setDefaultEdgeLabel(() => ({}));
-  graph.forEachNode((node) => g.setNode(node, { width: 140, height: 40 }));
-  graph.forEachEdge((_edge, _attrs, source, target) => {
-    if (source !== target) g.setEdge(source, target);
-  });
-  dagre.layout(g);
-  g.nodes().forEach((node) => {
-    const { x, y } = g.node(node);
-    graph.setNodeAttribute(node, "x", x);
-    graph.setNodeAttribute(node, "y", y);
-  });
-}
-
-const FA2_ITERATIONS = 200;
-
-function layoutForceAtlas2(graph: Graph): void {
-  graph.forEachNode((node) => {
-    graph.setNodeAttribute(node, "x", Math.random() * 1000);
-    graph.setNodeAttribute(node, "y", Math.random() * 1000);
-  });
-  const settings = forceAtlas2.inferSettings(graph);
-  forceAtlas2.assign(graph, { iterations: FA2_ITERATIONS, settings });
-}
-
-function buildGraph(
-  data: {
-    nodes: { id: string; label: string }[];
-    edges: { source: string; target: string; kind?: string }[];
-  },
-  level: Altitude,
-): Graph {
-  const graph = new Graph({ multi: true, type: "directed" });
-  for (const node of data.nodes) {
-    graph.addNode(node.id, { label: node.label, baseLabel: node.label, x: 0, y: 0, size: 8 });
-  }
-  for (const edge of data.edges) {
-    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) continue;
-    if (edge.source === edge.target) continue;
-    graph.addEdge(edge.source, edge.target, { size: 1, kind: edge.kind });
-  }
-  if (level === "L3") layoutL3(graph);
-  else layoutForceAtlas2(graph);
-  return graph;
+function readPalette(): Palette {
+  const bucket = (b: ConfidenceBucket) => resolveCssColor(confidenceColor(b).replace(/^var\(|\)$/g, ""));
+  return {
+    family: {
+      code: resolveCssColor(FAMILY_VAR.code, "#3987e5"),
+      runtime: resolveCssColor(FAMILY_VAR.runtime, "#d95926"),
+      state: resolveCssColor(FAMILY_VAR.state, "#199e70"),
+    },
+    hollow: resolveCssColor("--atlas-node-hollow", "#0b0f14"),
+    dimEdge: DIM_EDGE,
+    accent: resolveCssColor("--atlas-accent", "#22e0ff"),
+    border: resolveCssColor("--atlas-border", "#262c36"),
+    confidence: {
+      high: bucket("high"),
+      medium: bucket("medium"),
+      low: bucket("low"),
+      contested: bucket("contested"),
+      unreviewed: resolveCssColor("--atlas-border", "#262c36"),
+    },
+  };
 }
 
 function useFpsOverlay(enabled: boolean): number {
@@ -124,22 +111,33 @@ function useFpsOverlay(enabled: boolean): number {
   return fps;
 }
 
-/** Wheel gesture is only treated as an altitude change when the pointer is
- * over the canvas *and* the canvas has focus (`WEB_RESEARCH.md` §3 rule 3)
- * -- otherwise an incidental page-scroll wheel event while the mouse
- * happens to pass over the canvas would silently change altitude. A
- * `ctrlKey` wheel event is a trackpad pinch and is left alone so sigma's
- * native camera zoom handles it. */
+/**
+ * Wheel gesture is only treated as an altitude change when the pointer is
+ * over the canvas *and* the canvas has focus (`WEB_RESEARCH.md` §3 rule 3) --
+ * otherwise an incidental page-scroll wheel event while the mouse happens to
+ * pass over the canvas would silently change altitude. A `ctrlKey` wheel
+ * event is a trackpad pinch and is left alone so sigma's native camera zoom
+ * handles it.
+ *
+ * All visual encoding runs through Sigma's node/edge **reducers** rather than
+ * by mutating graph attributes. That is what makes a lens switch, a hover
+ * highlight, a diff pulse and a zoom-driven shape change all free of layout:
+ * the graph object is never touched after `buildGraph`, so FA2/dagre cannot
+ * re-run (`PLAN.md`'s acceptance test, now enforced by construction rather
+ * than by remembering to mutate carefully).
+ */
 export function AtlasCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const [hasFocus, setHasFocus] = useState(false);
+  const [shapesResolved, setShapesResolved] = useState(true);
 
   const altitude = useAtlasStore((s) => s.altitude);
   const scope = useAtlasStore((s) => s.scope);
   const descend = useAtlasStore((s) => s.descend);
   const ascend = useAtlasStore((s) => s.ascend);
-  const jumpTo = useAtlasStore((s) => s.jumpTo);
+  const hoveredNodeId = useAtlasStore((s) => s.hoveredNodeId);
+  const selectedNodeId = useAtlasStore((s) => s.selectedNodeId);
   const hoverNode = useAtlasStore((s) => s.hoverNode);
   const selectNode = useAtlasStore((s) => s.selectNode);
   const accumulateWheel = useAtlasStore((s) => s.accumulateWheel);
@@ -147,114 +145,192 @@ export function AtlasCanvas() {
   const diffHighlight = useAtlasStore((s) => s.diffHighlight);
 
   const { data, isLoading, error } = useGraph(altitude, scope);
-
-  const confidenceRawIds = useMemo(
-    () => (lens === "confidence" ? data?.nodes.map((n) => n.id) ?? [] : []),
-    [lens, data],
-  );
-  const confidenceById = useNodesConfidence(altitude, confidenceRawIds);
+  const confidenceById = useNodesConfidence(altitude, scope, lens === "confidence");
 
   const graph = useMemo(() => {
     if (!data) return null;
-    return buildGraph(data, altitude);
+    // L3 is a small ranked DAG (packages); L2 is a 353-node force layout.
+    return buildGraph(data, altitude === "L3");
   }, [data, altitude]);
 
+  /** Reducer inputs, held in a ref so changing one never re-creates Sigma --
+   * only a `refresh()`. */
+  const stateRef = useRef({
+    lens,
+    confidenceById,
+    hoveredNodeId,
+    selectedNodeId,
+    diffHighlight,
+    shapesResolved: true,
+    palette: null as Palette | null,
+  });
   useEffect(() => {
     if (!graph || !containerRef.current) return;
-    const sigma = new Sigma(graph, containerRef.current, {
-      defaultNodeColor: STRUCTURE_NODE_COLOR,
-      defaultEdgeColor: STRUCTURE_EDGE_COLOR,
-      labelColor: { color: "#d7dbe0" },
-    });
-    sigmaRef.current = sigma;
+    const palette = readPalette();
+    stateRef.current.palette = palette;
 
-    sigma.on("enterNode", ({ node }) => hoverNode(node));
-    sigma.on("leaveNode", () => hoverNode(null));
-    sigma.on("clickNode", ({ node }) => selectNode(node));
+    const sigma = new Sigma(
+      graph,
+      containerRef.current,
+      sigmaSettings({
+        // A small ranked graph (L3 is ~18 packages) should label everything --
+        // a degree threshold there hides half the map for no benefit. The
+        // threshold only earns its keep once labels start colliding.
+        labelRenderedSizeThreshold: graph.order <= 60 ? 0 : 9,
+        labelDensity: graph.order <= 60 ? 1 : 0.25,
+
+        nodeReducer: (node, attrs) => {
+          const s = stateRef.current;
+          const family = attrs.family as Family;
+          const bucket = s.confidenceById.get(node) ?? "unreviewed";
+          const isFocus = node === s.hoveredNodeId || node === s.selectedNodeId;
+          const isDiffAdded = s.diffHighlight?.added.includes(node) ?? false;
+
+          const res: Record<string, unknown> = { ...attrs };
+          res.type = s.shapesResolved ? (attrs.shape as string) : "dot";
+
+          if (s.lens === "confidence") {
+            res.color = palette.confidence[bucket] ?? palette.confidence.unreviewed;
+            res.ringColor = palette.border;
+            res.label = (attrs.baseLabel as string) + (CONFIDENCE_GLYPH[bucket] ?? "");
+          } else {
+            res.color = palette.family[family] ?? palette.family.code;
+            // Status on the ring, structure in the fill -- never mixed.
+            res.ringColor = bucket === "unreviewed" ? palette.border : palette.confidence[bucket];
+            res.label = attrs.baseLabel as string;
+          }
+
+          res.hollowColor = palette.hollow;
+
+          if (isDiffAdded) {
+            res.color = palette.accent;
+            res.ringColor = palette.accent;
+            res.size = (attrs.size as number) * 1.7;
+            res.zIndex = 3;
+            res.forceLabel = true;
+          } else if (isFocus) {
+            res.ringColor = palette.accent;
+            res.size = (attrs.size as number) * 1.25;
+            res.zIndex = 2;
+            res.forceLabel = true;
+          }
+
+          return res;
+        },
+
+        edgeReducer: (edge, attrs) => {
+          const s = stateRef.current;
+          const source = graph.source(edge);
+          const target = graph.target(edge);
+          // Only a focus id that exists *in this graph* counts. An id left
+          // over from another altitude would otherwise put every edge in the
+          // dimmed branch with nothing highlighted -- a canvas that looks
+          // broken rather than focused.
+          const hovered = s.hoveredNodeId && graph.hasNode(s.hoveredNodeId) ? s.hoveredNodeId : null;
+          const selected =
+            s.selectedNodeId && graph.hasNode(s.selectedNodeId) ? s.selectedNodeId : null;
+          const touchesFocus =
+            source === hovered || target === hovered || source === selected || target === selected;
+          const someFocus = hovered !== null || selected !== null;
+
+          const res: Record<string, unknown> = { ...attrs };
+          const kind = attrs.kind as string;
+          const confidence = attrs.confidence as string | null;
+
+          if (s.lens === "flow") {
+            const varName = FLOW_EDGE_VAR[kind];
+            res.color =
+              (varName ? resolveCssColor(varName, palette.family.code) : palette.dimEdge) +
+              edgeAlpha(confidence);
+            res.size = FLOW_EDGE_WIDTH[kind] ?? 1.2;
+          } else if (s.lens === "confidence") {
+            res.color = palette.dimEdge;
+            res.size = 0.9;
+          } else {
+            // Structure: an edge takes the family of what it *reaches*, so a
+            // glance reads "blue code through orange boundaries into aqua
+            // state" -- which is the actual architecture.
+            res.color =
+              (palette.family[attrs.targetFamily as Family] ?? palette.family.code) +
+              edgeAlpha(confidence);
+            res.size = edgeWidth(confidence);
+          }
+
+          if (someFocus) {
+            if (touchesFocus) {
+              res.color = palette.accent;
+              res.size = (res.size as number) * 1.6;
+              res.zIndex = 2;
+            } else {
+              res.color = palette.dimEdge + "40";
+            }
+          }
+
+          return res;
+        },
+      }),
+    );
+    sigmaRef.current = sigma;
+    fitToViewport(sigma);
+    // Dev-only handle. §4's "fit to viewport" claim is geometric -- no unit
+    // test can see whether a node landed outside the frame -- so this exists
+    // to make it checkable from a browser console or a Playwright probe:
+    //   __atlasSigma.getGraph().forEachNode(n =>
+    //     __atlasSigma.framedGraphToViewport(__atlasSigma.getNodeDisplayData(n)))
+    // Measured 0 offscreen nodes at both altitudes on this repo.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __atlasSigma?: Sigma }).__atlasSigma = sigma;
+    }
+
+    sigma.on("enterNode", ({ node }) =>
+      hoverNode(node, (graph.getNodeAttribute(node, "nodeId") as string | null) ?? null),
+    );
+    sigma.on("leaveNode", () => hoverNode(null, null));
+    sigma.on("clickNode", ({ node }) =>
+      selectNode(node, (graph.getNodeAttribute(node, "nodeId") as string | null) ?? null),
+    );
     sigma.on("doubleClickNode", ({ node, event }) => {
       event.preventSigmaDefault();
       descend(node);
     });
-    sigma.on("clickStage", () => selectNode(null));
+    sigma.on("clickStage", () => selectNode(null, null));
+
+    // Shape stops carrying identity once nodes are a few pixels across
+    // (`ATLAS_REDESIGN.md` §7). Swap every node to a plain dot past the
+    // threshold and tell the legend to say so. Changing a node's program
+    // needs a full re-index, so this fires only on threshold *crossings*,
+    // not per frame.
+    const camera = sigma.getCamera();
+    const onCameraUpdate = () => {
+      const resolved = camera.ratio <= SHAPE_ZOOM_THRESHOLD;
+      if (resolved === stateRef.current.shapesResolved) return;
+      stateRef.current.shapesResolved = resolved;
+      setShapesResolved(resolved);
+      sigma.refresh();
+    };
+    camera.on("updated", onCameraUpdate);
 
     return () => {
+      camera.off("updated", onCameraUpdate);
       sigma.kill();
       sigmaRef.current = null;
     };
   }, [graph, hoverNode, selectNode, descend]);
 
-  /** Pure recolor: mutates the *existing* `graph`'s attributes and asks
-   * sigma to redraw -- never rebuilds `graph` or the `Sigma` instance, so
-   * switching lenses cannot re-trigger layout (`WEB_RESEARCH.md` §3,
-   * `PLAN.md`'s acceptance test). */
+  /** Every reducer input change is a repaint, never a rebuild. The inputs are
+   * published to `stateRef` here (not during render, which would be a ref
+   * write in render) and then `refresh({skipIndexation})` re-runs only the
+   * reducers, keeping the WebGL buffers -- so a lens switch on a 353-node
+   * graph costs a frame, not a relayout. */
   useEffect(() => {
-    if (!graph) return;
-
-    if (lens === "structure") {
-      graph.forEachNode((node) => {
-        graph.removeNodeAttribute(node, "color");
-        graph.setNodeAttribute(node, "size", 8);
-        graph.setNodeAttribute(node, "label", graph.getNodeAttribute(node, "baseLabel"));
-      });
-      graph.forEachEdge((edge) => {
-        graph.removeEdgeAttribute(edge, "color");
-        graph.setEdgeAttribute(edge, "size", 1);
-      });
-    } else if (lens === "divergence") {
-      graph.forEachNode((node) => {
-        graph.removeNodeAttribute(node, "color");
-        graph.setNodeAttribute(node, "size", 8);
-        graph.setNodeAttribute(node, "label", graph.getNodeAttribute(node, "baseLabel"));
-      });
-      graph.forEachEdge((edge) => {
-        const kind = graph.getEdgeAttribute(edge, "kind") as string | undefined;
-        const color = kind && DIVERGENCE_EDGE_COLOR[kind];
-        graph.setEdgeAttribute(edge, "color", color ? resolveCssColor(color) : STRUCTURE_EDGE_COLOR);
-        graph.setEdgeAttribute(edge, "size", (kind && DIVERGENCE_EDGE_SIZE[kind]) ?? 1);
-      });
-    } else if (lens === "confidence") {
-      graph.forEachNode((node) => {
-        const bucket = confidenceById.get(node) ?? "unreviewed";
-        const baseLabel = graph.getNodeAttribute(node, "baseLabel") as string;
-        graph.setNodeAttribute(node, "color", resolveCssColor(confidenceColor(bucket)));
-        graph.setNodeAttribute(node, "size", CONFIDENCE_SIZE[bucket]);
-        graph.setNodeAttribute(node, "label", baseLabel + (CONFIDENCE_GLYPH[bucket] ?? ""));
-      });
-      graph.forEachEdge((edge) => {
-        graph.removeEdgeAttribute(edge, "color");
-        graph.setEdgeAttribute(edge, "size", 1);
-      });
-    }
-
-    sigmaRef.current?.refresh();
-  }, [graph, lens, confidenceById]);
-
-  /** Time scrubber's pulse/fade: mutates the same mounted graph's node
-   * colors/sizes in place (same non-relayout pattern as the lens effect
-   * above) whenever `atlasStore.diffHighlight` is set. Only L3 module ids
-   * from `/api/diff` line up with this altitude's node ids, so this is a
-   * no-op elsewhere; a removed module (gone from the *current* graph by
-   * definition) can't be pulsed on it, only added/still-present ones. */
-  useEffect(() => {
-    if (!graph || altitude !== "L3" || !diffHighlight) return;
-    const addedColor = resolveCssColor("var(--atlas-verified)");
-    for (const id of diffHighlight.added) {
-      if (graph.hasNode(id)) {
-        graph.setNodeAttribute(id, "color", addedColor);
-        graph.setNodeAttribute(id, "size", 14);
-      }
-    }
-    sigmaRef.current?.refresh();
-    return () => {
-      if (!graph) return;
-      for (const id of diffHighlight.added) {
-        if (!graph.hasNode(id)) continue;
-        graph.removeNodeAttribute(id, "color");
-        graph.setNodeAttribute(id, "size", 8);
-      }
-      sigmaRef.current?.refresh();
-    };
-  }, [graph, altitude, diffHighlight]);
+    const s = stateRef.current;
+    s.lens = lens;
+    s.confidenceById = confidenceById;
+    s.hoveredNodeId = hoveredNodeId;
+    s.selectedNodeId = selectedNodeId;
+    s.diffHighlight = diffHighlight;
+    sigmaRef.current?.refresh({ skipIndexation: true });
+  }, [lens, confidenceById, hoveredNodeId, selectedNodeId, diffHighlight]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -275,36 +351,52 @@ export function AtlasCanvas() {
     };
   }, [hasFocus, accumulateWheel, ascend]);
 
+  const edgeKinds = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const edge of data?.edges ?? []) {
+      counts.set(edge.kind, (counts.get(edge.kind) ?? 0) + (edge.count ?? 1));
+    }
+    return [...counts.entries()]
+      .map(([kind, count]) => ({ kind, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [data]);
+
+  const confidenceCounts = useMemo(() => {
+    const counts: Partial<Record<ConfidenceBucket, number>> = {};
+    let seen = 0;
+    for (const bucket of confidenceById.values()) {
+      counts[bucket] = (counts[bucket] ?? 0) + 1;
+      seen += 1;
+    }
+    counts.unreviewed = Math.max(0, (data?.nodes.length ?? 0) - seen);
+    return counts;
+  }, [confidenceById, data]);
+
   const fps = useFpsOverlay(import.meta.env.DEV);
   const prefersReducedMotion = useMemo(
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     [],
   );
   const canvasKey = `${altitude}:${scope ?? ""}`;
+  const isEmpty = !isLoading && !error && (data?.edges.length ?? 0) === 0;
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-3 top-3 z-10 flex gap-2 text-sm">
-        {ALTITUDES.map((level) => (
-          <button
-            key={level}
-            onClick={() => jumpTo(level)}
-            className="rounded px-2 py-1"
-            style={{
-              background: level === altitude ? "var(--atlas-accent)" : "var(--atlas-bg-2)",
-              color: level === altitude ? "#07090c" : "var(--atlas-text-dim)",
-              border: "1px solid var(--atlas-border)",
-            }}
-          >
-            {level}
-          </button>
-        ))}
-      </div>
+      <AltitudeSwitcher
+        altitude={altitude}
+        scope={scope}
+        nodeCount={data?.nodes.length ?? 0}
+        edgeCount={data?.edges.length ?? 0}
+      />
+
       {import.meta.env.DEV && (
-        <div className="absolute right-3 top-3 z-10 rounded bg-black/40 px-2 py-1 font-mono text-xs text-white">
+        // Bottom-centre: the top-right corner belongs to the view switcher
+        // and the legend.
+        <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded bg-black/40 px-2 py-1 font-mono text-xs text-white">
           {fps} fps
         </div>
       )}
+
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-[var(--atlas-text-dim)]">
           loading graph…
@@ -315,14 +407,24 @@ export function AtlasCanvas() {
           {String(error)}
         </div>
       )}
-      {lens === "divergence" && altitude !== "L3" && (
-        <div
-          className="absolute bottom-3 left-3 z-10 rounded px-2 py-1 text-xs"
-          style={{ background: "var(--atlas-bg-2)", color: "var(--atlas-text-dim)", border: "1px solid var(--atlas-border)" }}
-        >
-          Divergence data is only computed at L3 (module dependency) today.
+      {isEmpty && (
+        <div className="absolute inset-0 flex items-center justify-center px-8 text-center text-sm text-[var(--atlas-text-dim)]">
+          Nothing to map yet — this snapshot has no extracted connections. Run a scan from the
+          Control Room, then come back.
         </div>
       )}
+
+      {data && !isEmpty && (
+        <GraphLegend
+          lens={lens}
+          entries={data.legend ?? []}
+          edgeKinds={edgeKinds}
+          confidenceCounts={confidenceCounts}
+          divergence={altitude === "L3" ? (data.divergence as never) : null}
+          shapesResolved={shapesResolved}
+        />
+      )}
+
       <AnimatePresence>
         <motion.div
           key={canvasKey}
@@ -344,3 +446,5 @@ export function AtlasCanvas() {
     </div>
   );
 }
+
+export type { Altitude };

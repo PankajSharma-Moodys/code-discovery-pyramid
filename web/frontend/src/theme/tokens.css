@@ -20,6 +20,20 @@
     contradicted by extraction (schema/patch-1.0.0.json's `confidence` def);
     distinct from unknown, never merged into it */
 
+  /* Graph node families (ATLAS_REDESIGN.md sec 3). Exactly three, and the cap
+     is computed rather than chosen: on this background only blue/orange/aqua
+     clear the all-pairs CVD floor, and a graph canvas is inherently all-pairs
+     (every node can end up adjacent to every other). Node *type* is therefore
+     carried by shape, never by a fourth hue -- see `theme/graphEncoding.ts`.
+     Distinct from the semantic triad above, which stays reserved for claim
+     status on the node ring. */
+  --atlas-family-code: #3987e5;
+  --atlas-family-runtime: #d95926;
+  --atlas-family-state: #199e70;
+  /* Hollow node shapes punch through to this, so it must be the canvas
+     backdrop, not a panel fill. */
+  --atlas-node-hollow: #0b0f14;
+
   --atlas-radius: 10px;
   --atlas-motion-fast: 180ms;
   --atlas-motion-layout: 480ms;

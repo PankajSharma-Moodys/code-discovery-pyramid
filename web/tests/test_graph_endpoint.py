@@ -52,10 +52,20 @@ class GraphEndpointTest(unittest.TestCase):
 
     # ---------------------------------------------------------------- L3
 
-    def test_l3_node_count_matches_graph_artifact(self) -> None:
+    def test_l3_rolls_the_dataflow_graph_up_by_package(self) -> None:
+        """L3 is the *rollup of the same typed graph L2 serves*
+        (`ATLAS_REDESIGN.md` §2), not `graph.modules` any more -- pairing 7
+        module nodes with 2 `declared`/`observed` edges is exactly the empty
+        canvas that redesign was written about. `graph.levels`/`cycles`/
+        `divergence` are still passed through untouched."""
+        from web.api.encoding import package_of
         from web.api.models import GraphResponse
 
         graph = self._read_artifact("graph")
+        dataflow = self._read_artifact("dataflow")
+        raw_ids = {end for e in dataflow["edges"] for end in (e["source"], e["target"])}
+        expected_groups = {package_of(raw_id) for raw_id in raw_ids}
+
         client = self._client()
         resp = client.get("/api/graph", params={
             "level": "L3", "repo": str(MINIREPO), "state_dir": str(self.state_dir),
@@ -63,19 +73,28 @@ class GraphEndpointTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         payload = GraphResponse(**resp.json())
 
-        self.assertEqual(len(payload.nodes), len(graph["modules"]))
-        self.assertEqual({n.id for n in payload.nodes}, set(graph["modules"]))
-        # levels passed through as-is, per WEB_RESEARCH.md sec 3
+        self.assertEqual({n.id for n in payload.nodes}, expected_groups)
+        # Every L2 node lands in exactly one super-node's `members`.
+        rolled = [m for n in payload.nodes for m in (n.members or [])]
+        self.assertEqual(sorted(rolled), sorted(raw_ids))
+        self.assertEqual(len(rolled), len(set(rolled)))
+
         self.assertEqual(payload.levels, graph["levels"])
         self.assertEqual(payload.cycles, graph["cycles"])
         self.assertEqual(payload.divergence, graph["divergence"])
 
-    def test_l3_edges_are_tagged_declared_observed_both(self) -> None:
+    def test_l3_edges_aggregate_and_drop_intra_package(self) -> None:
+        from web.api.encoding import package_of
         from web.api.models import GraphResponse
 
-        graph = self._read_artifact("graph")
-        declared_pairs = {(e["from"], e["to"]) for e in graph["declared"]}
-        observed_pairs = {(e["from"], e["to"]) for e in graph["observed"]}
+        dataflow = self._read_artifact("dataflow")
+        expected: dict = {}
+        for edge in dataflow["edges"]:
+            src, tgt = package_of(edge["source"]), package_of(edge["target"])
+            if src == tgt:
+                continue
+            key = (src, tgt, edge.get("channel", "flow"))
+            expected[key] = expected.get(key, 0) + 1
 
         client = self._client()
         resp = client.get("/api/graph", params={
@@ -83,30 +102,17 @@ class GraphEndpointTest(unittest.TestCase):
         })
         payload = GraphResponse(**resp.json())
 
-        by_pair = {(e.source, e.target): e.kind for e in payload.edges}
-        self.assertEqual(set(by_pair), declared_pairs | observed_pairs)
-
-        for pair, kind in by_pair.items():
-            in_declared = pair in declared_pairs
-            in_observed = pair in observed_pairs
-            if in_declared and in_observed:
-                self.assertEqual(kind, "both")
-            elif in_declared:
-                self.assertEqual(kind, "declared")
-            else:
-                self.assertEqual(kind, "observed")
-
-        # The minirepo fixture has no divergence (declared == observed), so
-        # assert the "both" case is at least reachable rather than skipped.
-        if declared_pairs & observed_pairs:
-            self.assertIn("both", by_pair.values())
+        got = {(e.source, e.target, e.kind): e.count for e in payload.edges}
+        self.assertEqual(got, expected)
 
     # ---------------------------------------------------------------- L2
 
-    def test_l2_scope_count_matches_partition_artifact(self) -> None:
+    def test_l2_nodes_are_the_typed_dataflow_graph(self) -> None:
         from web.api.models import GraphResponse
 
-        partition = self._read_artifact("partition")
+        dataflow = self._read_artifact("dataflow")
+        raw_ids = {end for e in dataflow["edges"] for end in (e["source"], e["target"])}
+
         client = self._client()
         resp = client.get("/api/graph", params={
             "level": "L2", "repo": str(MINIREPO), "state_dir": str(self.state_dir),
@@ -114,18 +120,22 @@ class GraphEndpointTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         payload = GraphResponse(**resp.json())
 
-        self.assertEqual(len(payload.nodes), len(partition["scopes"]))
-        self.assertEqual(
-            {n.id for n in payload.nodes},
-            {s["node"] for s in partition["scopes"]},
-        )
+        self.assertEqual({n.id for n in payload.nodes}, raw_ids)
+        self.assertEqual(len(payload.edges), len(dataflow["edges"]))
+        # Every node carries the three encoding channels the canvas needs.
+        for node in payload.nodes:
+            self.assertIsNotNone(node.type)
+            self.assertIn(node.family, ("code", "runtime", "state"))
+            self.assertGreater(node.degree or 0, 0)
 
-    def test_l2_scope_filter_returns_neighborhood_only(self) -> None:
+    def test_l2_scope_filter_descends_into_one_l3_package(self) -> None:
+        from web.api.encoding import package_of
         from web.api.models import GraphResponse
 
-        partition = self._read_artifact("partition")
-        scopes = partition["scopes"]
-        target = scopes[0]["node"]
+        dataflow = self._read_artifact("dataflow")
+        raw_ids = {end for e in dataflow["edges"] for end in (e["source"], e["target"])}
+        target = sorted({package_of(raw_id) for raw_id in raw_ids})[0]
+        members = {raw_id for raw_id in raw_ids if package_of(raw_id) == target}
 
         client = self._client()
         resp = client.get("/api/graph", params={
@@ -137,10 +147,26 @@ class GraphEndpointTest(unittest.TestCase):
 
         self.assertEqual(payload.scope, target)
         node_ids = {n.id for n in payload.nodes}
-        self.assertIn(target, node_ids)
-        self.assertLessEqual(len(node_ids), len(scopes))
+        self.assertTrue(members <= node_ids)
+        self.assertLessEqual(len(node_ids), len(raw_ids))
         for edge in payload.edges:
-            self.assertTrue(edge.source == target or edge.target == target)
+            self.assertTrue(edge.source in members or edge.target in members)
+
+    def test_l2_node_id_resolves_through_the_node_endpoint(self) -> None:
+        """The inspector hands `node.node_id` straight to `/api/node/{id}`;
+        if that mapping drifts, every peek card at L2 silently 404s."""
+        from web.api.models import GraphResponse
+
+        client = self._client()
+        params = {"repo": str(MINIREPO), "state_dir": str(self.state_dir)}
+        payload = GraphResponse(**client.get("/api/graph", params={"level": "L2", **params}).json())
+
+        typed = [n for n in payload.nodes if n.type != "module"]
+        self.assertTrue(typed, "fixture has no typed dataflow nodes to check")
+        for node in typed[:10]:
+            self.assertIsNotNone(node.node_id)
+            resp = client.get("/api/node/%s" % node.node_id, params=params)
+            self.assertEqual(resp.status_code, 200, "%s -> %s" % (node.node_id, resp.text))
 
     # ---------------------------------------------------------------- L0
 

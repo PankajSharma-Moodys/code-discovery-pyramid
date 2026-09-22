@@ -41,11 +41,13 @@ from cdp import query as query_mod
 from cdp import util as cdp_util
 from cdp.store import registry as registry_mod
 
+from . import encoding
 from . import hookup as hookup_mod
 from . import jobs as jobs_mod
 from . import nodeid
 from .auth import require_mutation_auth
 from .models import (
+    ConfidenceResponse,
     DiffResponse,
     DoctorResponse,
     GraphResponse,
@@ -400,14 +402,21 @@ def _build_graph_l0(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
         for fqn, s in symbols.items()
     ]
 
+    # Only edges whose *both* endpoints are symbols in this node set. The old
+    # code emitted every `dataflow` edge here, but those name modules, not
+    # symbols -- 369 of 371 dangled and the canvas rendered a star-field of
+    # isolated dots (`ATLAS_REDESIGN.md` §1). Keeping the dangling ones out is
+    # the "symbol-scoped edges only" option from §2's table: fewer edges, but
+    # every one of them draws.
     edges = []
     for edge in dataflow.get("edges", []) or []:
         src, tgt = edge.get("source"), edge.get("target")
-        if scope is not None and src not in symbols and tgt not in symbols:
+        if src not in symbols or tgt not in symbols:
             continue
         edges.append({
             "source": src, "target": tgt,
             "kind": edge.get("channel", "flow"), "weight": None,
+            "confidence": edge.get("confidence"), "count": 1,
         })
 
     return {
@@ -468,89 +477,93 @@ def _build_graph_l1(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     }
 
 
-def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
-    """`graph.levels` is already topologically ranked -- pass it through
-    as-is (`WEB_RESEARCH.md` §1/§3: that is what a dagre-consuming frontend
-    wants). Edges are the union of `declared` and `observed`, each tagged
-    `declared` / `observed` / `both` so the divergence signal (§3's Lens
-    section, CDP's differentiator) survives instead of being flattened."""
-    graph = conn.read_artifact(snapshot_id, "graph")
-    levels: list = graph.get("levels", [])
+def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[str]) -> dict:
+    """Packages: `ATLAS_REDESIGN.md` §2's L3 -- the *same* typed `dataflow`
+    graph L2 serves, rolled up so every node is either a code package (first
+    path segment of a module/symbol id) or a type bucket for the node kinds
+    that have no package of their own (`Tables`, `Routes`, `Processes`, ...).
 
-    level_of: dict = {}
-    for idx, layer in enumerate(levels):
-        for module in layer:
-            level_of[module] = idx
+    Rolling up the typed graph rather than `graph.modules`/`graph.levels` is
+    the whole point of the redesign: the old builder paired 7 module nodes
+    with 2 edges because `graph.declared`/`observed` barely populate on this
+    corpus, while `dataflow.edges` is dense and fully typed. The `graph`
+    artifact's `levels`/`cycles`/`divergence` are still passed through --
+    they are about modules, which remain a subset of this graph's nodes."""
+    graph_art = conn.read_artifact(snapshot_id, "graph", default={})
+    base = _dataflow_graph(conn, snapshot_id)
 
-    nodes = [
-        {"id": module, "label": module, "level": level_of.get(module)}
-        for module in graph.get("modules", [])
+    group_of = {node["id"]: encoding.package_of(node["id"]) for node in base["nodes"]}
+
+    members: dict = {}
+    for raw_id, group in group_of.items():
+        members.setdefault(group, []).append(raw_id)
+
+    agg: dict = {}
+    for edge in base["edges"]:
+        src, tgt = group_of[edge["source"]], group_of[edge["target"]]
+        if src == tgt:
+            continue  # intra-package detail belongs at L2, not here
+        key = (src, tgt, edge["kind"])
+        agg[key] = agg.get(key, 0) + 1
+
+    edges = [
+        {"source": src, "target": tgt, "kind": kind, "weight": count,
+         "confidence": None, "count": count}
+        for (src, tgt, kind), count in sorted(agg.items())
     ]
 
-    declared_pairs = {(e["from"], e["to"]) for e in graph.get("declared", [])}
-    observed_weight = {(e["from"], e["to"]): e.get("weight") for e in graph.get("observed", [])}
-    observed_pairs = set(observed_weight)
+    degree: dict = {}
+    for edge in edges:
+        degree[edge["source"]] = degree.get(edge["source"], 0) + edge["count"]
+        degree[edge["target"]] = degree.get(edge["target"], 0) + edge["count"]
 
-    edges = []
-    for pair in sorted(declared_pairs | observed_pairs):
-        src, tgt = pair
-        in_declared = pair in declared_pairs
-        in_observed = pair in observed_pairs
-        kind = "both" if (in_declared and in_observed) else ("declared" if in_declared else "observed")
-        edges.append({
-            "source": src, "target": tgt, "kind": kind,
-            "weight": observed_weight.get(pair),
+    nodes = []
+    for group in sorted(members):
+        kind = encoding.package_type(group, members[group])
+        nodes.append({
+            "id": group,
+            "label": encoding.package_label(group),
+            "level": None,
+            "type": kind,
+            "family": encoding.FAMILY_OF_TYPE.get(kind),
+            "degree": degree.get(group, 0),
+            "node_id": None,  # synthetic super-node: no single resolvable subject
+            "members": sorted(members[group]),
+            "file_count": len(members[group]),
         })
+
+    if scope is not None:
+        nodes, edges = _restrict_to_neighborhood(nodes, edges, scope)
 
     return {
         "level": "L3",
-        "scope": None,
+        "scope": scope,
         "nodes": nodes,
         "edges": edges,
-        "levels": levels,
-        "cycles": graph.get("cycles", []),
-        "divergence": graph.get("divergence"),
+        "levels": graph_art.get("levels", []),
+        "cycles": graph_art.get("cycles", []),
+        "divergence": graph_art.get("divergence"),
+        "legend": _legend(nodes),
     }
 
 
 def _build_graph_l2(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[str]) -> dict:
-    """`partition.scopes[]` for nodes, `xref.coupling` (keyed `"module ->
-    module"`, from `graph.observed`) for edge weights between them. `scope=`
-    is a cheap filter to that scope's own node plus anything coupling
-    connects it to -- not a new query."""
-    partition = conn.read_artifact(snapshot_id, "partition")
-    xref = conn.read_artifact(snapshot_id, "xref", default={"coupling": {}})
-    coupling = xref.get("coupling", {}) or {}
-
-    scopes = partition.get("scopes", [])
-    scope_by_node = {s["node"]: s for s in scopes}
-    node_by_module = {s.get("module"): s["node"] for s in scopes}
-
-    edges = []
-    for key, weight in coupling.items():
-        src_mod, _, tgt_mod = key.partition(" -> ")
-        src_node = node_by_module.get(src_mod)
-        tgt_node = node_by_module.get(tgt_mod)
-        if src_node is None or tgt_node is None:
-            continue
-        edges.append({"source": src_node, "target": tgt_node, "kind": "coupling", "weight": weight})
+    """Modules: the typed `dataflow` graph as-is (`ATLAS_REDESIGN.md` §2).
+    `scope=` is an L3 package id and filters to that package's members plus
+    their immediate neighbours, so double-clicking an L3 super-node descends
+    into exactly what it rolled up (plus its boundary)."""
+    base = _dataflow_graph(conn, snapshot_id)
+    nodes, edges = base["nodes"], base["edges"]
 
     if scope is not None:
-        neighborhood = {scope}
-        scoped_edges = []
-        for edge in edges:
-            if edge["source"] == scope or edge["target"] == scope:
-                scoped_edges.append(edge)
-                neighborhood.add(edge["source"])
-                neighborhood.add(edge["target"])
-        edges = scoped_edges
-        nodes = [
-            _graph_node_from_scope(scope_by_node[node_id])
-            for node_id in neighborhood
-            if node_id in scope_by_node
-        ]
-    else:
-        nodes = [_graph_node_from_scope(s) for s in scopes]
+        keep = {n["id"] for n in nodes if encoding.package_of(n["id"]) == scope}
+        if keep:
+            edges = [e for e in edges if e["source"] in keep or e["target"] in keep]
+            reachable = set(keep)
+            for edge in edges:
+                reachable.add(edge["source"])
+                reachable.add(edge["target"])
+            nodes = [n for n in nodes if n["id"] in reachable]
 
     return {
         "level": "L2",
@@ -560,7 +573,103 @@ def _build_graph_l2(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
         "levels": [],
         "cycles": [],
         "divergence": None,
+        "legend": _legend(nodes),
     }
+
+
+def _restrict_to_neighborhood(nodes: list, edges: list, scope: str) -> "tuple[list, list]":
+    """`scope=` filter shared by the rolled-up altitudes: keep `scope`, every
+    edge touching it, and the nodes on the far end of those edges. An unknown
+    `scope` leaves the graph untouched rather than returning an empty canvas
+    that would read as "this package has nothing in it"."""
+    if not any(n["id"] == scope for n in nodes):
+        return nodes, edges
+    kept_edges = [e for e in edges if e["source"] == scope or e["target"] == scope]
+    neighborhood = {scope}
+    for edge in kept_edges:
+        neighborhood.add(edge["source"])
+        neighborhood.add(edge["target"])
+    return [n for n in nodes if n["id"] in neighborhood], kept_edges
+
+
+def _legend(nodes: list) -> list:
+    """Counts per display type, in the encoding module's own declared order --
+    so the legend lists what is actually on this canvas, never a static list
+    that can drift from the render. A rolled-up node counts for the number of
+    L2 nodes inside it, so "Tables 27" reads the same at both altitudes
+    instead of collapsing to "Tables 1"."""
+    counts: dict = {}
+    for node in nodes:
+        kind = node.get("type")
+        if kind:
+            counts[kind] = counts.get(kind, 0) + len(node.get("members") or [None])
+    return [
+        {
+            "type": kind,
+            "label": encoding.TYPE_LABEL.get(kind, kind),
+            "family": encoding.FAMILY_OF_TYPE.get(kind, "code"),
+            "count": counts[kind],
+        }
+        for kind in encoding.TYPE_ORDER
+        if kind in counts
+    ]
+
+
+def _dataflow_graph(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
+    """The one real architecture graph in the store: `dataflow.edges` and the
+    node set they induce. Every node id here is a `dataflow` id -- bare for a
+    module/symbol, `type:`-prefixed otherwise -- so source and target always
+    live in the *same* namespace. The old L0 builder mixed namespaces (symbol
+    nodes, module edges) and 369 of 371 edges dangled; that is the bug
+    `ATLAS_REDESIGN.md` §1 measured and this function exists to prevent.
+
+    `xref.symbols` is consulted only to decide whether a bare id resolves as
+    `sym:` or `module:` for `/api/node`, never to add nodes."""
+    dataflow = conn.read_artifact(snapshot_id, "dataflow", default={"edges": []})
+    xref = conn.read_artifact(snapshot_id, "xref", default={"symbols": {}})
+    symbols = set((xref.get("symbols") or {}).keys())
+
+    raw_edges = dataflow.get("edges", []) or []
+
+    degree: dict = {}
+    ids: set = set()
+    for edge in raw_edges:
+        src, tgt = edge.get("source"), edge.get("target")
+        if not src or not tgt:
+            continue
+        ids.add(src)
+        ids.add(tgt)
+        degree[src] = degree.get(src, 0) + 1
+        degree[tgt] = degree.get(tgt, 0) + 1
+
+    nodes = []
+    for raw_id in sorted(ids):
+        kind = encoding.type_of(raw_id)
+        nodes.append({
+            "id": raw_id,
+            "label": encoding.short_label(raw_id),
+            "level": None,
+            "type": kind,
+            "family": encoding.FAMILY_OF_TYPE.get(kind),
+            "degree": degree.get(raw_id, 0),
+            "node_id": nodeid.from_dataflow_id(raw_id, symbols),
+            "members": None,
+        })
+
+    edges = [
+        {
+            "source": e["source"],
+            "target": e["target"],
+            "kind": e.get("channel", "flow"),
+            "weight": None,
+            "confidence": e.get("confidence"),
+            "count": 1,
+        }
+        for e in raw_edges
+        if e.get("source") and e.get("target")
+    ]
+
+    return {"nodes": nodes, "edges": edges}
 
 
 def _build_graph(repo: Path, state_dir: Optional[str], level: str, scope: Optional[str]) -> dict:
@@ -581,14 +690,14 @@ def _build_graph(repo: Path, state_dir: Optional[str], level: str, scope: Option
     if level == "L1":
         return _build_graph_l1(conn, snapshot_id, scope)
     if level == "L3":
-        return _build_graph_l3(conn, snapshot_id)
+        return _build_graph_l3(conn, snapshot_id, scope)
     return _build_graph_l2(conn, snapshot_id, scope)
 
 
 @app.get("/api/graph", response_model=GraphResponse)
 def get_graph(
-    level: str = Query(..., description="altitude: L0 (symbols), L1 (files), L2 (territory), L3 (module dependency)"),
-    scope: Optional[str] = Query(None, description="filter to one scope's/module's neighborhood (L0-L2)"),
+    level: str = Query(..., description="altitude: L0 (symbols), L1 (files), L2 (typed dataflow nodes), L3 (packages)"),
+    scope: Optional[str] = Query(None, description="filter to one package's/scope's neighborhood"),
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
 ) -> GraphResponse:
@@ -601,6 +710,112 @@ def get_graph(
     except StoreLocked as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return GraphResponse(**result)
+
+
+#: Most-conservative-wins, mirroring `theme/confidence.ts`'s `dominantConfidence`
+#: -- a node with any low/contested claim is not "high confidence" just because
+#: it also has a high-confidence one.
+_CONFIDENCE_RANK = {"contested": 0, "low": 1, "medium": 2, "high": 3}
+
+
+def _build_confidence(repo: Path, state_dir: Optional[str], level: str, scope: Optional[str]) -> dict:
+    """One bulk `{raw graph id -> bucket}` map for a whole altitude.
+
+    The confidence lens used to issue one `/api/node/{id}` per visible node.
+    That was defensible at the old L2 (20 scope nodes) and is not at the L2
+    `ATLAS_REDESIGN.md` P0 introduced (353 typed nodes) -- 353 requests per
+    lens toggle, each re-reading and re-classifying the same three artifacts.
+    This reads them once, classifies every claim once, and rolls the result
+    up to whatever ids the requested altitude actually renders.
+
+    Nodes with no claim are simply absent from `buckets`; the client treats a
+    missing key as `unreviewed` rather than this endpoint inventing a row for
+    every node in the graph."""
+    graph = _build_graph(repo, state_dir, level, scope)
+
+    resolved_state_dir = resolve_state_dir(repo, state_dir)
+    conn = ReadOnlyConnection(resolved_state_dir / "index.db")
+    snapshot_id = conn.latest_pinned_snapshot()
+    xref = conn.read_artifact(snapshot_id, "xref", default={})
+    partition = conn.read_artifact(snapshot_id, "partition", default={})
+    dataflow = conn.read_artifact(snapshot_id, "dataflow", default={})
+    state = conn.read_artifact(snapshot_id, "state", default={"claims": []})
+
+    index = nodeid.SubjectIndex(xref, partition, dataflow)
+    # Members as well as node ids: at L3 a claim's subject is an L2 id
+    # (`config:CDP_STORE`), never the super-node it rolls into (`Config`), so
+    # matching on node ids alone would leave every package unreviewed.
+    graph_ids = {node["id"] for node in graph["nodes"]}
+    for node in graph["nodes"]:
+        graph_ids.update(node.get("members") or [])
+
+    by_raw_id: dict = {}
+    for claim in state.get("claims", []) or []:
+        bucket = claim.get("confidence")
+        if bucket not in _CONFIDENCE_RANK:
+            continue
+        raw = _subject_to_graph_id(str(claim.get("subject", "")), graph_ids, index)
+        if raw is None:
+            continue
+        current = by_raw_id.get(raw)
+        if current is None or _CONFIDENCE_RANK[bucket] < _CONFIDENCE_RANK[current]:
+            by_raw_id[raw] = bucket
+
+    buckets: dict = {}
+    for node in graph["nodes"]:
+        # L3 super-nodes stand for their members; roll those up the same
+        # most-conservative-wins way a single node rolls up its own claims.
+        candidates = [node["id"]] + list(node.get("members") or [])
+        worst = None
+        for candidate in candidates:
+            found = by_raw_id.get(candidate)
+            if found and (worst is None or _CONFIDENCE_RANK[found] < _CONFIDENCE_RANK[worst]):
+                worst = found
+        if worst is not None:
+            buckets[node["id"]] = worst
+
+    return {"level": graph["level"], "buckets": buckets}
+
+
+def _subject_to_graph_id(subject: str, graph_ids: set, index: "nodeid.SubjectIndex") -> Optional[str]:
+    """Which rendered node a claim's `subject` belongs to, or `None`.
+
+    A claim `subject` is *already* a `dataflow`-style id on this corpus
+    (`config:CDP_STORE`, `entity:web.api.models.DiffResponse`) -- 168 of 176
+    claims match a graph node verbatim. The two fallbacks handle the rest:
+    a symbol fqn rolls up to the module it lives in (`cdp.cli#main` ->
+    `cdp.cli`), and `SubjectIndex` still gets the last word for the
+    `scope:`/`file:` subjects it was written for. Claims that match nothing
+    are dropped rather than attributed to a guess."""
+    if subject in graph_ids:
+        return subject
+    owner = subject.split("#")[0]
+    if owner != subject and owner in graph_ids:
+        return owner
+    classified = index.classify(subject)
+    if classified is not None:
+        stripped = nodeid.dataflow_id(classified)
+        if stripped in graph_ids:
+            return stripped
+    return None
+
+
+@app.get("/api/confidence", response_model=ConfidenceResponse)
+def get_confidence(
+    level: str = Query(..., description="altitude, same vocabulary as /api/graph"),
+    scope: Optional[str] = Query(None, description="same scope filter as /api/graph"),
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> ConfidenceResponse:
+    try:
+        result = _build_confidence(Path(repo), state_dir, level, scope)
+    except UnsupportedGraphLevel as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return ConfidenceResponse(**result)
 
 
 def _all_registry_entries() -> dict:
@@ -703,27 +918,44 @@ def _build_node(repo: Path, state_dir: Optional[str], node_id: str) -> dict:
 
     index = nodeid.SubjectIndex(xref, partition, dataflow)
 
+    # A claim's `subject` is a `dataflow`-style id on real corpora
+    # (`config:CDP_STORE`, `entity:web.api.models.DiffResponse`), which
+    # `SubjectIndex` -- written for `sym:`/`route:`/`table:`/`scope:` subjects
+    # before those types existed -- classifies as `None`. Comparing against
+    # the dataflow id first is what makes the inspector show claims for the
+    # typed nodes `ATLAS_REDESIGN.md` P0 put on the canvas; `classify` still
+    # gets the last word for the subjects it does handle.
+    df_id = nodeid.dataflow_id(node_id)
+
+    def _is_subject_of(subject: str) -> bool:
+        return subject == df_id or index.classify(subject) == node_id
+
     claims = [
         c for c in state.get("claims", []) or []
-        if index.classify(str(c.get("subject", ""))) == node_id
+        if _is_subject_of(str(c.get("subject", "")))
     ]
 
     unknowns = state.get("unknowns", []) or []
     unknowns_count = 0
     for u in unknowns:
         subject = u.get("subject")
-        if subject and index.classify(str(subject)) == node_id:
+        if subject and _is_subject_of(str(subject)):
             unknowns_count += 1
         elif ns == "scope" and u.get("source_node") == rest:
             unknowns_count += 1
 
+    # `dataflow.edges` names a typed endpoint *with* its prefix
+    # (`table:churn_cache`), so matching on the stripped `rest` silently found
+    # nothing for every `route:`/`table:` id -- the neighbourhood pane was
+    # empty for exactly the nodes it was built for. `nodeid.dataflow_id` is
+    # the one place that mapping lives now.
     edges_in: list = []
     edges_out: list = []
-    if ns in ("sym", "route", "table"):
+    if ns in ("sym", "module") + nodeid.DATAFLOW_NAMESPACES:
         for edge in dataflow.get("edges", []) or []:
-            if edge.get("target") == rest:
+            if edge.get("target") == df_id:
                 edges_in.append(edge)
-            if edge.get("source") == rest:
+            if edge.get("source") == df_id:
                 edges_out.append(edge)
 
     scope = None
@@ -746,10 +978,17 @@ def _build_node(repo: Path, state_dir: Optional[str], node_id: str) -> dict:
             found = rest in (xref.get("symbols", {}) or {})
         elif ns == "route":
             all_routes = (xref.get("routes", []) or []) + (xref.get("unresolved_routes", []) or [])
-            found = any(r.get("route") == rest for r in all_routes)
-        elif ns == "table":
+            found = any(r.get("route") == rest for r in all_routes) or any(
+                df_id in (edge.get("source"), edge.get("target"))
+                for edge in (dataflow.get("edges", []) or [])
+            )
+        elif ns in nodeid.DATAFLOW_NAMESPACES:
+            # A typed node exists iff some dataflow edge names it. Checking
+            # the prefixed id (not `rest`) is the same fix as the edge scan
+            # above; the old `channel == "db"` filter also never matched,
+            # since this corpus's table edges use `persist`/`read`/`schema_own`.
             found = any(
-                edge.get("channel") == "db" and rest in (edge.get("source"), edge.get("target"))
+                df_id in (edge.get("source"), edge.get("target"))
                 for edge in (dataflow.get("edges", []) or [])
             )
 

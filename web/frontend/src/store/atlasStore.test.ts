@@ -8,16 +8,17 @@ beforeEach(() => {
 });
 
 describe("descend / ascend", () => {
-  it("descends L3 -> L2 -> L1 and stops at the floor", () => {
+  // The ladder is L3 <-> L2 only: ATLAS_REDESIGN.md sec 7 measured 2 import
+  // edges across 413 files at L1 and cut the altitude rather than styling an
+  // empty canvas.
+  it("descends L3 -> L2 and stops at the floor", () => {
     useAtlasStore.getState().descend("mod-a");
     expect(useAtlasStore.getState().altitude).toBe("L2");
     expect(useAtlasStore.getState().scope).toBe("mod-a");
 
     useAtlasStore.getState().descend("scope-b");
-    expect(useAtlasStore.getState().altitude).toBe("L1");
-
-    useAtlasStore.getState().descend("file-c");
-    expect(useAtlasStore.getState().altitude).toBe("L1");
+    expect(useAtlasStore.getState().altitude).toBe("L2");
+    expect(useAtlasStore.getState().scope).toBe("mod-a");
   });
 
   it("ascends L1 -> L2 -> L3 and stops at the ceiling, clearing scope", () => {
@@ -59,11 +60,18 @@ describe("accumulateWheel", () => {
     expect(useAtlasStore.getState().wheelAccumulator).toBe(0);
   });
 
+  it("stays at L2 when the threshold fires past the floor", () => {
+    useAtlasStore.setState({ altitude: "L2" });
+    const result = useAtlasStore.getState().accumulateWheel(400);
+    expect(result).toBe("descend");
+    expect(useAtlasStore.getState().altitude).toBe("L2");
+  });
+
   it("ascends on a large negative accumulated deltaY", () => {
-    useAtlasStore.setState({ altitude: "L1" });
+    useAtlasStore.setState({ altitude: "L2" });
     const result = useAtlasStore.getState().accumulateWheel(-400);
     expect(result).toBe("ascend");
-    expect(useAtlasStore.getState().altitude).toBe("L2");
+    expect(useAtlasStore.getState().altitude).toBe("L3");
   });
 
   it("stays at L3 when the threshold fires past the ceiling", () => {

@@ -152,8 +152,16 @@ class ReposResponse(BaseModel):
 
 
 class GraphNodeResponse(BaseModel):
-    """One node per module (L3) or scope (L2). Fields that don't apply at a
-    given level are left `None`/empty rather than the model forking in two."""
+    """One node per package (L3) or typed `dataflow` node (L2). Fields that
+    don't apply at a given level are left `None`/empty rather than the model
+    forking in two.
+
+    `type`/`family`/`degree` are `ATLAS_REDESIGN.md` §3's visual-encoding
+    channels, computed server-side so both canvases and the legend read the
+    same source of truth. `node_id` is the *namespaced* (`web/api/nodeid.py`)
+    form the inspector can hand straight to `/api/node/{id}` -- `None` for a
+    synthetic L3 package super-node, which has no single underlying subject.
+    `members` is only populated at L3 (the raw L2 ids rolled into this one)."""
 
     id: str
     label: str
@@ -162,17 +170,37 @@ class GraphNodeResponse(BaseModel):
     by_role: Optional[dict] = None
     by_language: Optional[dict] = None
     oversized: Optional[bool] = None
+    type: Optional[str] = None
+    family: Optional[str] = None
+    degree: Optional[int] = None
+    node_id: Optional[str] = None
+    members: Optional[List[str]] = None
 
 
 class GraphEdgeResponse(BaseModel):
-    """`kind` carries the divergence signal `WEB_RESEARCH.md` §3's Lens section
-    calls out: L3 edges are `declared` / `observed` / `both`; L2 edges (from
-    `xref.coupling`) are `coupling`."""
+    """`kind` carries the channel the edge was extracted from -- `call`,
+    `persist`, `process_boundary`, `http_in`, `read`, `config_read`,
+    `schema_own` at L2/L3 (`dataflow.edges[].channel`), `import` at L1, and
+    the divergence signal `declared` / `observed` / `both` wherever the
+    `graph` artifact is the source. `count` is how many underlying edges a
+    rolled-up L3 edge stands for (always 1 at L2)."""
 
     source: str
     target: str
     kind: str
     weight: Optional[int] = None
+    confidence: Optional[str] = None
+    count: Optional[int] = None
+
+
+class GraphLegendEntry(BaseModel):
+    """One row of the canvas legend, computed from the same tables that drive
+    the encoding so the legend can never drift from what is drawn."""
+
+    type: str
+    label: str
+    family: str
+    count: int
 
 
 class GraphResponse(BaseModel):
@@ -183,6 +211,18 @@ class GraphResponse(BaseModel):
     levels: List[List[str]] = []
     cycles: List[List[str]] = []
     divergence: Optional[dict] = None
+    legend: List[GraphLegendEntry] = []
+
+
+class ConfidenceResponse(BaseModel):
+    """`GET /api/confidence` -- one bulk `{raw graph id -> bucket}` map for a
+    whole altitude, replacing the per-node `/api/node` fan-out the confidence
+    lens used to do (353 requests at L2 after `ATLAS_REDESIGN.md` P0). Buckets
+    are the `theme/confidence.ts` vocabulary: `high` / `medium` / `low` /
+    `contested` / `unreviewed`."""
+
+    level: str
+    buckets: dict
 
 
 class DoctorResponse(BaseModel):

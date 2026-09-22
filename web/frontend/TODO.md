@@ -1,5 +1,58 @@
 # Frontend TODO — gaps vs `WEB_RESEARCH.md` / `PLAN.md`
 
+## `ATLAS_REDESIGN.md` P0–P3 (2026-09-22)
+
+Shipped P0 through P3; P4 (vignette, panel saturation, LOD labels) and P2's
+background hulls are **not** done — they are the doc's own cut line.
+
+- [x] **P0 data — the metric that was silently zero.** `renderable_edges /
+      total` was 0.005 at L0 and the other altitudes had 1–2 edges to draw.
+      L2 is now the typed `dataflow` graph as-is (353 nodes / 371 edges on
+      this repo) and L3 is that same graph rolled up to 18 packages and type
+      buckets (40 edges). L0 now emits only symbol-scoped edges instead of
+      369 dangling module edges. Measured live: **1.000 renderable at every
+      altitude**, zero isolated nodes. Pinned by
+      `web/tests/test_graph_contract.py`, which asserts the ratio *and* a
+      floor on nodes/edges — a ratio alone scores 1.0 on a 2-edge graph,
+      which is exactly the state it was meant to catch.
+- [x] **L1/L0 cut from the ladder, not styled.** §7 measured 2 import edges
+      across 413 files. Both remain on the API (L0 backs the ask-bar
+      typeahead) and remain under the contract test.
+- [x] **P1 encoding.** All six channels carry data: fill = 3-colour family,
+      shape = type (`@sigma/node-border` + `@sigma/node-square`), size = log
+      degree, ring = claim confidence, edge colour = target family, arrows =
+      direction, `@sigma/edge-curve` separates parallel edges. Shape collapses
+      to a dot past `SHAPE_ZOOM_THRESHOLD` and the legend says so — §7's
+      requirement that shape never be the silent sole identity channel.
+- [x] **P2 layout.** `linLogMode` + `outboundAttractionDistribution` replace
+      the bare `inferSettings` that caused the scatter; fit-to-viewport on
+      mount. Verified by probe, not by eye: **0 nodes offscreen** at both
+      altitudes. Nodes *were* sitting under the two permanently-mounted
+      bottom panels, so `TracePanel`/`TimeScrubber` now collapse to chips.
+- [x] **P3 tiles.** Every tile leads with the question it answers; the 0%
+      coverage bar and the all-red freshness bar now say they mean "nothing
+      has run yet", not "something failed"; `root/(agent_adapter+5)` renders
+      as `agent_adapter +5 more` (`scopeLabel`, unit-tested).
+- [x] **Divergence lens → Flow lens.** The declared/observed/both tags it
+      coloured only existed on the `graph`-artifact edges P0 removed, so it
+      would have been a no-op everywhere. Flow colours the same edges by
+      extraction channel. The divergence counts still surface in the L3
+      legend.
+- [x] **`GET /api/confidence`.** The confidence lens used to fire one
+      `/api/node` per visible node — fine at 20 scopes, 353 requests per
+      toggle after P0. One bulk call now. Found and fixed two real bugs while
+      wiring it: claim `subject`s are `dataflow`-style ids that
+      `SubjectIndex` classifies as `None` (the inspector showed 0 claims for
+      every typed node), and `/api/node` matched dataflow edges against the
+      *unprefixed* id, so `route:`/`table:` neighbourhoods were always empty.
+
+Deferred, with reasons:
+- Background hulls per package (`@sigma/layer-webgl`) — P2's own cut item.
+- P4 polish (vignette, `saturate(165%)`, LOD labels) — doc says cut first.
+- Hierarchical edge bundling — §4: no maintained WebGL implementation, a
+  bespoke build rather than a drop-in.
+
+
 Audited 2026-09-22 against the live `web/api/app.py` surface and the current
 `web/frontend/src` tree. Backend endpoints already exist for every item below
 unless noted "no backend endpoint either" — these are frontend-consumption

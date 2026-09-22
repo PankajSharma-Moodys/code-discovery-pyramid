@@ -4,19 +4,38 @@ Four artifacts today carry node identity with no join key between them:
 `graph.modules` (module names), `partition.scopes[].node` (`root/…` paths),
 `xref.symbols` (FQNs), and a claim's `subject` (an FQN *or* table *or* route
 *or* config key, `schema/patch-1.0.0.json:59`). This module is the one place
-that decides which of the six namespaces (`module:`, `scope:`, `file:`,
-`sym:`, `route:`, `table:`) an identifier belongs to, so no handler does its
-own ad-hoc string matching.
+that decides which namespace (`module:`, `scope:`, `file:`, `sym:`, plus the
+`dataflow` node types) an identifier belongs to, so no handler does its own
+ad-hoc string matching.
 
-Pure functions over artifact dicts, no I/O -- `/api/node/:id` (not built this
-cycle) is the eventual caller.
+The `dataflow` types (`route`, `table`, `process`, `entity`, `config`,
+`library`, `migration`, `port`) are *both* namespaces here and the literal
+prefixes `dataflow.edges` already uses for its endpoints. That coincidence is
+deliberate and load-bearing since `ATLAS_REDESIGN.md` P0 made the typed
+dataflow graph the L2 canvas: a `table:churn_cache` node id round-trips
+between the graph and `/api/node/{id}` unchanged, with no re-derivation.
+
+Pure functions over artifact dicts, no I/O -- `/api/node/:id` is the caller.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
-NAMESPACES = ("module", "scope", "file", "sym", "route", "table")
+#: Namespaces whose identifier is *also* a `dataflow` endpoint id verbatim
+#: (prefix included) -- see the module docstring.
+DATAFLOW_NAMESPACES = (
+    "route",
+    "table",
+    "process",
+    "entity",
+    "config",
+    "library",
+    "migration",
+    "port",
+)
+
+NAMESPACES = ("module", "scope", "file", "sym") + DATAFLOW_NAMESPACES
 
 
 def module_id(name: str) -> str:
@@ -41,6 +60,33 @@ def route_id(route: str) -> str:
 
 def table_id(name: str) -> str:
     return "table:%s" % name
+
+
+def from_dataflow_id(raw_id: str, symbols: Optional[Set[str]] = None) -> Optional[str]:
+    """Maps a `dataflow.edges` endpoint to the namespaced id `/api/node/{id}`
+    accepts, or `None` when nothing can resolve it.
+
+    A `type:`-prefixed endpoint is already in namespaced form and is returned
+    unchanged. A bare endpoint is a symbol when `xref.symbols` knows it and a
+    module otherwise -- checking the symbol table rather than looking for a
+    `#` is what keeps class-style ids (`web.api.models.JobResponse`, no `#`
+    but a real symbol) from being mislabelled as modules."""
+    ns, sep, _rest = raw_id.partition(":")
+    if sep and ns in DATAFLOW_NAMESPACES:
+        return raw_id
+    if symbols and raw_id in symbols:
+        return sym_id(raw_id)
+    return module_id(raw_id)
+
+
+def dataflow_id(node_id: str) -> str:
+    """Inverse of {@link from_dataflow_id}: the `dataflow.edges` endpoint a
+    namespaced id corresponds to. `dataflow`-namespace ids keep their prefix
+    (that *is* the endpoint string); `sym:`/`module:` ids drop theirs."""
+    ns, sep, rest = node_id.partition(":")
+    if sep and ns in DATAFLOW_NAMESPACES:
+        return node_id
+    return rest if sep else node_id
 
 
 def parse(node_id: str) -> "tuple[str, str]":

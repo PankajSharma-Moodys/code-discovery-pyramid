@@ -145,9 +145,10 @@ export function DoctorHeatmap() {
   if (doctorReport.isError) {
     return (
       <div className="atlas-card flex flex-col gap-2 p-4 text-sm" style={cardStyle}>
-        <h2 className="text-sm font-medium">Doctor / model compatibility</h2>
+        <h2 className="text-sm font-medium">Which models can CDP trust?</h2>
         <span style={{ color: "var(--atlas-text-dim)" }}>
-          no doctor reports yet -- run <span className="font-mono">cdp doctor --model &lt;name&gt;</span> first
+          No model has been graded yet, so nothing here is known good or bad. Run{" "}
+          <span className="font-mono">cdp doctor --model &lt;name&gt;</span> to score one.
         </span>
       </div>
     );
@@ -158,7 +159,13 @@ export function DoctorHeatmap() {
 
   return (
     <div className="atlas-card flex flex-col gap-3 p-4" style={cardStyle}>
-      <h2 className="text-sm font-medium">Doctor / model compatibility</h2>
+      <div>
+        <h2 className="text-sm font-medium">Which models can CDP trust?</h2>
+        <p className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          How each model scored against a held-out set. Green is good in every column — the last
+          two are inverted so they read the same way.
+        </p>
+      </div>
       <table className="w-full text-left text-xs" style={{ color: "var(--atlas-text-dim)" }}>
         <thead>
           <tr style={{ color: "var(--atlas-text)" }}>

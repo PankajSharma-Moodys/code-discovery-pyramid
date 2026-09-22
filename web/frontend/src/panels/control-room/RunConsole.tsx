@@ -5,6 +5,20 @@ import { taskStateColor, taskStateStroke } from "../../theme/taskState.ts";
 
 type TargetKind = DispatchTarget["kind"];
 
+/** `ATLAS_REDESIGN.md` §5, third row: a partition scope node is a machine
+ * string -- `root/(agent_adapter+5)` means "the scope rooted at
+ * `agent_adapter`, plus five sibling directories folded in". Rendered raw it
+ * is unreadable, and it is the label repeated dozens of times across the wave
+ * grid. The full id stays in the `title` so nothing is hidden. */
+export function scopeLabel(node: string): string {
+  const withoutRoot = node.replace(/^root\//, "");
+  const folded = withoutRoot.match(/^\((.+)\+(\d+)\)$/);
+  if (folded) return `${folded[1]} +${folded[2]} more`;
+  const trailing = withoutRoot.match(/^(.*)\/\((.+)\+(\d+)\)$/);
+  if (trailing) return `${trailing[1]}/${trailing[2]} +${trailing[3]} more`;
+  return withoutRoot.replace(/\/\((.+)\)$/, "/$1");
+}
+
 /** Live wave board over `snapshot_task`/`snapshot_run` -- `WEB_RESEARCH.md`
  * §4.2. `useStatus`'s poll is the state of record; `useRunEvents` only
  * overlays faster, additive updates while a job is in flight and the tab is
@@ -129,7 +143,7 @@ export function RunConsole() {
                 return (
                   <span
                     key={node.node}
-                    title={`${node.node}: ${state}`}
+                    title={`${node.node} — ${state}`}
                     className="rounded border px-1.5 py-0.5 text-xs"
                     style={{
                       borderColor: taskStateColor(state),
@@ -137,7 +151,7 @@ export function RunConsole() {
                       color: taskStateColor(state),
                     }}
                   >
-                    {node.node}
+                    {scopeLabel(node.node)}
                   </span>
                 );
               })}

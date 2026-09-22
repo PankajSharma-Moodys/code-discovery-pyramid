@@ -6,6 +6,9 @@ import { confidenceColor, type ConfidenceBucket } from "../theme/confidence.ts";
 interface InspectorRailProps {
   altitude: Altitude;
   selectedRawId: string | null;
+  /** Server-resolved namespaced id -- see `PeekCard`'s equivalent. `null` for
+   * an L3 package super-node. */
+  selectedApiNodeId: string | null;
   onClose: () => void;
 }
 
@@ -13,8 +16,13 @@ interface InspectorRailProps {
  * button that fetches the real file content via `/api/source` -- "show in
  * code" is this pane, not a separate route, so a claim's anchor is always
  * one click from the actual bytes it cites. */
-export function InspectorRail({ altitude, selectedRawId, onClose }: InspectorRailProps) {
-  const { data: node } = useNodeAt(altitude, selectedRawId);
+export function InspectorRail({
+  altitude,
+  selectedRawId,
+  selectedApiNodeId,
+  onClose,
+}: InspectorRailProps) {
+  const { data: node } = useNodeAt(altitude, null, selectedApiNodeId);
   const [openEvidence, setOpenEvidence] = useState<{ file: string; line: number } | null>(null);
   const { data: source } = useSourceFile(openEvidence?.file ?? null, openEvidence?.line ?? null);
 
@@ -37,7 +45,13 @@ export function InspectorRail({ altitude, selectedRawId, onClose }: InspectorRai
         </button>
       </div>
 
-      {!node && <div style={{ color: "var(--atlas-text-dim)" }}>loading…</div>}
+      {!node && (
+        <div style={{ color: "var(--atlas-text-dim)" }}>
+          {selectedApiNodeId
+            ? "loading…"
+            : "This is a group of nodes, not a single one — double-click it on the canvas to open what's inside."}
+        </div>
+      )}
 
       {node && (
         <>

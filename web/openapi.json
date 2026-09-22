@@ -544,10 +544,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "altitude: L0 (symbols), L1 (files), L2 (territory), L3 (module dependency)",
+              "description": "altitude: L0 (symbols), L1 (files), L2 (typed dataflow nodes), L3 (packages)",
               "title": "Level"
             },
-            "description": "altitude: L0 (symbols), L1 (files), L2 (territory), L3 (module dependency)"
+            "description": "altitude: L0 (symbols), L1 (files), L2 (typed dataflow nodes), L3 (packages)"
           },
           {
             "name": "scope",
@@ -562,10 +562,10 @@
                   "type": "null"
                 }
               ],
-              "description": "filter to one scope's/module's neighborhood (L0-L2)",
+              "description": "filter to one package's/scope's neighborhood",
               "title": "Scope"
             },
-            "description": "filter to one scope's/module's neighborhood (L0-L2)"
+            "description": "filter to one package's/scope's neighborhood"
           },
           {
             "name": "repo",
@@ -603,6 +603,93 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/confidence": {
+      "get": {
+        "summary": "Get Confidence",
+        "operationId": "get_confidence_api_confidence_get",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "altitude, same vocabulary as /api/graph",
+              "title": "Level"
+            },
+            "description": "altitude, same vocabulary as /api/graph"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "same scope filter as /api/graph",
+              "title": "Scope"
+            },
+            "description": "same scope filter as /api/graph"
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfidenceResponse"
                 }
               }
             }
@@ -1714,6 +1801,26 @@
         ],
         "title": "ClaimResponse"
       },
+      "ConfidenceResponse": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "buckets": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Buckets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "buckets"
+        ],
+        "title": "ConfidenceResponse",
+        "description": "`GET /api/confidence` -- one bulk `{raw graph id -> bucket}` map for a\nwhole altitude, replacing the per-node `/api/node` fan-out the confidence\nlens used to do (353 requests at L2 after `ATLAS_REDESIGN.md` P0). Buckets\nare the `theme/confidence.ts` vocabulary: `high` / `medium` / `low` /\n`contested` / `unreviewed`."
+      },
       "CoverageResponse": {
         "properties": {
           "fraction": {
@@ -1947,6 +2054,28 @@
               }
             ],
             "title": "Weight"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
           }
         },
         "type": "object",
@@ -1956,7 +2085,36 @@
           "kind"
         ],
         "title": "GraphEdgeResponse",
-        "description": "`kind` carries the divergence signal `WEB_RESEARCH.md` \u00a73's Lens section\ncalls out: L3 edges are `declared` / `observed` / `both`; L2 edges (from\n`xref.coupling`) are `coupling`."
+        "description": "`kind` carries the channel the edge was extracted from -- `call`,\n`persist`, `process_boundary`, `http_in`, `read`, `config_read`,\n`schema_own` at L2/L3 (`dataflow.edges[].channel`), `import` at L1, and\nthe divergence signal `declared` / `observed` / `both` wherever the\n`graph` artifact is the source. `count` is how many underlying edges a\nrolled-up L3 edge stands for (always 1 at L2)."
+      },
+      "GraphLegendEntry": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "family": {
+            "type": "string",
+            "title": "Family"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "label",
+          "family",
+          "count"
+        ],
+        "title": "GraphLegendEntry",
+        "description": "One row of the canvas legend, computed from the same tables that drive\nthe encoding so the legend can never drift from what is drawn."
       },
       "GraphNodeResponse": {
         "properties": {
@@ -2024,6 +2182,64 @@
               }
             ],
             "title": "Oversized"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
+          },
+          "degree": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degree"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          },
+          "members": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Members"
           }
         },
         "type": "object",
@@ -2032,7 +2248,7 @@
           "label"
         ],
         "title": "GraphNodeResponse",
-        "description": "One node per module (L3) or scope (L2). Fields that don't apply at a\ngiven level are left `None`/empty rather than the model forking in two."
+        "description": "One node per package (L3) or typed `dataflow` node (L2). Fields that\ndon't apply at a given level are left `None`/empty rather than the model\nforking in two.\n\n`type`/`family`/`degree` are `ATLAS_REDESIGN.md` \u00a73's visual-encoding\nchannels, computed server-side so both canvases and the legend read the\nsame source of truth. `node_id` is the *namespaced* (`web/api/nodeid.py`)\nform the inspector can hand straight to `/api/node/{id}` -- `None` for a\nsynthetic L3 package super-node, which has no single underlying subject.\n`members` is only populated at L3 (the raw L2 ids rolled into this one)."
       },
       "GraphResponse": {
         "properties": {
@@ -2098,6 +2314,14 @@
               }
             ],
             "title": "Divergence"
+          },
+          "legend": {
+            "items": {
+              "$ref": "#/components/schemas/GraphLegendEntry"
+            },
+            "type": "array",
+            "title": "Legend",
+            "default": []
           }
         },
         "type": "object",
