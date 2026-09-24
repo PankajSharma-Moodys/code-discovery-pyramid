@@ -184,6 +184,89 @@ describe("layoutForceAtlas2 + noverlap at real scale", () => {
   });
 });
 
+function nearestNeighborDistances(pts: { x: number; y: number }[]): number[] {
+  return pts.map((p, i) => {
+    let min = Infinity;
+    for (let j = 0; j < pts.length; j++) {
+      if (i === j) continue;
+      min = Math.min(min, Math.hypot(p.x - pts[j].x, p.y - pts[j].y));
+    }
+    return min;
+  });
+}
+
+function percentile(sorted: number[], p: number): number {
+  const idx = Math.min(sorted.length - 1, Math.floor(p * sorted.length));
+  return sorted[idx];
+}
+
+/** A fragmented graph shaped like the real 353-node L2 repo graph (85
+ * disconnected components: one big connected core plus many small,
+ * mutually-unreachable clusters -- `import`/`call` graphs are like this
+ * because plenty of modules only talk to a shared core, never to each
+ * other). This is the fixture that exposed the actual "clubbed vs far
+ * apart" defect: FA2's shared gravity center governs *inter*-component
+ * placement, but nothing enforced a minimum gap between components, only
+ * within one. */
+function addFragmentedGraph(graph: Graph, componentSizes: number[]): void {
+  componentSizes.forEach((size, ci) => {
+    const prefix = `c${ci}_`;
+    for (let i = 0; i < size; i++) graph.addNode(`${prefix}${i}`, { x: 0, y: 0, size: 4 });
+    // Star-shaped internally so every component is connected but not dense.
+    for (let i = 1; i < size; i++) graph.addEdge(`${prefix}0`, `${prefix}${i}`);
+  });
+}
+
+describe("layoutForceAtlas2 inter-component spacing (fixes clumped-vs-far-apart nodes)", () => {
+  it("keeps disconnected components' centroid spacing within a bounded ratio, not 65x apart", () => {
+    // Mirrors the real repo's own L2 graph shape: one big component plus a
+    // long tail of small ones (real top5 sizes were 171,7,6,4,4 across 85
+    // components). Before `separateComponents` existed, this measured
+    // min=1.2 max=80.8 ratio=65.3 on the real graph; after, min=110.2
+    // max=654.8 ratio=5.9.
+    const graph = new Graph({ multi: true, type: "directed" });
+    const sizes = [40, 7, 6, 4, 4, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2];
+    addFragmentedGraph(graph, sizes);
+
+    layoutForceAtlas2(graph);
+
+    const idsInOrder: string[] = [];
+    graph.forEachNode((id) => idsInOrder.push(id));
+    const pts = positions(graph);
+    const centroids = new Map<string, { x: number; y: number; n: number }>();
+    idsInOrder.forEach((id, i) => {
+      const compKey = id.split("_")[0];
+      const c = centroids.get(compKey) ?? { x: 0, y: 0, n: 0 };
+      c.x += pts[i].x;
+      c.y += pts[i].y;
+      c.n += 1;
+      centroids.set(compKey, c);
+    });
+    const centroidPts = [...centroids.values()].map((c) => ({ x: c.x / c.n, y: c.y / c.n }));
+    const cnnd = nearestNeighborDistances(centroidPts).sort((a, b) => a - b);
+    const ratio = cnnd[cnnd.length - 1] / Math.max(0.001, cnnd[0]);
+
+    // The unfixed baseline measured 65.3x on the real graph; 10x leaves
+    // headroom for fixture-shape variance while still catching a
+    // regression back to "ungoverned" inter-component spacing.
+    expect(ratio).toBeLessThan(10);
+
+    // And within a single component, node-level evenness must stay intact
+    // -- `separateComponents` only rigidly translates each component, so it
+    // must not distort the FA2 layout it already computed internally.
+    const bigCompPts = idsInOrder
+      .map((id, i) => ({ id, i }))
+      .filter(({ id }) => id.startsWith("c0_"))
+      .map(({ i }) => pts[i]);
+    // Star-shaped internally (one hub + leaves), so nnd variance is higher
+    // than a fanout tree by construction -- the hub-and-pendants fixture
+    // above measured p90/p10 up to 3.26 for the same shape; 5 leaves margin
+    // while still catching a real regression back to "ungoverned" spacing.
+    const nnd = nearestNeighborDistances(bigCompPts).sort((a, b) => a - b);
+    expect(percentile(nnd, 0.9) / Math.max(0.001, percentile(nnd, 0.1))).toBeLessThan(5);
+  });
+});
+
 describe("buildGraph position caching (positionCache.ts)", () => {
   it("re-applies a pinned cached position after a ranked (dagre) rebuild", () => {
     const cacheKey = { repoKey: "test-repo:", level: "L2", scope: null };
@@ -291,6 +374,48 @@ describe("expand-in-place (WEB_REDESIGN_RESEARCH.md §3.2)", () => {
     expect(graph.hasNode("a.py")).toBe(false);
     expect(graph.getNodeAttribute("sql-pool", "size")).toBe(originalSize);
     expect(graph.getNodeAttribute("sql-pool", "baseLabel")).toBe(originalLabel);
+  });
+
+  it("separates a container's children when they form multiple disconnected clusters", () => {
+    const graph = buildContainerGraph();
+    graph.setNodeAttribute("sql-pool", "x", 0);
+    graph.setNodeAttribute("sql-pool", "y", 0);
+
+    // Two disconnected clusters -- nothing here shares an edge across the
+    // "cluster1"/"cluster2" split, the exact shape `separateComponents`
+    // exists to keep apart (previously only applied to the top-level graph,
+    // not this scratch layout).
+    const children = {
+      nodes: [
+        { id: "cluster1-a", label: "cluster1-a" },
+        { id: "cluster1-b", label: "cluster1-b" },
+        { id: "cluster2-a", label: "cluster2-a" },
+        { id: "cluster2-b", label: "cluster2-b" },
+      ],
+      edges: [
+        { source: "cluster1-a", target: "cluster1-b", kind: "call" },
+        { source: "cluster2-a", target: "cluster2-b", kind: "call" },
+      ],
+    };
+
+    const expanded = expandContainerInPlace(graph, "sql-pool", children);
+    expect(expanded.childIds.sort()).toEqual(["cluster1-a", "cluster1-b", "cluster2-a", "cluster2-b"]);
+
+    const centroid = (ids: string[]) => {
+      let x = 0;
+      let y = 0;
+      for (const id of ids) {
+        x += graph.getNodeAttribute(id, "x") as number;
+        y += graph.getNodeAttribute(id, "y") as number;
+      }
+      return { x: x / ids.length, y: y / ids.length };
+    };
+    const c1 = centroid(["cluster1-a", "cluster1-b"]);
+    const c2 = centroid(["cluster2-a", "cluster2-b"]);
+    // Not a tight bound (the whole thing is rescaled into a small fixed
+    // radius around the parent) -- just confirms the two clusters don't land
+    // on top of each other, the failure mode without `separateComponents`.
+    expect(Math.hypot(c2.x - c1.x, c2.y - c1.y)).toBeGreaterThan(1);
   });
 
   it("collapse is a safe no-op against a graph that no longer has the parent", () => {

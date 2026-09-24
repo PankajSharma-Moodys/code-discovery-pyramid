@@ -1544,3 +1544,98 @@ User picked exactly these two of the four deferred items above.
       (unchanged) — the pointer-events change touches only the
       no-graph-present states, so it doesn't affect any of the existing
       expand/pin/minimap e2e coverage.
+
+## Graph node spacing fix, empirically root-caused (2026-09-24)
+
+User asked why the Atlas graph "doesn't feel natural/spacious" — some nodes
+clubbed together, others far apart. Measured first, per this repo's own
+debugging-process convention, rather than guessing at dagre/FA2 constants.
+
+- [x] Instrumented `graphLayout.test.ts`'s real-scale fixtures
+      (chain/tree/hub/dense-fan-out/hub-and-pendants, 353-node scale) plus a
+      live pull of this repo's own `.cdp/index.db` L2 graph (`uvicorn` on
+      `:8123`, `curl /api/graph?level=L2` → 353 nodes, 371 edges) to measure
+      nearest-neighbor-distance evenness. Every synthetic fixture came back
+      even (nnd p90/p10 in 1.0–2.5) — **node-level spacing was never the
+      defect**. The real graph told a different story: 85 disconnected
+      connected-components (top sizes 171,7,6,4,4), and inter-component
+      centroid nearest-neighbor distance ranged 1.2 to 80.8 (ratio 65.3x) —
+      neither FA2's shared gravity center nor noverlap's flat margin enforces
+      any minimum gap *between* components, only *within* one. That's the
+      actual mechanism behind "clubbed vs far apart": components that
+      happen to converge near each other under FA2's gravity end up
+      touching/overlapping, while others land arbitrarily far out.
+      Tried and rejected two tuning-based fixes as unstable/non-monotonic
+      once measured: `NOVERLAP_SETTINGS.margin` 6→40 fixed inter-component
+      spacing but wrecked node-level evenness (p90/p10 1.37→4.90); `margin`
+      →15 made both worse. `scalingRatio` 0.2→0.4 made inter-component
+      clumping *worse* (ratio 65.3→147), consistent with this file's own
+      existing comment about a prior overcorrection cycle on that exact
+      constant — left untouched. Also tried grouping `seedCircle`'s
+      insertion order by component: looked good in an isolated hand-rolled
+      test (ratio 65.3→25.4) but made the real code path *worse* when
+      actually wired in (ratio→108.5), because FA2 is sensitive to node
+      processing order, not just seeded x/y — the isolated test was
+      confounded. Abandoned.
+- [x] Fixed with a deterministic post-layout pass instead of tuning FA2's
+      internals: `componentGroups()` (union-find over the graph, `O(V+E)`)
+      + `separateComponents()` (`graphLayout.ts`, called from both
+      `layoutForceAtlas2` and `layoutForceAtlas2Async` after FA2+noverlap
+      settle) — computes each component's bounding circle from its own
+      already-converged centroid/radius, then iteratively translates
+      overlapping component-pairs apart as rigid bodies (`COMPONENT_MIN_GAP
+      = 30`, 80 iterations), leaving every component's own internal FA2
+      layout untouched. Re-measured against the same real 353-node L2 graph:
+      inter-component ratio 65.3x → 5.9x (min 110.2, max 654.8); the
+      largest component's own internal node-level evenness unchanged
+      (p90/p10 1.47, same as pre-fix baseline).
+      Locked in with a permanent test (`graphLayout.test.ts`, "inter-component
+      spacing (fixes clumped-vs-far-apart nodes)") on a synthetic
+      15-component fragmented fixture shaped like the real graph's size
+      distribution, asserting the centroid-nnd ratio stays under 10x and
+      within-component evenness stays under 5x — not just eyeballing.
+      Full regression: `npx vitest run` → 48/48; `npx tsc -b` → same one
+      pre-existing `vite.config.ts` error only.
+- [ ] Not addressed this pass: `expandContainerInPlace`'s scratch-graph
+      layout still calls `noverlap.assign` directly without
+      `separateComponents` — an expanded container's children are usually
+      one connected cluster already, so this gap is lower-priority, but
+      worth revisiting if a container's children themselves turn out to be
+      fragmented. No live-browser visual re-check was done for this pass
+      (no Playwright run) — the numeric before/after on the real graph's own
+      data is the evidence gate here, per this repo's own "verify or mark
+      unverified" convention; a follow-up visual pass against a running
+      `AtlasCanvas` would still be worthwhile.
+
+## Closed the `expandContainerInPlace` component-separation gap (2026-09-24)
+
+Picked up the one item the entry directly above flagged as not yet
+addressed.
+
+- [x] `expandContainerInPlace`'s scratch-graph layout (`graphLayout.ts`) now
+      calls `separateComponents(scratch)` after its FA2+noverlap pass, same
+      as `layoutForceAtlas2`'s own call site — a container's children can
+      themselves be a fragmented graph (e.g. a directory with several files
+      that share no calls with each other), and without this the unrelated
+      clusters could land coincident inside the small fixed-radius expansion
+      circle, the same defect the top-level spacing fix above closed for the
+      main graph. Runs pre-rescale, in the scratch graph's own FA2-native
+      coordinate scale (matching `layoutForceAtlas2`'s call site), so the
+      existing default `COMPONENT_MIN_GAP`/iteration count apply unchanged —
+      no new tuning constants needed.
+      New test (`graphLayout.test.ts`, "separates a container's children when
+      they form multiple disconnected clusters"): two 2-node clusters
+      sharing no edge, asserts their centroids don't land on top of each
+      other after expansion. `npx vitest run`: 49/49 (was 48, +1). `npx tsc
+      -b`: same one pre-existing, unrelated `vite.config.ts` error only.
+      **Not verified live in a browser this pass** — same tooling-
+      availability caveat as most entries above; this repo's own real
+      containers are small enough that a fragmented-children case wasn't
+      observed live, only reproduced synthetically in the new test.
+- [ ] Deferred, unchanged: `/api/search` further ranking work beyond the
+      fixed `q=id` counterexample; arbitrary expansion depth beyond
+      `MAX_EXPANSION_DEPTH`; ELK.js/Cytoscape.js compound-graph renderer
+      swap — all out of scope by the user's own explicit prior choice, not
+      revisited this pass. The `TARGET_REPO`-gated golden baseline
+      (`tests/golden/code_scanner@7e10575adf69/query/search.json`) still
+      needs a `--bless` re-run by whoever has access to that private repo.
