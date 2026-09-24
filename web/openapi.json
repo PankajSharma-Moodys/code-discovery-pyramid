@@ -284,6 +284,89 @@
         }
       }
     },
+    "/api/search": {
+      "get": {
+        "summary": "Get Search",
+        "description": "`WEB_REDESIGN_RESEARCH.md` \u00a74's server-side search-to-focus, replacing\nthe ask-bar's client-side substring filter over a full L0 fetch\n(`useSymbolTypeahead`, 6.8MB on `unified-store`). Not a new search\nalgorithm -- `cdp.query.q_search` (`kind=\"search\"`, already reachable via\n`/api/query`) already matches symbols/files/claims/unknowns with\nbudget-based elision; this is a thin, UI-shaped reformatting of just its\n`symbols`/`files` buckets (`claims`/`unknowns` aren't graph-focusable, so\ndropped here) into one flat, rank-preserved list the ask-bar's typeahead\ncan render directly.",
+        "operationId": "get_search_api_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "description": "search term, matched against symbol fqns and file paths",
+              "title": "Q"
+            },
+            "description": "search term, matched against symbol fqns and file paths"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/trace": {
       "get": {
         "summary": "Get Trace",
@@ -608,6 +691,24 @@
               "title": "Hide Roles"
             },
             "description": "drop nodes whose file role matches (repeatable), plus any edge touching one"
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "restrict to this node's neighbourhood without changing level/scope (breadcrumb-free descent)",
+              "title": "Focus"
+            },
+            "description": "restrict to this node's neighbourhood without changing level/scope (breadcrumb-free descent)"
           },
           {
             "name": "repo",
@@ -2375,6 +2476,27 @@
             "type": "array",
             "title": "Legend",
             "default": []
+          },
+          "rungs": {
+            "items": {
+              "$ref": "#/components/schemas/GraphRungResponse"
+            },
+            "type": "array",
+            "title": "Rungs",
+            "default": []
+          },
+          "too_large": {
+            "type": "boolean",
+            "title": "Too Large",
+            "default": false
+          },
+          "suggested_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggested Scopes",
+            "default": []
           }
         },
         "type": "object",
@@ -2384,6 +2506,36 @@
           "edges"
         ],
         "title": "GraphResponse"
+      },
+      "GraphRungResponse": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "label"
+        ],
+        "title": "GraphRungResponse",
+        "description": "One entry of the altitude ladder as computed for *this* repo --\n`\"L3\"` (depth 1) through however many `\"P{depth}\"` rungs\n`encoding.real_depths` found a real fork at, then a fixed terminal\n`\"L2\"`. Sent on every `/api/graph` response (repo-wide, not\nlevel-specific) so the client can always enumerate the ladder from a\nsingle request rather than racing a separate lookup against it."
       },
       "HTTPValidationError": {
         "properties": {
@@ -2828,6 +2980,51 @@
           "loc"
         ],
         "title": "ScopeSummaryResponse"
+      },
+      "SearchResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResultResponse"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "results"
+        ],
+        "title": "SearchResponse"
+      },
+      "SearchResultResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind"
+        ],
+        "title": "SearchResultResponse",
+        "description": "One `GET /api/search` hit -- a thin, UI-shaped reformatting of\n`cdp.query.q_search`'s `symbols`/`files` buckets (`claims`/`unknowns`\ndropped, not relevant to a graph-focus search box). `id` is what the\nclient hands to `selectNode`/`jumpTo`; `kind` distinguishes a symbol fqn\nfrom a file path so the UI can pick an icon/altitude."
       },
       "SnapshotMetaResponse": {
         "properties": {

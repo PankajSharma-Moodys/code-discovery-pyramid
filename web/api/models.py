@@ -208,6 +208,19 @@ class GraphLegendEntry(BaseModel):
     count: int
 
 
+class GraphRungResponse(BaseModel):
+    """One entry of the altitude ladder as computed for *this* repo --
+    `"L3"` (depth 1) through however many `"P{depth}"` rungs
+    `encoding.real_depths` found a real fork at, then a fixed terminal
+    `"L2"`. Sent on every `/api/graph` response (repo-wide, not
+    level-specific) so the client can always enumerate the ladder from a
+    single request rather than racing a separate lookup against it."""
+
+    level: str
+    depth: Optional[int] = None
+    label: str
+
+
 class GraphResponse(BaseModel):
     level: str
     scope: Optional[str] = None
@@ -217,6 +230,32 @@ class GraphResponse(BaseModel):
     cycles: List[List[str]] = []
     divergence: Optional[dict] = None
     legend: List[GraphLegendEntry] = []
+    rungs: List[GraphRungResponse] = []
+    #: `WEB_REDESIGN_RESEARCH.md` §4 -- set instead of returning the full
+    #: (unbounded) unscoped-L2 node/edge list when it exceeds
+    #: `app.GRAPH_SIZE_CEILING`. `nodes`/`edges` are empty in that case;
+    #: `suggested_scopes` names a few container groups to descend into
+    #: instead, so the client can render "pick a module" rather than
+    #: attempting a layout on a graph this large.
+    too_large: bool = False
+    suggested_scopes: List[str] = []
+
+
+class SearchResultResponse(BaseModel):
+    """One `GET /api/search` hit -- a thin, UI-shaped reformatting of
+    `cdp.query.q_search`'s `symbols`/`files` buckets (`claims`/`unknowns`
+    dropped, not relevant to a graph-focus search box). `id` is what the
+    client hands to `selectNode`/`jumpTo`; `kind` distinguishes a symbol fqn
+    from a file path so the UI can pick an icon/altitude."""
+
+    id: str
+    label: str
+    kind: str
+
+
+class SearchResponse(BaseModel):
+    count: int
+    results: List[SearchResultResponse]
 
 
 class ConfidenceResponse(BaseModel):

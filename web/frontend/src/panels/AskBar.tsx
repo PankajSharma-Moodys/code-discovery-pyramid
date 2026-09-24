@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAskQuery, useSourceFile, useSymbolTypeahead } from "../api/hooks.ts";
-import { formatAskCommand, useAskBarStore } from "../store/askBarStore.ts";
+import { useAskQuery, useSearch, useSourceFile } from "../api/hooks.ts";
+import { formatAskCommand, QUERY_KINDS, useAskBarStore } from "../store/askBarStore.ts";
 import { useAtlasStore } from "../store/atlasStore.ts";
 import { useViewStore } from "../store/viewStore.ts";
 
@@ -103,14 +103,32 @@ export function AskBar() {
   const startTrace = useAtlasStore((s) => s.startTrace);
   const setView = useViewStore((s) => s.setView);
 
-  const { data: symbols } = useSymbolTypeahead();
   const isTraceQuery = submitted === null && /^(trace|symbol)\s+\S/i.test(draft);
   const typeaheadPrefix = draft.match(/^(trace|symbol)\s+(.*)$/i)?.[2] ?? "";
+  // `WEB_REDESIGN_RESEARCH.md` §4's server-side search-to-focus: ranked
+  // symbol/file typeahead over the thin `/api/search` endpoint, not the old
+  // full-L0-fetch-then-substring-filter (`useSymbolTypeahead`, 6.8MB on
+  // `unified-store`). One query serves both the `trace|symbol <prefix>`
+  // typeahead below and the free-text jump-to-result list further down.
+  const { data: prefixResults } = useSearch(typeaheadPrefix, isOpen && isTraceQuery);
   const suggestions = useMemo(() => {
-    if (!isTraceQuery || !symbols || typeaheadPrefix.length < 2) return [];
-    const needle = typeaheadPrefix.toLowerCase();
-    return symbols.filter((fqn) => fqn.toLowerCase().includes(needle)).slice(0, 8);
-  }, [isTraceQuery, symbols, typeaheadPrefix]);
+    if (!isTraceQuery || !prefixResults) return [];
+    return prefixResults.filter((r) => r.kind === "symbol").map((r) => r.id).slice(0, 8);
+  }, [isTraceQuery, prefixResults]);
+
+  // Free-text jump-to-result: shown only when the draft has no recognized
+  // `cdp query` kind prefix and nothing has been submitted yet -- a direct
+  // "search-to-focus" shortcut so a bare repo-vocabulary term (a file path, a
+  // class name) doesn't require running the full `search` query and hunting
+  // its `anchors` first.
+  const isFreeText = submitted === null && !isTraceQuery && !(QUERY_KINDS as readonly string[]).includes(
+    draft.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "",
+  );
+  const { data: freeTextResults } = useSearch(draft.trim(), isOpen && isFreeText);
+  const jumpSuggestions = useMemo(
+    () => (isFreeText ? (freeTextResults ?? []).slice(0, 8) : []),
+    [isFreeText, freeTextResults],
+  );
 
   const queryForBackend = submitted && submitted.kind !== "trace" ? submitted : null;
   const { data: result, isLoading, error } = useAskQuery(queryForBackend);
@@ -217,6 +235,33 @@ export function AskBar() {
                   }}
                 >
                   {fqn}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {jumpSuggestions.length > 0 && (
+          <ul className="mt-1 max-h-40 overflow-y-auto text-xs">
+            {jumpSuggestions.map((r) => (
+              <li key={`${r.kind}:${r.id}`}>
+                <button
+                  className="flex w-full items-center justify-between gap-2 truncate rounded px-2 py-1 text-left"
+                  style={{ color: "var(--atlas-text-dim)" }}
+                  onClick={() => {
+                    if (r.kind === "file") {
+                      jumpTo("L1");
+                      selectNode(r.id);
+                      setView("atlas");
+                      close();
+                    } else {
+                      setDraft(`symbol ${r.id}`);
+                      inputRef.current?.focus();
+                    }
+                  }}
+                >
+                  <span className="truncate">{r.label}</span>
+                  <span className="shrink-0 font-mono text-[10px] opacity-60">{r.kind}</span>
                 </button>
               </li>
             ))}

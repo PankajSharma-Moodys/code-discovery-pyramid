@@ -26,4 +26,10 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    // `e2e/` holds Playwright specs (a separate runner, its own config) --
+    // vitest's default glob matches `*.spec.ts` too and would otherwise try
+    // to load Playwright's `test()` outside a Playwright worker.
+    exclude: ['e2e/**', 'node_modules/**'],
+  },
 })

@@ -192,6 +192,23 @@ export const SHAPE_ZOOM_THRESHOLD = 1.35;
  * number at the edges. */
 export const ROLE_HIDE_CLIENT_THRESHOLD = 2000;
 
+/** One luminance step within a family hue, keyed off degree (via `nodeSize`'s
+ * own 0..1 ratio) rather than a 4th colour -- §3/§7 already ruled a 4th hue
+ * out on CVD grounds. `t=0` leaves the base hue untouched; `t=1` (the graph's
+ * biggest hub) lightens it toward white so hubs read as "brighter", not just
+ * "bigger". Pure arithmetic, not `color-mix`, because Sigma consumes raw hex
+ * into a WebGL buffer and never re-reads CSS after mount. */
+export function luminanceStep(hex: string, t: number): string {
+  const clamped = Math.max(0, Math.min(1, t));
+  const n = hex.replace("#", "");
+  if (n.length !== 6) return hex;
+  const lighten = (channel: number) => Math.round(channel + (255 - channel) * clamped * 0.4);
+  const r = lighten(parseInt(n.slice(0, 2), 16));
+  const g = lighten(parseInt(n.slice(2, 4), 16));
+  const b = lighten(parseInt(n.slice(4, 6), 16));
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function resolveCssColor(value: string, fallback = "#8b93a1"): string {
   if (typeof document === "undefined") return fallback;
   if (!value.startsWith("--")) return value;

@@ -22,11 +22,29 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from cdp.store import ARTIFACTS
 from cdp.store import registry as registry_mod
 from cdp.util import CdpError
+
+#: Artifacts safe to cache in-process, keyed by `(db_path, snapshot_id, name)`
+#: -- `WEB_REDESIGN_RESEARCH.md` §5 item 3 ("the index is immutable per
+#: snapshot"), verified rather than assumed: `cdp/store/sqlite_backend.py`'s
+#: `write_artifact` does an upsert keyed on `(snapshot_id, name)`, and
+#: `cdp run`'s wave loop (`cdp/cli.py:_fold_and_write`) calls it repeatedly
+#: against the *same* snapshot_id for exactly one artifact -- `state` -- to
+#: fold in newly-emitted claims wave by wave. `state` is therefore excluded:
+#: a request during an in-flight `cdp run` must see each wave's fresh claims,
+#: not a cached snapshot from an earlier wave. `manifest` is the pin marker
+#: itself (`ReadOnlyConnection.latest_pinned_snapshot`'s presence check) and
+#: is tiny, so it's left uncached too rather than reasoning about pin timing.
+#: Every other artifact here is written once per scan/refresh, before
+#: `manifest` marks that snapshot pinned-and-readable, so a snapshot_id only
+#: ever presents one immutable value for any of them.
+_CACHEABLE_ARTIFACTS = frozenset(ARTIFACTS) - {"state", "manifest"}
+_artifact_cache: Dict["tuple[str, int, str]", Any] = {}
+_artifact_cache_lock = threading.Lock()
 
 
 class StoreUnavailable(CdpError):
@@ -110,6 +128,14 @@ class ReadOnlyConnection:
     def read_artifact(self, snapshot_id: int, name: str, default: Any = None) -> Any:
         if name not in ARTIFACTS:
             raise ValueError("unknown artifact %r -- one of %s" % (name, ARTIFACTS))
+
+        cacheable = name in _CACHEABLE_ARTIFACTS
+        cache_key = (str(self.db_path), snapshot_id, name)
+        if cacheable:
+            with _artifact_cache_lock:
+                if cache_key in _artifact_cache:
+                    return _artifact_cache[cache_key]
+
         row = self._conn().execute(
             "SELECT payload FROM snapshot_artifact WHERE snapshot_id=? AND name=?",
             (snapshot_id, name),
@@ -120,7 +146,16 @@ class ReadOnlyConnection:
                     "missing artifact %r for snapshot %d in %s" % (name, snapshot_id, self.db_path)
                 )
             return default
-        return json.loads(row[0])
+
+        payload = json.loads(row[0])
+        if cacheable:
+            # Every caller in `web/api/app.py` treats artifacts as read-only
+            # (indexing/`.get`/comprehensions, never in-place mutation --
+            # checked, not assumed) so handing out the same cached object to
+            # concurrent requests is safe.
+            with _artifact_cache_lock:
+                _artifact_cache[cache_key] = payload
+        return payload
 
     def task_rows(self, run_id: str) -> list:
         rows = self._conn().execute(

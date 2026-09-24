@@ -52,19 +52,40 @@ class GraphEndpointTest(unittest.TestCase):
 
     # ---------------------------------------------------------------- L3
 
+    def _expected_file_of(self, dataflow: dict, xref: dict) -> dict:
+        """Mirrors `app.py`'s `_dataflow_graph` file resolution exactly
+        (`encoding.resolve_owner_file` over the same symbol table + edges),
+        so these tests assert the corrected `WEB_REDESIGN_RESEARCH.md` §3.1
+        contract (group by resolved file path) rather than the old,
+        confirmed-wrong id-string grouping (`package_of` on a bare id)."""
+        from web.api import encoding
+
+        symbol_table = xref.get("symbols") or {}
+        raw_ids = {end for e in dataflow["edges"] for end in (e["source"], e["target"])}
+        edges = [{"source": e["source"], "target": e["target"], "kind": e.get("channel", "flow")}
+                  for e in dataflow["edges"]]
+        return {raw_id: encoding.resolve_owner_file(raw_id, symbol_table, edges) for raw_id in raw_ids}
+
     def test_l3_rolls_the_dataflow_graph_up_by_package(self) -> None:
         """L3 is the *rollup of the same typed graph L2 serves*
         (`ATLAS_REDESIGN.md` §2), not `graph.modules` any more -- pairing 7
         module nodes with 2 `declared`/`observed` edges is exactly the empty
         canvas that redesign was written about. `graph.levels`/`cycles`/
-        `divergence` are still passed through untouched."""
-        from web.api.encoding import package_of
+        `divergence` are still passed through untouched.
+
+        Grouping itself is `WEB_REDESIGN_RESEARCH.md` §3.1's path-based
+        container tree, not the old `package_of` id-string split -- confirmed
+        wrong on a real C#/Java repo (`unified-store`), where bare class-name
+        ids have no dots to split and every node became its own package."""
+        from web.api import encoding
         from web.api.models import GraphResponse
 
         graph = self._read_artifact("graph")
         dataflow = self._read_artifact("dataflow")
+        xref = self._read_artifact("xref")
         raw_ids = {end for e in dataflow["edges"] for end in (e["source"], e["target"])}
-        expected_groups = {package_of(raw_id) for raw_id in raw_ids}
+        file_of = self._expected_file_of(dataflow, xref)
+        expected_groups = {encoding.container_group(raw_id, 1, file_of) for raw_id in raw_ids}
 
         client = self._client()
         resp = client.get("/api/graph", params={
@@ -84,13 +105,16 @@ class GraphEndpointTest(unittest.TestCase):
         self.assertEqual(payload.divergence, graph["divergence"])
 
     def test_l3_edges_aggregate_and_drop_intra_package(self) -> None:
-        from web.api.encoding import package_of
+        from web.api import encoding
         from web.api.models import GraphResponse
 
         dataflow = self._read_artifact("dataflow")
+        xref = self._read_artifact("xref")
+        file_of = self._expected_file_of(dataflow, xref)
         expected: dict = {}
         for edge in dataflow["edges"]:
-            src, tgt = package_of(edge["source"]), package_of(edge["target"])
+            src = encoding.container_group(edge["source"], 1, file_of)
+            tgt = encoding.container_group(edge["target"], 1, file_of)
             if src == tgt:
                 continue
             key = (src, tgt, edge.get("channel", "flow"))
@@ -129,13 +153,15 @@ class GraphEndpointTest(unittest.TestCase):
             self.assertGreater(node.degree or 0, 0)
 
     def test_l2_scope_filter_descends_into_one_l3_package(self) -> None:
-        from web.api.encoding import package_of
+        from web.api import encoding
         from web.api.models import GraphResponse
 
         dataflow = self._read_artifact("dataflow")
+        xref = self._read_artifact("xref")
         raw_ids = {end for e in dataflow["edges"] for end in (e["source"], e["target"])}
-        target = sorted({package_of(raw_id) for raw_id in raw_ids})[0]
-        members = {raw_id for raw_id in raw_ids if package_of(raw_id) == target}
+        file_of = self._expected_file_of(dataflow, xref)
+        target = sorted({encoding.container_group(raw_id, 1, file_of) for raw_id in raw_ids})[0]
+        members = {raw_id for raw_id in raw_ids if encoding.container_group(raw_id, 1, file_of) == target}
 
         client = self._client()
         resp = client.get("/api/graph", params={
@@ -151,6 +177,66 @@ class GraphEndpointTest(unittest.TestCase):
         self.assertLessEqual(len(node_ids), len(raw_ids))
         for edge in payload.edges:
             self.assertTrue(edge.source in members or edge.target in members)
+
+    def test_l2_focus_restricts_without_changing_scope(self) -> None:
+        """`focus=` (`WEB_REDESIGN_RESEARCH.md` §4's neighbourhood-focus
+        toggle) narrows the rendered node set the same way `scope=` would,
+        but the response's own `scope` field stays `None` -- unlike a real
+        descent, this must not move the breadcrumb."""
+        from web.api.models import GraphResponse
+
+        client = self._client()
+        params = {"repo": str(MINIREPO), "state_dir": str(self.state_dir)}
+        unrestricted = GraphResponse(**client.get("/api/graph", params={"level": "L2", **params}).json())
+        target = sorted(n.id for n in unrestricted.nodes)[0]
+
+        resp = client.get("/api/graph", params={"level": "L2", "focus": target, **params})
+        self.assertEqual(resp.status_code, 200)
+        payload = GraphResponse(**resp.json())
+
+        self.assertIsNone(payload.scope)
+        self.assertIn(target, {n.id for n in payload.nodes})
+        self.assertLessEqual(len(payload.nodes), len(unrestricted.nodes))
+
+    def test_l2_too_large_returns_suggested_scopes_instead_of_the_full_graph(self) -> None:
+        """`WEB_REDESIGN_RESEARCH.md` §3.1: unscoped L2 has no natural size
+        bound and must not be allowed to reach the client uncapped. Forces
+        the real ceiling down via monkeypatch (the minirepo fixture is far
+        too small to hit `GRAPH_SIZE_CEILING` for real) so this exercises the
+        actual code path, not a hand-simulated shape."""
+        from web.api import app as app_module
+        from web.api.models import GraphResponse
+
+        client = self._client()
+        params = {"level": "L2", "repo": str(MINIREPO), "state_dir": str(self.state_dir)}
+        original = app_module.GRAPH_SIZE_CEILING
+        app_module.GRAPH_SIZE_CEILING = 0
+        try:
+            resp = client.get("/api/graph", params=params)
+        finally:
+            app_module.GRAPH_SIZE_CEILING = original
+
+        self.assertEqual(resp.status_code, 200)
+        payload = GraphResponse(**resp.json())
+        self.assertTrue(payload.too_large)
+        self.assertEqual(payload.nodes, [])
+        self.assertEqual(payload.edges, [])
+        self.assertTrue(payload.suggested_scopes)
+
+    def test_graph_response_is_gzip_compressed_when_large_enough(self) -> None:
+        """`WEB_REDESIGN_RESEARCH.md` §5 item 2 -- verified, not assumed:
+        no gzip middleware existed in this service before this pass."""
+        client = self._client()
+        resp = client.get(
+            "/api/graph",
+            params={"level": "L2", "repo": str(MINIREPO), "state_dir": str(self.state_dir)},
+            headers={"Accept-Encoding": "gzip"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        # TestClient/httpx decodes transparently; the raw header is what
+        # proves the server actually compressed it.
+        self.assertEqual(resp.headers.get("content-encoding"), "gzip")
+        self.assertIn("total;dur=", resp.headers.get("server-timing", ""))
 
     def test_l2_node_id_resolves_through_the_node_endpoint(self) -> None:
         """The inspector hands `node.node_id` straight to `/api/node/{id}`;
@@ -235,6 +321,37 @@ class GraphEndpointTest(unittest.TestCase):
         self.assertTrue(target_files <= node_ids)
         for edge in payload.edges:
             self.assertTrue(edge.source in target_files or edge.target in target_files)
+
+    # ---------------------------------------------------------- rungs (P{n})
+
+    def test_rungs_reports_exactly_l3_and_l2_for_a_repo_with_no_real_nesting(self) -> None:
+        """`MONOREPO_HIERARCHY.md`'s compatibility invariant: a repo whose
+        computed fork set is `{1}` -- true of this flat fixture -- must
+        report exactly today's two-rung ladder, never a `P{n}` entry."""
+        from web.api.models import GraphResponse
+
+        client = self._client()
+        resp = client.get("/api/graph", params={
+            "level": "L3", "repo": str(MINIREPO), "state_dir": str(self.state_dir),
+        })
+        self.assertEqual(resp.status_code, 200)
+        payload = GraphResponse(**resp.json())
+        self.assertEqual(
+            [(r.level, r.depth) for r in payload.rungs],
+            [("L3", 1), ("L2", None)],
+        )
+
+    def test_p2_is_unsupported_on_a_repo_with_no_depth_2_fork(self) -> None:
+        """`P2` only becomes a valid `level` once `encoding.real_depths`
+        actually finds a fork past depth 1 -- this fixture doesn't have one,
+        so the request must 501, naming the real ladder, not a stale one."""
+        client = self._client()
+        resp = client.get("/api/graph", params={
+            "level": "P2", "repo": str(MINIREPO), "state_dir": str(self.state_dir),
+        })
+        self.assertEqual(resp.status_code, 501)
+        detail = resp.json()["detail"]
+        self.assertIn("levels available: L0, L1, L2, L3", detail)
 
     # ---------------------------------------------------------------- errors
 

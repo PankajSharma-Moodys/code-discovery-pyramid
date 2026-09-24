@@ -14,14 +14,26 @@
  * {@link toNodeId} remains only for the altitudes whose ids *are* derivable
  * (L1 file paths) and as the fallback when a node has no server-resolved id.
  */
-export type Altitude = "L3" | "L2" | "L1";
+/** Was a fixed 3-member union (`"L3"|"L2"|"L1"`); now open, since the server
+ * mints a variable-length ladder per repo (`"L3"`, then `"P2"`, `"P3"`, ...
+ * for however many real path-depth forks that repo has, then `"L2"`) --
+ * see `MONOREPO_HIERARCHY.md` and `GraphResponse.rungs`. */
+export type Altitude = string;
 
-const PREFIX: Record<Altitude, string> = {
+/** `"L3"` (depth 1) or any deeper grouped rung (`"P2"`, `"P3"`, ...) -- every
+ * one of them is a package-style rollup, as opposed to `"L2"`/`"L1"`/`"L0"`
+ * which are raw, unrolled graphs. Used where the client needs "is this a
+ * rollup" rather than "is this exactly the old fixed L3". */
+export function isGroupedAltitude(altitude: Altitude): boolean {
+  return altitude === "L3" || /^P\d+$/.test(altitude);
+}
+
+const PREFIX: Record<string, string> = {
   L3: "module:",
   L2: "module:",
   L1: "file:",
 };
 
 export function toNodeId(level: Altitude, rawId: string): string {
-  return PREFIX[level] + rawId;
+  return (isGroupedAltitude(level) ? "module:" : PREFIX[level] ?? "module:") + rawId;
 }

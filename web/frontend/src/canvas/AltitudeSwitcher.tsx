@@ -10,23 +10,31 @@ import { useAtlasStore } from "../store/atlasStore.ts";
  *
  * L1/L0 are gone from the ladder, not hidden: §7 measured 2 import edges
  * across 413 files and §2's instruction for that case is "cut, not styled".
+ *
+ * The button row itself is no longer a static two-entry array:
+ * `MONOREPO_HIERARCHY.md`'s ladder varies per repo, so `rungs` comes from
+ * the current `GraphResponse` (`AtlasCanvas`) instead of a local constant.
  */
-const ALTITUDES: { id: Altitude; name: string; caption: string }[] = [
-  { id: "L3", name: "Packages", caption: "one node per top-level package or external surface" },
-  { id: "L2", name: "Modules", caption: "every module, route, table and process, individually" },
-];
+export interface Rung {
+  level: Altitude;
+  depth: number | null;
+  label: string;
+}
 
 interface AltitudeSwitcherProps {
   altitude: Altitude;
-  scope: string | null;
+  /** The full breadcrumb stack, root first -- one chip per entry beyond the
+   * root, each restoring the ladder back to that point when clicked. */
+  ladder: { level: Altitude; scope: string | null }[];
+  rungs: Rung[];
   nodeCount: number;
   edgeCount: number;
 }
 
-export function AltitudeSwitcher({ altitude, scope, nodeCount, edgeCount }: AltitudeSwitcherProps) {
+export function AltitudeSwitcher({ altitude, ladder, rungs, nodeCount, edgeCount }: AltitudeSwitcherProps) {
   const jumpTo = useAtlasStore((s) => s.jumpTo);
-  const ascend = useAtlasStore((s) => s.ascend);
-  const active = ALTITUDES.find((a) => a.id === altitude) ?? ALTITUDES[0];
+  const ascendTo = useAtlasStore((s) => s.ascendTo);
+  const active = rungs.find((r) => r.level === altitude) ?? rungs[0];
 
   return (
     <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
@@ -36,27 +44,28 @@ export function AltitudeSwitcher({ altitude, scope, nodeCount, edgeCount }: Alti
         </span>
       </div>
 
-      <div className="flex items-center gap-2 text-sm">
-        {ALTITUDES.map(({ id, name, caption }) => (
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {rungs.map(({ level, label, depth }) => (
           <button
-            key={id}
-            onClick={() => jumpTo(id)}
-            title={caption}
+            key={level}
+            onClick={() => jumpTo(level)}
+            title={depth == null ? "every module, route, table and process, individually" : label}
             className="atlas-btn-primary rounded px-2.5 py-1"
             style={{
-              background: id === altitude ? "var(--atlas-accent)" : "var(--atlas-bg-2)",
-              color: id === altitude ? "#07090c" : "var(--atlas-text-dim)",
+              background: level === altitude ? "var(--atlas-accent)" : "var(--atlas-bg-2)",
+              color: level === altitude ? "#07090c" : "var(--atlas-text-dim)",
               border: "1px solid var(--atlas-border)",
             }}
           >
-            {name}
+            {label}
           </button>
         ))}
 
-        {scope && (
+        {ladder.slice(1).map((entry, i) => (
           <button
-            onClick={ascend}
-            title={`Showing only ${scope} and what it touches. Click to go back to everything.`}
+            key={`${entry.level}:${entry.scope}`}
+            onClick={() => ascendTo(i + 1)}
+            title={`Showing only ${entry.scope} and what it touches. Click to go back to this point.`}
             className="rounded px-2 py-1 text-xs"
             style={{
               background: "var(--atlas-bg-2)",
@@ -64,15 +73,15 @@ export function AltitudeSwitcher({ altitude, scope, nodeCount, edgeCount }: Alti
               border: "1px solid var(--atlas-border)",
             }}
           >
-            inside <span className="font-medium">{scope}</span> ✕
+            inside <span className="font-medium">{entry.scope}</span> ✕
           </button>
-        )}
+        ))}
       </div>
 
       <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
-        {active.caption} · {nodeCount.toLocaleString()} node{nodeCount === 1 ? "" : "s"},{" "}
-        {edgeCount.toLocaleString()} connection{edgeCount === 1 ? "" : "s"}
-        {altitude === "L3" && " · double-click a node to go inside it"}
+        {nodeCount.toLocaleString()} node{nodeCount === 1 ? "" : "s"}, {edgeCount.toLocaleString()} connection
+        {edgeCount === 1 ? "" : "s"}
+        {active?.depth != null && " · double-click a node to go inside it"}
       </div>
     </div>
   );

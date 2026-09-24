@@ -11,3 +11,5 @@ dist/
 .cdp/
 runs/
 /PHASE
+web/frontend/test-results/
+web/frontend/playwright-report/

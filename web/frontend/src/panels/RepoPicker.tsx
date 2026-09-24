@@ -22,7 +22,7 @@ export function RepoPicker() {
   const currentLabel = current?.repo_id ?? "this repo";
 
   return (
-    <div className="absolute left-3 top-3 z-30 text-sm">
+    <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 text-sm">
       <button
         onClick={() => setOpen((v) => !v)}
         className="atlas-card flex max-w-64 items-center gap-2 truncate rounded px-2 py-1"

@@ -33,6 +33,24 @@ interface GraphLegendProps {
   /** `true` once the toggle crossed `ROLE_HIDE_CLIENT_THRESHOLD` and is
    * refetching a server-filtered graph instead of dimming client-side. */
   usingServerFilter: boolean;
+  /** Families currently hidden from the canvas -- legend-as-filter
+   * (`WEB_REDESIGN_RESEARCH.md` §6). Client-side only, same as `hideTests`:
+   * there's no server-side family filter to fall back to at scale, so this
+   * stays a dimming toggle regardless of graph size. */
+  hiddenFamilies: ReadonlySet<Family>;
+  onToggleFamily: (family: Family) => void;
+  /** `WEB_REDESIGN_RESEARCH.md` §4's neighbourhood-focus toggle -- only shown
+   * once a node is selected, since there's nothing to focus on otherwise. */
+  focusable: boolean;
+  isFocused: boolean;
+  onToggleFocus: () => void;
+  /** `WEB_REDESIGN_RESEARCH.md` §3.3's pin/lock: excludes the selected node
+   * from FA2 movement and re-applies its cached position on every rebuild
+   * (`graphLayout.ts`'s `setNodePinned`/`positionCache.ts`). Same
+   * selection-gated visibility as the focus row above. */
+  pinnable: boolean;
+  isPinned: boolean;
+  onTogglePin: () => void;
 }
 
 const FAMILY_ORDER: Family[] = ["code", "runtime", "state"];
@@ -60,6 +78,14 @@ export function GraphLegend({
   hideTests,
   onToggleHideTests,
   usingServerFilter,
+  hiddenFamilies,
+  onToggleFamily,
+  focusable,
+  isFocused,
+  onToggleFocus,
+  pinnable,
+  isPinned,
+  onTogglePin,
 }: GraphLegendProps) {
   const [open, setOpen] = useState(true);
 
@@ -70,13 +96,25 @@ export function GraphLegend({
     byFamily.get(family)!.push(entry);
   }
 
+  // `focusable`/`pinnable` are both gated on `selectedNodeId !== null`
+  // (`AtlasCanvas.tsx`), the exact same condition that makes `InspectorRail`
+  // render its `w-96` (384px) panel over this card's own top-right corner
+  // (`right-3`/`w-72` = 300px, well inside the rail's reach) -- so whenever
+  // either row below would actually be shown, this card was sitting
+  // underneath the rail, present in the DOM but neither visible nor
+  // clickable (confirmed live via Playwright against `unified-store`: the
+  // rows exist but a real click times out, "intercepts pointer events").
+  // Slide the whole card left by the rail's width in that case instead of
+  // stacking two right-anchored panels.
+  const inspectorOpen = focusable || pinnable;
+
   return (
     <div
       // Top-right, not bottom-left: `TracePanel` owns the bottom-left corner
       // and was clipping the family list off the bottom of this card, which
       // is exactly the failure mode this card exists to prevent.
-      className="atlas-card absolute right-3 top-14 z-10 flex max-h-[calc(100%-4.5rem)] w-72 flex-col overflow-hidden text-xs"
-      style={{ color: "var(--atlas-text)" }}
+      className="atlas-card absolute top-14 z-10 flex max-h-[calc(100%-4.5rem)] w-72 flex-col overflow-hidden text-xs transition-[right] duration-150"
+      style={{ color: "var(--atlas-text)", right: inspectorOpen ? "25.5rem" : "0.75rem" }}
     >
       <button
         onClick={() => setOpen((v) => !v)}
@@ -90,6 +128,66 @@ export function GraphLegend({
       {open && (
         <div className="flex flex-col gap-3 overflow-y-auto px-3 pb-3">
           <p style={{ color: "var(--atlas-text-dim)" }}>{LENS_CAPTION[lens]}</p>
+
+          {focusable && (
+            <button
+              onClick={onToggleFocus}
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+              style={{
+                background: isFocused ? "color-mix(in srgb, var(--atlas-accent) 14%, transparent)" : "transparent",
+                border: `1px solid ${isFocused ? "var(--atlas-accent)" : "var(--atlas-border)"}`,
+              }}
+              aria-pressed={isFocused}
+            >
+              <span className="flex flex-col">
+                <span className="font-medium" style={{ color: "var(--atlas-text)" }}>
+                  Focus neighbourhood
+                </span>
+                <span style={{ color: "var(--atlas-text-dim)" }}>
+                  Restrict the graph to the selected node's connections
+                </span>
+              </span>
+              <span
+                className="relative h-4 w-7 shrink-0 rounded-full transition-colors"
+                style={{ background: isFocused ? "var(--atlas-accent)" : "var(--atlas-border)" }}
+              >
+                <span
+                  className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform"
+                  style={{ transform: isFocused ? "translateX(0.85rem)" : "translateX(0.15rem)" }}
+                />
+              </span>
+            </button>
+          )}
+
+          {pinnable && (
+            <button
+              onClick={onTogglePin}
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+              style={{
+                background: isPinned ? "color-mix(in srgb, var(--atlas-accent) 14%, transparent)" : "transparent",
+                border: `1px solid ${isPinned ? "var(--atlas-accent)" : "var(--atlas-border)"}`,
+              }}
+              aria-pressed={isPinned}
+            >
+              <span className="flex flex-col">
+                <span className="font-medium" style={{ color: "var(--atlas-text)" }}>
+                  Pin position
+                </span>
+                <span style={{ color: "var(--atlas-text-dim)" }}>
+                  {isPinned ? "Held in place across relayouts" : "Lock this node's position"}
+                </span>
+              </span>
+              <span
+                className="relative h-4 w-7 shrink-0 rounded-full transition-colors"
+                style={{ background: isPinned ? "var(--atlas-accent)" : "var(--atlas-border)" }}
+              >
+                <span
+                  className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform"
+                  style={{ transform: isPinned ? "translateX(0.85rem)" : "translateX(0.15rem)" }}
+                />
+              </span>
+            </button>
+          )}
 
           {testNodeCount > 0 && (
             <button
@@ -123,30 +221,46 @@ export function GraphLegend({
           )}
 
           {lens !== "confidence" &&
-            FAMILY_ORDER.filter((family) => byFamily.has(family)).map((family) => (
-              <div key={family}>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: `var(${FAMILY_VAR[family]})` }}
-                  />
-                  <span className="font-medium">{FAMILY_LABEL[family]}</span>
-                </div>
-                <div className="mt-0.5 pl-[18px]" style={{ color: "var(--atlas-text-dim)" }}>
-                  {FAMILY_CAPTION[family]}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-[18px]">
-                  {byFamily.get(family)!.map((entry) => (
-                    <span key={entry.type} style={{ color: "var(--atlas-text-dim)" }}>
-                      <span style={{ color: `var(${FAMILY_VAR[family]})` }}>
-                        {SHAPE_GLYPH[shapeOf(entry.type)]}
-                      </span>{" "}
-                      {entry.label} {entry.count}
+            FAMILY_ORDER.filter((family) => byFamily.has(family)).map((family) => {
+              const isHidden = hiddenFamilies.has(family);
+              return (
+                <button
+                  key={family}
+                  onClick={() => onToggleFamily(family)}
+                  className="rounded-md px-2 py-1.5 text-left transition-colors"
+                  style={{
+                    background: isHidden ? "transparent" : "color-mix(in srgb, var(--atlas-accent) 8%, transparent)",
+                    border: `1px solid ${isHidden ? "var(--atlas-border)" : "var(--atlas-accent)"}`,
+                    opacity: isHidden ? 0.5 : 1,
+                  }}
+                  aria-pressed={!isHidden}
+                  title={isHidden ? "Hidden — click to show" : "Shown — click to hide"}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ background: `var(${FAMILY_VAR[family]})` }}
+                    />
+                    <span className="font-medium" style={{ color: "var(--atlas-text)" }}>
+                      {FAMILY_LABEL[family]}
                     </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+                  </div>
+                  <div className="mt-0.5 pl-[18px]" style={{ color: "var(--atlas-text-dim)" }}>
+                    {FAMILY_CAPTION[family]}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-[18px]">
+                    {byFamily.get(family)!.map((entry) => (
+                      <span key={entry.type} style={{ color: "var(--atlas-text-dim)" }}>
+                        <span style={{ color: `var(${FAMILY_VAR[family]})` }}>
+                          {SHAPE_GLYPH[shapeOf(entry.type)]}
+                        </span>{" "}
+                        {entry.label} {entry.count}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
 
           {lens === "flow" && edgeKinds.length > 0 && (
             <div>

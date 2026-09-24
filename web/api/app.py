@@ -26,13 +26,15 @@ import asyncio
 import json
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sse_starlette.sse import EventSourceResponse
+from starlette.middleware.gzip import GZipMiddleware
 
 from cdp import diffs as diffs_mod
 from cdp import freshness as freshness_mod
@@ -61,6 +63,8 @@ from .models import (
     NodeResponse,
     ReposResponse,
     RepoInfoResponse,
+    SearchResponse,
+    SearchResultResponse,
     SnapshotsResponse,
     SourceResponse,
     SourcesResponse,
@@ -72,6 +76,27 @@ from .store_reader import ReadOnlyConnection, StoreLocked, StoreUnavailable, res
 from .trajectory_reader import ReadOnlyTrajectoryConnection, TrajectoryLocked, TrajectoryUnavailable
 
 app = FastAPI(title="cdp web api")
+
+#: No compression/timing middleware existed at all before this pass
+#: (`WEB_REDESIGN_RESEARCH.md` §5 items 2/3) -- `minimum_size` keeps small
+#: JSON (`/api/status`, single-node `/api/node`) uncompressed, since gzip
+#: overhead loses on tiny payloads; the multi-MB `/api/graph` L2 responses
+#: this doc measured are exactly what it's for.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def _add_server_timing(request: Request, call_next):
+    """`Server-Timing` response header -- §5/§7's "instrument first, fix
+    second" gate, made permanent instead of the earlier one-off Playwright
+    longtask probe. No logging framework exists in this service; a header is
+    the least additive way to make request latency inspectable (devtools'
+    Network panel surfaces `Server-Timing` natively) without introducing one."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    response.headers["Server-Timing"] = "total;dur=%.1f" % duration_ms
+    return response
 
 
 def _open_query_store(repo: Path, state_dir: Optional[str]) -> query_mod.Store:
@@ -248,6 +273,49 @@ def get_query(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/search", response_model=SearchResponse)
+def get_search(
+    q: str = Query(..., min_length=2, description="search term, matched against symbol fqns and file paths"),
+    limit: int = Query(20, ge=1, le=100),
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> SearchResponse:
+    """`WEB_REDESIGN_RESEARCH.md` §4's server-side search-to-focus, replacing
+    the ask-bar's client-side substring filter over a full L0 fetch
+    (`useSymbolTypeahead`, 6.8MB on `unified-store`). Not a new search
+    algorithm -- `cdp.query.q_search` (`kind="search"`, already reachable via
+    `/api/query`) already matches symbols/files/claims/unknowns with
+    budget-based elision; this is a thin, UI-shaped reformatting of just its
+    `symbols`/`files` buckets (`claims`/`unknowns` aren't graph-focusable, so
+    dropped here) into one flat, rank-preserved list the ask-bar's typeahead
+    can render directly."""
+    try:
+        store = _open_query_store(Path(repo), state_dir)
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    # `q_search`'s `Budget` is a single row allowance spent in construction
+    # order across claims, symbols, unknowns, files (`Budget.take`) -- passing
+    # the UI's own `limit` (e.g. 20) straight through as that budget let
+    # `claims` alone (graph-unfocusable and dropped below anyway) exhaust it
+    # before `symbols`/`files` ever got a turn: empirically, `q=app` against
+    # this repo's own index has 26 matching claims and returned 0 results
+    # end-to-end despite 80 matching symbols existing. Use `q_search`'s own
+    # default row budget (200) for the underlying query and apply `limit`
+    # only to the flattened symbol+file list this endpoint actually returns.
+    result = query_mod.dispatch(store, "search", q)
+    results = [
+        SearchResultResponse(id=fqn, label=encoding.short_label(fqn), kind="symbol")
+        for fqn in result.get("symbols", [])
+    ] + [
+        SearchResultResponse(id=path, label=path, kind="file")
+        for path in result.get("files", [])
+    ]
+    results = results[:limit]
+    return SearchResponse(count=len(results), results=results)
+
+
 @app.get("/api/trace")
 def get_trace(
     entry: Optional[str] = Query(None, description="dataflow entry point"),
@@ -359,7 +427,30 @@ def get_source(
     )
 
 
-_GRAPH_LEVELS = ("L0", "L1", "L2", "L3")
+def _parse_grouped_level(level: str) -> Optional[int]:
+    """`"L3"` -> 1, `"P{n}"` -> n, else `None` (not a grouped-rollup level --
+    `L0`/`L1`/`L2` are handled separately, they aren't path-depth rollups)."""
+    if level == "L3":
+        return 1
+    if level.startswith("P") and level[1:].isdigit():
+        return int(level[1:])
+    return None
+
+
+def _graph_rungs(file_of: "Dict[str, Optional[str]]") -> List[dict]:
+    """The full altitude ladder for this repo, computed from the same
+    node -> owning-file map already resolved for the response (
+    `WEB_REDESIGN_RESEARCH.md` §3.1) -- always consistent with whatever
+    `level` was actually served this request, never a stale static list.
+    Depth 1 (`"L3"`) is always present; a repo with no real path
+    substructure reports exactly `["L3", "L2"]`, matching today's ladder."""
+    resolved = {raw_id: path for raw_id, path in file_of.items() if path}
+    rungs = [
+        {"level": "L3" if d == 1 else "P%d" % d, "depth": d, "label": "Packages" if d == 1 else "Depth %d" % d}
+        for d in encoding.real_container_depths(resolved)
+    ]
+    rungs.append({"level": "L2", "depth": None, "label": "Modules"})
+    return rungs
 
 
 def _role_index(conn: ReadOnlyConnection, snapshot_id: int) -> Dict[str, str]:
@@ -502,11 +593,16 @@ def _build_graph_l1(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     }
 
 
-def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[str]) -> dict:
-    """Packages: `ATLAS_REDESIGN.md` §2's L3 -- the *same* typed `dataflow`
-    graph L2 serves, rolled up so every node is either a code package (first
-    path segment of a module/symbol id) or a type bucket for the node kinds
-    that have no package of their own (`Tables`, `Routes`, `Processes`, ...).
+def _build_graph_grouped(conn: ReadOnlyConnection, snapshot_id: int, depth: int, scope: Optional[str]) -> dict:
+    """Packages, and every rung above them: `ATLAS_REDESIGN.md` §2's L3 was
+    the *same* typed `dataflow` graph L2 serves, rolled up so every node is
+    either a code package (first path segment of a module/symbol id) or a
+    type bucket for the node kinds that have no package of their own
+    (`Tables`, `Routes`, `Processes`, ...). `depth=1` is exactly that L3
+    rollup; `depth>1` is `MONOREPO_HIERARCHY.md`'s generalization -- the same
+    rollup at a deeper path prefix, for repos whose directory structure has a
+    real fork past the first segment. Buckets ignore `depth` entirely
+    (`encoding.package_of`), so they render identically at every rung.
 
     Rolling up the typed graph rather than `graph.modules`/`graph.levels` is
     the whole point of the redesign: the old builder paired 7 module nodes
@@ -516,16 +612,20 @@ def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     they are about modules, which remain a subset of this graph's nodes."""
     graph_art = conn.read_artifact(snapshot_id, "graph", default={})
     base = _dataflow_graph(conn, snapshot_id)
+    base_nodes, base_edges = base["nodes"], base["edges"]
+    if scope is not None:
+        base_nodes, base_edges = _restrict_dataflow_to_scope(base_nodes, base_edges, scope)
 
-    group_of = {node["id"]: encoding.package_of(node["id"]) for node in base["nodes"]}
-    role_of = {node["id"]: node.get("role") for node in base["nodes"]}
+    file_of = {node["id"]: node.get("file") for node in base_nodes}
+    group_of = {node["id"]: encoding.container_group(node["id"], depth, file_of) for node in base_nodes}
+    role_of = {node["id"]: node.get("role") for node in base_nodes}
 
     members: dict = {}
     for raw_id, group in group_of.items():
         members.setdefault(group, []).append(raw_id)
 
     agg: dict = {}
-    for edge in base["edges"]:
+    for edge in base_edges:
         src, tgt = group_of[edge["source"]], group_of[edge["target"]]
         if src == tgt:
             continue  # intra-package detail belongs at L2, not here
@@ -565,11 +665,8 @@ def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
             "role": role,
         })
 
-    if scope is not None:
-        nodes, edges = _restrict_to_neighborhood(nodes, edges, scope)
-
     return {
-        "level": "L3",
+        "level": "L3" if depth == 1 else "P%d" % depth,
         "scope": scope,
         "nodes": nodes,
         "edges": edges,
@@ -580,23 +677,73 @@ def _build_graph_l3(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
     }
 
 
+def _restrict_dataflow_to_scope(nodes: list, edges: list, scope: str) -> "tuple[list, list]":
+    """`scope=` filter shared by every rolled-up altitude and L2: keep every
+    node that is `scope` itself or one of its descendants
+    (`encoding.is_descendant`, depth-agnostic -- it derives `scope`'s own
+    depth from its id), every edge touching that set, and the nodes on the
+    far end of those edges. An unknown/empty `scope` leaves the graph
+    untouched rather than returning an empty canvas that would read as "this
+    package has nothing in it". Replaces the two near-duplicate scope
+    filters this used to be (`_build_graph_l2`'s inline
+    `package_of(id) == scope`, and the old `_restrict_to_neighborhood`'s
+    exact-id match on an already-rolled-up graph) with one rule usable at
+    any depth transition, including straight into raw L2.
+
+    `scope` is now a container group (`WEB_REDESIGN_RESEARCH.md` §3.1) rather
+    than an id-string package, so descent is checked file-path-aware via
+    `encoding.container_descendant`, using each node's own resolved `file`
+    (present on every node `_dataflow_graph` builds)."""
+    file_of = {n["id"]: n.get("file") for n in nodes}
+    keep = {n["id"] for n in nodes if n["id"] == scope or encoding.container_descendant(n["id"], scope, file_of)}
+    if not keep:
+        return nodes, edges
+    kept_edges = [e for e in edges if e["source"] in keep or e["target"] in keep]
+    reachable = set(keep)
+    for edge in kept_edges:
+        reachable.add(edge["source"])
+        reachable.add(edge["target"])
+    return [n for n in nodes if n["id"] in reachable], kept_edges
+
+
+#: `WEB_REDESIGN_RESEARCH.md` §3.1: "unscoped L2 should not be reachable from
+#: the UI; if kept, [it needs bounding]." This is that bound -- only the
+#: *unscoped* L2 request (the one with no natural size limit) is checked;
+#: every scoped L2 request is already bounded by `_restrict_dataflow_to_scope`
+#: to one container's neighbourhood. 2000 sits above this repo's real L2
+#: (353 nodes) and below `unified-store`'s measured unscoped L2 (6,064 nodes,
+#: the doc's own repro case), so real small repos are never affected and the
+#: doc's flagged pathological case is.
+GRAPH_SIZE_CEILING = 2000
+
+
 def _build_graph_l2(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[str]) -> dict:
     """Modules: the typed `dataflow` graph as-is (`ATLAS_REDESIGN.md` §2).
-    `scope=` is an L3 package id and filters to that package's members plus
-    their immediate neighbours, so double-clicking an L3 super-node descends
-    into exactly what it rolled up (plus its boundary)."""
+    `scope=` is any grouped-altitude id and filters to that group's members
+    plus their immediate neighbours, so double-clicking a super-node
+    descends into exactly what it rolled up (plus its boundary)."""
     base = _dataflow_graph(conn, snapshot_id)
     nodes, edges = base["nodes"], base["edges"]
 
     if scope is not None:
-        keep = {n["id"] for n in nodes if encoding.package_of(n["id"]) == scope}
-        if keep:
-            edges = [e for e in edges if e["source"] in keep or e["target"] in keep]
-            reachable = set(keep)
-            for edge in edges:
-                reachable.add(edge["source"])
-                reachable.add(edge["target"])
-            nodes = [n for n in nodes if n["id"] in reachable]
+        nodes, edges = _restrict_dataflow_to_scope(nodes, edges, scope)
+    elif len(nodes) > GRAPH_SIZE_CEILING:
+        top_rung = _build_graph_grouped(conn, snapshot_id, 1, None)
+        suggested = sorted(
+            top_rung["nodes"], key=lambda n: n.get("degree") or 0, reverse=True
+        )[:8]
+        return {
+            "level": "L2",
+            "scope": scope,
+            "nodes": [],
+            "edges": [],
+            "levels": [],
+            "cycles": [],
+            "divergence": None,
+            "legend": [],
+            "too_large": True,
+            "suggested_scopes": [n["id"] for n in suggested],
+        }
 
     return {
         "level": "L2",
@@ -608,21 +755,6 @@ def _build_graph_l2(conn: ReadOnlyConnection, snapshot_id: int, scope: Optional[
         "divergence": None,
         "legend": _legend(nodes),
     }
-
-
-def _restrict_to_neighborhood(nodes: list, edges: list, scope: str) -> "tuple[list, list]":
-    """`scope=` filter shared by the rolled-up altitudes: keep `scope`, every
-    edge touching it, and the nodes on the far end of those edges. An unknown
-    `scope` leaves the graph untouched rather than returning an empty canvas
-    that would read as "this package has nothing in it"."""
-    if not any(n["id"] == scope for n in nodes):
-        return nodes, edges
-    kept_edges = [e for e in edges if e["source"] == scope or e["target"] == scope]
-    neighborhood = {scope}
-    for edge in kept_edges:
-        neighborhood.add(edge["source"])
-        neighborhood.add(edge["target"])
-    return [n for n in nodes if n["id"] in neighborhood], kept_edges
 
 
 def _legend(nodes: list) -> list:
@@ -711,6 +843,23 @@ def _dataflow_graph(conn: ReadOnlyConnection, snapshot_id: int) -> dict:
         if e.get("source") and e.get("target")
     ]
 
+    # Owning file per node -- `WEB_REDESIGN_RESEARCH.md` §3.1's container
+    # hierarchy key. Attached here (not recomputed by callers) since this is
+    # the one place both `symbol_table` and `edges` are already in scope.
+    # `sorted_symbol_keys` computed once here (not inside the per-node call)
+    # so the descendant-fallback `bisect` probe stays O(log n) per node
+    # rather than O(n log n) per node.
+    sorted_symbol_keys = sorted(symbol_table)
+    # Precomputed once per call (O(edges)) instead of letting
+    # `resolve_owner_file` re-scan all of `edges` per node (O(nodes × edges) --
+    # profiling against the real `unified-store` index found this the
+    # dominant cost of `/api/graph`, 7.9s of an 8.2s request).
+    owner_edge_map = encoding.build_owner_edge_map(edges, symbol_table)
+    for node in nodes:
+        node["file"] = encoding.resolve_owner_file(
+            node["id"], symbol_table, edges, sorted_symbol_keys, owner_edge_map
+        )
+
     return {"nodes": nodes, "edges": edges}
 
 
@@ -720,30 +869,52 @@ def _build_graph(
     level: str,
     scope: Optional[str],
     hide_roles: Optional[List[str]] = None,
+    focus: Optional[str] = None,
 ) -> dict:
-    if level not in _GRAPH_LEVELS:
-        raise UnsupportedGraphLevel(
-            "level %r is not a graph altitude -- levels available: %s "
-            "(the module-link constellation is a separate concept, served "
-            "unfiltered by /api/links, not an altitude of this endpoint)"
-            % (level, ", ".join(_GRAPH_LEVELS))
-        )
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
     snapshot_id = conn.latest_pinned_snapshot()
 
+    base_file_of = {node["id"]: node.get("file") for node in _dataflow_graph(conn, snapshot_id)["nodes"]}
+    rungs = _graph_rungs(base_file_of)
+    valid_levels = {rung["level"] for rung in rungs} | {"L0", "L1"}
+
+    if level not in valid_levels:
+        raise UnsupportedGraphLevel(
+            "level %r is not a graph altitude for this repo -- levels available: %s "
+            "(the module-link constellation is a separate concept, served "
+            "unfiltered by /api/links, not an altitude of this endpoint)"
+            % (level, ", ".join(sorted(valid_levels)))
+        )
+
     if level == "L0":
         result = _build_graph_l0(conn, snapshot_id, scope)
     elif level == "L1":
         result = _build_graph_l1(conn, snapshot_id, scope)
-    elif level == "L3":
-        result = _build_graph_l3(conn, snapshot_id, scope)
-    else:
+    elif level == "L2":
         result = _build_graph_l2(conn, snapshot_id, scope)
+    else:
+        result = _build_graph_grouped(conn, snapshot_id, _parse_grouped_level(level), scope)
+
+    result["rungs"] = rungs
 
     if hide_roles:
         result["nodes"], result["edges"] = _drop_roles(result["nodes"], result["edges"], set(hide_roles))
+        if result.get("legend"):
+            result["legend"] = _legend(result["nodes"])
+
+    # `focus=` -- `WEB_REDESIGN_RESEARCH.md` §4's "neighbourhood focus as a
+    # first-class action, not only via double-click". Applied *after* the
+    # level/scope build and *without* touching `level`/`scope` in the
+    # response, so it restricts what's drawn without moving the breadcrumb
+    # the way a real `scope=` descent would. Reuses the same
+    # `_restrict_dataflow_to_scope` rule (scope + descendants + one-hop
+    # boundary) already proven for scoped descent; `focus` not present in
+    # this altitude's own node set is a no-op (empty `keep` -> unchanged),
+    # same "don't blank the canvas on an unknown id" behavior as `scope`.
+    if focus and not result.get("too_large") and result["nodes"]:
+        result["nodes"], result["edges"] = _restrict_dataflow_to_scope(result["nodes"], result["edges"], focus)
         if result.get("legend"):
             result["legend"] = _legend(result["nodes"])
     return result
@@ -756,11 +927,14 @@ def get_graph(
     hide_roles: Optional[List[str]] = Query(
         None, description="drop nodes whose file role matches (repeatable), plus any edge touching one"
     ),
+    focus: Optional[str] = Query(
+        None, description="restrict to this node's neighbourhood without changing level/scope (breadcrumb-free descent)"
+    ),
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
 ) -> GraphResponse:
     try:
-        result = _build_graph(Path(repo), state_dir, level, scope, hide_roles)
+        result = _build_graph(Path(repo), state_dir, level, scope, hide_roles, focus)
     except UnsupportedGraphLevel as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
     except StoreUnavailable as exc:

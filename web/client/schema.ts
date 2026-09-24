@@ -45,6 +45,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search
+         * @description `WEB_REDESIGN_RESEARCH.md` §4's server-side search-to-focus, replacing
+         *     the ask-bar's client-side substring filter over a full L0 fetch
+         *     (`useSymbolTypeahead`, 6.8MB on `unified-store`). Not a new search
+         *     algorithm -- `cdp.query.q_search` (`kind="search"`, already reachable via
+         *     `/api/query`) already matches symbols/files/claims/unknowns with
+         *     budget-based elision; this is a thin, UI-shaped reformatting of just its
+         *     `symbols`/`files` buckets (`claims`/`unknowns` aren't graph-focusable, so
+         *     dropped here) into one flat, rank-preserved list the ask-bar's typeahead
+         *     can render directly.
+         */
+        get: operations["get_search_api_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trace": {
         parameters: {
             query?: never;
@@ -754,6 +782,38 @@ export interface components {
              * @default []
              */
             legend: components["schemas"]["GraphLegendEntry"][];
+            /**
+             * Rungs
+             * @default []
+             */
+            rungs: components["schemas"]["GraphRungResponse"][];
+            /**
+             * Too Large
+             * @default false
+             */
+            too_large: boolean;
+            /**
+             * Suggested Scopes
+             * @default []
+             */
+            suggested_scopes: string[];
+        };
+        /**
+         * GraphRungResponse
+         * @description One entry of the altitude ladder as computed for *this* repo --
+         *     `"L3"` (depth 1) through however many `"P{depth}"` rungs
+         *     `encoding.real_depths` found a real fork at, then a fixed terminal
+         *     `"L2"`. Sent on every `/api/graph` response (repo-wide, not
+         *     level-specific) so the client can always enumerate the ladder from a
+         *     single request rather than racing a separate lookup against it.
+         */
+        GraphRungResponse: {
+            /** Level */
+            level: string;
+            /** Depth */
+            depth?: number | null;
+            /** Label */
+            label: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -947,6 +1007,29 @@ export interface components {
             file_count: number;
             /** Loc */
             loc: number;
+        };
+        /** SearchResponse */
+        SearchResponse: {
+            /** Count */
+            count: number;
+            /** Results */
+            results: components["schemas"]["SearchResultResponse"][];
+        };
+        /**
+         * SearchResultResponse
+         * @description One `GET /api/search` hit -- a thin, UI-shaped reformatting of
+         *     `cdp.query.q_search`'s `symbols`/`files` buckets (`claims`/`unknowns`
+         *     dropped, not relevant to a graph-focus search box). `id` is what the
+         *     client hands to `selectNode`/`jumpTo`; `kind` distinguishes a symbol fqn
+         *     from a file path so the UI can pick an icon/altitude.
+         */
+        SearchResultResponse: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Kind */
+            kind: string;
         };
         /** SnapshotMetaResponse */
         SnapshotMetaResponse: {
@@ -1201,6 +1284,42 @@ export interface operations {
             };
         };
     };
+    get_search_api_search_get: {
+        parameters: {
+            query: {
+                /** @description search term, matched against symbol fqns and file paths */
+                q: string;
+                limit?: number;
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_trace_api_trace_get: {
         parameters: {
             query?: {
@@ -1321,6 +1440,8 @@ export interface operations {
                 scope?: string | null;
                 /** @description drop nodes whose file role matches (repeatable), plus any edge touching one */
                 hide_roles?: string[] | null;
+                /** @description restrict to this node's neighbourhood without changing level/scope (breadcrumb-free descent) */
+                focus?: string | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
                 state_dir?: string | null;

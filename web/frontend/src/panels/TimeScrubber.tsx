@@ -29,9 +29,18 @@ export function TimeScrubber() {
     if (snapshots.length > 0 && index === null) setIndex(snapshots.length - 1);
   }, [snapshots.length, index]);
 
-  const hasPrior = index !== null && index > 0;
-  const oldSha = hasPrior ? snapshots[index - 1].commit_sha : null;
-  const newSha = hasPrior ? snapshots[index!].commit_sha : null;
+  // Switching repos refetches `snapshots` under the same `index` state --
+  // a repo with fewer scanned commits than the previous one's scrubber
+  // position left `index` pointing past the new array's end, and
+  // `snapshots[index - 1]` read `undefined` below with nothing to catch it
+  // (no error boundary in this app), blanking the whole page until reload.
+  // Clamping here, rather than resetting `index` on repo change, also
+  // covers any other case where `snapshots` shrinks under an existing index.
+  const safeIndex = index === null || snapshots.length === 0 ? null : Math.min(index, snapshots.length - 1);
+
+  const hasPrior = safeIndex !== null && safeIndex > 0;
+  const oldSha = hasPrior ? snapshots[safeIndex - 1].commit_sha : null;
+  const newSha = hasPrior ? snapshots[safeIndex!].commit_sha : null;
   const { data: diffResult } = useDiff(oldSha, newSha);
 
   useEffect(() => {
@@ -72,7 +81,7 @@ export function TimeScrubber() {
         type="range"
         min={0}
         max={snapshots.length - 1}
-        value={index ?? snapshots.length - 1}
+        value={safeIndex ?? snapshots.length - 1}
         onChange={(e) => setIndex(Number(e.target.value))}
         className="w-full"
       />
@@ -80,10 +89,10 @@ export function TimeScrubber() {
         <span>{shortSha(snapshots[0].commit_sha)}</span>
         <span>{shortSha(snapshots[snapshots.length - 1].commit_sha)}</span>
       </div>
-      {index !== null && (
+      {safeIndex !== null && (
         <div className="mt-2 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
           {hasPrior
-            ? `${shortSha(snapshots[index - 1].commit_sha)} → ${shortSha(snapshots[index].commit_sha)}`
+            ? `${shortSha(snapshots[safeIndex - 1].commit_sha)} → ${shortSha(snapshots[safeIndex].commit_sha)}`
             : `${shortSha(snapshots[0].commit_sha)} (earliest scanned commit, nothing before it)`}
         </div>
       )}

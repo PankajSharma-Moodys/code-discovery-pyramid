@@ -287,6 +287,42 @@ def _matches(text: str, needle: str) -> bool:
     return needle.lower() in str(text).lower()
 
 
+_SEARCH_SEGMENT_SPLIT = re.compile(r"[.#:/_]+")
+
+
+def _search_rank_key(text: str, needle: str) -> Tuple[int, int, str]:
+    """Ranks a `q_search` match by how meaningfully `needle` relates to
+    `text`, not just by `text`'s raw length.
+
+    A pure length sort (the prior behaviour) ranks a short, coincidental
+    substring match above a longer, semantically-real one -- e.g. against
+    this repo's own real vocabulary, `q="id"` ranked the dataflow node
+    `table:widget` (an accidental "id" inside "widget") ahead of
+    `cdp.derive#claim_id`/`web.api.nodeid#sym_id` (where "id" is a whole,
+    real token), purely because `table:widget` is a shorter string overall.
+    Tiers, tightest first: (0) exact case-insensitive match, (1) `needle` is
+    a whole segment once `text` is split on the same separators query
+    vocabulary already uses (`.`, `#`, `:`, `/`, `_`), (2) `text` or one of
+    its segments starts with `needle`, (3) everything else (`_matches`'s
+    plain substring test). Length, then the text itself, break ties within a
+    tier -- shorter still reads as more relevant, and the final `text` key
+    makes tied output deterministic rather than depending on scan order.
+    """
+    lower = str(text).lower()
+    lower_needle = needle.lower()
+    if lower == lower_needle:
+        tier = 0
+    else:
+        segments = _SEARCH_SEGMENT_SPLIT.split(lower)
+        if lower_needle in segments:
+            tier = 1
+        elif lower.startswith(lower_needle) or any(s.startswith(lower_needle) for s in segments):
+            tier = 2
+        else:
+            tier = 3
+    return (tier, len(text), text)
+
+
 def _more(indent: str, total: int, shown: Sequence[Any]) -> List[str]:
     """The `"... N more"` marker, generalised from `q_symbol`'s `used_by`.
 
@@ -650,9 +686,9 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
                 "unknowns": len(unknowns), "files": len(files),
             },
             "claims": budget.take(claims),
-            "symbols": budget.take(sorted(symbols, key=len)),
+            "symbols": budget.take(sorted(symbols, key=lambda s: _search_rank_key(s, text))),
             "unknowns": budget.take(unknowns),
-            "files": budget.take(sorted(files, key=len)),
+            "files": budget.take(sorted(files, key=lambda f: _search_rank_key(f, text))),
         },
         store,
         budget,

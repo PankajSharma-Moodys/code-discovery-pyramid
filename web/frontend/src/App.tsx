@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLinks } from "./api/hooks.ts";
 import { AtlasCanvas } from "./canvas/AtlasCanvas.tsx";
 import { LinksCanvas } from "./canvas/LinksCanvas.tsx";
+import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import { AskBar } from "./panels/AskBar.tsx";
 import { ControlRoom } from "./panels/control-room/ControlRoom.tsx";
 import { InspectorRail } from "./panels/InspectorRail.tsx";
@@ -101,9 +102,11 @@ function AppShell() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppShell />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AppShell />
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

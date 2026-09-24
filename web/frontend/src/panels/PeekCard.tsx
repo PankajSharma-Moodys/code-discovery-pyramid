@@ -23,7 +23,7 @@ export function PeekCard({ altitude, hoveredRawId, hoveredApiNodeId }: PeekCardP
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const timerRef = useRef<number | null>(null);
 
-  const { data } = useNodeAt(altitude, null, visible ? hoveredApiNodeId : null);
+  const { data, error, isLoading } = useNodeAt(altitude, null, visible ? hoveredApiNodeId : null);
 
   useEffect(() => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -54,8 +54,17 @@ export function PeekCard({ altitude, hoveredRawId, hoveredApiNodeId }: PeekCardP
         style={{ left: pos.x + CURSOR_OFFSET.x, top: pos.y + CURSOR_OFFSET.y, color: "var(--atlas-text)" }}
       >
         <div className="mb-1 truncate font-medium">{hoveredRawId}</div>
-        <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
-          {hoveredApiNodeId ? "loading…" : "a group — double-click to see what's inside"}
+        <div
+          className="text-xs"
+          style={{ color: error != null ? "var(--atlas-contested)" : "var(--atlas-text-dim)" }}
+        >
+          {!hoveredApiNodeId
+            ? "a group — double-click to see what's inside"
+            : error != null
+              ? "couldn't load"
+              : isLoading
+                ? "loading…"
+                : "not found"}
         </div>
       </div>
     );

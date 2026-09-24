@@ -22,15 +22,22 @@ export function InspectorRail({
   selectedApiNodeId,
   onClose,
 }: InspectorRailProps) {
-  const { data: node } = useNodeAt(altitude, null, selectedApiNodeId);
+  const { data: node, error, isLoading, refetch } = useNodeAt(altitude, null, selectedApiNodeId);
   const [openEvidence, setOpenEvidence] = useState<{ file: string; line: number } | null>(null);
   const { data: source } = useSourceFile(openEvidence?.file ?? null, openEvidence?.line ?? null);
 
   if (!selectedRawId) return null;
 
   return (
+    // `pointer-events-none` on the panel + `pointer-events-auto` on the
+    // actual controls below: this panel opens synchronously on select, so a
+    // node positioned under its footprint would otherwise have the second
+    // click of a double-click gesture intercepted by blank rail padding
+    // instead of reaching the canvas underneath (confirmed live via
+    // `document.elementFromPoint` -- the rail, not Sigma's MouseCaptor, was
+    // eating the click).
     <div
-      className="absolute right-0 top-0 z-20 flex h-full w-96 flex-col border-l p-4 text-sm backdrop-blur-md"
+      className="pointer-events-none absolute right-0 top-0 z-20 flex h-full w-96 flex-col border-l p-4 text-sm backdrop-blur-md"
       style={{
         background: "color-mix(in srgb, var(--atlas-bg-1) 92%, transparent)",
         borderColor: "var(--atlas-border)",
@@ -38,19 +45,40 @@ export function InspectorRail({
         boxShadow: "var(--atlas-elev-2)",
       }}
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
+      <div className="pointer-events-auto mb-3 flex items-start justify-between gap-2">
         <div className="truncate font-medium">{selectedRawId}</div>
         <button onClick={onClose} className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
           close
         </button>
       </div>
 
-      {!node && (
+      {!selectedApiNodeId && !node && (
         <div style={{ color: "var(--atlas-text-dim)" }}>
-          {selectedApiNodeId
-            ? "loading…"
-            : "This is a group of nodes, not a single one — double-click it on the canvas to open what's inside."}
+          This is a group of nodes, not a single one — double-click it on the canvas to open what's inside.
         </div>
+      )}
+
+      {selectedApiNodeId && isLoading && (
+        <div style={{ color: "var(--atlas-text-dim)" }}>loading…</div>
+      )}
+
+      {selectedApiNodeId && !isLoading && error != null && (
+        <div className="pointer-events-auto">
+          <div className="mb-2" style={{ color: "var(--atlas-contested)" }}>
+            Couldn't load this node — {error instanceof Error ? error.message : "request failed"}.
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="rounded border px-2 py-1 text-xs"
+            style={{ borderColor: "var(--atlas-border)" }}
+          >
+            retry
+          </button>
+        </div>
+      )}
+
+      {selectedApiNodeId && !isLoading && error == null && !node && (
+        <div style={{ color: "var(--atlas-text-dim)" }}>Not found.</div>
       )}
 
       {node && (
@@ -66,7 +94,7 @@ export function InspectorRail({
               0 claims — not yet reviewed.
             </div>
           )}
-          <ul className="mb-3 space-y-2 overflow-y-auto">
+          <ul className="pointer-events-auto mb-3 space-y-2 overflow-y-auto">
             {node.claims.map((claim, i) => (
               <li key={i} className="rounded border p-2" style={{ borderColor: "var(--atlas-border)" }}>
                 <div className="flex items-center justify-between">
@@ -98,7 +126,7 @@ export function InspectorRail({
           </ul>
 
           {openEvidence && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="pointer-events-auto flex min-h-0 flex-1 flex-col">
               <div className="mb-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
                 {openEvidence.file}:{openEvidence.line}
               </div>
