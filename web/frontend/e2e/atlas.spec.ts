@@ -184,7 +184,17 @@ test("double-click expands a container in place (node count grows, parent stays 
   expect(after.nodes).toContain(target); // shrunk to an anchor, not removed
 
   // Collapse back via a second double-click on the same (now-shrunk) anchor.
-  await page.mouse.dblclick(pos.x, pos.y);
+  // Re-resolve its screen position rather than reusing `pos`: Sigma's
+  // `framedGraphToViewport` mapping normalizes against the *whole graph's*
+  // bounding box, which just grew when expand injected far-flung children --
+  // so the target's own pixel position shifts even though its world x/y
+  // never moved (measured live: same node's viewport x moved ~13px after
+  // expanding, on this repo's own real index). Reusing the stale `pos` here
+  // missed the shrunk anchor entirely and silently double-clicked empty
+  // canvas, which is why this test was failing against the grown (not
+  // collapsed) node count instead of ever actually collapsing.
+  const posAfterExpand = await nodeScreenPosition(page, target);
+  await page.mouse.dblclick(posAfterExpand.x, posAfterExpand.y);
   await page.waitForTimeout(300);
   const collapsed = await atlasSigma(page);
   expect(collapsed.order).toBe(before.order);
@@ -225,8 +235,13 @@ test("expanding a second sibling container keeps the first one's children on can
   expect(afterBoth.nodes).toContain(first.id);
   expect(afterBoth.nodes).toContain(second.id);
 
-  // Collapsing the first leaves the second's children untouched.
-  await page.mouse.dblclick(firstPos.x, firstPos.y);
+  // Collapsing the first leaves the second's children untouched. Re-resolve
+  // its screen position first -- same reason as the previous test: the
+  // graph's bounding box grew twice more since `firstPos` was captured (the
+  // first expansion, then the second), so `first.id`'s pixel position has
+  // moved even though its world x/y haven't.
+  const firstPosNow = await nodeScreenPosition(page, first.id);
+  await page.mouse.dblclick(firstPosNow.x, firstPosNow.y);
   await page.waitForTimeout(300);
   const afterFirstCollapsed = await atlasSigma(page);
   expect(afterFirstCollapsed.order).toBe(afterBoth.order - (afterFirst.order - before.order));

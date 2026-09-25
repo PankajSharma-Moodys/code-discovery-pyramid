@@ -89,6 +89,20 @@ class QueryEndpointTest(unittest.TestCase):
         resp = self._client().get("/api/trace", params=self._params())
         self.assertEqual(resp.status_code, 400)
 
+    def test_trace_by_entry_is_200_not_500(self) -> None:
+        # Regression test: `get_trace` calls `get_query` as a plain in-process
+        # function call, which previously left `exclude_role` unbound to its
+        # FastAPI `Query(...)` default (an unresolved sentinel object, not
+        # `None`) rather than the real value FastAPI's own request pipeline
+        # would have resolved it to -- `q_trace`'s `exclude_role` truthy-guard
+        # then crashed on `not in <Query object>`. `/v1/widgets` is a known
+        # route entry point in this fixture (`tests/test_trace.py`), so this
+        # doesn't depend on the fixture producing any dataflow `paths`
+        # (unlike `test_trace_query_matches_cli`, which skips when it doesn't).
+        resp = self._client().get("/api/trace", params=self._params(entry="/v1/widgets"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("found", resp.json())
+
 
 if __name__ == "__main__":
     unittest.main()

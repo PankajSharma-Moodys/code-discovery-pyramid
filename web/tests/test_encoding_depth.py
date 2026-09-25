@@ -154,17 +154,47 @@ class ResolveOwnerFileTest(unittest.TestCase):
             "core/App/Startup.cs",
         )
 
-    def test_descendant_fallback_never_matches_an_unrelated_sibling_prefix(self) -> None:
+    def test_direct_descendant_probe_requires_a_dotted_boundary(self) -> None:
+        """`bisect`'s prefix probe for `raw_id`'s own descendants requires the
+        trailing `.` separator -- a plain string-prefix match that isn't a
+        real dotted-segment descendant must not resolve, even when the
+        ancestor fallback below also can't rescue it (no shared ancestor
+        exists here at all -- the symbol lives under a wholly unrelated
+        top-level namespace, so no ancestor of `raw_id` shares any dotted
+        prefix with it either)."""
+        symbol_table = {
+            "Totally.Unrelated.AppSettings.Leaf": {"sites": [{"file": "other/AppSettings/Leaf.cs"}]},
+        }
+        sorted_keys = sorted(symbol_table)
+        # "RMS.Other.App" is not a string-prefix of, nor a dotted-segment
+        # ancestor of, "Totally.Unrelated.AppSettings.Leaf" at any level.
+        self.assertIsNone(
+            encoding.resolve_owner_file("RMS.Other.App", symbol_table, [], sorted_keys)
+        )
+
+    def test_ancestor_fallback_resolves_when_no_descendant_exists(self) -> None:
+        """`WEB_REDESIGN_RESEARCH.md` follow-up: measured against the real
+        `unified-store` index, 165 of 188 residual singleton namespace
+        fragments (ids with no symbol of their own and no direct descendant
+        either) resolve once the fallback also walks *up* the dotted id and
+        retries the same two checks against each ancestor, closest first --
+        e.g. `RMS.UnifiedStore.Service.Api.EdmMaintenance` has no members of
+        its own, but its immediate parent `RMS.UnifiedStore.Service.Api`
+        does. This intentionally widens `resolve_owner_file`'s contract from
+        "this id's own subtree only" to "the nearest resolvable container"
+        -- for the container-*grouping* use case that's the right trade-off
+        (an orphaned namespace fragment lands in its real containing
+        directory instead of becoming its own singleton group), even though
+        it means two originally-unrelated *siblings* under a shared ancestor
+        (like `Core.App` and `Core.AppSettings.Leaf` here) can now resolve
+        to the same file when neither has more specific content of its own."""
         symbol_table = {
             "RMS.UnifiedStore.Core.AppSettings.Leaf": {"sites": [{"file": "core/AppSettings/Leaf.cs"}]},
         }
         sorted_keys = sorted(symbol_table)
-        # "RMS.UnifiedStore.Core.App" is a string-prefix of
-        # "RMS.UnifiedStore.Core.AppSettings.Leaf" but not a *dotted-segment*
-        # ancestor of it -- the probe requires the separator, so this must
-        # not resolve.
-        self.assertIsNone(
-            encoding.resolve_owner_file("RMS.UnifiedStore.Core.App", symbol_table, [], sorted_keys)
+        self.assertEqual(
+            encoding.resolve_owner_file("RMS.UnifiedStore.Core.App", symbol_table, [], sorted_keys),
+            "core/AppSettings/Leaf.cs",
         )
 
     def test_owner_edge_map_agrees_with_the_per_node_scan(self) -> None:

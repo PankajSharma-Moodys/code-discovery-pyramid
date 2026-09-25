@@ -288,6 +288,7 @@ def _matches(text: str, needle: str) -> bool:
 
 
 _SEARCH_SEGMENT_SPLIT = re.compile(r"[.#:/_]+")
+_CAMEL_BOUNDARY_SPLIT = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 
 def _search_rank_key(text: str, needle: str) -> Tuple[int, int, str]:
@@ -300,10 +301,14 @@ def _search_rank_key(text: str, needle: str) -> Tuple[int, int, str]:
     `table:widget` (an accidental "id" inside "widget") ahead of
     `cdp.derive#claim_id`/`web.api.nodeid#sym_id` (where "id" is a whole,
     real token), purely because `table:widget` is a shorter string overall.
+
     Tiers, tightest first: (0) exact case-insensitive match, (1) `needle` is
     a whole segment once `text` is split on the same separators query
-    vocabulary already uses (`.`, `#`, `:`, `/`, `_`), (2) `text` or one of
-    its segments starts with `needle`, (3) everything else (`_matches`'s
+    vocabulary already uses (`.`, `#`, `:`, `/`, `_`), (2) `needle` is a whole
+    camelCase/PascalCase sub-token of one of those segments -- e.g. `"id"`
+    against `AddImportJobId` -- since delimiter-splitting alone never
+    separates identifiers that only vary by case, (3) `text` or one of its
+    delimiter segments starts with `needle`, (4) everything else (`_matches`'s
     plain substring test). Length, then the text itself, break ties within a
     tier -- shorter still reads as more relevant, and the final `text` key
     makes tied output deterministic rather than depending on scan order.
@@ -313,14 +318,60 @@ def _search_rank_key(text: str, needle: str) -> Tuple[int, int, str]:
     if lower == lower_needle:
         tier = 0
     else:
-        segments = _SEARCH_SEGMENT_SPLIT.split(lower)
-        if lower_needle in segments:
+        segments = _SEARCH_SEGMENT_SPLIT.split(str(text))
+        lower_segments = [s.lower() for s in segments]
+        if lower_needle in lower_segments:
             tier = 1
-        elif lower.startswith(lower_needle) or any(s.startswith(lower_needle) for s in segments):
-            tier = 2
         else:
-            tier = 3
+            camel_tokens = [
+                tok.lower()
+                for seg in segments
+                for tok in _CAMEL_BOUNDARY_SPLIT.split(seg)
+                if tok
+            ]
+            if lower_needle in camel_tokens:
+                tier = 2
+            elif lower.startswith(lower_needle) or any(s.startswith(lower_needle) for s in lower_segments):
+                tier = 3
+            else:
+                tier = 4
     return (tier, len(text), text)
+
+
+def _fair_split_budget(limit: int, demands: Sequence[int]) -> List[int]:
+    """Water-filling allocation of `limit` rows across `demands` buckets.
+
+    `q_search` used to spend one shared `Budget` across `claims`, `symbols`,
+    `unknowns`, `files` in that construction order -- so a term with more
+    claim matches than the whole budget could exhaust it before `symbols`/
+    `files` (the only two categories `/api/search` actually returns) got a
+    turn. Passing `q_search`'s own default budget (200) through, instead of
+    the UI's small `limit`, was tried first and fixed the reported case
+    (`q="app"`, 26 claims) -- but measured live against the real
+    `unified-store` index, ordinary vocabulary (`service`, `id`, `sql`,
+    `table`, `route`, `schema`, `store`) has *more than 200* matching claims
+    each, so `/api/search` still silently returned zero results for common,
+    real words. Splitting the allowance fairly across buckets, with any
+    share a smaller bucket doesn't need redistributed to the buckets that
+    do, closes the actual failure mode rather than just raising the same
+    single shared number again.
+    """
+    n = len(demands)
+    alloc = [0] * n
+    remaining = max(0, int(limit))
+    active = [i for i in range(n) if demands[i] > 0]
+    while remaining > 0 and active:
+        share = max(1, remaining // len(active))
+        still_active = []
+        for i in active:
+            want = demands[i] - alloc[i]
+            take = min(want, share, remaining)
+            alloc[i] += take
+            remaining -= take
+            if alloc[i] < demands[i]:
+                still_active.append(i)
+        active = still_active
+    return alloc
 
 
 def _more(indent: str, total: int, shown: Sequence[Any]) -> List[str]:
@@ -671,12 +722,40 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
         c for c in store.state["claims"]
         if _matches(c.get("subject", ""), text) or _matches(c.get("statement", ""), text)
     ]
-    symbols = [k for k in store.xref["symbols"] if _matches(k, text)]
+    symbols = sorted(
+        (k for k in store.xref["symbols"] if _matches(k, text)),
+        key=lambda s: _search_rank_key(s, text),
+    )
     unknowns = [u for u in store.state["unknowns"] if _matches(u.get("question", ""), text)]
-    files = [
-        f["path"] for f in store.inventory["files"]
-        if _matches(f["path"], text) and not (exclude_role and f["role"] in exclude_role)
-    ]
+    files = sorted(
+        (
+            f["path"] for f in store.inventory["files"]
+            if _matches(f["path"], text) and not (exclude_role and f["role"] in exclude_role)
+        ),
+        key=lambda f: _search_rank_key(f, text),
+    )
+    # Fair-split, not a single shared budget spent in construction order --
+    # see `_fair_split_budget`'s docstring for the real-repo failure mode
+    # this replaced.
+    claims_room, symbols_room, unknowns_room, files_room = _fair_split_budget(
+        budget.limit, [len(claims), len(symbols), len(unknowns), len(files)]
+    )
+    claims_budget = Budget(claims_room)
+    symbols_budget = Budget(symbols_room)
+    unknowns_budget = Budget(unknowns_room)
+    files_budget = Budget(files_room)
+    kept_claims = claims_budget.take(claims)
+    kept_symbols = symbols_budget.take(symbols)
+    kept_unknowns = unknowns_budget.take(unknowns)
+    kept_files = files_budget.take(files)
+    budget.spent = (
+        claims_budget.spent + symbols_budget.spent
+        + unknowns_budget.spent + files_budget.spent
+    )
+    budget.elided = (
+        claims_budget.elided + symbols_budget.elided
+        + unknowns_budget.elided + files_budget.elided
+    )
     return _finish(
         {
             "query": "search",
@@ -685,10 +764,10 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
                 "claims": len(claims), "symbols": len(symbols),
                 "unknowns": len(unknowns), "files": len(files),
             },
-            "claims": budget.take(claims),
-            "symbols": budget.take(sorted(symbols, key=lambda s: _search_rank_key(s, text))),
-            "unknowns": budget.take(unknowns),
-            "files": budget.take(sorted(files, key=lambda f: _search_rank_key(f, text))),
+            "claims": kept_claims,
+            "symbols": kept_symbols,
+            "unknowns": kept_unknowns,
+            "files": kept_files,
         },
         store,
         budget,

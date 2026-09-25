@@ -342,7 +342,7 @@ def get_trace(
     return get_query(
         kind=kind, term=term, budget=None, claim_kind=None, module=None,
         subject=None, frm=frm, to=to, max_hops=max_hops,
-        repo=repo, state_dir=state_dir,
+        exclude_role=None, repo=repo, state_dir=state_dir,
     )
 
 

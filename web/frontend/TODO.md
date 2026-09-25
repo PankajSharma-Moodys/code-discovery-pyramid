@@ -1639,3 +1639,228 @@ addressed.
       revisited this pass. The `TARGET_REPO`-gated golden baseline
       (`tests/golden/code_scanner@7e10575adf69/query/search.json`) still
       needs a `--bless` re-run by whoever has access to that private repo.
+
+## `/api/search` ranking — the starvation bug recurred at real repo scale (2026-09-24)
+
+User picked "search ranking tuning" as the next item off the deferred list
+above. Gathered evidence before touching code, per this repo's own
+debugging-process rule: ran the real `uvicorn` server against `unified-store`
+(`~/git/unified-store/.cdp`, the doc's own repro case) and curled `/api/search`
+with ordinary real vocabulary (`id`, `service`, `controller`, `sql`, `table`,
+`route`, `schema`, `store`, `widget`, `run`, `query`, `job`, `link`, `cli`,
+`app`, `doc`, `process`, `handler`, `config`, `http`, `test`, `util`).
+
+- [x] **Found: the `q=app` starvation bug (fixed two sessions ago) is one
+      instance of a still-open, more general bug** — `id`, `service`,
+      `controller`, `sql`, `table`, `route`, `schema`, and `store` (8 of the
+      22 real terms tried) all returned **zero results**, not degraded
+      ranking. Root cause, confirmed via `/api/query?kind=search` directly:
+      each of those terms has **more matching claims than `q_search`'s own
+      default budget (200)** on this real, larger repo (e.g. `id` alone
+      matched >200 claims) — the exact same `Budget.take` construction-order
+      mechanism the earlier `q=app` fix targeted (claims spend the whole
+      allowance before `symbols`/`files`, the only two categories
+      `/api/search` returns, get a turn), just recurring at a bigger number
+      than that fix's own default-200 remedy anticipated. Raising the shared
+      number again would only move the threshold, not close the bug class.
+      Fixed properly this time: new `_fair_split_budget` (`cdp/query.py`,
+      water-filling allocator) replaces `q_search`'s single budget drained in
+      construction order with one that splits the allowance across
+      `claims`/`symbols`/`unknowns`/`files`, redistributing any share an
+      under-demanding bucket doesn't use to the buckets that do — so no
+      single category can exhaust the others regardless of how common the
+      term is elsewhere. `q_search` now builds one `Budget` per category off
+      the allocator's output and sums their `spent`/`elided` back into the
+      caller-supplied `budget` so `/api/query`'s `elided`/`budget_note`
+      contract is unchanged.
+      Verified live, post-fix, against the same real `unified-store` server:
+      all 8 previously-empty terms now return real symbol matches (`id` →
+      `AddImportJobId`/`CardIdSortTask`/...; `service` →
+      `AuthServiceClient`/`CatalogDataService`/...; `controller` →
+      `CardController`/`AccessController`/...; `sql`/`table`/`route`/
+      `schema`/`store` likewise) — spot-checked, not just re-asserting the
+      count changed. `q=app` (the original regression case) and `q=widget`
+      against this repo's own small index still behave as before (`app`: 8
+      real `App.*` symbols; `widget` against this repo's own fixture index:
+      unchanged).
+      New tests: `tests/test_budget.py`'s `FairSplitBudgetTest` (5 cases —
+      even split, never over-allocates past a bucket's own demand,
+      redistributes unused share, zero limit, never exceeds the total limit
+      across a table of limit/demand combinations) and `SearchStarvationTest`
+      (2 cases — 500 abundant matching claims no longer starve 2 real
+      symbols + 1 real file out of a 50-row budget; true counts and total
+      elided are still reported correctly through the summed sub-budgets).
+      Synced `cdp/query.py` + `tests/test_budget.py` into the vendored
+      `.claude/skills/cdp/` copy directly (file-for-file, not via
+      `cdp install --self` — that command's other side effects, e.g.
+      `register_leaf_agent`/`AGENTS.md` writes, were out of scope for a
+      query-layer fix and were denied by this session's own permission
+      classifier as an unrelated persistence action; a targeted `cp` of just
+      the two changed files achieves the same "vendored copy stays
+      byte-identical" contract `test_distribution.py` checks, without those
+      side effects). `python3 -m pytest tests web/tests -q -k "not
+      target_repo"`: 682 passed (was 675, +7 new tests), 28 skipped, 3
+      deselected, no regressions.
+      **Not addressed this pass, explicitly out of scope**: camelCase/
+      PascalCase token-boundary ranking (`_search_rank_key`'s segment split
+      is on `.#:/_` only, so e.g. `id` inside `AddImportJobId` still ranks by
+      the tier-3 plain-substring fallback, not as a real token match — a
+      different, smaller gap than the starvation bug this pass closed, only
+      visible on this repo's C#/Java-heavy real vocabulary); the
+      `TARGET_REPO`-gated golden baseline still needs a `--bless` re-run by
+      whoever has access to that private repo (unchanged from the entry
+      above — this pass's fix touches the same function, so that baseline is
+      now doubly stale, not newly so).
+
+## `/api/trace` 500 on real `unified-store` requests (2026-09-24)
+
+User-reported live crash: `GET /api/trace?entry=...&repo=/Users/sharmp49/git/
+unified-store&state_dir=.../.cdp` returned 500. Root-caused before touching
+code (per this repo's own debugging convention):
+
+- `[x]` Found the exact defect: `get_trace` (`web/api/app.py`) calls
+  `get_query(...)` as a plain in-process Python function call rather than
+  through FastAPI's ASGI routing, and never passed `exclude_role`. Python
+  then used the literal signature default — the unresolved
+  `fastapi.params.Query(None, ...)` sentinel object, not `None` — because
+  only FastAPI's own request pipeline resolves that sentinel into a real
+  value. That object is truthy and non-iterable, so `q_trace`'s
+  `roles.get(r["file"]) not in exclude_role` (`cdp/query.py:904`) raised
+  `TypeError`, surfaced as the reported 500. Every other query `kind` never
+  hit this because they're only ever reached through `/api/query`'s real
+  ASGI route.
+- `[x]` Fixed with a one-line addition (`exclude_role=None`) to `get_trace`'s
+  `get_query(...)` call.
+- `[x]` Added `test_trace_by_entry_is_200_not_500` to
+  `web/tests/test_query_endpoint.py` — deterministic (`/v1/widgets`, a known
+  route entry point in the fixture), unlike the existing
+  `test_trace_query_matches_cli`, which **skips** whenever the fixture scan
+  produces no dataflow `paths` — which is exactly why this bug shipped
+  unnoticed by the existing suite.
+- `[x]` Verified live: re-ran the user's exact failing URL (same entry,
+  `repo`, `state_dir`) against a real `uvicorn` process pointed at
+  `unified-store`'s real `.cdp` index — now 200 (was 500).
+
+## camelCase/PascalCase search ranking (2026-09-24)
+
+Picked up the gap explicitly left open in the entry above.
+
+- `[x]` `_search_rank_key` (`cdp/query.py`) gained a new tier between the
+  existing whole-delimiter-segment tier and the startswith tier: a
+  camelCase/PascalCase sub-token exact match (new `_CAMEL_BOUNDARY_SPLIT`
+  regex, standard `(?<=[a-z0-9])(?=[A-Z])` / `(?<=[A-Z])(?=[A-Z][a-z])`
+  boundaries). Tiers renumbered 0–4 (exact / whole-segment / camel-token /
+  startswith / substring); delimiter-segment tokens are now split on their
+  *original*-case text (not the pre-lowered `text`) so case boundaries
+  survive into the camel split.
+- `[x]` New `SearchRankKeyTest` (5 cases) in `tests/test_budget.py`, synced
+  file-for-file into the vendored `.claude/skills/cdp/tests/` copy (same
+  convention as the prior entry's `_fair_split_budget` sync).
+- `[x]` Verified live against real `unified-store` data: `q=id`'s top-5
+  results are now `AddImportJobId`, `CardIdSortTask`, `AddStorageTypeId`,
+  `AddCallbackIdIndex`, `AddJobAndRequestId` — real `Id`/`id`-token matches,
+  not accidental substrings.
+- `python3 -m pytest -q`: 714 passed (was 682, +32 counting subtests), 36
+  skipped, no regressions.
+- **Not addressed, explicitly out of scope**: the `TARGET_REPO`-gated golden
+  search baseline is now triply stale (unchanged access blocker); no attempt
+  made to re-bless it.
+
+## 190 residual singleton container groups (2026-09-24)
+
+Measured before implementing, per this repo's own gate-before-fix convention
+(a throwaway probe script against the real `unified-store` index, deleted
+after use, not committed):
+
+- `[x]` Measured: of the 188 bare ids (not 190 — the doc's number had drifted
+  slightly) that `container_group` still turns into singletons today, 165
+  (88%) would resolve if `resolve_owner_file` also walked *up* the dotted id
+  and retried its existing exact-match/descendant-probe checks against each
+  ancestor, closest first — e.g. `RMS.UnifiedStore.Service.Api.
+  EdmMaintenance` has no symbol of its own and no descendant, but its
+  immediate parent `RMS.UnifiedStore.Service.Api` resolves. A cheaper
+  exact-match-only ancestor probe (no descendant-of-ancestor) was measured
+  too and only resolved 57/188 — not worth the weaker result on its own, so
+  went with the stronger, descendant-inclusive walk.
+- `[x]` Implemented the ancestor fallback in `resolve_owner_file`
+  (`web/api/encoding.py`). Re-measured against the same real index after
+  implementing: **208 groups → 43 groups, 188 singletons → 23 singletons**
+  (depth-1 top rung).
+- `[x]` Found and deliberately updated a real test-invariant conflict, not
+  silently changed: `test_descendant_fallback_never_matches_an_unrelated_
+  sibling_prefix` (`web/tests/test_encoding_depth.py`) failed after the
+  change, because the ancestor walk can now resolve `Core.App` via a
+  *sibling* `Core.AppSettings.Leaf` through their shared ancestor `Core` —
+  exactly the kind of match the old, descendant-only contract explicitly
+  forbade. This is intentional: `resolve_owner_file`'s contract is
+  deliberately widened from "this id's own subtree only" to "the nearest
+  resolvable container," which is the right trade-off for the container-
+  *grouping* use case (an orphaned namespace fragment lands in its real
+  containing directory instead of becoming its own singleton), even though
+  it means two originally-unrelated siblings can now share a resolved file
+  when neither has more specific content of its own. Split the old test
+  into `test_direct_descendant_probe_requires_a_dotted_boundary` (keeps
+  guarding the real dot-boundary invariant, using a fixture with no shared
+  ancestor at all) and a new `test_ancestor_fallback_resolves_when_no_
+  descendant_exists` (documents and asserts the new, intended behavior).
+- `python3 -m pytest -q`: 715 passed (was 714, net +1 from the test split),
+  36 skipped, no other regressions. `web/tests/test_graph_endpoint.py` (16
+  cases, exercises `resolve_owner_file`/`container_group` end-to-end against
+  a real scanned fixture) still green.
+- **23 residual singletons left, characterized not fixed**: genuinely
+  disconnected namespace fragments with no resolvable ancestor at any level
+  in the real index — same "characterized non-fix" posture as
+  `partition.scopes` above, not forced further.
+
+## Live-verifying recent fixes (2026-09-24)
+
+- [x] **`tsc -b` was actually broken** (pre-existing, unrelated to this
+  session's edits — last touched in `98493fc`/`7bf76c8`): `vite.config.ts`'s
+  `test:` key needs `/// <reference types="vitest/config" />` for TypeScript
+  to accept it in `defineConfig(...)`; without it, `tsc -b` failed with
+  `TS2769` at `vite.config.ts:29`. Fixed by adding the directive as the
+  file's first line. `npx tsc -b` now clean. This contradicts an earlier
+  TODO.md claim of "tsc -b clean" from a prior session — that claim was
+  stale.
+- [x] **Full `e2e/atlas.spec.ts` run, fresh** (Playwright availability is
+  documented as inconsistent session-to-session): 5 passed, 2 failed, 1
+  skipped on first run. Root-caused with empirical evidence (a debug spec
+  logging screen positions before/after expand), not guessed: tests 4 and 5
+  reuse a node's screen position (`nodeScreenPosition`, captured once) for a
+  *second* click after expanding a container. Sigma's `framedGraphToViewport`
+  normalizes against the whole graph's bounding box, which grows the moment
+  expand-in-place injects far-flung children -- so the same node's own pixel
+  position measurably shifts (verified live: one node's viewport x moved
+  ~13px after expanding, on this repo's own real index) even though its
+  world x/y never changed. The stale second click missed the shrunk anchor
+  and silently hit empty canvas, so the "collapse" click never fired and the
+  assertion compared the post-expand count against the pre-expand baseline.
+  This is a **test bug, not a product bug** -- `expandContainerInPlace`/
+  `collapseContainerInPlace` themselves are correct (verified by re-resolving
+  position immediately before each click). Fixed by re-resolving screen
+  position before every click that follows a graph mutation, in both tests.
+  All 6 non-skipped tests now pass.
+- [x] **Too-large empty state, real scale**: verified live against
+  `unified-store`'s real `.cdp/index.db` (not an artificially lowered
+  `GRAPH_SIZE_CEILING`) -- the unscoped Modules (L2) altitude genuinely
+  exceeds the ceiling there (0 nodes shipped, `too_large: true`,
+  `suggested_scopes` populated with 8 real package names), and the chips
+  render and are clickable, descending into a real scoped L2 (e.g. `Tables`,
+  1,002 nodes). Screenshot-verified.
+- [ ] **Dense expand-in-place label crowding, real scale**: not verified this
+  pass. Attempted against `unified-store`'s real containers (e.g. `Config`,
+  917 members) via a throwaway Playwright probe; the probe's synthetic
+  double-click reliably produced one `clickNode` event but never a second
+  click or `doubleClickNode` (traced via native DOM listeners on the
+  canvas) even after retrying with manual mousedown/up pairs at varying
+  delays and re-resolving the node's position between clicks -- i.e. the
+  *test harness's* synthetic double-click isn't landing on this repo's own
+  local Sigma canvas at all past the first click, for reasons not yet
+  isolated (GPU driver stalls were logged in the console during these runs,
+  a plausible but unconfirmed contributor). This reproduced identically
+  across several harness variants, so it reads as an environment/harness
+  issue rather than an app bug -- the same click path is exercised
+  end-to-end by the now-green `atlas.spec.ts` tests 4/5 against this repo's
+  own (smaller) real index. Left open rather than forced; not a claimed fix.
+- `python3 -m pytest -q`: 715 passed, 36 skipped -- unchanged, no regressions
+  from this pass's fixes.

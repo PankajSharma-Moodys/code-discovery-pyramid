@@ -321,28 +321,48 @@ def resolve_owner_file(
     id like `RMS.UnifiedStore.Core.App` with no symbol of its own, but whose
     leaf members do) via a bounded `bisect` prefix probe over
     `sorted_symbol_keys` -- first match, not a majority vote across every
-    descendant, but a strict improvement over "always a singleton." A
-    `config-file:`/`sql:` id resolves straight from its own suffix
-    (`PATH_LITERAL_PREFIXES`), no lookup at all. Any other `type:`-prefixed id
-    (`table:`/`route:`/...) has no file of its own -- it resolves through
-    whichever edge `schema_own`s/`http_in`s it, taking the *other* endpoint's
-    file, one hop only (a table owned by a table has nothing sensible to
-    resolve further). `None` when nothing owns it -- the caller falls back to
-    the type's global bucket, exactly as before this existed."""
+    descendant, but a strict improvement over "always a singleton." Failing
+    that too, it walks *up* the dotted id one segment at a time and retries
+    both checks against each ancestor, closest first -- measured against the
+    real `unified-store` index, this resolves 165 of 188 ids that the
+    descendant-only fallback still left as singletons (e.g.
+    `RMS.UnifiedStore.Service.Api.EdmMaintenance`, a namespace fragment with
+    no symbol of its own and no descendant either, but whose ancestor
+    `RMS.UnifiedStore.Service.Api` does have one), leaving only 23 genuinely
+    disconnected namespace fragments. A `config-file:`/`sql:` id resolves
+    straight from its own suffix (`PATH_LITERAL_PREFIXES`), no lookup at all.
+    Any other `type:`-prefixed id (`table:`/`route:`/...) has no file of its
+    own -- it resolves through whichever edge `schema_own`s/`http_in`s it,
+    taking the *other* endpoint's file, one hop only (a table owned by a
+    table has nothing sensible to resolve further). `None` when nothing owns
+    it -- the caller falls back to the type's global bucket, exactly as
+    before this existed."""
     prefix, rest = split_prefix(raw_id)
     if prefix in PATH_LITERAL_PREFIXES:
         return rest or None
     if prefix is None:
-        sym = symbol_table.get(raw_id)
-        if sym and sym.get("sites"):
-            return sym["sites"][0].get("file")
         keys = sorted_symbol_keys if sorted_symbol_keys is not None else sorted(symbol_table)
-        probe = raw_id + "."
-        i = bisect.bisect_left(keys, probe)
-        if i < len(keys) and keys[i].startswith(probe):
-            descendant = symbol_table.get(keys[i])
-            if descendant and descendant.get("sites"):
-                return descendant["sites"][0].get("file")
+
+        def _exact_or_descendant(candidate: str) -> Optional[str]:
+            sym = symbol_table.get(candidate)
+            if sym and sym.get("sites"):
+                return sym["sites"][0].get("file")
+            probe = candidate + "."
+            i = bisect.bisect_left(keys, probe)
+            if i < len(keys) and keys[i].startswith(probe):
+                descendant = symbol_table.get(keys[i])
+                if descendant and descendant.get("sites"):
+                    return descendant["sites"][0].get("file")
+            return None
+
+        found = _exact_or_descendant(raw_id)
+        if found:
+            return found
+        parts = raw_id.split(".")
+        for cut in range(len(parts) - 1, 0, -1):
+            found = _exact_or_descendant(".".join(parts[:cut]))
+            if found:
+                return found
         return None
     if owner_edge_map is not None:
         return owner_edge_map.get(raw_id)

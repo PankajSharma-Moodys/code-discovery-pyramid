@@ -20,7 +20,7 @@ from helpers import make_repo  # noqa: F401  (sets sys.path)
 
 from cdp import query as query_mod
 from cdp.cli import main
-from cdp.query import Budget, Store, render
+from cdp.query import Budget, Store, q_search, render, _fair_split_budget, _search_rank_key
 
 QUERY_SOURCE = Path(query_mod.__file__)
 
@@ -242,6 +242,125 @@ class BudgetedQueryTest(unittest.TestCase):
 
         data = json.loads(self.run_cli("query", "claims", "--json", "--budget", "1"))
         self.assertGreater(data["count"], len(data["claims"]))
+
+
+class FairSplitBudgetTest(unittest.TestCase):
+    """`_fair_split_budget`, the water-filling allocator `q_search` uses so
+    one abundant bucket (typically `claims`) cannot exhaust a shared budget
+    before the others get a turn — see the class docstring and
+    `SearchStarvationTest` below for the real-repo failure mode this
+    replaced."""
+
+    def test_even_split_when_every_bucket_wants_more_than_its_share(self) -> None:
+        self.assertEqual(_fair_split_budget(8, [100, 100, 100, 100]), [2, 2, 2, 2])
+
+    def test_never_allocates_more_than_a_bucket_demands(self) -> None:
+        alloc = _fair_split_budget(20, [1, 100, 0, 100])
+        self.assertEqual(alloc[0], 1)  # claims only wanted 1, not its full share
+        self.assertEqual(alloc[2], 0)  # unknowns wanted nothing
+
+    def test_redistributes_unused_share_to_hungrier_buckets(self) -> None:
+        # bucket 0 only has 1 row to give; the other 3 split the remaining 19.
+        alloc = _fair_split_budget(20, [1, 100, 100, 100])
+        self.assertEqual(alloc[0], 1)
+        self.assertEqual(sum(alloc), 20)
+        self.assertTrue(all(a >= 6 for a in alloc[1:]))
+
+    def test_zero_limit_allocates_nothing(self) -> None:
+        self.assertEqual(_fair_split_budget(0, [5, 5, 5, 5]), [0, 0, 0, 0])
+
+    def test_never_exceeds_the_total_limit(self) -> None:
+        for limit in range(0, 12):
+            for demands in ([0, 0, 0, 0], [1, 0, 0, 0], [3, 7, 0, 2], [50, 50, 50, 50]):
+                alloc = _fair_split_budget(limit, demands)
+                self.assertLessEqual(sum(alloc), limit)
+                for a, d in zip(alloc, demands):
+                    self.assertLessEqual(a, d)
+
+
+class SearchRankKeyTest(unittest.TestCase):
+    """`_search_rank_key`'s camelCase/PascalCase tier — delimiter-splitting
+    alone (`.`, `#`, `:`, `/`, `_`) never separates identifiers that only
+    vary by case, so `q="id"` against real vocabulary like `AddImportJobId`
+    used to fall all the way through to the startswith/substring tiers,
+    tying with (or losing to) unrelated accidental substrings such as
+    `"grid"`. This closes that gap without disturbing the existing
+    delimiter-based tiers."""
+
+    def test_camel_token_ranks_above_startswith_and_substring(self) -> None:
+        camel_tier = _search_rank_key("cdp.jobs#AddImportJobId", "id")[0]
+        startswith_tier = _search_rank_key("cdp.jobs#IdempotencyKey", "id")[0]
+        substring_tier = _search_rank_key("cdp.grid#GridSize", "id")[0]
+        self.assertLess(camel_tier, startswith_tier)
+        self.assertLess(startswith_tier, substring_tier)
+
+    def test_whole_delimiter_segment_still_beats_camel_token(self) -> None:
+        segment_tier = _search_rank_key("cdp.derive#id", "id")[0]
+        camel_tier = _search_rank_key("cdp.jobs#AddImportJobId", "id")[0]
+        self.assertLess(segment_tier, camel_tier)
+
+    def test_camel_split_does_not_require_delimiters(self) -> None:
+        # A single identifier with no `.`/`#`/`:`/`_` separators at all.
+        tier = _search_rank_key("AddImportJobId", "id")[0]
+        substring_tier = _search_rank_key("GridSize", "id")[0]
+        self.assertLess(tier, substring_tier)
+
+    def test_exact_match_still_wins_over_camel_token(self) -> None:
+        exact_tier = _search_rank_key("id", "id")[0]
+        camel_tier = _search_rank_key("AddImportJobId", "id")[0]
+        self.assertLess(exact_tier, camel_tier)
+
+    def test_length_still_breaks_ties_within_a_tier(self) -> None:
+        short = _search_rank_key("AddJobId", "id")
+        long = _search_rank_key("AddImportExportJobId", "id")
+        self.assertEqual(short[0], long[0])  # same tier (camel token)
+        self.assertLess(short[1], long[1])
+
+
+class _FakeStore:
+    """Minimal duck-typed stand-in for `Store` — `q_search` and `_finish`
+    only ever touch `.state`, `.xref`, `.inventory`, so a real scanned repo
+    isn't needed to exercise the allocation logic in isolation."""
+
+    def __init__(self, claims, symbols, files):
+        self.state = {"claims": claims, "unknowns": []}
+        self.xref = {"symbols": {s: {} for s in symbols}}
+        self.inventory = {"files": [{"path": p, "role": "source"} for p in files],
+                           "head": "deadbeef", "repo_name": "fake"}
+
+
+class SearchStarvationTest(unittest.TestCase):
+    """Regression: `q_search` used to spend one shared `Budget` across
+    `claims`, `symbols`, `unknowns`, `files` in that construction order, so a
+    term matching more claims than the whole budget starved out `symbols`/
+    `files` entirely — reproduced live against the real `unified-store`
+    index (`q="service"`/`"id"`/`"sql"`/`"table"` each had well over 200
+    matching claims, `/api/search`'s default budget, and returned zero
+    results despite hundreds of real symbol/file matches existing)."""
+
+    def test_abundant_claims_do_not_starve_symbols_and_files(self) -> None:
+        claims = [{"subject": "widget claim %d" % i, "statement": "widget"} for i in range(500)]
+        symbols = ["WidgetEntity", "WidgetController"]
+        files = ["src/widget.py"]
+        store = _FakeStore(claims, symbols, files)
+
+        result = q_search(store, "widget", Budget(50))
+
+        self.assertTrue(result["symbols"], "symbols starved by claims")
+        self.assertTrue(result["files"], "files starved by claims")
+        self.assertEqual(set(result["symbols"]), set(symbols))
+        self.assertEqual(result["files"], files)
+
+    def test_still_reports_the_true_counts_and_total_elided(self) -> None:
+        claims = [{"subject": "id %d" % i} for i in range(300)]
+        store = _FakeStore(claims, ["OnlyOneSymbolWithId"], [])
+
+        result = q_search(store, "id", Budget(50))
+
+        self.assertEqual(result["counts"]["claims"], 300)
+        self.assertEqual(result["symbols"], ["OnlyOneSymbolWithId"])
+        self.assertGreater(result["elided"], 0)
+        self.assertEqual(result["elided"], 300 - len(result["claims"]))
 
 
 if __name__ == "__main__":
