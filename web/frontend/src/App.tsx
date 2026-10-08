@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLinks } from "./api/hooks.ts";
 import { AtlasCanvas } from "./canvas/AtlasCanvas.tsx";
 import { LinksCanvas } from "./canvas/LinksCanvas.tsx";
+import { FlowView } from "./flow/FlowView.tsx";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import { AskBar } from "./panels/AskBar.tsx";
 import { ControlRoom } from "./panels/control-room/ControlRoom.tsx";
@@ -29,6 +30,7 @@ function ViewSwitcher({
   showLinks: boolean;
 }) {
   const VIEWS: { id: View; label: string }[] = [
+    { id: "flow", label: "Flow" },
     { id: "atlas", label: "Atlas" },
     { id: "control-room", label: "Control Room" },
     ...(showLinks ? [{ id: "links" as View, label: "Links" }] : []),
@@ -90,6 +92,7 @@ function AppShell() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
+      {view === "flow" && <FlowView />}
       {view === "atlas" && <Atlas />}
       {view === "control-room" && <ControlRoom />}
       {view === "links" && <LinksCanvas />}
