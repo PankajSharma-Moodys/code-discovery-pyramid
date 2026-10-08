@@ -49,7 +49,7 @@ export class MutationAuthError extends Error {
   }
 }
 
-function raiseAuthOr<T>(result: { data?: T; error?: unknown; response: Response }): T {
+export function raiseAuthOr<T>(result: { data?: T; error?: unknown; response: Response }): T {
   const { data, error, response } = result;
   if (error) {
     if (response.status === 403) throw new MutationAuthError("bad or missing X-CDP-Web-Token");

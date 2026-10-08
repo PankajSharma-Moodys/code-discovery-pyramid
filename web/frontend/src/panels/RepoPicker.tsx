@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRepos } from "../api/controlRoomHooks.ts";
 import { useRepoStore } from "../store/repoStore.ts";
+import { FolderBrowser } from "./FolderBrowser.tsx";
 
 /** Global repo switcher -- every hook in `api/hooks.ts`/`controlRoomHooks.ts`
  * reads the active repo reactively off `store/repoStore.ts`
@@ -13,13 +14,16 @@ import { useRepoStore } from "../store/repoStore.ts";
  * entry. */
 export function RepoPicker() {
   const [open, setOpen] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const { data, isLoading } = useRepos();
   const repoId = useRepoStore((s) => s.repoId);
   const setRepo = useRepoStore((s) => s.setRepo);
 
   const repos = data?.repos ?? [];
-  const current = repos.find((r) => r.repo_id === repoId) ?? repos[0];
-  const currentLabel = current?.repo_id ?? "this repo";
+  // No fallback to `repos[0]`: a just-opened folder may not be in the list yet,
+  // and showing another repo's name would mislabel the active one.
+  const current = repos.find((r) => r.repo_id === repoId);
+  const currentLabel = current?.repo_id ?? repoId ?? "this repo";
 
   return (
     <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 text-sm">
@@ -42,6 +46,10 @@ export function RepoPicker() {
           className="atlas-card absolute left-0 top-full mt-1 flex max-h-96 w-80 flex-col gap-1 overflow-y-auto p-1"
           style={{ color: "var(--atlas-text)" }}
         >
+          {browsing ? (
+            <FolderBrowser onClose={() => setBrowsing(false)} />
+          ) : (
+            <>
           {isLoading && (
             <div className="px-2 py-1.5 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
               loading repos…
@@ -53,7 +61,7 @@ export function RepoPicker() {
             </div>
           )}
           {repos.map((repo) => {
-            const isCurrent = repo.repo_id === (current?.repo_id ?? repoId);
+            const isCurrent = repo.repo_id === repoId;
             const selectable = !repo.error;
             return (
               <button
@@ -92,6 +100,15 @@ export function RepoPicker() {
               </button>
             );
           })}
+          <button
+            onClick={() => setBrowsing(true)}
+            className="mt-1 rounded px-2 py-1.5 text-left text-xs"
+            style={{ borderTop: "1px solid var(--atlas-border)", color: "var(--atlas-accent)" }}
+          >
+            Open folder…
+          </button>
+            </>
+          )}
         </div>
       )}
     </div>
