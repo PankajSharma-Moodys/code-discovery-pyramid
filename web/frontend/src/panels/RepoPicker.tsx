@@ -30,9 +30,9 @@ export function RepoPicker() {
     <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 text-sm">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="atlas-card flex max-w-64 items-center gap-2 truncate rounded px-2 py-1"
+        className="atlas-card flex max-w-[min(48rem,70vw)] items-center gap-2 truncate rounded px-2 py-1"
         style={{ color: "var(--atlas-text)" }}
-        title={current?.state_dir}
+        title={`${currentLabel}\n${current?.state_dir ?? ""}`}
       >
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -44,7 +44,7 @@ export function RepoPicker() {
 
       {open && (
         <div
-          className="atlas-card absolute left-0 top-full mt-1 flex max-h-96 w-80 flex-col gap-1 overflow-y-auto p-1"
+          className="atlas-card absolute left-0 top-full mt-1 flex max-h-96 w-[min(48rem,90vw)] flex-col gap-1 overflow-y-auto p-1"
           style={{ color: "var(--atlas-text)" }}
         >
           {browsing ? (
@@ -84,7 +84,7 @@ export function RepoPicker() {
                 }}
               >
                 <span className="flex w-full items-center justify-between gap-2">
-                  <span className="truncate font-medium" style={{ color: "var(--atlas-text)" }}>
+                  <span className="break-all font-medium" style={{ color: "var(--atlas-text)" }}>
                     {repo.repo_id}
                   </span>
                   {isCurrent && <span style={{ color: "var(--atlas-accent)" }}>current</span>}
