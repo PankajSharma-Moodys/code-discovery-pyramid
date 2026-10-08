@@ -466,3 +466,34 @@ class SourceResponse(BaseModel):
     end_line: int
     total_lines: int
     lines: List[str]
+
+
+class FlowNode(BaseModel):
+    """One `/api/flow` node (`web/api/flow.py`). `node_id` is the namespaced
+    id `/api/node` resolves, None for synthetic library sinks."""
+    id: str
+    label: str
+    kind: str
+    role: str
+    group: str
+    node_id: Optional[str] = None
+
+
+class FlowGroup(BaseModel):
+    id: str
+    label: str
+    role: str
+    count: int
+
+
+class FlowEdge(BaseModel):
+    source: str
+    target: str
+    kind: str
+    count: int
+
+
+class FlowResponse(BaseModel):
+    nodes: List[FlowNode]
+    groups: List[FlowGroup]
+    edges: List[FlowEdge]

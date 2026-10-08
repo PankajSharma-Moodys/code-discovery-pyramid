@@ -165,6 +165,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Flow
+         * @description Flow tab payload: the same typed dataflow graph `/api/graph` L2 serves,
+         *     reduced to source -> sink data edges by `web/api/flow.py`.
+         */
+        get: operations["get_flow_api_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/confidence": {
         parameters: {
             query?: never;
@@ -705,6 +726,56 @@ export interface components {
             line: number;
             /** Anchor */
             anchor?: string | null;
+        };
+        /** FlowEdge */
+        FlowEdge: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /** Kind */
+            kind: string;
+            /** Count */
+            count: number;
+        };
+        /** FlowGroup */
+        FlowGroup: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Role */
+            role: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * FlowNode
+         * @description One `/api/flow` node (`web/api/flow.py`). `node_id` is the namespaced
+         *     id `/api/node` resolves, None for synthetic library sinks.
+         */
+        FlowNode: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Kind */
+            kind: string;
+            /** Role */
+            role: string;
+            /** Group */
+            group: string;
+            /** Node Id */
+            node_id?: string | null;
+        };
+        /** FlowResponse */
+        FlowResponse: {
+            /** Nodes */
+            nodes: components["schemas"]["FlowNode"][];
+            /** Groups */
+            groups: components["schemas"]["FlowGroup"][];
+            /** Edges */
+            edges: components["schemas"]["FlowEdge"][];
         };
         /** FreshnessResponse */
         FreshnessResponse: {
@@ -1541,6 +1612,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_flow_api_flow_get: {
+        parameters: {
+            query?: {
+                /** @description extra edge kinds: calls, config (repeatable) */
+                include?: string[] | null;
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowResponse"];
                 };
             };
             /** @description Validation Error */

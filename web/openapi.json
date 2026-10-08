@@ -763,6 +763,86 @@
         }
       }
     },
+    "/api/flow": {
+      "get": {
+        "summary": "Get Flow",
+        "description": "Flow tab payload: the same typed dataflow graph `/api/graph` L2 serves,\nreduced to source -> sink data edges by `web/api/flow.py`.",
+        "operationId": "get_flow_api_flow_get",
+        "parameters": [
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "extra edge kinds: calls, config (repeatable)",
+              "title": "Include"
+            },
+            "description": "extra edge kinds: calls, config (repeatable)"
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/confidence": {
       "get": {
         "summary": "Get Confidence",
@@ -2235,6 +2315,139 @@
           "line"
         ],
         "title": "EvidenceResponse"
+      },
+      "FlowEdge": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "kind",
+          "count"
+        ],
+        "title": "FlowEdge"
+      },
+      "FlowGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "role",
+          "count"
+        ],
+        "title": "FlowGroup"
+      },
+      "FlowNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "role",
+          "group"
+        ],
+        "title": "FlowNode",
+        "description": "One `/api/flow` node (`web/api/flow.py`). `node_id` is the namespaced\nid `/api/node` resolves, None for synthetic library sinks."
+      },
+      "FlowResponse": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/FlowNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/FlowGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/FlowEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "groups",
+          "edges"
+        ],
+        "title": "FlowResponse"
       },
       "FreshnessResponse": {
         "properties": {

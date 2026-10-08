@@ -44,6 +44,7 @@ from cdp import util as cdp_util
 from cdp.store import registry as registry_mod
 
 from . import encoding
+from . import flow as flow_mod
 from . import hookup as hookup_mod
 from . import jobs as jobs_mod
 from . import nodeid
@@ -52,6 +53,10 @@ from .models import (
     ConfidenceResponse,
     DiffResponse,
     DoctorResponse,
+    FlowEdge,
+    FlowGroup,
+    FlowNode,
+    FlowResponse,
     FsEntry,
     FsListResponse,
     GraphResponse,
@@ -944,6 +949,28 @@ def get_graph(
     except StoreLocked as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return GraphResponse(**result)
+
+
+@app.get("/api/flow", response_model=FlowResponse)
+def get_flow(
+    include: Optional[List[str]] = Query(None, description="extra edge kinds: calls, config (repeatable)"),
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> FlowResponse:
+    """Flow tab payload: the same typed dataflow graph `/api/graph` L2 serves,
+    reduced to source -> sink data edges by `web/api/flow.py`."""
+    unknown = sorted(set(include or []) - set(flow_mod.OPTIONAL_KINDS))
+    if unknown:
+        raise HTTPException(status_code=400, detail="unknown include %s -- one of %s"
+                            % (unknown, sorted(flow_mod.OPTIONAL_KINDS)))
+    try:
+        conn = ReadOnlyConnection(resolve_state_dir(Path(repo), state_dir) / "index.db")
+        base = _dataflow_graph(conn, conn.latest_pinned_snapshot())
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return FlowResponse(**flow_mod.build_flow(base["nodes"], base["edges"], include or []))
 
 
 #: Most-conservative-wins, mirroring `theme/confidence.ts`'s `dominantConfidence`
