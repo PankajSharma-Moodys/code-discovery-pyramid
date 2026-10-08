@@ -199,6 +199,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/fs/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Fs List
+         * @description Read-only folder browser for the "Open folder..." picker. Lists
+         *     subdirectories only (never file contents), skips dotfiles, and flags
+         *     which folders are git repos or already carry a `.cdp` scan so the UI can
+         *     pick the right action. Paths are returned resolved and absolute because
+         *     the client derives `<path>/.cdp` from them.
+         */
+        get: operations["get_fs_list_api_fs_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/repos": {
         parameters: {
             query?: never;
@@ -428,6 +452,29 @@ export interface paths {
         put?: never;
         /** Post Refresh */
         post: operations["post_refresh_api_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Scan
+         * @description Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses
+         *     `resolve_state_dir`: that would honour the server's `CDP_STORE`/registry
+         *     and overwrite an unrelated repo's store. Because an explicit `--state-dir`
+         *     makes `cmd_scan` skip registration, this endpoint registers the folder.
+         */
+        post: operations["post_scan_api_scan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -671,6 +718,39 @@ export interface components {
             unknown_churn: number;
         };
         /**
+         * FsEntry
+         * @description One subdirectory in `GET /api/fs/list`. `path` is absolute and resolved
+         *     (the picker builds `<path>/.cdp` from it); `has_scan` means
+         *     `<path>/.cdp/index.db` is a file.
+         */
+        FsEntry: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Is Git */
+            is_git: boolean;
+            /** Has Scan */
+            has_scan: boolean;
+        };
+        /**
+         * FsListResponse
+         * @description Directory listing for the folder picker. `parent` is `None` only at the
+         *     filesystem root; `is_git`/`has_scan` describe `path` itself.
+         */
+        FsListResponse: {
+            /** Path */
+            path: string;
+            /** Parent */
+            parent?: string | null;
+            /** Is Git */
+            is_git: boolean;
+            /** Has Scan */
+            has_scan: boolean;
+            /** Entries */
+            entries: components["schemas"]["FsEntry"][];
+        };
+        /**
          * GraphEdgeResponse
          * @description `kind` carries the channel the edge was extracted from -- `call`,
          *     `persist`, `process_boundary`, `http_in`, `read`, `config_read`,
@@ -892,6 +972,8 @@ export interface components {
             running: boolean;
             /** Returncode */
             returncode?: number | null;
+            /** Log Tail */
+            log_tail?: string | null;
         };
         /** LinkQueryResponse */
         LinkQueryResponse: {
@@ -1544,6 +1626,38 @@ export interface operations {
             };
         };
     };
+    get_fs_list_api_fs_list_get: {
+        parameters: {
+            query?: {
+                /** @description directory to list; defaults to $HOME */
+                path?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FsListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_repos_api_repos_get: {
         parameters: {
             query?: {
@@ -1860,6 +1974,38 @@ export interface operations {
                 state_dir?: string | null;
                 /** @description cdp refresh --mode */
                 mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_scan_api_scan_post: {
+        parameters: {
+            query: {
+                /** @description folder to scan */
+                repo: string;
             };
             header?: never;
             path?: never;

@@ -1675,6 +1675,24 @@ def post_refresh(
     )
 
 
+@app.post("/api/scan", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
+def post_scan(repo: str = Query(..., description="folder to scan")) -> JobResponse:
+    """Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses
+    `resolve_state_dir`: that would honour the server's `CDP_STORE`/registry
+    and overwrite an unrelated repo's store. Because an explicit `--state-dir`
+    makes `cmd_scan` skip registration, this endpoint registers the folder."""
+    repo_path = Path(repo).expanduser().resolve()
+    if not repo_path.is_dir():
+        raise HTTPException(status_code=404, detail="not a directory: %s" % repo_path)
+    state_dir = repo_path / ".cdp"
+    registry_mod.register(registry_mod.repo_identity(repo_path), state_dir)
+    job, joined = jobs_mod.spawn_or_join("scan", str(repo_path), str(state_dir), [])
+    return JobResponse(
+        job_id=job.job_id, status="joined" if joined else "started",
+        pid=job.pid, kind=job.kind, repo=str(repo_path), state_dir=str(state_dir),
+    )
+
+
 @app.get("/api/job/{job_id}", response_model=JobStatusResponse)
 def get_job(job_id: str) -> JobStatusResponse:
     """Poll for a job's completion when there is no task table to watch --
@@ -1683,10 +1701,22 @@ def get_job(job_id: str) -> JobStatusResponse:
     job = jobs_mod.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="unknown job_id %r (server restart loses these)" % job_id)
+    running = job.is_running()
     return JobStatusResponse(
         job_id=job.job_id, kind=job.kind, repo=job.repo, state_dir=job.state_dir,
-        running=job.is_running(), returncode=job.returncode,
+        running=running, returncode=job.returncode,
+        log_tail=None if running else _log_tail(job.log_path),
     )
+
+
+def _log_tail(log_path: Path, lines: int = 20) -> str:
+    """Last `lines` lines of a finished job's log, so a UI can show why a
+    scan failed without a separate log endpoint."""
+    try:
+        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return "\n".join(text.splitlines()[-lines:])
 
 
 @app.get("/api/hookup/preview", response_model=InstallPreviewResponse)

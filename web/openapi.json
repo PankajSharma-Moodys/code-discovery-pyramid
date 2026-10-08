@@ -917,6 +917,55 @@
         }
       }
     },
+    "/api/fs/list": {
+      "get": {
+        "summary": "Get Fs List",
+        "description": "Read-only folder browser for the \"Open folder...\" picker. Lists\nsubdirectories only (never file contents), skips dotfiles, and flags\nwhich folders are git repos or already carry a `.cdp` scan so the UI can\npick the right action. Paths are returned resolved and absolute because\nthe client derives `<path>/.cdp` from them.",
+        "operationId": "get_fs_list_api_fs_list_get",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "directory to list; defaults to $HOME",
+              "title": "Path"
+            },
+            "description": "directory to list; defaults to $HOME"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FsListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos": {
       "get": {
         "summary": "Get Repos",
@@ -1588,6 +1637,48 @@
         }
       }
     },
+    "/api/scan": {
+      "post": {
+        "summary": "Post Scan",
+        "description": "Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses\n`resolve_state_dir`: that would honour the server's `CDP_STORE`/registry\nand overwrite an unrelated repo's store. Because an explicit `--state-dir`\nmakes `cmd_scan` skip registration, this endpoint registers the folder.",
+        "operationId": "post_scan_api_scan_post",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "folder to scan",
+              "title": "Repo"
+            },
+            "description": "folder to scan"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/job/{job_id}": {
       "get": {
         "summary": "Get Job",
@@ -2173,6 +2264,78 @@
         ],
         "title": "FreshnessResponse"
       },
+      "FsEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "is_git": {
+            "type": "boolean",
+            "title": "Is Git"
+          },
+          "has_scan": {
+            "type": "boolean",
+            "title": "Has Scan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "is_git",
+          "has_scan"
+        ],
+        "title": "FsEntry",
+        "description": "One subdirectory in `GET /api/fs/list`. `path` is absolute and resolved\n(the picker builds `<path>/.cdp` from it); `has_scan` means\n`<path>/.cdp/index.db` is a file."
+      },
+      "FsListResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "is_git": {
+            "type": "boolean",
+            "title": "Is Git"
+          },
+          "has_scan": {
+            "type": "boolean",
+            "title": "Has Scan"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FsEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "is_git",
+          "has_scan",
+          "entries"
+        ],
+        "title": "FsListResponse",
+        "description": "Directory listing for the folder picker. `parent` is `None` only at the\nfilesystem root; `is_git`/`has_scan` describe `path` itself."
+      },
       "GraphEdgeResponse": {
         "properties": {
           "source": {
@@ -2689,6 +2852,17 @@
               }
             ],
             "title": "Returncode"
+          },
+          "log_tail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Tail"
           }
         },
         "type": "object",

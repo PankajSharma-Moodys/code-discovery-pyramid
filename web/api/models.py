@@ -413,6 +413,7 @@ class JobStatusResponse(BaseModel):
     state_dir: str
     running: bool
     returncode: Optional[int] = None
+    log_tail: Optional[str] = None  # last 20 log lines once finished; None while running
 
 
 class InstallPreviewResponse(BaseModel):
