@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useFsList, useInvalidateRepos, useJob, useScanMutation } from "../api/folderHooks.ts";
+import { useQueryClient } from "@tanstack/react-query";
+import { useFsList, useJob, useScanMutation } from "../api/folderHooks.ts";
 import { MutationAuthError, useRepos } from "../api/controlRoomHooks.ts";
+import { useRepoParams } from "../api/repoParams.ts";
 import { repoIdForPath } from "../api/folderSelection.ts";
 import { useRepoStore } from "../store/repoStore.ts";
 import { useViewStore } from "../store/viewStore.ts";
@@ -30,13 +32,14 @@ export function FolderBrowser({ onClose }: { onClose: () => void }) {
   const authToken = useControlRoomStore((s) => s.authToken);
   const scan = useScanMutation();
   const job = useJob(jobId);
-  const { data: reposData } = useRepos();
-  const invalidateRepos = useInvalidateRepos();
+  const queryClient = useQueryClient();
+  const repoParams = useRepoParams();
   const setRepo = useRepoStore((s) => s.setRepo);
   const setView = useViewStore((s) => s.setView);
 
   const cur = list.data;
-  const scanning = scan.isPending || (jobId != null && job.data?.running !== false);
+  const repos = useRepos().data?.repos ?? [];
+  const scanning = scan.isPending || (jobId != null && !job.isError && job.data?.running !== false);
 
   useEffect(() => {
     if (!scanning) return;
@@ -45,17 +48,25 @@ export function FolderBrowser({ onClose }: { onClose: () => void }) {
     return () => clearInterval(id);
   }, [scanning]);
 
-  const open = (folder: string) => {
-    setRepo({ repo: folder, stateDir: folder + "/.cdp", repoId: repoIdForPath(folder, reposData?.repos ?? []) });
+  const open = (folder: string, repos: ReadonlyArray<{ repo_id: string; repo_path?: string | null }>) => {
+    setRepo({ repo: folder, stateDir: folder + "/.cdp", repoId: repoIdForPath(folder, repos) });
   };
 
+  // Completion path: refetch the repos list first so the id is resolved from
+  // post-scan data (the new folder is registered server-side by then), not
+  // the stale pre-scan list.
+  const finished = job.data && !job.data.running ? job.data : null;
   useEffect(() => {
-    const j = job.data;
-    if (!j || j.running || j.returncode !== 0 || !scanned || handled.current === j.job_id) return;
-    handled.current = j.job_id;
-    invalidateRepos();
-    open(scanned);
-  });
+    if (!finished || finished.returncode !== 0 || !scanned || handled.current === finished.job_id) return;
+    handled.current = finished.job_id;
+    void (async () => {
+      await queryClient.invalidateQueries({ queryKey: ["repos"] });
+      const fresh = queryClient.getQueryData<{ repos: { repo_id: string; repo_path?: string | null }[] }>(["repos", repoParams]);
+      open(scanned, fresh?.repos ?? []);
+    })();
+    // `open` only closes over stable store setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, scanned, queryClient, repoParams]);
 
   const go = (p: string | undefined) => {
     setPath(p);
@@ -106,7 +117,7 @@ export function FolderBrowser({ onClose }: { onClose: () => void }) {
           <div className="truncate font-medium" title={cur.path}>{cur.path}</div>
           {cur.has_scan ? (
             <button
-              onClick={() => { open(cur.path); onClose(); }}
+              onClick={() => { open(cur.path, repos); onClose(); }}
               className="rounded px-2 py-1"
               style={{ background: "var(--atlas-accent)", color: "#07090c" }}
             >
@@ -130,6 +141,7 @@ export function FolderBrowser({ onClose }: { onClose: () => void }) {
           {scan.error && !(scan.error instanceof MutationAuthError) && (
             <div style={{ color: "var(--atlas-contested)" }}>could not start scan</div>
           )}
+          {job.isError && <div style={{ color: "var(--atlas-contested)" }}>lost track of the scan job -- check the server</div>}
           {scanning && cur.has_scan && <div style={dim}>scanning… {elapsed}s</div>}
           {failed && (
             <>
