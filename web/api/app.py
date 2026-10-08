@@ -52,6 +52,8 @@ from .models import (
     ConfidenceResponse,
     DiffResponse,
     DoctorResponse,
+    FsEntry,
+    FsListResponse,
     GraphResponse,
     InstallPreviewResponse,
     InstallResultResponse,
@@ -1276,6 +1278,42 @@ def get_node(
     except StoreLocked as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return NodeResponse(**result)
+
+
+@app.get("/api/fs/list", response_model=FsListResponse)
+def get_fs_list(
+    path: Optional[str] = Query(None, description="directory to list; defaults to $HOME"),
+) -> FsListResponse:
+    """Read-only folder browser for the "Open folder..." picker. Lists
+    subdirectories only (never file contents), skips dotfiles, and flags
+    which folders are git repos or already carry a `.cdp` scan so the UI can
+    pick the right action. Paths are returned resolved and absolute because
+    the client derives `<path>/.cdp` from them."""
+    target = Path(path).expanduser().resolve() if path else Path.home().resolve()
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail=f"not a directory: {target}")
+
+    def flags(d: Path) -> tuple[bool, bool]:
+        return (d / ".git").exists(), (d / ".cdp" / "index.db").is_file()
+
+    entries: List[FsEntry] = []
+    try:
+        children = sorted(target.iterdir(), key=lambda p: p.name.lower())
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=f"permission denied: {target}") from exc
+    for child in children:
+        if child.name.startswith("."):
+            continue
+        try:
+            if not child.is_dir():
+                continue
+            is_git, has_scan = flags(child)
+        except OSError:
+            continue
+        entries.append(FsEntry(name=child.name, path=str(child.resolve()), is_git=is_git, has_scan=has_scan))
+    is_git, has_scan = flags(target)
+    parent = None if target.parent == target else str(target.parent)
+    return FsListResponse(path=str(target), parent=parent, is_git=is_git, has_scan=has_scan, entries=entries)
 
 
 @app.get("/api/repos", response_model=ReposResponse)

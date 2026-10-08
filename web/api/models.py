@@ -151,6 +151,28 @@ class ReposResponse(BaseModel):
     repos: List[RepoInfoResponse]
 
 
+class FsEntry(BaseModel):
+    """One subdirectory in `GET /api/fs/list`. `path` is absolute and resolved
+    (the picker builds `<path>/.cdp` from it); `has_scan` means
+    `<path>/.cdp/index.db` is a file."""
+
+    name: str
+    path: str
+    is_git: bool
+    has_scan: bool
+
+
+class FsListResponse(BaseModel):
+    """Directory listing for the folder picker. `parent` is `None` only at the
+    filesystem root; `is_git`/`has_scan` describe `path` itself."""
+
+    path: str
+    parent: Optional[str] = None
+    is_git: bool
+    has_scan: bool
+    entries: List[FsEntry]
+
+
 class GraphNodeResponse(BaseModel):
     """One node per package (L3) or typed `dataflow` node (L2). Fields that
     don't apply at a given level are left `None`/empty rather than the model
