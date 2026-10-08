@@ -45,9 +45,11 @@ describe("buildView", () => {
   });
 
   it("collapse after expand restores the collapsed view exactly", () => {
-    buildView(P, new Set(["code:api"]));
-    expect(buildView(P, new Set())).toEqual(buildView(P, new Set()));
-    expect(buildView(P, new Set()).nodes.some((n) => n.parent !== null)).toBe(false);
+    const before = buildView(P, new Set());
+    const expanded = buildView(P, new Set(["code:api"]));
+    expect(expanded).not.toEqual(before);
+    expect(buildView(P, new Set())).toEqual(before);
+    expect(before.nodes.some((n) => n.parent !== null)).toBe(false);
   });
 });
 
