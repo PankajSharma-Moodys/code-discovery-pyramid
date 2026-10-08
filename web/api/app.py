@@ -1068,6 +1068,22 @@ def _all_registry_entries() -> dict:
     return {str(k): str(v) for k, v in data.get("repos", {}).items()}
 
 
+def _store_repo_id(state_dir: Path) -> Optional[str]:
+    """The `repo_id` the store's latest pinned snapshot was recorded under,
+    or None if the store can't be read (the caller falls back, and the row
+    itself then surfaces the real error via `_build_repo_info`)."""
+    db_path = state_dir / "index.db"
+    if not db_path.is_file():
+        return None
+    conn = ReadOnlyConnection(db_path)
+    try:
+        return conn.snapshot_repo_id(conn.latest_pinned_snapshot())
+    except (StoreUnavailable, StoreLocked):
+        return None
+    finally:
+        conn.close()
+
+
 def _build_repo_info(repo_id: str, state_path_str: str) -> dict:
     """One registry entry's freshness row. `as_of_commit` is the commit the
     pinned snapshot's `inventory` was built against -- the same source
@@ -1297,11 +1313,18 @@ def get_repos(
             current_repo_id = repo_id
             break
     if current_repo_id is None:
-        current_repo_id = registry_mod.repo_identity(Path(repo).expanduser().resolve())
+        # Name the served store by the identity its own snapshot was scanned
+        # under, not the server cwd's git remote: with `CDP_STORE` pointing at
+        # another repo's scan, the cwd identity names the wrong repo entirely.
+        current_repo_id = _store_repo_id(current_state_dir) or registry_mod.repo_identity(
+            Path(repo).expanduser().resolve()
+        )
 
     ordered_ids = [current_repo_id] + sorted(rid for rid in entries if rid != current_repo_id)
     state_dirs = dict(entries)
-    state_dirs.setdefault(current_repo_id, str(current_state_dir))
+    # The current row always describes the store actually being served; a
+    # registry entry under the same id but naming another dir must not win.
+    state_dirs[current_repo_id] = str(current_state_dir)
 
     repos = []
     for repo_id in ordered_ids:
