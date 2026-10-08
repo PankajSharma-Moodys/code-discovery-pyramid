@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { cdp } from "./client.ts";
 import { mutationClient } from "./mutationClient.ts";
 import { raiseAuthOr } from "./controlRoomHooks.ts";
@@ -43,9 +43,4 @@ export function useJob(jobId: string | null) {
     },
     refetchInterval: (query) => (query.state.data?.running === false ? false : JOB_POLL_MS),
   });
-}
-
-export function useInvalidateRepos() {
-  const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ["repos"] });
 }

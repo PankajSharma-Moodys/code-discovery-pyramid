@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRepos } from "../api/controlRoomHooks.ts";
 import { useRepoStore } from "../store/repoStore.ts";
+import { currentRepoRow } from "../api/folderSelection.ts";
 import { FolderBrowser } from "./FolderBrowser.tsx";
 
 /** Global repo switcher -- every hook in `api/hooks.ts`/`controlRoomHooks.ts`
@@ -20,9 +21,9 @@ export function RepoPicker() {
   const setRepo = useRepoStore((s) => s.setRepo);
 
   const repos = data?.repos ?? [];
-  // No fallback to `repos[0]`: a just-opened folder may not be in the list yet,
-  // and showing another repo's name would mislabel the active one.
-  const current = repos.find((r) => r.repo_id === repoId);
+  // repos[0] is the fallback only when nothing was picked (repoId null); an
+  // explicit id not yet in the list (just-opened folder) must not mislabel.
+  const current = currentRepoRow(repos, repoId);
   const currentLabel = current?.repo_id ?? repoId ?? "this repo";
 
   return (
@@ -61,7 +62,7 @@ export function RepoPicker() {
             </div>
           )}
           {repos.map((repo) => {
-            const isCurrent = repo.repo_id === repoId;
+            const isCurrent = repo.repo_id === current?.repo_id;
             const selectable = !repo.error;
             return (
               <button

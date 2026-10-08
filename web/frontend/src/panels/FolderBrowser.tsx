@@ -61,6 +61,7 @@ export function FolderBrowser({ onClose }: { onClose: () => void }) {
     handled.current = finished.job_id;
     void (async () => {
       await queryClient.invalidateQueries({ queryKey: ["repos"] });
+      void queryClient.invalidateQueries({ queryKey: ["fs-list"] });
       const fresh = queryClient.getQueryData<{ repos: { repo_id: string; repo_path?: string | null }[] }>(["repos", repoParams]);
       open(scanned, fresh?.repos ?? []);
     })();

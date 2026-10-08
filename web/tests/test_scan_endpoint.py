@@ -87,6 +87,45 @@ class ScanEndpointTest(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 404)
 
+    def _wait(self, job_id: str) -> dict:
+        deadline = time.time() + 120
+        while True:
+            job = self.client.get("/api/job/%s" % job_id).json()
+            if not job["running"]:
+                return job
+            self.assertLess(time.time(), deadline, "scan did not finish")
+            time.sleep(0.5)
+
+    def test_served_store_is_409_and_not_spawned(self) -> None:
+        with mock.patch.dict(os.environ, {"CDP_STORE": str(self.repo / ".cdp")}):
+            with mock.patch("web.api.app.jobs_mod.spawn_or_join") as spawn:
+                resp = self.client.post("/api/scan", params={"repo": str(self.repo)}, headers=self.headers)
+        self.assertEqual(resp.status_code, 409, resp.text)
+        spawn.assert_not_called()
+
+    def test_non_git_rescan_registers_once(self) -> None:
+        shutil.rmtree(self.repo / ".git")
+        for _ in range(2):
+            resp = self.client.post("/api/scan", params={"repo": str(self.repo)}, headers=self.headers)
+            self.assertEqual(resp.status_code, 200, resp.text)
+            self._wait(resp.json()["job_id"])
+        from web.api.app import _all_registry_entries
+
+        target = (self.repo / ".cdp").resolve()
+        hits = [v for v in _all_registry_entries().values() if Path(v).resolve() == target]
+        self.assertEqual(len(hits), 1, _all_registry_entries())
+
+    def test_home_is_400(self) -> None:
+        with mock.patch.object(Path, "home", return_value=self.repo):
+            with mock.patch("web.api.app.jobs_mod.spawn_or_join") as spawn:
+                resp = self.client.post("/api/scan", params={"repo": str(self.repo)}, headers=self.headers)
+        self.assertEqual(resp.status_code, 400, resp.text)
+        spawn.assert_not_called()
+
+    def test_root_is_400(self) -> None:
+        resp = self.client.post("/api/scan", params={"repo": "/"}, headers=self.headers)
+        self.assertEqual(resp.status_code, 400, resp.text)
+
 
 if __name__ == "__main__":
     unittest.main()

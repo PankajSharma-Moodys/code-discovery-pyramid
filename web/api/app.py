@@ -1684,8 +1684,19 @@ def post_scan(repo: str = Query(..., description="folder to scan")) -> JobRespon
     repo_path = Path(repo).expanduser().resolve()
     if not repo_path.is_dir():
         raise HTTPException(status_code=404, detail="not a directory: %s" % repo_path)
+    # $HOME holds the registry config (~/.cdp) and `/` is the whole disk: a
+    # scan of either walks far more than a project and writes into the wrong place.
+    if repo_path == Path.home().resolve() or repo_path == Path(repo_path.anchor):
+        raise HTTPException(status_code=400, detail="refusing to scan %s: choose a project folder, not a home or root directory" % repo_path)
     state_dir = repo_path / ".cdp"
-    registry_mod.register(registry_mod.repo_identity(repo_path), state_dir)
+    # Rescanning the store this server serves would rewrite it under live readers.
+    if state_dir.resolve() == resolve_state_dir(Path("."), None):
+        raise HTTPException(status_code=409, detail="%s is the store this server is serving; refusing to rescan it" % state_dir)
+    # Non-git folders get a fresh random identity per call (registry
+    # `_persisted_uuid`), so only register when no entry already points here.
+    already = any(Path(v).expanduser().resolve() == state_dir.resolve() for v in _all_registry_entries().values())
+    if not already:
+        registry_mod.register(registry_mod.repo_identity(repo_path), state_dir)
     job, joined = jobs_mod.spawn_or_join("scan", str(repo_path), str(state_dir), [])
     return JobResponse(
         job_id=job.job_id, status="joined" if joined else "started",
