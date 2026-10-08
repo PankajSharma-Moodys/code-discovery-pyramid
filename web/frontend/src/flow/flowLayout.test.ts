@@ -51,4 +51,16 @@ describe("layoutFlow", () => {
       expect(b.y + b.height).toBeLessThanOrEqual(c.y + c.height);
     }
   });
+
+  it.each([["a"], ["a", "b"], ["src", "a", "b", "sink"]])("expanded %s: top-level units (incl. containers) don't overlap; ends stay pinned", (...ex) => {
+    const m = buildView(P, new Set(ex));
+    const box = layoutFlow(m);
+    const tops = m.nodes.filter((n) => n.parent === null);
+    for (let i = 0; i < tops.length; i++)
+      for (let j = i + 1; j < tops.length; j++)
+        expect(overlaps(box.get(tops[i].id)!, box.get(tops[j].id)!), `${tops[i].id} vs ${tops[j].id}`).toBe(false);
+    const xs = (role: string) => tops.filter((n) => n.role === role).map((n) => box.get(n.id)!.x);
+    expect(Math.max(...xs("source"))).toBeLessThan(Math.min(...xs("transform")));
+    expect(Math.min(...xs("sink"))).toBeGreaterThan(Math.max(...xs("transform")));
+  });
 });
