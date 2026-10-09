@@ -14,6 +14,7 @@ import fcntl
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -31,6 +32,9 @@ APPEND_PROMPT = (
 def parse_version(text: str) -> Optional[Tuple[int, int, int]]:
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", text or "")
     return tuple(int(x) for x in match.groups()) if match else None  # type: ignore[return-value]
+
+
+STRIPPED_ENV = ("ANTHROPIC_API_KEY", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")
 
 
 def build_argv(claude: str, model: str, max_turns: int, scope_budget: float, schema_text: str) -> List[str]:
@@ -72,26 +76,47 @@ def run(prompt_path: Path, patch_path: Path, env: Mapping[str, str]) -> int:
         return 3
 
     with locked_ledger(ledger, run_budget) as data:
-        if data["spent_usd"] >= run_budget:
-            print("claude runner: run budget exhausted ($%.2f of $%.2f)" % (data["spent_usd"], run_budget),
-                  file=sys.stderr)
-            return 4
+        remaining = run_budget - data["spent_usd"]
+    if remaining < 0.05:
+        print("claude runner: run budget exhausted ($%.2f of $%.2f)" % (run_budget - remaining, run_budget),
+              file=sys.stderr)
+        return 4
 
+    call_budget = min(float(env.get("CDP_RUNNER_SCOPE_BUDGET_USD", "1.00")), remaining)
     argv = build_argv(
         claude, env.get("CDP_RUNNER_MODEL", "sonnet"), int(env.get("CDP_RUNNER_MAX_TURNS", "30")),
-        float(env.get("CDP_RUNNER_SCOPE_BUDGET_USD", "1.00")), SCHEMA_PATH.read_text(encoding="utf-8"),
+        call_budget, SCHEMA_PATH.read_text(encoding="utf-8"),
     )
-    proc = subprocess.run(argv, input=Path(prompt_path).read_text(encoding="utf-8"), capture_output=True,
-                          text=True, cwd=env["CDP_RUNNER_REPO"], env=dict(env))
+    child_env = {k: v for k, v in env.items() if k not in STRIPPED_ENV}
+    timeout_s = float(env.get("CDP_RUNNER_TIMEOUT_S", "840"))
+    proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, cwd=env["CDP_RUNNER_REPO"], env=child_env, start_new_session=True)
     try:
-        result = json.loads(proc.stdout)
+        stdout, stderr = proc.communicate(input=Path(prompt_path).read_text(encoding="utf-8"), timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate()
+        cost = round(call_budget, 6)
+        with locked_ledger(ledger, run_budget) as data:
+            data["spent_usd"] = round(data["spent_usd"] + cost, 6)
+            data["calls"].append({"prompt": Path(prompt_path).name, "cost_usd": cost, "ok": False,
+                                  "subtype": "timeout"})
+        print("claude runner: timed out after %gs; killed claude, charged scope budget $%.2f"
+              % (timeout_s, cost), file=sys.stderr)
+        return 1
+    returncode = proc.returncode
+    try:
+        result = json.loads(stdout)
     except ValueError:
         result = {}
     if not isinstance(result, dict):
         result = {}
     cost = float(result.get("total_cost_usd") or 0.0)
     output = result.get("structured_output")
-    ok = proc.returncode == 0 and not result.get("is_error") and output is not None
+    ok = returncode == 0 and not result.get("is_error") and output is not None
     if ok:
         subtype = "success"
     elif result.get("subtype") == "success" and output is None:
@@ -104,7 +129,7 @@ def run(prompt_path: Path, patch_path: Path, env: Mapping[str, str]) -> int:
         data["calls"].append({"prompt": Path(prompt_path).name, "cost_usd": cost, "ok": ok, "subtype": subtype})
 
     if not ok:
-        detail = result.get("result") or proc.stderr or proc.stdout
+        detail = result.get("result") or stderr or stdout
         print("claude runner: %s: %s" % (subtype, str(detail)[:500]), file=sys.stderr)
         return 1
     Path(patch_path).parent.mkdir(parents=True, exist_ok=True)

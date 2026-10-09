@@ -37,6 +37,10 @@ export function RunConsole() {
   const [model, setModel] = useState<"sonnet" | "opus" | "haiku">("sonnet");
   const [budget, setBudget] = useState(5);
   const [confirming, setConfirming] = useState(false);
+  const [confirmReq, setConfirmReq] = useState<{ target: DispatchTarget; resume: boolean }>({
+    target: { kind: "wave-all" },
+    resume: false,
+  });
   const [jobId, setJobId] = useState<string | null>(null);
   const spend = useRunSpend(jobId).data;
 
@@ -106,7 +110,14 @@ export function RunConsole() {
         </label>
 
         <label className="flex items-center gap-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
-          <input type="checkbox" checked={useClaude} onChange={(e) => setUseClaude(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={useClaude}
+            onChange={(e) => {
+              setUseClaude(e.target.checked);
+              if (!e.target.checked) setConfirming(false);
+            }}
+          />
           Use Claude Code
         </label>
         <select
@@ -136,7 +147,15 @@ export function RunConsole() {
         </label>
 
         <button
-          onClick={() => (useClaude ? setConfirming(true) : run.mutate({ target: dispatchTarget, resume }))}
+          onClick={() => {
+            if (useClaude) {
+              setConfirmReq({ target: dispatchTarget, resume });
+              setConfirming(true);
+            } else {
+              setJobId(null);
+              run.mutate({ target: dispatchTarget, resume });
+            }
+          }}
           disabled={run.isPending}
           className="atlas-btn-primary rounded px-3 py-1"
           style={{ background: "var(--atlas-accent)", color: "#07090c", opacity: run.isPending ? 0.6 : 1 }}
@@ -145,7 +164,15 @@ export function RunConsole() {
         </button>
 
         <button
-          onClick={() => run.mutate({ target: { kind: "wave-all" }, resume: true })}
+          onClick={() => {
+            if (useClaude) {
+              setConfirmReq({ target: { kind: "wave-all" }, resume: true });
+              setConfirming(true);
+            } else {
+              setJobId(null);
+              run.mutate({ target: { kind: "wave-all" }, resume: true });
+            }
+          }}
           disabled={run.isPending}
           className="rounded border px-3 py-1 text-xs"
           style={{ borderColor: "var(--atlas-border)", color: "var(--atlas-text-dim)" }}
@@ -155,13 +182,14 @@ export function RunConsole() {
 
         {confirming && (
           <span className="flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--atlas-text)" }}>
-            ≈ {remainingScopes(status?.waves ?? [])} scopes left · cap ${budget} · {model} · one scope at a time
+            ≈ {remainingScopes(status?.waves ?? [])} scopes left · cap ${budget} · {model} · one scope at a time · up to 2 attempts per scope
             <button
               disabled={run.isPending || !(budget > 0 && budget <= 100)}
               onClick={() => {
                 setConfirming(false);
+                setJobId(null);
                 run.mutate(
-                  { target: dispatchTarget, resume, claude: { model, budgetUsd: budget } },
+                  { ...confirmReq, claude: { model, budgetUsd: budget } },
                   { onSuccess: (result) => setJobId(result.job_id) },
                 );
               }}

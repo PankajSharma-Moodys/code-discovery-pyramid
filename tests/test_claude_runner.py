@@ -8,11 +8,16 @@ from pathlib import Path
 from cdp.runners import claude_code
 
 FAKE = r'''#!%s
-import json, os, sys
+import json, os, sys, time
 if sys.argv[1:] == ["--version"]:
     print(os.environ.get("FAKE_VERSION", "2.1.289") + " (Claude Code)"); sys.exit(0)
 with open(os.environ["FAKE_LOG"], "w") as fh:
-    json.dump({"argv": sys.argv[1:], "cwd": os.getcwd(), "stdin": sys.stdin.read()}, fh)
+    json.dump({"argv": sys.argv[1:], "cwd": os.getcwd(), "stdin": sys.stdin.read(),
+               "env": [k for k in ("ANTHROPIC_API_KEY", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "PATH") if k in os.environ]}, fh)
+if os.environ.get("FAKE_PIDFILE"):
+    open(os.environ["FAKE_PIDFILE"], "w").write(str(os.getpid()))
+if os.environ.get("FAKE_SLEEP"):
+    time.sleep(float(os.environ["FAKE_SLEEP"]))
 sys.stdout.write(os.environ.get("FAKE_OUTPUT", "")); sys.exit(int(os.environ.get("FAKE_RC", "0")))
 '''
 
@@ -99,3 +104,40 @@ class RunnerTest(unittest.TestCase):
     def test_parse_version(self) -> None:
         self.assertEqual(claude_code.parse_version("2.1.289 (Claude Code)"), (2, 1, 289))
         self.assertIsNone(claude_code.parse_version("garbage"))
+
+
+    def seed_ledger(self, spent: float) -> None:
+        self.ledger.parent.mkdir(parents=True)
+        self.ledger.write_text(json.dumps({"budget_usd": 5.0, "spent_usd": spent, "calls": []}))
+
+    def test_per_call_budget_capped_by_remaining(self) -> None:
+        self.seed_ledger(4.6)
+        rc = self.run_with({"is_error": False, "subtype": "success", "total_cost_usd": 0.1,
+                            "structured_output": {}})
+        self.assertEqual(rc, 0)
+        argv = json.loads(self.log.read_text())["argv"]
+        self.assertEqual(argv[argv.index("--max-budget-usd") + 1], "0.40")
+
+    def test_remaining_below_floor_exits_4(self) -> None:
+        self.seed_ledger(4.97)
+        rc = self.run_with({"is_error": False, "structured_output": {}})
+        self.assertEqual(rc, 4)
+        self.assertFalse(self.log.exists())
+
+    def test_timeout_kills_process_group_and_charges_scope_budget(self) -> None:
+        pidfile = self.tmp / "pid"
+        rc = self.run_with({"structured_output": {}}, CDP_RUNNER_TIMEOUT_S="1", FAKE_SLEEP="30",
+                           FAKE_PIDFILE=str(pidfile))
+        self.assertEqual(rc, 1)
+        call = self.ledger_data()["calls"][0]
+        self.assertEqual((call["ok"], call["subtype"], call["cost_usd"]), (False, "timeout", 1.0))
+        self.assertFalse(self.patch.exists())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(int(pidfile.read_text()), 0)
+
+    def test_child_env_strips_api_key_and_nesting_markers(self) -> None:
+        rc = self.run_with({"is_error": False, "subtype": "success", "total_cost_usd": 0, "structured_output": {}},
+                           ANTHROPIC_API_KEY="k", CLAUDECODE="1", CLAUDE_CODE_ENTRYPOINT="cli")
+        self.assertEqual(rc, 0)
+        seen = json.loads(self.log.read_text())["env"]
+        self.assertEqual(seen, ["PATH"])

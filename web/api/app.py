@@ -1725,7 +1725,7 @@ def post_run(
         run_repo = _recorded_repo(Path(resolved_state_dir))
         ledger = Path(resolved_state_dir) / "runner" / ("spend-%s.json" % uuid.uuid4().hex[:12])
         extra_args += ["--runner-cmd", "%s -m cdp.runners.claude_code" % shlex.quote(sys.executable),
-                       "--timeout", "900"]
+                       "--timeout", "900", "--max-attempts", "2"]
         env = {
             "CDP_RUNNER_REPO": run_repo, "CDP_RUNNER_MODEL": model,
             "CDP_RUNNER_SCOPE_BUDGET_USD": "1.00", "CDP_RUNNER_MAX_TURNS": "30",

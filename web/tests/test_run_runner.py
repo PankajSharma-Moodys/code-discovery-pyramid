@@ -44,6 +44,7 @@ class RunRunnerTest(unittest.TestCase):
         runner_cmd = extra[extra.index("--runner-cmd") + 1]
         self.assertTrue(runner_cmd.endswith("-m cdp.runners.claude_code"), runner_cmd)
         self.assertEqual(extra[extra.index("--timeout") + 1], "900")
+        self.assertEqual(extra[extra.index("--max-attempts") + 1], "2")
         env = kwargs["env"]
         self.assertEqual(Path(env["CDP_RUNNER_REPO"]).resolve(), MINIREPO.resolve())
         self.assertEqual((env["CDP_RUNNER_MODEL"], env["CDP_RUNNER_RUN_BUDGET_USD"]), ("haiku", "2.5"))
@@ -59,6 +60,7 @@ class RunRunnerTest(unittest.TestCase):
         _, spawn = self.post()
         args, kwargs = spawn.call_args
         self.assertNotIn("--runner-cmd", args[3])
+        self.assertNotIn("--max-attempts", args[3])
         self.assertIsNone(kwargs.get("env"))
         self.assertEqual(args[1], ".")
 
