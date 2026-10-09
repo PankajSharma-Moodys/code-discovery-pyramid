@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import datetime
 
-from . import dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, snapshot as snapshot_mod, state as state_mod
+from . import dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
 from .extract import MAX_PARSE_BYTES, _sorted
 from .lang import extract_file
 from .session import Paths, check_repo_matches_manifest, extra_excludes, git_head_or_raise, open_store
@@ -309,6 +309,10 @@ def refresh_repo(
     backend.write_artifact("partition", new_part)
     backend.write_artifact("xref", new_xref)
     backend.write_artifact("dataflow", new_flow)
+    # A scan writes this too; without it `status` and the schedule-reading
+    # commands fail on the refreshed snapshot ("missing artifact 'schedule'").
+    backend.write_artifact("schedule", schedule_mod.build_schedule(
+        new_part, new_graph, budgets.get("max_concurrent", schedule_mod.DEFAULT_MAX_CONCURRENT)))
     folded = state_mod.fold(
         backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=mode,
         rename_map=rename_map, edited_files=frozenset(edited),
