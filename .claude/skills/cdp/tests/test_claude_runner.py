@@ -141,3 +141,23 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         seen = json.loads(self.log.read_text())["env"]
         self.assertEqual(seen, ["PATH"])
+
+    def test_claude_schema_text_converts_to_draft_07(self) -> None:
+        schema_text = claude_code.claude_schema_text()
+        schema_obj = json.loads(schema_text)
+        # Verify $schema is draft-07
+        self.assertEqual(schema_obj["$schema"], "http://json-schema.org/draft-07/schema#")
+        # Verify all top-level keys from original are present
+        original_obj = json.loads(claude_code.SCHEMA_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(set(schema_obj.keys()), set(original_obj.keys()))
+
+    def test_success_argv_schema_is_draft_07(self) -> None:
+        rc = self.run_with({"is_error": False, "subtype": "success", "total_cost_usd": 0.12,
+                            "structured_output": {"node": "a"}})
+        self.assertEqual(rc, 0)
+        call = json.loads(self.log.read_text())
+        argv = call["argv"]
+        schema_idx = argv.index("--json-schema")
+        schema_text = argv[schema_idx + 1]
+        schema_obj = json.loads(schema_text)
+        self.assertEqual(schema_obj["$schema"], "http://json-schema.org/draft-07/schema#")

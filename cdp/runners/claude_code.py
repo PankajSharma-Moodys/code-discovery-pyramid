@@ -29,6 +29,18 @@ APPEND_PROMPT = (
 )
 
 
+def claude_schema_text(path: Path = SCHEMA_PATH) -> str:
+    """Load schema and convert to draft-07 for Claude Code validation.
+
+    Claude Code validates with JSON Schema draft-07, but cdp's schema uses draft/2020-12.
+    This helper loads the schema, downgrades the $schema field, and returns the JSON text.
+    The original file is unchanged; cdp's own validator still uses draft/2020-12.
+    """
+    schema = json.loads(path.read_text(encoding="utf-8"))
+    schema["$schema"] = "http://json-schema.org/draft-07/schema#"
+    return json.dumps(schema)
+
+
 def parse_version(text: str) -> Optional[Tuple[int, int, int]]:
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", text or "")
     return tuple(int(x) for x in match.groups()) if match else None  # type: ignore[return-value]
@@ -85,7 +97,7 @@ def run(prompt_path: Path, patch_path: Path, env: Mapping[str, str]) -> int:
     call_budget = min(float(env.get("CDP_RUNNER_SCOPE_BUDGET_USD", "1.00")), remaining)
     argv = build_argv(
         claude, env.get("CDP_RUNNER_MODEL", "sonnet"), int(env.get("CDP_RUNNER_MAX_TURNS", "30")),
-        call_budget, SCHEMA_PATH.read_text(encoding="utf-8"),
+        call_budget, claude_schema_text(),
     )
     child_env = {k: v for k, v in env.items() if k not in STRIPPED_ENV}
     timeout_s = float(env.get("CDP_RUNNER_TIMEOUT_S", "840"))
