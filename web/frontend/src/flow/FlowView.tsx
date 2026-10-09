@@ -29,6 +29,8 @@ function FlowCanvas() {
   const boxes = useMemo(() => (model && model.nodes.length ? layoutFlow(model) : null), [model]);
   // A selection that no longer exists (include toggle, refetch) is dropped.
   const live = (selectedId && model?.nodes.find((n) => n.id === selectedId)) || null;
+  // A vanished node is cleared (not just hidden) so it is never silently re-selected.
+  if (model && selectedId && !live) setSelectedId(null);
   const currentView = (): FlowViewState => ({ expanded: [...expanded].sort(), selectedId: live?.id ?? null });
   const record = () => setHistory((h) => pushState(h, currentView()));
   const clearSelection = () => {
@@ -104,7 +106,7 @@ function FlowCanvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") keyRef.current.clearSelection();
-      else if (e.key === "Backspace" && !isEditable(e.target) && keyRef.current.back()) e.preventDefault();
+      else if (e.key === "Backspace" && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing && !isEditable(e.target) && keyRef.current.back()) e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
