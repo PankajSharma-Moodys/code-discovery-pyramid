@@ -99,6 +99,27 @@ class HookTest(_OwnHome, unittest.TestCase):
         message = self.fire(tool="Grep", path=str(self.repo / "core"))
         self.assertIsNotNone(message)
 
+    def bash(self, command, session=None):
+        return hook_mod.decide({
+            "session_id": session or self.session, "hook_event_name": "PreToolUse",
+            "cwd": str(self.repo), "tool_name": "Bash", "tool_input": {"command": command}})
+
+    def test_fires_on_a_shell_search_before_any_read(self) -> None:
+        for command in ("grep -rn Widget core", "cd core && rg Widget", "find . -name '*.java'",
+                        "cat x | grep Widget"):
+            message = self.bash(command, session=self.session + command)
+            self.assertIsNotNone(message, command)
+            self.assertIn("cdp_query", message)
+
+    def test_ignores_other_shell_commands(self) -> None:
+        for command in ("git status", "ls core", "python -m pytest", "echo grepping"):
+            self.assertIsNone(self.bash(command, session=self.session + command), command)
+
+    def test_shell_nudge_does_not_use_up_the_read_nudge(self) -> None:
+        self.assertIsNotNone(self.bash("grep -rn Widget ."))
+        self.assertIsNone(self.bash("grep -rn Widget ."))
+        self.assertIsNotNone(self.fire())
+
     # ------------------------------------------------ the three mandatory no-ops
 
     def test_noop_when_state_is_missing(self) -> None:
@@ -254,6 +275,14 @@ class StrictModeTest(_OwnHome, unittest.TestCase):
         self.assertFalse(result["block"])
         self.assertIn("cdp query", result["message"])
 
+    def test_a_shell_search_is_nudged_never_blocked(self) -> None:
+        self._set_coverage(1.0)
+        result = hook_mod.strict_decide({
+            "session_id": self.session, "cwd": str(self.repo), "tool_name": "Bash",
+            "tool_input": {"command": "grep -rn Widget ."}})
+        self.assertFalse(result["block"])
+        self.assertTrue(self.fire()["block"])
+
     def test_full_coverage_and_fresh_head_blocks(self) -> None:
         self._set_coverage(1.0)
         result = self.fire()
@@ -354,8 +383,22 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             groups = settings["hooks"]["PreToolUse"]
             self.assertEqual(len(groups), 1)
-            self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob")
+            self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob|Bash")
             self.assertEqual(len(groups[0]["hooks"]), 1, "duplicated on re-install")
+
+    def test_reinstall_replaces_an_older_narrower_matcher(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            (target / ".claude").mkdir(parents=True)
+            old = {"hooks": {"PreToolUse": [{"matcher": "Read|Grep|Glob", "hooks": [
+                {"type": "command", "args": [], "command":
+                 "python3 %s" % (target.resolve() / ".claude/skills/cdp/cdp/hook.py")}]}]}}
+            (target / ".claude" / "settings.json").write_text(json.dumps(old))
+            main(["install", str(target), "--hook"])
+            groups = json.loads((target / ".claude" / "settings.json").read_text())["hooks"]["PreToolUse"]
+            self.assertEqual([g["matcher"] for g in groups], ["Read|Grep|Glob|Bash"])
+            self.assertEqual(len(groups[0]["hooks"]), 1)
+            self.assertNotIn("args", groups[0]["hooks"][0])
 
     def test_install_strict_writes_the_flag_and_reinstall_updates_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

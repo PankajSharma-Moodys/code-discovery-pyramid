@@ -37,7 +37,7 @@ DIST_IGNORE = shutil.ignore_patterns(
 
 #: `matcher` is compared as an exact string when it contains only letters,
 # digits and `|`, so this fires on exactly these three tools and nothing else.
-HOOK_MATCHER = "Read|Grep|Glob"
+HOOK_MATCHER = "Read|Grep|Glob|Bash"
 
 
 def copy_distribution(dest: Path) -> None:
@@ -128,15 +128,17 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     entry = {"type": "command", "command": command}
     hooks = settings.setdefault("hooks", {})
     groups = hooks.setdefault("PreToolUse", [])
+    # Idempotent: drop any earlier CDP entry wherever it sits (an older install
+    # used a narrower matcher or the `args` form), then add the current one.
+    for group in groups:
+        if isinstance(group, dict) and isinstance(group.get("hooks"), list):
+            group["hooks"] = [h for h in group["hooks"]
+                              if not (isinstance(h, dict)
+                                      and str(h.get("command", "")).startswith(base))]
+    groups[:] = [g for g in groups if not (isinstance(g, dict) and g.get("hooks") == [])]
     for group in groups:
         if isinstance(group, dict) and group.get("matcher") == HOOK_MATCHER:
-            handlers = group.setdefault("hooks", [])
-            # Idempotent: replace any earlier CDP entry (including the old
-            # `args` form) rather than stacking duplicates or keeping a stale
-            # --strict choice.
-            handlers[:] = [h for h in handlers
-                           if not (isinstance(h, dict) and str(h.get("command", "")).startswith(base))]
-            handlers.append(entry)
+            group.setdefault("hooks", []).append(entry)
             break
     else:
         groups.append({"matcher": HOOK_MATCHER, "hooks": [entry]})
