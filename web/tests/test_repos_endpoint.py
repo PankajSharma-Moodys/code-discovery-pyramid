@@ -164,6 +164,24 @@ class ReposEndpointTest(unittest.TestCase):
         ids = [r["repo_id"] for r in repos]
         self.assertEqual(len(ids), len(set(ids)), repos)
 
+    def test_garbage_index_db_gets_error_row_not_500(self) -> None:
+        import os
+
+        from fastapi.testclient import TestClient
+
+        from web.api.app import app
+
+        bad_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, bad_dir, ignore_errors=True)
+        (bad_dir / "index.db").write_bytes(b"this is not a sqlite database\x00\xff" * 64)
+
+        with mock.patch.dict(os.environ, {"CDP_STORE": str(bad_dir)}):
+            resp = TestClient(app).get("/api/repos")
+        self.assertEqual(resp.status_code, 200)
+        first = resp.json()["repos"][0]
+        self.assertEqual(Path(first["state_dir"]), bad_dir.resolve())
+        self.assertIsNotNone(first["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

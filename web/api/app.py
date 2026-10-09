@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 import subprocess
 import sys
 import time
@@ -1104,7 +1105,8 @@ def _store_repo_id(state_dir: Path) -> Optional[str]:
     conn = ReadOnlyConnection(db_path)
     try:
         return conn.snapshot_repo_id(conn.latest_pinned_snapshot())
-    except (StoreUnavailable, StoreLocked):
+    except (StoreUnavailable, StoreLocked, sqlite3.DatabaseError):
+        # DatabaseError: index.db exists but isn't a valid sqlite file.
         return None
     finally:
         conn.close()
