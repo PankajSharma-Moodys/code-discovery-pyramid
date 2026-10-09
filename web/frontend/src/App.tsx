@@ -10,6 +10,7 @@ import { InspectorRail } from "./panels/InspectorRail.tsx";
 import { LensSwitcher } from "./panels/LensSwitcher.tsx";
 import { PeekCard } from "./panels/PeekCard.tsx";
 import { RepoPicker } from "./panels/RepoPicker.tsx";
+import { Setup } from "./panels/setup/Setup.tsx";
 import { TimeScrubber } from "./panels/TimeScrubber.tsx";
 import { TracePanel } from "./panels/TracePanel.tsx";
 import { useAtlasStore } from "./store/atlasStore.ts";
@@ -34,6 +35,7 @@ function ViewSwitcher({
     { id: "atlas", label: "Atlas" },
     { id: "control-room", label: "Control Room" },
     ...(showLinks ? [{ id: "links" as View, label: "Links" }] : []),
+    { id: "setup", label: "Setup" },
   ];
   return (
     <div className="absolute right-3 top-3 z-30 flex gap-2 text-sm">
@@ -96,6 +98,7 @@ function AppShell() {
       {view === "atlas" && <Atlas />}
       {view === "control-room" && <ControlRoom />}
       {view === "links" && <LinksCanvas />}
+      {view === "setup" && <Setup />}
       <RepoPicker />
       <ViewSwitcher view={view} setView={setView} showLinks={showLinks} />
       <AskBar />
