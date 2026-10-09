@@ -479,3 +479,51 @@ class PromptSubmitTest(_OwnHome, unittest.TestCase):
         main(["scan", "--repo", str(repo), "--quiet"])
         self.assertIn("cdp_query", hook_mod.prompt_submit(ev))
         self.assertIsNone(hook_mod.prompt_submit(ev))
+
+
+@unittest.skipUnless(have_git(), "needs a real git repository")
+class GateTest(_OwnHome, unittest.TestCase):
+    """`--gate`: the first source search/read is denied once until the index is asked."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.make_home()
+        self.repo = make_repo(Path(self.tmp.name))
+        main(["scan", "--repo", str(self.repo), "--quiet"])
+        self.source = str(self.repo / "core/src/main/java/COM/Example/mini/core/Widget.java")
+
+    def ev(self, tool, session, **tool_input):
+        return {"session_id": self.id() + session, "cwd": str(self.repo),
+                "tool_name": tool, "tool_input": tool_input}
+
+    def test_first_read_is_denied_once_then_allowed(self) -> None:
+        first = hook_mod.gate_decide(self.ev("Read", "a", file_path=self.source))
+        self.assertTrue(first["block"])
+        self.assertIn("cdp_query", first["message"])
+        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "a", file_path=self.source)))
+
+    def test_first_shell_search_is_denied(self) -> None:
+        self.assertTrue(hook_mod.gate_decide(self.ev("Bash", "b", command="grep -rn Widget core"))["block"])
+        self.assertIsNone(hook_mod.gate_decide(self.ev("Bash", "c", command="git status")))
+
+    def test_asking_the_index_first_means_never_denied(self) -> None:
+        self.assertIsNone(hook_mod.gate_decide(self.ev("mcp__cdp__cdp_query", "d", kind="trace")))
+        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "d", file_path=self.source)))
+        self.assertIsNone(hook_mod.gate_decide(self.ev(
+            "Bash", "e", command="python3 .claude/skills/cdp/run.py query symbol X")))
+        self.assertIsNone(hook_mod.gate_decide(self.ev("Bash", "e", command="grep -rn Widget .")))
+
+    def test_silent_without_a_fresh_index(self) -> None:
+        shutil.rmtree(self.home)
+        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "f", file_path=self.source)))
+
+    def test_harness_installs_the_gate_not_the_nudge(self) -> None:
+        target = Path(self.tmp.name) / "target"
+        target.mkdir()
+        main(["install", str(target), "--harness"])
+        settings = json.loads((target / ".claude" / "settings.json").read_text())
+        pre = settings["hooks"]["PreToolUse"]
+        self.assertEqual(len(pre), 1)
+        self.assertTrue(pre[0]["hooks"][0]["command"].endswith("hook.py --gate"))
+        self.assertIn("mcp__cdp__", pre[0]["matcher"])

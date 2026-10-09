@@ -46,14 +46,14 @@ def preview_install(target: Path, framework: str) -> Dict[str, Any]:
 
     harness = None
     if framework == "claude-code":
-        from cdp.install import HOOK_MATCHER, SESSION_MATCHER
+        from cdp.install import GATE_MATCHER, SESSION_MATCHER
 
         harness = {
             "flag": "cdp install --harness",
             "remove": "cdp install --remove-harness",
             "settings_file": str(target / ".claude" / "settings.json"),
             "hooks": [
-                {"event": "PreToolUse", "matcher": HOOK_MATCHER},
+                {"event": "PreToolUse", "matcher": GATE_MATCHER},
                 {"event": "SessionStart", "matcher": SESSION_MATCHER},
             ],
             "mcp_file": str(target / ".mcp.json"),

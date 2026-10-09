@@ -62,6 +62,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -69,7 +70,14 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 #: Tools worth intercepting. Everything else is not a source read.
-WATCHED = ("Read", "Grep", "Glob")
+WATCHED = ("Read", "Grep", "Glob", "Bash")
+
+#: A Bash command counts as a source search only when it runs one of these. Only
+#: the gate (`--gate`) watches Bash; the plain nudge matcher never includes it.
+SEARCH_COMMAND = re.compile(r"(?:^|[|;&(]\s*|\bxargs\s+)(?:grep|egrep|rg|ag|ack|find)\b")
+
+#: Using the index from the shell counts as consulting it.
+CDP_CLI = re.compile(r"(?:run\.py|\bcdp)\s+(?:query|help|scan)\b")
 
 #: The only role that gets a nudge. Editing a README, a CI file or a fixture is
 #: not a question the index can answer better.
@@ -226,8 +234,16 @@ def _gate(event: Dict) -> Optional[Dict]:
     if event.get("tool_name") not in WATCHED:
         return None
 
-    raw = target_path(str(event.get("tool_name")), event.get("tool_input") or {})
+    is_search = event.get("tool_name") == "Bash"
     cwd = Path(str(event.get("cwd") or os.getcwd()))
+    if is_search:
+        tool_input = event.get("tool_input")
+        command = tool_input.get("command") if isinstance(tool_input, dict) else None
+        if not isinstance(command, str) or not SEARCH_COMMAND.search(command):
+            return None
+        raw = None
+    else:
+        raw = target_path(str(event.get("tool_name")), event.get("tool_input") or {})
     anchor = Path(raw) if raw and Path(raw).is_absolute() else cwd / (raw or ".")
 
     found = find_state(anchor) or find_state(cwd)
@@ -256,14 +272,68 @@ def _gate(event: Dict) -> Optional[Dict]:
     rel = _relative(anchor, repo)
     if rel is None:
         return None
-    if _role_of(inventory, rel) != NUDGE_ROLE:
+    if not is_search and _role_of(inventory, rel) != NUDGE_ROLE:
         return None
 
     return {
+        "search": is_search,
         "state": state, "inventory": inventory, "repo": repo,
         "indexed": indexed, "rel": rel, "coverage_fraction": folded.get(
             "coverage", {}).get("fraction", 0.0),
     }
+
+
+def _marker(state: Path, session_id: str, tag: str) -> Path:
+    key = hashlib.sha256(("%s|%s|%s" % (state.resolve(), session_id, tag)).encode()).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / ("cdp-gate-%s" % key)
+
+
+def _mark_consulted(event: Dict) -> bool:
+    """Record that this session has asked the index (MCP tool or the CLI)."""
+    tool = str(event.get("tool_name") or "")
+    tool_input = event.get("tool_input")
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if not (tool.startswith("mcp__cdp__") or (tool == "Bash" and isinstance(command, str)
+                                              and CDP_CLI.search(command))):
+        return False
+    found = find_state(Path(str(event.get("cwd") or os.getcwd())))
+    if found is None:
+        return True
+    home, repo_id, _ = found
+    try:
+        _marker(home / "work" / repo_id, str(event.get("session_id") or "no-session"),
+                "consulted").touch()
+    except OSError:
+        pass
+    return True
+
+
+def gate_decide(event: Dict) -> Optional[Dict]:
+    """Make the index the first move: deny the session's first source search or
+    read until it has asked the index, once, with the reason.
+
+    Denied at most once (the retry goes through, so an index that cannot answer
+    never traps the model), never after the session has queried the index, and
+    only where `_gate` holds: a fresh index and a source file or a shell search.
+    """
+    if _mark_consulted(event):
+        return None
+    gated = _gate(event)
+    if gated is None:
+        return None
+    sid = str(event.get("session_id") or "no-session")
+    if _marker(gated["state"], sid, "consulted").exists():
+        return None
+    try:
+        _marker(gated["state"], sid, "denied").touch(exist_ok=False)
+    except (FileExistsError, OSError):
+        return None
+    return {"block": True, "message": (
+        "Not run yet: this repo has a fresh CDP index (commit %s). Ask it first -- "
+        "`cdp_query` (MCP) with kind trace / symbol / paths / routes / table / config, or "
+        "`python3 .claude/skills/cdp/run.py query <kind> <name>` -- it returns cited "
+        "file:line locations; then Read only those ranges. If the index cannot answer, "
+        "repeat this exact call and it will run." % gated["indexed"][:12])}
 
 
 def decide(event: Dict) -> Optional[str]:
@@ -421,6 +491,15 @@ def prompt_submit(event: Dict) -> Optional[str]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--gate" in argv:
+        try:
+            event = json.loads(sys.stdin.read() or "{}")
+            result = gate_decide(event if isinstance(event, dict) else {})
+        except Exception:
+            return 0
+        if result:
+            print(json.dumps(payload(result["message"], block=True)))
+        return 0
     if "--prompt-submit" in argv:
         try:
             event = json.loads(sys.stdin.read() or "{}")

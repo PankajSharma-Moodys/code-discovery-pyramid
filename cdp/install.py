@@ -176,6 +176,30 @@ def _load_json_object(path: Path, hint: str) -> Dict:
     return data
 
 
+GATE_MATCHER = "^(Read|Grep|Glob|Bash|mcp__cdp__.*)$"
+
+
+def install_gate_hook(target: Path, dest: Path) -> List[str]:
+    """PreToolUse gate: the first source search/read of a session is denied once
+    until the index has been asked. Replaces the plain nudge (same script)."""
+    settings_path = target / ".claude" / "settings.json"
+    settings = _load_json_object(settings_path, "Fix or move it, then re-run.")
+    base = "python3 %s" % (dest / "cdp" / "hook.py")
+    groups = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    for group in groups:
+        if isinstance(group, dict) and isinstance(group.get("hooks"), list):
+            group["hooks"] = [h for h in group["hooks"]
+                              if not (isinstance(h, dict)
+                                      and str(h.get("command", "")).startswith(base))]
+    groups[:] = [g for g in groups if not (isinstance(g, dict) and g.get("hooks") == [])]
+    groups.append({"matcher": GATE_MATCHER,
+                   "hooks": [{"type": "command", "command": base + " --gate", "timeout": 30}]})
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(settings_path, settings)
+    return ["hook      PreToolUse gate -> first source search/read is denied once until the "
+            "index is asked, in %s" % settings_path]
+
+
 def install_session_hook(target: Path, dest: Path) -> List[str]:
     """Register the SessionStart hook: refresh the index, show a short status."""
     settings_path = target / ".claude" / "settings.json"
@@ -293,11 +317,12 @@ def install(
     elif source_agents_md.exists():
         shutil.copy2(source_agents_md, agents_md)
         say("wrote     %s" % agents_md)
-    if hook or harness:
+    if hook and not harness:
         for line in install_hook(target, dest, strict=strict):
             say(line)
     if harness:
-        for line in install_session_hook(target, dest) + install_mcp(target):
+        for line in (install_gate_hook(target, dest) + install_session_hook(target, dest)
+                     + install_mcp(target)):
             say(line)
     say("try       python3 %s scan --repo %s"
           % (dest / "run.py", target))
