@@ -497,3 +497,14 @@ class FlowResponse(BaseModel):
     nodes: List[FlowNode]
     groups: List[FlowGroup]
     edges: List[FlowEdge]
+
+
+class RunSpendResponse(BaseModel):
+    """`GET /api/run/spend`: the Claude runner's per-launch ledger
+    (`cdp/runners/claude_code.py`), costs are client-side estimates."""
+    budget_usd: float
+    spent_usd: float
+    calls: int
+    ok: int
+    failed: int
+    running: bool

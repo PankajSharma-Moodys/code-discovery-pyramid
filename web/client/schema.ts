@@ -454,8 +454,34 @@ export interface paths {
          *     lock, `--resume`'s lease logic, and the repo-mismatch guard for free. A
          *     second POST while one is in flight for this `(repo, state_dir)` returns
          *     the same job's handle (`status="joined"`), not a second process.
+         *
+         *     With `use_claude_runner=true` the leaf agents run through headless Claude
+         *     Code (`cdp/runners/claude_code.py`), configured via `CDP_RUNNER_*` env and
+         *     capped by `run_budget_usd`; the job's `--repo` is the store's recorded repo
+         *     path. Progress and cost are readable at `GET /api/run/spend`.
          */
         post: operations["post_run_api_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/run/spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Spend
+         * @description Live cost of a Claude-runner launch, read under a shared lock so a
+         *     ledger mid-rewrite is never parsed half-written.
+         */
+        get: operations["get_run_spend_api_run_spend_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -493,7 +519,8 @@ export interface paths {
          * @description Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses
          *     `resolve_state_dir`: that would honour the server's `CDP_STORE`/registry
          *     and overwrite an unrelated repo's store. Because an explicit `--state-dir`
-         *     makes `cmd_scan` skip registration, this endpoint registers the folder.
+         *     makes `cmd_scan` skip registration, the folder is registered by `get_job`
+         *     once the scan has finished.
          */
         post: operations["post_scan_api_scan_post"];
         delete?: never;
@@ -514,6 +541,13 @@ export interface paths {
          * @description Poll for a job's completion when there is no task table to watch --
          *     `POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such
          *     caller; `/api/run`/`/api/refresh` instead poll `/api/status`.
+         *
+         *     A finished successful `scan` job also registers its state dir here. The
+         *     explicit `--state-dir` `POST /api/scan` passes makes `cmd_scan` skip
+         *     registering, and non-git folders get a fresh random identity per
+         *     `repo_identity()` call, so only the finished scan's own snapshot knows
+         *     the id it was recorded under. Idempotent: skipped when an entry already
+         *     maps to that state dir.
          */
         get: operations["get_job_api_job__job_id__get"];
         put?: never;
@@ -1149,6 +1183,25 @@ export interface components {
         ReposResponse: {
             /** Repos */
             repos: components["schemas"]["RepoInfoResponse"][];
+        };
+        /**
+         * RunSpendResponse
+         * @description `GET /api/run/spend`: the Claude runner's per-launch ledger
+         *     (`cdp/runners/claude_code.py`), costs are client-side estimates.
+         */
+        RunSpendResponse: {
+            /** Budget Usd */
+            budget_usd: number;
+            /** Spent Usd */
+            spent_usd: number;
+            /** Calls */
+            calls: number;
+            /** Ok */
+            ok: number;
+            /** Failed */
+            failed: number;
+            /** Running */
+            running: boolean;
         };
         /** ScopeSummaryResponse */
         ScopeSummaryResponse: {
@@ -2045,6 +2098,12 @@ export interface operations {
                 target?: string;
                 /** @description pass --resume through so a restarted job can rejoin */
                 resume?: boolean;
+                /** @description run leaf agents through headless Claude Code */
+                use_claude_runner?: boolean;
+                /** @description Claude runner model: sonnet | opus | haiku */
+                model?: string;
+                /** @description Claude runner spend cap for this launch (USD, estimate) */
+                run_budget_usd?: number;
             };
             header?: never;
             path?: never;
@@ -2059,6 +2118,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_spend_api_run_spend_get: {
+        parameters: {
+            query: {
+                /** @description job id returned by POST /api/run */
+                job_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSpendResponse"];
                 };
             };
             /** @description Validation Error */

@@ -23,12 +23,15 @@ threadpool.
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import json
 import sqlite3
+import shlex
 import subprocess
 import sys
 import time
 import tomllib
+import uuid
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -51,6 +54,7 @@ from . import jobs as jobs_mod
 from . import nodeid
 from .auth import require_mutation_auth
 from .models import (
+    RunSpendResponse,
     ConfidenceResponse,
     DiffResponse,
     DoctorResponse,
@@ -1666,25 +1670,95 @@ def _run_extra_args(target: str, resume: bool) -> list:
     return extra
 
 
+_RUNNER_MODELS = {"sonnet", "opus", "haiku"}
+
+
+def _recorded_repo(state_dir: Path) -> str:
+    """The repo path the store's scan recorded (`inventory.repo`). The UI's
+    default `repo="."` is the server's cwd, which `cdp run`'s repo-mismatch
+    guard rejects, so runner mode always uses the recorded path."""
+    conn = None
+    try:
+        conn = ReadOnlyConnection(state_dir / "index.db")
+        inventory = conn.read_artifact(conn.latest_pinned_snapshot(), "inventory", default={})
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    finally:
+        if conn is not None:
+            conn.close()
+    repo = (inventory or {}).get("repo")
+    if not repo or not Path(repo).is_dir():
+        raise HTTPException(status_code=409, detail="this store has no usable recorded repo path (%r)" % repo)
+    return str(repo)
+
+
 @app.post("/api/run", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
 def post_run(
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
     target: str = Query("wave-all", description="wave-all | stale-only | scope:<node> | wave:<n>"),
     resume: bool = Query(True, description="pass --resume through so a restarted job can rejoin"),
+    use_claude_runner: bool = Query(False, description="run leaf agents through headless Claude Code"),
+    model: str = Query("sonnet", description="Claude runner model: sonnet | opus | haiku"),
+    run_budget_usd: float = Query(5.0, description="Claude runner spend cap for this launch (USD, estimate)"),
 ) -> JobResponse:
     """Shells out to `cdp run` (`web/api/jobs.py`'s `spawn_or_join`) rather
     than calling `supervisor` in-process -- the subprocess inherits the real
     lock, `--resume`'s lease logic, and the repo-mismatch guard for free. A
     second POST while one is in flight for this `(repo, state_dir)` returns
-    the same job's handle (`status="joined"`), not a second process."""
+    the same job's handle (`status="joined"`), not a second process.
+
+    With `use_claude_runner=true` the leaf agents run through headless Claude
+    Code (`cdp/runners/claude_code.py`), configured via `CDP_RUNNER_*` env and
+    capped by `run_budget_usd`; the job's `--repo` is the store's recorded repo
+    path. Progress and cost are readable at `GET /api/run/spend`."""
     resolved_state_dir = str(resolve_state_dir(Path(repo), state_dir))
     extra_args = _run_extra_args(target, resume)
-    job, joined = jobs_mod.spawn_or_join("run", repo, resolved_state_dir, extra_args)
+    run_repo, env = repo, None
+    if use_claude_runner:
+        if model not in _RUNNER_MODELS:
+            raise HTTPException(status_code=400, detail="model must be one of %s" % sorted(_RUNNER_MODELS))
+        if not 0 < run_budget_usd <= 100:
+            raise HTTPException(status_code=400, detail="run_budget_usd must be > 0 and <= 100")
+        run_repo = _recorded_repo(Path(resolved_state_dir))
+        ledger = Path(resolved_state_dir) / "runner" / ("spend-%s.json" % uuid.uuid4().hex[:12])
+        extra_args += ["--runner-cmd", "%s -m cdp.runners.claude_code" % shlex.quote(sys.executable),
+                       "--timeout", "900"]
+        env = {
+            "CDP_RUNNER_REPO": run_repo, "CDP_RUNNER_MODEL": model,
+            "CDP_RUNNER_SCOPE_BUDGET_USD": "1.00", "CDP_RUNNER_MAX_TURNS": "30",
+            "CDP_RUNNER_RUN_BUDGET_USD": str(run_budget_usd), "CDP_RUNNER_LEDGER": str(ledger),
+        }
+    job, joined = jobs_mod.spawn_or_join("run", run_repo, resolved_state_dir, extra_args, env=env)
     return JobResponse(
         job_id=job.job_id, status="joined" if joined else "started",
-        pid=job.pid, kind=job.kind, repo=repo, state_dir=resolved_state_dir,
+        pid=job.pid, kind=job.kind, repo=run_repo, state_dir=resolved_state_dir,
     )
+
+
+@app.get("/api/run/spend", response_model=RunSpendResponse)
+def get_run_spend(job_id: str = Query(..., description="job id returned by POST /api/run")) -> RunSpendResponse:
+    """Live cost of a Claude-runner launch, read under a shared lock so a
+    ledger mid-rewrite is never parsed half-written."""
+    job = jobs_mod.get_job(job_id)
+    ledger = (getattr(job, "env", None) or {}).get("CDP_RUNNER_LEDGER") if job else None
+    if job is None or not ledger:
+        raise HTTPException(status_code=404, detail="no Claude-runner launch with job_id %r" % job_id)
+    budget = float(job.env.get("CDP_RUNNER_RUN_BUDGET_USD", "0"))
+    data = {"budget_usd": budget, "spent_usd": 0.0, "calls": []}
+    path = Path(ledger)
+    if path.is_file():
+        with open(path, encoding="utf-8") as fh:
+            fcntl.flock(fh, fcntl.LOCK_SH)
+            raw = fh.read()
+        if raw.strip():
+            data = json.loads(raw)
+    calls = data.get("calls", [])
+    ok = sum(1 for c in calls if c.get("ok"))
+    return RunSpendResponse(budget_usd=float(data.get("budget_usd", budget)), spent_usd=float(data.get("spent_usd", 0.0)),
+                            calls=len(calls), ok=ok, failed=len(calls) - ok, running=job.is_running())
 
 
 @app.post("/api/refresh", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
