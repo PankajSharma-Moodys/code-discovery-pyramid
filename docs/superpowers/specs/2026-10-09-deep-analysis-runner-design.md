@@ -15,7 +15,8 @@ button produces real leaf-agent results, safely and within a spending cap.
 - Runner: headless Claude Code (`claude -p`) per scope, using the user's own
   Claude Code login (no API key; `--bare` is NOT used).
 - Default model **sonnet**, switchable per run in the UI.
-- Default caps: **$5 per run**, **$1.00 / 30 turns per scope**; **2 scopes at once**.
+- Default caps: **$5 per run**, **$1.00 / 30 turns per scope**; **one scope at a time**
+  (parallelism deferred: `cmd_run` holds an exclusive state-dir lock, cli.py:1533).
 - A confirm step before starting; live cost shown as an estimate.
 
 ## Isolation (verified locally, 2026-10-09)
@@ -38,7 +39,9 @@ by whoever starts `cdp run`: `CDP_RUNNER_REPO` (cwd), `CDP_RUNNER_MODEL`,
 3. Run, with cwd = repo and the prompt file content on stdin:
    `claude -p --restricted --strict-mcp-config --model <m> --tools Read,Grep,Glob
    --permission-mode dontAsk --output-format json --json-schema <schema/patch-1.0.0.json>
-   --max-turns <n> --max-budget-usd <x>`. Never pass `--add-dir`.
+   --max-turns <n> --max-budget-usd <x> --append-system-prompt <return the patch as structured
+   output; you cannot write files>` (the leaf prompt says "Write your patch to …",
+   prompts.py:488). Never pass `--add-dir`.
 4. Parse the JSON result. Record `total_cost_usd` in the ledger (always, even on
    failure). Success = `is_error` false AND `structured_output` present → write it
    to the patch path. Otherwise exit non-zero with the result subtype/message
@@ -46,24 +49,19 @@ by whoever starts `cdp run`: `CDP_RUNNER_REPO` (cwd), `CDP_RUNNER_MODEL`,
 5. No extra retries: Claude Code retries transient/429 itself; cdp's existing
    `--max-attempts` re-dispatch stays the outer safety net.
 
-Ledger: `<state>/runner/spend-<run_id>.json` — `{"budget_usd", "spent_usd",
+Ledger: one file per UI launch, `<state>/runner/spend-<launch id>.json` — `{"budget_usd", "spent_usd",
 "calls": [{"prompt", "cost_usd", "ok", "subtype"}]}`.
-
-## Concurrency
-
-`cdp run` is sequential per process; the existing leases let several processes
-claim different scopes of a wave safely. "Run deep analysis" starts **N worker
-processes** (`cdp run --wave-all --resume --runner-cmd "<python> -m cdp.runners.claude_code"`)
-under one web job, all sharing one ledger, so the run cap covers all of them.
 
 ## Web API / UI
 
-- `POST /api/run` gains optional `model`, `run_budget_usd`, `concurrency`
-  (validated: model ∈ {sonnet, opus, haiku}; 0 < budget ≤ 100; 1 ≤ concurrency ≤ 4).
-  When `use_claude_runner=true` (the UI's default) it sets the env vars and
-  spawns the workers; otherwise behaviour is unchanged.
-- `GET /api/run/spend` returns the ledger summary for the current run.
-- Control Room Run panel: model select, run cap, concurrency; a confirm step
+- `POST /api/run` gains `use_claude_runner`, `model`, `run_budget_usd` (validated:
+  model ∈ {sonnet, opus, haiku}; 0 < budget ≤ 100). With `use_claude_runner=true`
+  (the UI's default) it passes `--runner-cmd "<python> -m cdp.runners.claude_code"
+  --timeout 900`, sets the env vars, and uses the store's recorded repo path
+  (`inventory.repo`) for `--repo`/cwd — the UI's default `repo="."` is the server's
+  cwd, which `cdp run`'s repo-mismatch guard rejects. Otherwise unchanged.
+- `GET /api/run/spend?job_id=` returns the ledger summary for that launch.
+- Control Room Run panel: Claude toggle, model select, run cap; a confirm step
   ("≈ N scopes, cap $X"); live "$x.xx of $X (estimate)". Still behind the
   existing mutation token.
 
@@ -73,11 +71,11 @@ under one web job, all sharing one ledger, so the run cap covers all of them.
   records cost; budget exhausted skips the call; missing structured_output and
   `error_max_turns` fail; old version refused; argv contains both isolation flags
   and `--tools Read,Grep,Glob`.
-- API tests: run with `use_claude_runner` spawns N workers sharing one ledger;
+- API tests: `use_claude_runner` passes the runner cmd, env and recorded repo;
   validation errors → 400; spend endpoint reflects the ledger.
 - One real end-to-end run on a tiny fixture repo (≤2 scopes) before RDL.
 
 ## Out of scope
 
-Mid-run cancel beyond the existing stop; API-key / LiteLLM backends in the UI;
+Running scopes in parallel; mid-run cancel beyond the existing stop; API-key / LiteLLM backends in the UI;
 prompt-caching tuning; cost estimation from history.
