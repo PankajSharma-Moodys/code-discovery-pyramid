@@ -22,7 +22,7 @@ Output
 ------
 Write patch JSON, valid against `schema/patch-1.0.0.json`, to `patch_path`
 verbatim — not a directory, not a derived name. `cdp run` chooses that path
-(the same `.cdp/patches/inbox/<node>.json` convention a human agent already
+(the same `<work dir>/patches/inbox/<node>.json` convention a human agent already
 follows per `prompts.py`'s own instructions) and passes it in.
 
 Return a `RunResult`:

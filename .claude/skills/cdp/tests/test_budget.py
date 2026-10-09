@@ -184,7 +184,7 @@ class BudgetedQueryTest(unittest.TestCase):
     def run_cli(self, *argv) -> str:
         buf = io.StringIO()
         with redirect_stdout(buf):
-            code = main(list(argv) + ["--state-dir", str(self.state)])
+            code = main(list(argv) + ["--repo", str(self.repo), "--state-dir", str(self.state)])
         self.assertEqual(code, 0)
         return buf.getvalue()
 

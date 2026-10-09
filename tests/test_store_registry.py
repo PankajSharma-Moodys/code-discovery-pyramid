@@ -1,18 +1,15 @@
-"""Store resolution and repo identity (`PHASE/phase_2_plan.md` M2.6).
-
-`REGISTRY_PATH` is `~/.cdp/config.toml` by construction (module docstring:
-per-user, not per-repo). These tests monkeypatch it to a temp file so they
-never touch the real one.
-"""
+"""Machine home and repo identity (`cdp/store/registry.py`)."""
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from helpers import make_repo
 
@@ -22,16 +19,7 @@ sys.path.insert(0, str(SKILL_ROOT))
 from cdp.store import registry  # noqa: E402
 
 
-class RegistryTestCase(unittest.TestCase):
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self._orig_path = registry.REGISTRY_PATH
-        registry.REGISTRY_PATH = Path(self._tmp.name) / "registry" / "config.toml"
-        self.addCleanup(setattr, registry, "REGISTRY_PATH", self._orig_path)
-
-
-class TestRepoIdentity(RegistryTestCase):
+class TestRepoIdentity(unittest.TestCase):
     def test_two_clones_of_the_same_remote_share_an_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             origin = Path(tmp) / "origin.git"
@@ -82,52 +70,77 @@ class TestRepoIdentity(RegistryTestCase):
             self.assertEqual(registry.repo_identity(repo), "acme-repo")
 
 
-class TestRegistryRoundTrip(RegistryTestCase):
-    def test_register_then_lookup_finds_the_same_path(self):
-        registry.register("repo-x", Path("/tmp/somewhere/.cdp"))
-        self.assertEqual(registry.lookup("repo-x"), Path("/tmp/somewhere/.cdp").resolve())
+class TestFolderIdentity(unittest.TestCase):
+    """A folder below the git root is its own repo (`<remote>#<path>`)."""
 
-    def test_lookup_of_an_unregistered_id_is_none(self):
-        self.assertIsNone(registry.lookup("never-registered"))
+    def _repo_with_remote(self, tmp: Path) -> Path:
+        repo = make_repo(tmp, fixture="minirepo")
+        subprocess.run(["git", "-C", str(repo), "remote", "add", "origin",
+                        "https://github.com/acme/mono.git"], check=True, capture_output=True)
+        return repo
 
-    def test_registering_twice_is_idempotent_and_keeps_other_entries(self):
-        registry.register("repo-x", Path("/tmp/x"))
-        registry.register("repo-y", Path("/tmp/y"))
-        registry.register("repo-x", Path("/tmp/x-moved"))
-        self.assertEqual(registry.lookup("repo-x"), Path("/tmp/x-moved").resolve())
-        self.assertEqual(registry.lookup("repo-y"), Path("/tmp/y").resolve())
-
-
-class TestResolveStore(RegistryTestCase):
-    def test_env_wins_over_registry(self):
+    def test_a_subfolder_and_its_parent_are_two_repos(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = make_repo(Path(tmp), fixture="minirepo")
-            registry.register(registry.repo_identity(repo), Path("/tmp/from-registry"))
-            resolved = registry.resolve_store(repo, env="/tmp/from-env")
-            self.assertEqual(resolved, Path("/tmp/from-env").resolve())
+            repo = self._repo_with_remote(Path(tmp))
+            self.assertEqual(registry.repo_identity(repo), "github.com/acme/mono")
+            self.assertEqual(registry.repo_identity(repo / "core"), "github.com/acme/mono#core")
+            nested = repo / "core" / "src"
+            self.assertEqual(registry.repo_identity(nested), "github.com/acme/mono#core/src")
 
-    def test_registry_wins_over_default_when_no_team_file(self):
+    def test_a_clone_of_the_same_folder_shares_the_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = make_repo(Path(tmp), fixture="minirepo")
-            target = Path(tmp) / "registered-state"
-            registry.register(registry.repo_identity(repo), target)
-            self.assertEqual(registry.resolve_store(repo), target.resolve())
+            a = self._repo_with_remote(Path(tmp) / "a")
+            b = self._repo_with_remote(Path(tmp) / "b")
+            self.assertEqual(registry.repo_identity(a / "web"), registry.repo_identity(b / "web"))
 
-    def test_default_is_returned_when_nothing_else_resolves(self):
+    def test_a_folders_own_declared_id_is_a_full_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = make_repo(Path(tmp), fixture="minirepo")
-            fallback = Path(tmp) / "fallback" / ".cdp"
-            self.assertEqual(registry.resolve_store(repo, default=fallback), fallback.resolve())
+            repo = self._repo_with_remote(Path(tmp))
+            (repo / "core" / registry.DECLARED_ID_FILE).write_text("core-svc\n", encoding="utf-8")
+            self.assertEqual(registry.repo_identity(repo / "core"), "core-svc")
 
-    def test_team_file_wins_over_registry(self):
+    def test_a_folder_outside_git_is_identified_by_path(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = make_repo(Path(tmp), fixture="minirepo")
-            registry.register(registry.repo_identity(repo), Path("/tmp/from-registry"))
-            team_target = Path(tmp) / "team-state"
-            (repo / registry.TEAM_CONFIG_FILE).write_text(
-                'store = "%s"\n' % team_target, encoding="utf-8"
-            )
-            self.assertEqual(registry.resolve_store(repo), team_target.resolve())
+            folder = Path(tmp) / "plain"
+            folder.mkdir()
+            self.assertTrue(registry.repo_identity(folder).startswith("path:"))
+            self.assertEqual(registry.repo_identity(folder), registry.repo_identity(folder))
+
+    def test_candidates_run_from_the_folder_up_to_the_git_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_remote(Path(tmp))
+            got = [i for _, i in registry.candidate_identities(repo / "core" / "src")]
+            self.assertEqual(got, ["github.com/acme/mono#core/src", "github.com/acme/mono#core",
+                                   "github.com/acme/mono"])
+
+    def test_work_dirs_never_collide_for_distinct_ids(self):
+        a, b = registry.repo_slug("x/y#a"), registry.repo_slug("x/y_a")
+        self.assertNotEqual(a, b)
+
+
+class TestHome(unittest.TestCase):
+    def test_cdp_home_overrides_the_default(self):
+        with mock.patch.dict(os.environ, {"CDP_HOME": "/tmp/somewhere-else"}):
+            self.assertEqual(registry.cdp_home(), Path("/tmp/somewhere-else").resolve())
+
+    def test_default_is_dot_cdp_in_the_users_home(self):
+        env = {k: v for k, v in os.environ.items() if k != "CDP_HOME"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(registry.cdp_home(), Path.home() / ".cdp")
+
+    def test_the_backend_is_chosen_once_in_the_machine_config(self):
+        with tempfile.TemporaryDirectory() as home:
+            self.assertEqual(registry.machine_backend(Path(home)), "sqlite")
+            (Path(home) / "config.toml").write_text(
+                'backend = "postgres"\n[postgres]\ndsn = "postgresql://x/y"\n', encoding="utf-8")
+            self.assertEqual(registry.machine_backend(Path(home)), "postgres")
+            self.assertEqual(registry.machine_postgres_config(Path(home)),
+                             {"dsn": "postgresql://x/y", "schema": None})
+
+    def test_a_leftover_repos_registry_is_ignored(self):
+        with tempfile.TemporaryDirectory() as home:
+            (Path(home) / "config.toml").write_text('[repos]\n"x" = "/old/.cdp"\n', encoding="utf-8")
+            self.assertEqual(registry.machine_backend(Path(home)), "sqlite")
 
 
 if __name__ == "__main__":

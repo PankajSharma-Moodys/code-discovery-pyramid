@@ -5,7 +5,7 @@ idiom: instead of binding the model to a structured-output schema, the leaf
 agent is given one `FunctionTool`, `submit_patch`, and told (via its
 instruction) to call it exactly once with its finished patch. The tool
 implementation -- not the model -- validates against `cdp.schema` and writes
-`.cdp/patches/inbox/<node>.json`, so a malformed or out-of-vocabulary patch is
+`<work>/patches/inbox/<node>.json`, so a malformed or out-of-vocabulary patch is
 turned into a `"status": "failed"` patch rather than a bad file on disk.
 
 `google.adk` is imported only inside `run_leaf`, not at module load

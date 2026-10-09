@@ -145,7 +145,7 @@ def dispatch_scope(
     text, prompt_stats = build_prompt(
         scope, inventory, extraction, xref, sched, prior_claims, run_id,
         extra_third_party=hints.get("third_party_patterns", frozenset()),
-        prompt_fixes=hints.get("prompt_fixes", ()), **prompt_kwargs
+        prompt_fixes=hints.get("prompt_fixes", ()), inbox_dir=backend._inbox_dir(), **prompt_kwargs
     )
     prompt_path = prompts_dir / (node.replace("/", "__") + ".md")
     write_text(prompt_path, text)
@@ -215,7 +215,7 @@ def run_wave(
     from a superseded one (partition changed, scope content did not). Neither
     dispatched nor reported here, which is what keeps a folded scope "untouched
     and unpaid-for again" rather than silently re-billed on every resume."""
-    prompts_dir = paths.state / "prompts"
+    prompts_dir = paths.work / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
     backend.ensure_inbox()
     prior = list(store.state.get("claims", []))

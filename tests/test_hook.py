@@ -9,6 +9,8 @@ happily when two of the three conditions are unimplemented.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,8 +19,30 @@ from pathlib import Path
 
 from helpers import SKILL_ROOT, have_git, make_repo  # noqa: F401  (sets sys.path)
 
+from unittest import mock
+
 from cdp import hook as hook_mod
 from cdp.cli import main
+from cdp.store import SqliteStore, registry
+
+
+class _OwnHome:
+    """A machine home of the test's own, so the hook (which reads `CDP_HOME`,
+    in-process and in a subprocess alike) sees exactly what the test scanned."""
+
+    def make_home(self) -> None:
+        self.home = Path(self.tmp.name) / "home"
+        patcher = mock.patch.dict(os.environ, {"CDP_HOME": str(self.home)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def open_snapshot(self, repo=None) -> SqliteStore:
+        """The store, pointed at `repo`'s current snapshot, for tests that
+        doctor what a scan wrote."""
+        repo = repo or self.repo
+        backend = SqliteStore(self.home / "index.db")
+        backend.use_current_snapshot(registry.repo_identity(repo), hook_mod.git_head(repo))
+        return backend
 
 
 def event(tool: str, path: str, repo: Path, session: str = "s1") -> dict:
@@ -32,14 +56,15 @@ def event(tool: str, path: str, repo: Path, session: str = "s1") -> dict:
 
 
 @unittest.skipUnless(have_git(), "the HEAD check needs a real git repository")
-class HookTest(unittest.TestCase):
-    """An in-repo install, which is the only configuration the hook supports."""
+class HookTest(_OwnHome, unittest.TestCase):
+    """Scanned into the machine store; the hook finds the repo's rows in it."""
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
+        self.make_home()
         self.repo = make_repo(Path(self.tmp.name))
-        main(["scan", "--repo", str(self.repo), "--in-repo", "--quiet"])
+        main(["scan", "--repo", str(self.repo), "--quiet"])
         self.source = "core/src/main/java/COM/Example/mini/core/Widget.java"
         # Every test gets a distinct session id: the hook fires at most once per
         # session, so sharing one would make the second assertion in any test
@@ -77,10 +102,8 @@ class HookTest(unittest.TestCase):
     # ------------------------------------------------ the three mandatory no-ops
 
     def test_noop_when_state_is_missing(self) -> None:
-        """No-op 1: `.cdp/` missing."""
-        import shutil
-
-        shutil.rmtree(self.repo / ".cdp")
+        """No-op 1: nothing scanned."""
+        shutil.rmtree(self.home)
         self.assertIsNone(self.fire())
 
     def test_noop_when_the_index_does_not_describe_the_working_tree(self) -> None:
@@ -89,9 +112,7 @@ class HookTest(unittest.TestCase):
         A hook nagging about an index that does not describe the working tree is
         worse than no hook.
         """
-        from cdp.store import SqliteStore
-
-        backend = SqliteStore(self.repo / ".cdp" / "index.db")
+        backend = self.open_snapshot()
         inventory = backend.read_artifact("inventory")
         inventory["head"] = "0" * 40
         backend.write_artifact("inventory", inventory)
@@ -111,53 +132,59 @@ class HookTest(unittest.TestCase):
                        check=True, capture_output=True, env=env)
         self.assertIsNone(self.fire())
 
-    def test_noop_when_state_is_not_resolvable_from_the_repo(self) -> None:
-        """No-op 3 (of the two still live): an out-of-repo state directory is
-        invisible to the hook when nothing registered it there.
-
-        `store.registry` (M2.6) only gets an entry from the *default*
-        resolution path (`cli.py` `cmd_scan`, when neither `--in-repo` nor
-        `--state-dir` was given) -- an explicit `--state-dir` like this one is
-        not registered, on the reasoning that an explicit choice does not need
-        the registry's help to be found again by the same invocation style.
-        """
+    def test_noop_when_the_scan_lives_in_another_home(self) -> None:
+        """A scan written with `--state-dir` elsewhere is a different store; the
+        hook reads the machine's `CDP_HOME` and does not go looking."""
         with tempfile.TemporaryDirectory() as other:
-            elsewhere = Path(other) / "clean"
-            elsewhere.mkdir()
-            main(["scan", "--repo", str(self.repo), "--state-dir",
-                  str(elsewhere / ".cdp"), "--quiet"])
-            import shutil
-
-            shutil.rmtree(self.repo / ".cdp")
+            shutil.rmtree(self.home)
+            main(["scan", "--repo", str(self.repo), "--state-dir", str(Path(other) / "h"), "--quiet"])
             self.assertIsNone(self.fire())
 
-    def test_fires_via_the_registry_when_state_lives_outside_the_repo(self) -> None:
-        """The M2.6 win named in the module docstring: a hook can now find a
-        default-location scan even though it lives outside the repo, because
-        `cmd_scan`'s default path registers it (`store.registry`) and
-        `find_state` now consults the registry, not only the directory walk.
-        """
-        from cdp.store import registry
+    # ----------------------------------------------- one store, many repos
 
-        orig_path = registry.REGISTRY_PATH
-        with tempfile.TemporaryDirectory() as other:
-            registry.REGISTRY_PATH = Path(other) / "config.toml"
-            try:
-                elsewhere = Path(other) / "outside" / ".cdp"
-                repo_id = registry.repo_identity(self.repo)
-                main(["scan", "--repo", str(self.repo), "--state-dir",
-                      str(elsewhere), "--quiet"])
-                registry.register(repo_id, elsewhere)
+    def _commit(self, name: str) -> None:
+        env = {"GIT_AUTHOR_NAME": "cdp", "GIT_AUTHOR_EMAIL": "c@example.invalid",
+               "GIT_COMMITTER_NAME": "cdp", "GIT_COMMITTER_EMAIL": "c@example.invalid",
+               "PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": self.tmp.name}
+        (self.repo / name).write_text("x\n")
+        subprocess.run(["git", "-C", str(self.repo), "add", "-A"], check=True, capture_output=True, env=env)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "commit.gpgsign=false", "commit", "-q",
+                        "-m", name], check=True, capture_output=True, env=env)
 
-                import shutil
+    def test_still_fires_after_the_repos_second_scan(self) -> None:
+        """Bug F: the hook used to read the oldest snapshot in the file, so it
+        went silent as soon as a repo had been scanned at a second commit."""
+        self._commit("NOTES.md")
+        main(["scan", "--repo", str(self.repo), "--quiet"])
+        self.assertEqual(len(SqliteStore(self.home / "index.db").list_snapshots()), 2)
+        message = self.fire()
+        self.assertIsNotNone(message)
+        self.assertIn(hook_mod.git_head(self.repo)[:12], message)
 
-                shutil.rmtree(self.repo / ".cdp")  # the walk-up path finds nothing now
+    def test_follows_head_back_to_an_older_scanned_commit(self) -> None:
+        first = hook_mod.git_head(self.repo)
+        self._commit("NOTES.md")
+        main(["scan", "--repo", str(self.repo), "--quiet"])
+        subprocess.run(["git", "-C", str(self.repo), "checkout", "-q", first], check=True,
+                       capture_output=True)
+        message = self.fire()
+        self.assertIsNotNone(message)
+        self.assertIn(first[:12], message)
 
-                found = hook_mod.find_state(self.repo / self.source)
-                self.assertEqual(found, elsewhere.resolve())
-                self.assertIsNotNone(self.fire(session="registry-session"))
-            finally:
-                registry.REGISTRY_PATH = orig_path
+    def test_a_second_repo_in_the_store_does_not_hijack_the_answer(self) -> None:
+        other = make_repo(Path(self.tmp.name) / "other", fixture="solorepo")
+        main(["scan", "--repo", str(other), "--quiet"])
+        message = self.fire()
+        self.assertIsNotNone(message)
+        self.assertIn(hook_mod.git_head(self.repo)[:12], message)
+
+    def test_a_scanned_subfolder_is_found_and_is_its_own_repo(self) -> None:
+        shutil.rmtree(self.home)
+        main(["scan", "--repo", str(self.repo / "core"), "--quiet"])
+        found = hook_mod.find_state(self.repo / self.source)
+        self.assertIsNotNone(found)
+        self.assertEqual(found[2], (self.repo / "core").resolve())
+        self.assertIn("#core", found[1])
 
     # ------------------------------------------------------------ role scoping
 
@@ -165,7 +192,7 @@ class HookTest(unittest.TestCase):
         """*"Fix the typo in README.md."* — the whole false-positive class the
         peer system cannot eliminate, deleted by one role check."""
         (self.repo / "README.md").write_text("# mini\n")
-        main(["scan", "--repo", str(self.repo), "--in-repo", "--quiet"])
+        main(["scan", "--repo", str(self.repo), "--quiet"])
         self.assertIsNone(self.fire(path=str(self.repo / "README.md")))
 
     def test_does_not_fire_on_a_build_manifest(self) -> None:
@@ -194,7 +221,7 @@ class HookTest(unittest.TestCase):
 
 
 @unittest.skipUnless(have_git(), "the HEAD check needs a real git repository")
-class StrictModeTest(unittest.TestCase):
+class StrictModeTest(_OwnHome, unittest.TestCase):
     """Phase 9: `--strict` blocks the first source read instead of nudging,
     but only when coverage and freshness both clear the bar (the stress test
     named in `phase_9_plan.md`: coverage is not freshness, R8)."""
@@ -202,15 +229,14 @@ class StrictModeTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
+        self.make_home()
         self.repo = make_repo(Path(self.tmp.name))
-        main(["scan", "--repo", str(self.repo), "--in-repo", "--quiet"])
+        main(["scan", "--repo", str(self.repo), "--quiet"])
         self.source = "core/src/main/java/COM/Example/mini/core/Widget.java"
         self.session = self.id()
 
     def _set_coverage(self, fraction: float) -> None:
-        from cdp.store import SqliteStore
-
-        backend = SqliteStore(self.repo / ".cdp" / "index.db")
+        backend = self.open_snapshot()
         state = backend.read_artifact("state", {})
         state["coverage"]["fraction"] = fraction
         backend.write_artifact("state", state)
@@ -238,10 +264,8 @@ class StrictModeTest(unittest.TestCase):
     def test_full_coverage_but_stale_head_still_degrades_to_a_nudge(self) -> None:
         """The named stress test: 100% coverage does not license a block when
         the index no longer describes the working tree (R8, two dates)."""
-        from cdp.store import SqliteStore
-
         self._set_coverage(1.0)
-        backend = SqliteStore(self.repo / ".cdp" / "index.db")
+        backend = self.open_snapshot()
         inventory = backend.read_artifact("inventory")
         inventory["head"] = "0" * 40
         backend.write_artifact("inventory", inventory)

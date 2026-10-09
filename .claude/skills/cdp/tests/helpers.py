@@ -120,3 +120,11 @@ class MiniRepoTest(unittest.TestCase):
     def tearDownClass(cls) -> None:
         if cls.tmp:
             cls.tmp.cleanup()
+
+
+def work_of(repo, state) -> Path:
+    """Where `state`'s machine store keeps `repo`'s hand-over files (inbox,
+    prompts, docs): `<state>/work/<repo>/`."""
+    from cdp.store import registry
+
+    return registry.work_dir(Path(state), registry.repo_identity(Path(repo)))

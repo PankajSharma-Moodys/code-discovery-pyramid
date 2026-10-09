@@ -17,8 +17,9 @@ from pathlib import Path
 from helpers import have_git, make_repo
 
 from cdp import githooks
+from cdp.store import registry
 from cdp.store.sqlite_backend import SqliteStore
-from cdp.util import CdpError
+from cdp.util import CdpError, run_git
 
 CDP_ROOT = Path(__file__).resolve().parent.parent
 
@@ -101,19 +102,20 @@ class RealHookFiringTest(unittest.TestCase):
         self.env = {
             "HOME": str(self.home), "PATH": "/usr/bin:/bin:/usr/local/bin",
             "PYTHONPATH": str(CDP_ROOT),
+            "CDP_HOME": str(self.home / ".cdp"),
         }
-        # No `--state-dir`: state lands at `cwd/.cdp` and gets registered under
-        # this repo's identity (`~/.cdp/config.toml`, HOME redirected above), so
-        # the hook's own `cdp refresh --repo <repo>` -- run from whatever cwd git
-        # gives the hook -- resolves the same store via the registry, exactly
-        # the "store pointer from 2.3" the plan names.
+        # No `--state-dir`: state lands in the machine store (`CDP_HOME`, set
+        # above), so the hook's own `cdp refresh --repo <repo>` -- run from
+        # whatever cwd git gives the hook -- finds the same store.
         scan = subprocess.run(
             [sys.executable, "-m", "cdp.cli", "scan", "--repo", str(self.repo), "--quiet"],
             cwd=str(self.scancwd), env=self.env, capture_output=True, text=True,
         )
         assert scan.returncode == 0, scan.stderr
-        self.db = self.scancwd / ".cdp" / "index.db"
-        assert self.db.exists(), "scan should have registered cwd/.cdp via the registry"
+        self.db = self.home / ".cdp" / "index.db"
+        assert self.db.exists(), "scan should have written the machine store"
+        assert not (self.scancwd / ".cdp").exists(), "scan wrote into the folder it ran from"
+        self.repo_id = registry.repo_identity(self.repo)
         githooks.install(self.repo)
 
     def _head(self) -> str:
@@ -121,7 +123,8 @@ class RealHookFiringTest(unittest.TestCase):
         # resolves to the latest snapshot before reading) -- a bare
         # `read_artifact` would silently re-check the lazy `id=1` default.
         store = SqliteStore(self.db)
-        store.use_latest_snapshot()
+        # Reads follow the checked-out commit: HEAD's snapshot when it exists.
+        store.use_current_snapshot(self.repo_id, run_git(self.repo, "rev-parse", "HEAD").strip())
         head = store.read_artifact("manifest", {}).get("head")
         store.close()
         return head

@@ -11,5 +11,4 @@
   opened (`SqliteStore` creates its db file and parent dir on construction) —
   any "has this been scanned yet" check must be a pure filesystem probe
   (`store.has_scanned`), never construct a backend speculatively, or a
-  file-watching hook litters `.cdp/index.db` at every unrelated directory it
-  probes.
+  file-watching hook creates a store where there was none.

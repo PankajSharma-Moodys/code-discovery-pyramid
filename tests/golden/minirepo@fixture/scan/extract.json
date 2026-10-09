@@ -716,9 +716,25 @@
     "imports": 13,
     "io_edges": 13,
     "parsed_files": 13,
-    "uses": 13
+    "uses": 18
   },
   "uses": [
+    {
+      "anchor": {
+        "anchor": "return List.of();",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 21
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "List#of",
+      "from_symbol": "com.example.mini.web.WidgetResource#list",
+      "kind": "call",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": false,
+      "via_import": false
+    },
     {
       "anchor": {
         "anchor": "import com.example.mini.core.Widget;",
@@ -734,6 +750,22 @@
     },
     {
       "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "com.example.mini.core.WidgetEntity",
+      "from_symbol": "com.example.mini.core.WidgetRepository",
+      "kind": "binding",
+      "module": "core",
+      "resolved": "external",
+      "scope_package": "com.example.mini.core",
+      "speculative": true,
+      "via_import": false
+    },
+    {
+      "anchor": {
         "anchor": "import com.example.mini.core.WidgetRepository;",
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 4
@@ -744,6 +776,38 @@
       "resolved": "external",
       "scope_package": "com.example.mini.web",
       "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "private final WidgetRepository repository;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 13
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "from_symbol": "com.example.mini.web.WidgetResource",
+      "kind": "type",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "public WidgetResource(WidgetRepository repository) {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 15
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "from_symbol": "com.example.mini.web.WidgetResource#<init>",
+      "kind": "type",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": false,
+      "via_import": false
     },
     {
       "anchor": {
@@ -822,6 +886,22 @@
       "resolved": "third_party",
       "scope_package": "com.example.mini.core",
       "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 20
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "java.util.Objects#equals",
+      "from_symbol": "com.example.mini.core.Widget#equals",
+      "kind": "call",
+      "module": "core",
+      "resolved": "external",
+      "scope_package": "com.example.mini.core",
+      "speculative": false,
+      "via_import": false
     },
     {
       "anchor": {

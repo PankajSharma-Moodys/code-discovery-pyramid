@@ -29,7 +29,7 @@ table below is that same guidance, gathered in one place.
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
-| `scan --repo <path>` | Every deterministic phase (extract, graph, partition, dataflow, verify, docs) — no model calls, writes `.cdp/`. Start here, always. | next: `query stats`, `query trace <entrypoint>`, or `prompts`. Flags: `--workers N`, `--exclude DIR`, `--no-docs`, `--quiet`. |
+| `scan --repo <path>` | Every deterministic phase (extract, graph, partition, dataflow, verify, docs) — no model calls, writes the one machine store (`CDP_HOME`, default `~/.cdp`; never the repo). Start here, always. | next: `query stats`, `query trace <entrypoint>`, or `prompts`. Flags: `--workers N`, `--exclude DIR`, `--no-docs`, `--quiet`. |
 | `query <kind> [term]` | Ask the index a question (`stats coverage symbol file module routes table config paths search claims unknowns conflicts trace`). Never budgeted for `stats`/`coverage` — check those before saying "there is no X". | tip (when rows were elided): `--budget <bigger N>`. Flags: `--json`, `--kind`, `--as-of <sha>`. |
 | `docs [--out DIR]` | Renders `00-overview.md`, `modules/<module>.md`, `dataflow.md`, `unknowns.md`, `CLAUDE.md`. | next: open `<out>/00-overview.md`, or `query stats`. |
 | `prompts` | Writes one leaf prompt per scope for the wave loop. | next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons vN`/`--no-lessons`. |

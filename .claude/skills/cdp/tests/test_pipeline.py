@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from helpers import SKILL_ROOT, MiniRepoTest, Pipeline, make_repo
+from helpers import SKILL_ROOT, MiniRepoTest, Pipeline, make_repo, work_of
 
 from cdp.partition import assert_partition, partition
 from cdp.state import check_order_independence, fold, fold_hash
@@ -301,12 +301,12 @@ class TestCli(unittest.TestCase):
                 subprocess.run(
                     [sys.executable, str(RUN_PY)] + cmd + ["--repo", str(repo),
                      "--state-dir", str(state)], check=True, capture_output=True)
-            overview = (state / "docs" / "00-overview.md").read_text()
+            overview = (work_of(repo, state) / "docs" / "00-overview.md").read_text()
             self.assertIn("mini-svc", overview)
             self.assertIn("/v1/widgets", overview)
-            self.assertTrue((state / "docs" / "unknowns.md").exists())
-            self.assertTrue((state / "docs" / "CLAUDE.md").exists())
-            self.assertTrue((state / "docs" / "modules" / "core.md").exists())
+            self.assertTrue((work_of(repo, state) / "docs" / "unknowns.md").exists())
+            self.assertTrue((work_of(repo, state) / "docs" / "CLAUDE.md").exists())
+            self.assertTrue((work_of(repo, state) / "docs" / "modules" / "core.md").exists())
 
     def test_prompts_are_written_for_every_scope(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -316,7 +316,7 @@ class TestCli(unittest.TestCase):
                 subprocess.run(
                     [sys.executable, str(RUN_PY)] + cmd + ["--repo", str(repo),
                      "--state-dir", str(state)], check=True, capture_output=True)
-            prompts = sorted((state / "prompts").glob("*.md"))
+            prompts = sorted((work_of(repo, state) / "prompts").glob("*.md"))
             backend = SqliteStore(state / "index.db")
             scopes = backend.read_artifact("partition")["scopes"]
             backend.close()

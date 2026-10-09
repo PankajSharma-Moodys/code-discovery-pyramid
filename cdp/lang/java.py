@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Tuple
 
+from .java_flow import emit_flow, use_row
 from .base import (
     ExtractContext,
     Extractor,
@@ -122,6 +123,7 @@ class JavaExtractor(Extractor):
         _emit_repository_edges(ctx, facts, code, decls, primary, resolver)
         _emit_mapper_edges(ctx, facts, code, annotations, decls, primary, resolver)
         _emit_entrypoints(ctx, facts, code, primary)
+        emit_flow(ctx, facts, code, [_mask_literals(line) for line in code], pkg, resolver, primary)
 
         facts.signals = sorted(set(facts.signals))
         return facts
@@ -615,12 +617,15 @@ def _emit_repository_edges(
         m = EXTENDS_REPO_RE.search(line)
         if not m:
             continue
-        entity, _ = resolver.resolve(m.group(2))
+        entity, state = resolver.resolve(m.group(2))
         anchor = anchor_at(ctx, idx)
         if anchor is None:
             continue
         facts.signals.append("repository")
         owner = _enclosing(idx, decls, primary)
+        # The type argument is what ties a repository to its entity; the
+        # dataflow walk follows it so a `repo.save()` call reaches the table.
+        use_row(facts, entity, anchor, "binding", owner, state, resolver)
         facts.io_edges.append(mk_edge(owner, "entity:" + entity, "persist", anchor))
         facts.io_edges.append(mk_edge(owner, "entity:" + entity, "read", anchor))
 

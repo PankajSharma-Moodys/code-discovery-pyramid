@@ -141,7 +141,7 @@ def _naming(inventory: Dict, extraction: Dict, node_of: Dict[str, str]) -> List[
 
     # rootProject.name vs directory names -- RESEARCH.md's own opening example.
     for row in extraction["defines"]:
-        if row["fqn"] != "build:rootProject.name":
+        if row["fqn"] != "build:rootProject.name" or row["file"] != "settings.gradle":
             continue
         value = str(row.get("value", ""))
         dirs = [m["name"] for m in inventory["modules"] if m["name"] != ROOT_MODULE]

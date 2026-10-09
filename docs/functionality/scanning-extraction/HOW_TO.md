@@ -1,11 +1,11 @@
 # How To — Scanning / Extraction (language extractors)
 
 ```bash
-cdp scan --repo <path>              # writes ./.cdp/, renders docs by default
+cdp scan --repo <path>              # writes ~/.cdp (CDP_HOME), renders docs by default
 cdp scan --repo <path> --no-docs    # skip markdown rendering
 cdp scan --repo <path> --workers N  # N=1 forces sequential extraction
 cdp scan --repo <path> --exclude <segment>   # additional exclude, repeatable
-cdp scan --in-repo                  # writes state to <repo>/.cdp, adds .gitignore entry
+CDP_HOME=/tmp/h cdp scan --repo <path>   # a different store (--state-dir is an alias)
 ```
 
 Add a language extractor: write an `Extractor` subclass in `cdp/lang/`,

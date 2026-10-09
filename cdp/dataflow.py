@@ -104,7 +104,7 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
     # reach the symbol it imports.
     primary_of = {rel: info.get("primary") for rel, info in extraction["files"].items()}
     for row in xref["uses"]:
-        if row["resolved"] not in ("local", "matched"):
+        if row["resolved"] not in ("local", "matched") or row.get("kind"):
             continue
         source = primary_of.get(row["from_file"])
         if not source or source == row["fqn"] or row["fqn"].endswith(".*"):
@@ -125,8 +125,72 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
             }
         )
 
+    _member_edges(xref, edges, seen)
     edges.sort(key=lambda e: (e["source"], e["channel"], e["target"], e["anchor"]["file"]))
     return edges
+
+
+def _edge(source: str, target: str, row: Dict, confidence: str) -> Dict:
+    return {
+        "source": source,
+        "target": target,
+        "channel": "call",
+        "module": row["from_module"],
+        "anchor": row["anchor"],
+        "confidence": confidence,
+    }
+
+
+def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]) -> None:
+    """Call edges read from method bodies, plus the two Spring wirings that
+    no call site states: a repository's entity, and an interface's only
+    implementation.
+
+    A call `service.placeOrder()` is cited at its own line. A call on a Spring
+    Data repository (`repository.save()`) names a method the repository never
+    declares, so the hop onward is the repository's type argument, cited at the
+    `extends JpaRepository<Entity, ...>` line.
+    """
+    symbols = xref["symbols"]
+    rows = [r for r in xref["uses"] if r.get("kind") and r["resolved"] in ("local", "matched", "ambiguous")]
+
+    entity_of: Dict[str, Dict] = {}
+    for r in rows:
+        if r["kind"] == "binding" and r.get("from_symbol"):
+            entity_of.setdefault(r["from_symbol"], r)
+
+    implementers: Dict[str, List[Dict]] = {}
+    for r in rows:
+        if r["kind"] != "implements" or not r.get("from_symbol"):
+            continue
+        sites = symbols.get(r["from_symbol"], {}).get("sites", [])
+        if sites and all(s.get("role") == "test" for s in sites):
+            continue
+        implementers.setdefault(r["fqn"], []).append(r)
+    sole_impl = {
+        iface: rs[0] for iface, rs in implementers.items()
+        if len(rs) == 1 and symbols.get(iface, {}).get("kind") == "interface"
+    }
+
+    def add(edge: Dict) -> None:
+        key = (edge["source"], edge["target"], "call")
+        if key not in seen:
+            seen.add(key)
+            edges.append(edge)
+
+    for r in rows:
+        if r["kind"] == "binding":
+            add(_edge(r["from_symbol"], r["fqn"], r, "high"))
+        if r["kind"] != "call" or not r.get("from_symbol"):
+            continue
+        add(_edge(r["from_symbol"], r["fqn"], r, "high"))
+        owner, _, method = r["fqn"].partition("#")
+        if owner in entity_of:
+            add(_edge(r["fqn"], entity_of[owner]["fqn"], entity_of[owner], "high"))
+        impl = sole_impl.get(owner)
+        if impl:
+            target = "%s#%s" % (impl["from_symbol"], method)
+            add(_edge(r["fqn"], target, impl, "medium"))
 
 
 def _sources(edges: Sequence[Dict]) -> List[Dict]:

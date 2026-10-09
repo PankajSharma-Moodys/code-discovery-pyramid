@@ -11,12 +11,10 @@ on-conflict scheme would need to version nearly every table this codebase
 has and still wouldn't cover `VACUUM` -- that is reinventing a lock the hard
 way. A real lock is simpler and correct.
 
-Scope is per-repo, not global, because it does not need to invent a new key:
-`_paths()` already resolves every invocation -- whatever alias got it there
-(`--state-dir`, `--repo`, the `.cdp.toml` walk, or the `~/.cdp/config.toml`
-registry) -- to one canonical `paths.state` directory per repo. Two
-processes naming the same repo resolve to the same directory and contend;
-two processes working different repos never see each other's lock at all.
+Scope is per-repo, not global: one lock file per repo identity under
+`CDP_HOME/locks/`, even though every repo now shares one `index.db`. Two
+processes naming the same repo contend; scans of two different repos run at
+once, and SQLite's WAL serialises their short writes.
 
 Postgres is the one case with no shared local directory to lock -- that
 backend exists specifically so multiple machines share one server -- so it
@@ -42,7 +40,6 @@ from .util import CdpError, stable_hash
 
 DEFAULT_TIMEOUT_S = 60.0
 _POLL_S = 0.2
-LOCK_FILE_NAME = ".cdp.lock"
 
 
 @contextmanager
@@ -52,28 +49,39 @@ def repo_lock(
     pg: Optional[Dict[str, str]],
     shared: bool = False,
     timeout_s: float = DEFAULT_TIMEOUT_S,
+    scope: Optional[str] = None,
 ) -> Iterator[None]:
     """Hold the per-repo lock for the duration of the `with` block.
 
     `paths` is `cli.Paths` (only `.state`/`.repo` are used, kept untyped here
     to avoid an import cycle with `cli.py`). `kind`/`pg` are `_resolve_backend`'s
     own return value -- this module never re-derives backend config.
+
+    `scope` names a lock that is not one repo's: the `link` commands read many
+    repos and replace the one shared link table, so they take `links`.
     """
+    key = scope or paths.repo_id
     if kind == "postgres":
         if not pg or not pg.get("dsn"):
             raise CdpError("postgres backend selected but no dsn was resolved -- cannot take the repo lock")
-        with _postgres_lock(pg["dsn"], paths.repo, shared, timeout_s):
+        with _postgres_lock(pg["dsn"], key, shared, timeout_s):
             yield
     else:
-        with _file_lock(paths.state, shared, timeout_s):
+        # One lock file per repo, under the machine home: two scans of two
+        # different repos run at once (SQLite's WAL serialises their short
+        # writes), two commands on the same repo still exclude each other.
+        from .store import registry as registry_mod
+
+        lock_dir = Path(paths.state) / "locks"
+        with _file_lock(lock_dir, registry_mod.repo_slug(key) + ".lock", shared, timeout_s):
             yield
 
 
 @contextmanager
-def _file_lock(state_dir: Path, shared: bool, timeout_s: float) -> Iterator[None]:
+def _file_lock(state_dir: Path, name: str, shared: bool, timeout_s: float) -> Iterator[None]:
     state_dir = Path(state_dir).resolve()
     state_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = state_dir / LOCK_FILE_NAME
+    lock_path = state_dir / name
     fh = open(lock_path, "a+")
     mode = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
     deadline = time.monotonic() + timeout_s
@@ -85,7 +93,7 @@ def _file_lock(state_dir: Path, shared: bool, timeout_s: float) -> Iterator[None
             except BlockingIOError:
                 if time.monotonic() >= deadline:
                     raise CdpError(
-                        "another cdp process is already %s this store (%s) -- waited "
+                        "another cdp process is already %s this repo in the store (%s) -- waited "
                         "%.0fs. If that process crashed instead of exiting cleanly, "
                         "delete %s and retry."
                         % ("writing to" if not shared else "using", state_dir, timeout_s, lock_path)
@@ -97,21 +105,17 @@ def _file_lock(state_dir: Path, shared: bool, timeout_s: float) -> Iterator[None
         fh.close()
 
 
-def _advisory_key(repo: Path) -> int:
+def _advisory_key(repo_id: str) -> int:
     """A stable signed-bigint key Postgres' advisory-lock functions accept,
-    derived from repo identity (`store/registry.py:repo_identity` -- the
-    same value `_default_postgres_schema` already uses to keep two repos on
-    one server from colliding) rather than the filesystem path, since two
-    checkouts of the same repo must contend and one checkout used from two
-    different paths must not slip through as "different repos"."""
-    from .store import registry as registry_mod
-
-    digest = stable_hash(registry_mod.repo_identity(repo))
+    derived from repo identity, not the filesystem path: two checkouts of the
+    same repo must contend, and one checkout used from two paths must not slip
+    through as "different repos"."""
+    digest = stable_hash(repo_id)
     return int(digest[:16], 16) & 0x7FFFFFFFFFFFFFFF
 
 
 @contextmanager
-def _postgres_lock(dsn: str, repo: Path, shared: bool, timeout_s: float) -> Iterator[None]:
+def _postgres_lock(dsn: str, repo_id: str, shared: bool, timeout_s: float) -> Iterator[None]:
     """A session-scoped advisory lock on a throwaway connection, independent
     of whatever connection the command's own `WorkspaceStore` opens -- an
     advisory lock only needs *some* session to hold it for the duration, so
@@ -119,7 +123,7 @@ def _postgres_lock(dsn: str, repo: Path, shared: bool, timeout_s: float) -> Iter
     """
     import psycopg2
 
-    key = _advisory_key(repo)
+    key = _advisory_key(repo_id)
     try_fn = "pg_try_advisory_lock_shared" if shared else "pg_try_advisory_lock"
     unlock_fn = "pg_advisory_unlock_shared" if shared else "pg_advisory_unlock"
     conn = psycopg2.connect(dsn)
@@ -134,7 +138,7 @@ def _postgres_lock(dsn: str, repo: Path, shared: bool, timeout_s: float) -> Iter
                 if time.monotonic() >= deadline:
                     raise CdpError(
                         "another cdp process holds the lock for repo %s on this Postgres "
-                        "backend -- waited %.0fs" % (repo, timeout_s)
+                        "backend -- waited %.0fs" % (repo_id, timeout_s)
                     )
                 time.sleep(_POLL_S)
         yield

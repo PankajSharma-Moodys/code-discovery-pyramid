@@ -73,6 +73,7 @@ def build_prompt(
     extra_third_party: Set[str] = frozenset(),
     prompt_fixes: Sequence[Dict] = (),
     max_prompt_tokens: Optional[int] = DEFAULT_MAX_PROMPT_TOKENS,
+    inbox_dir: Optional[Path] = None,
 ) -> Tuple[str, Dict]:
     node = scope["node"]
     module = scope["module"]
@@ -102,7 +103,7 @@ def build_prompt(
         if digest_mode:
             digest_text, digest_fingerprint = _digest_section(scope, repo_root, char_cap=cur_digest_cap)
             named_sections.append(("digest", digest_text))
-        named_sections.append(("task", _task_section(node, run_id, digest_mode)))
+        named_sections.append(("task", _task_section(node, run_id, digest_mode, inbox_dir)))
 
         # M9.3 (6.7) follow-up: a promoted `prompt_fix` was validated, cut and
         # pinned but never actually rendered anywhere -- consumed here the same
@@ -425,6 +426,11 @@ def _inherited_section(inherited: Sequence[Dict], elided: Sequence[Dict], budget
     return "\n".join(parts)
 
 
+def _inbox_target(inbox_dir: Optional[Path], node: str) -> str:
+    name = node.replace("/", "__") + ".json"
+    return str(Path(inbox_dir) / name) if inbox_dir else "patches/inbox/" + name
+
+
 def _gaps_section(xref: Dict, scope_files: Set[str]) -> str:
     unresolved = [
         u for u in xref["uses"]
@@ -453,7 +459,8 @@ def _apply_prompt_fixes(text: str, instructions: Optional[List[str]]) -> str:
     return text + "\n\n" + lesson_block if text else lesson_block
 
 
-def _task_section(node: str, run_id: str, digest_mode: bool = False) -> str:
+def _task_section(node: str, run_id: str, digest_mode: bool = False,
+                  inbox_dir: Optional[Path] = None) -> str:
     if digest_mode:
         discover = (
             "1. **Discover** — read the Digest section above, not the files themselves. It is your "
@@ -485,7 +492,7 @@ def _task_section(node: str, run_id: str, digest_mode: bool = False) -> str:
         "file and checks every anchor; claims that fail are demoted to `unknowns[]` automatically, "
         "and the demotion rate is being measured. Spending your budget re-reading your own "
         "citations would make that measurement impossible.\n\n"
-        "Write your patch to `.cdp/patches/inbox/%s.json` with `\"node\": \"%s\"` and "
+        "Write your patch to `%s` with `\"node\": \"%s\"` and "
         "`\"run_id\": \"%s\"`."
-        % (node.replace("/", "__"), node, run_id)
+        % (_inbox_target(inbox_dir, node), node, run_id)
     )

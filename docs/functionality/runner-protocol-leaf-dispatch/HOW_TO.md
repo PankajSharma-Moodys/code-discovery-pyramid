@@ -9,6 +9,6 @@ cdp run --max-attempts N
 cdp run --lessons vN | --no-lessons
 ```
 
-Manual (no `--runner-cmd`) mode: `cdp run` writes `.cdp/prompts/<node>.md`
-and blocks on `.cdp/patches/inbox/<node-with-/-as-__>.json` — hand a leaf
+Manual (no `--runner-cmd`) mode: `cdp run` writes `<work>/prompts/<node>.md`
+and blocks on `<work>/patches/inbox/<node-with-/-as-__>.json` — hand a leaf
 agent that contract directly (see `SKILL.md`).

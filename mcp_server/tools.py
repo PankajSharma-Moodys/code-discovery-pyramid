@@ -24,7 +24,7 @@ from cdp import schedule as schedule_mod
 
 
 def _paths(repo: str, state_dir: Optional[str] = None):
-    args = SimpleNamespace(repo=repo, state_dir=state_dir, in_repo=False)
+    args = SimpleNamespace(repo=repo, state_dir=state_dir)
     return cdp_cli._paths(args)
 
 
@@ -81,7 +81,6 @@ def cdp_scan(
     args = SimpleNamespace(
         repo=repo,
         state_dir=state_dir,
-        in_repo=False,
         max_leaf_files=max_leaf_files or partition_mod.DEFAULT_MAX_FILES,
         max_leaf_loc=max_leaf_loc or partition_mod.DEFAULT_MAX_LOC,
         max_concurrent=max_concurrent or schedule_mod.DEFAULT_MAX_CONCURRENT,

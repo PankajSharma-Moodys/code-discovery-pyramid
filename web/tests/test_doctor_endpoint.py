@@ -1,4 +1,4 @@
-"""`GET /api/doctor` -- reads `<state>/doctor/*.json` straight off disk, no
+"""`GET /api/doctor` -- reads `<home>/work/<repo>/doctor/*.json` straight off disk, no
 `index.db` involved (`cli.py:1858,1885` is the write side this mirrors). The
 doctor pipeline itself (running a real model runner) is exercised by
 `tests/test_doctor.py`; this test only needs report files on disk, so they're
@@ -29,6 +29,11 @@ class DoctorEndpointTest(unittest.TestCase):
             cwd=REPO_ROOT, check=True, capture_output=True, text=True,
         )
 
+    def _doctor_dir(self) -> Path:
+        from cdp.store import registry
+
+        return registry.work_dir(self.state_dir, registry.repo_identity(MINIREPO)) / "doctor"
+
     def _client(self):
         from fastapi.testclient import TestClient
         from web.api.app import app
@@ -41,7 +46,7 @@ class DoctorEndpointTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_single_model_report_returned_with_no_table(self) -> None:
-        doctor_dir = self.state_dir / "doctor"
+        doctor_dir = self._doctor_dir()
         doctor_dir.mkdir(parents=True, exist_ok=True)
         agg = {
             "model": "model-a", "scopes": 2, "schema_validity_rate": 1.0,
@@ -61,7 +66,7 @@ class DoctorEndpointTest(unittest.TestCase):
         self.assertIsNone(payload.table)
 
     def test_multi_model_report_includes_compatibility_table(self) -> None:
-        doctor_dir = self.state_dir / "doctor"
+        doctor_dir = self._doctor_dir()
         doctor_dir.mkdir(parents=True, exist_ok=True)
         for name in ("model-a", "model-b"):
             write_json(doctor_dir / ("%s.json" % name), {

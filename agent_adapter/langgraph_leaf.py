@@ -2,7 +2,7 @@
 
 The Claude Code leaf (`agents/cdp-leaf.md`) works because a Claude Code
 subagent can call `Write` itself -- the model is the one that lands the patch
-at `.cdp/patches/inbox/<node>.json`. A LangGraph node has no such tool by
+at `<work>/patches/inbox/<node>.json`. A LangGraph node has no such tool by
 default, and does not need one: the node is a plain Python function you
 already control end-to-end, so `run_leaf()` puts the write on the host side
 of the line instead of the model's. The model only has to produce output

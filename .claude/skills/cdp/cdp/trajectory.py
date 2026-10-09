@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from .store import registry
 from .store.sqlite_backend import connect_raw
 
 #: cadence for the "lessons available" nudge `cdp run` prints (user decision,
@@ -135,7 +136,7 @@ _TASK_KINDS = ("scope", "link")
 
 def trajectory_db_path() -> Path:
     override = os.environ.get("CDP_TRAJECTORY_DB")
-    return Path(override) if override else Path.home() / ".cdp" / "trajectories.db"
+    return Path(override) if override else registry.cdp_home() / "trajectories.db"
 
 
 def scope_shape_key(scope: Dict) -> str:

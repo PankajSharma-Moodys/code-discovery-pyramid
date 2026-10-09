@@ -31,10 +31,10 @@
 
 | Type | Kind | Used by | Declared at |
 |---|---|---|---|
+| `WidgetRepository` | interface | 3 | `core/src/main/java/COM/Example/mini/core/WidgetRepository.java:7` |
 | `Widget` | class | 1 | `core/src/main/java/COM/Example/mini/core/Widget.java:6` |
 | `Widget` | class | 1 | `core/src/test/java/com/example/mini/core/Widget.java:4` |
-| `WidgetRepository` | interface | 1 | `core/src/main/java/COM/Example/mini/core/WidgetRepository.java:7` |
-| `WidgetEntity` | class | 0 | `core/src/main/java/COM/Example/mini/core/WidgetEntity.java:10` |
+| `WidgetEntity` | class | 1 | `core/src/main/java/COM/Example/mini/core/WidgetEntity.java:10` |
 
 ## Scopes
 

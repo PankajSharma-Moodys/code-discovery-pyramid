@@ -253,9 +253,14 @@ def connect_raw(db_path, *, check_same_thread: bool = True) -> sqlite3.Connectio
 
 
 class SqliteStore(WorkspaceStore):
-    def __init__(self, db_path: Path, inbox_root: "Path | None" = None) -> None:
+    def __init__(self, db_path: Path, inbox_root: "Path | None" = None,
+                 readonly: bool = False, busy_timeout_ms: int = 60000) -> None:
+        """`readonly`: a reader that must never wait on a writer or touch the
+        schema (the PreToolUse hook): no directory creation, no migration, no
+        journal-mode change, and a short `busy_timeout_ms`."""
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        if not readonly:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         # `check_same_thread=False`: M5.4's lease heartbeat renews from a
         # background thread while the main thread is blocked inside a
         # runner's `run()` call -- the two never touch the connection
@@ -267,22 +272,27 @@ class SqliteStore(WorkspaceStore):
         # separate connections to this same file; without a busy timeout the
         # loser's UPDATE raises `database is locked` instead of blocking
         # briefly and then losing the race cleanly (0 rows affected).
-        self._conn.execute("PRAGMA busy_timeout = 5000")
-        self._migrate()
+        self._conn.execute("PRAGMA busy_timeout = %d" % int(busy_timeout_ms))
+        # One file now holds every repo on the machine, and two scans of
+        # different repos write to it at once. WAL lets readers proceed during
+        # a write and makes each writer wait for the other's short transaction
+        # instead of failing.
+        if not readonly:
+            self._conn.execute("PRAGMA journal_mode = WAL")
+            self._migrate()
         # The inbox is a filesystem handoff with the agent session regardless
         # of backend (module docstring in `store/__init__.py`): a directory of
         # small JSON files an external process drops patches into, not state.
         self._inbox_root = Path(inbox_root if inbox_root is not None else self.db_path.parent)
         self._snapshot: "int | None" = None
+        self._wanted_repo: "str | None" = None
 
     def _inbox_dir(self) -> Path:
         return self._inbox_root / "patches" / "inbox"
 
     # ----------------------------------------------------------- snapshots
 
-    def _next_touch_seq(self) -> int:
-        row = self._conn.execute("SELECT COALESCE(MAX(touch_seq), 0) + 1 FROM snapshot_meta").fetchone()
-        return row[0]
+    _TOUCH_SEQ = "(SELECT COALESCE(MAX(touch_seq), 0) + 1 FROM snapshot_meta)"
 
     def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False) -> None:
         row = self._conn.execute(
@@ -291,15 +301,17 @@ class SqliteStore(WorkspaceStore):
         ).fetchone()
         if row is not None:
             self._snapshot = row[0]
+            # The new sequence number is computed inside the statement, so two
+            # processes touching snapshots at once cannot draw the same one.
             self._conn.execute(
-                "UPDATE snapshot_meta SET touch_seq=? WHERE id=?", (self._next_touch_seq(), row[0])
+                "UPDATE snapshot_meta SET touch_seq=%s WHERE id=?" % self._TOUCH_SEQ, (row[0],)
             )
             self._conn.commit()
             return
         cur = self._conn.execute(
             "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (repo_id, commit_sha, int(ephemeral), _now(), self._next_touch_seq()),
+            "VALUES (?, ?, ?, ?, %s)" % self._TOUCH_SEQ,
+            (repo_id, commit_sha, int(ephemeral), _now()),
         )
         self._conn.commit()
         self._snapshot = cur.lastrowid
@@ -342,9 +354,13 @@ class SqliteStore(WorkspaceStore):
             for r in rows
         ]
 
-    def set_pinned(self, commit_sha: str, pinned: bool) -> None:
+    def set_pinned(self, commit_sha: str, pinned: bool, repo_id: Optional[str] = None) -> None:
+        # `repo_id` matters on a machine-wide store: a folder and its parent
+        # share a commit, and pinning one must not pin the other.
         cur = self._conn.execute(
-            "UPDATE snapshot_meta SET pinned=? WHERE commit_sha=?", (int(pinned), commit_sha)
+            "UPDATE snapshot_meta SET pinned=? WHERE commit_sha=?"
+            + (" AND repo_id=?" if repo_id else ""),
+            (int(pinned), commit_sha) + ((repo_id,) if repo_id else ()),
         )
         self._conn.commit()
         if cur.rowcount == 0:
@@ -803,6 +819,8 @@ class SqliteStore(WorkspaceStore):
         """The snapshot `begin_snapshot` selected, or a lazily-created default
         (`id=1`, ephemeral) for a caller that never calls it -- every M2.2/M2.3
         conformance test, and any use of this backend before M2.4."""
+        if self._snapshot == -1:
+            raise CdpError(self._missing(""))
         if self._snapshot is not None:
             return self._snapshot
         self._conn.execute(
@@ -819,6 +837,49 @@ class SqliteStore(WorkspaceStore):
         commit, so it can carry the patch log across (see
         `copy_patches_from`)."""
         return self._snapshot_id()
+
+    def has_selection(self) -> bool:
+        return self._snapshot is not None
+
+    def repo_ids(self) -> List[str]:
+        rows = self._conn.execute(
+            "SELECT DISTINCT repo_id FROM snapshot_meta WHERE repo_id IS NOT NULL ORDER BY repo_id"
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    def use_current_snapshot(self, repo_id: str, head: Optional[str] = None) -> bool:
+        """Point reads at `repo_id`'s snapshot for `head` -- a clean scan of
+        it, or a dirty scan on top of it, whichever was touched last -- else at
+        the repo's most recently touched snapshot (stale, but this repo's).
+
+        Never falls back to another repo's snapshot: with no snapshot for
+        `repo_id` the selection is parked on a row that does not exist, so a
+        read says "run `scan` first" instead of answering from someone else's
+        index. Returns whether a snapshot was found."""
+        row = None
+        if head:
+            row = self._conn.execute(
+                "SELECT id FROM snapshot_meta WHERE repo_id=? AND (commit_sha=? OR commit_sha LIKE ?) "
+                "ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
+                (repo_id, head, head + "+dirty:%"),
+            ).fetchone()
+        if row is None:
+            row = self._conn.execute(
+                "SELECT id FROM snapshot_meta WHERE repo_id=? ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
+                (repo_id,),
+            ).fetchone()
+        self._snapshot = row[0] if row is not None else -1
+        self._wanted_repo = repo_id
+        return row is not None
+
+    def latest_snapshots(self) -> List[Dict]:
+        """One row per repo: its most recently touched snapshot."""
+        rows = self._conn.execute(
+            "SELECT m.id, m.repo_id, m.commit_sha, m.created_at FROM snapshot_meta m "
+            "WHERE m.repo_id IS NOT NULL AND m.id = (SELECT id FROM snapshot_meta "
+            "WHERE repo_id = m.repo_id ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1) ORDER BY m.repo_id"
+        ).fetchall()
+        return [{"id": r[0], "repo_id": r[1], "commit_sha": r[2], "created_at": r[3]} for r in rows]
 
     def use_latest_snapshot(self) -> None:
         """Point subsequent reads at the most recently *touched* snapshot in
@@ -885,9 +946,19 @@ class SqliteStore(WorkspaceStore):
         ).fetchone()
         if row is None:
             if default is None:
-                raise CdpError("missing artifact %r in %s — run `scan` first" % (name, self.db_path))
+                raise CdpError(self._missing(name))
             return default
         return json.loads(row[0])
+
+    def _missing(self, name: str) -> str:
+        if self._snapshot == -1:
+            known = self.repo_ids()
+            return (
+                "no scan of %s in %s -- run `cdp scan` in that repo%s"
+                % (self._wanted_repo, self.db_path,
+                   "; scanned here: " + ", ".join(known) if known else "")
+            )
+        return "missing artifact %r in %s — run `scan` first" % (name, self.db_path)
 
     def write_artifact(self, name: str, data: Any) -> None:
         self._conn.execute(
@@ -898,6 +969,8 @@ class SqliteStore(WorkspaceStore):
         self._conn.commit()
 
     def has_artifact(self, name: str) -> bool:
+        if self._snapshot == -1:
+            return False
         row = self._conn.execute(
             "SELECT 1 FROM snapshot_artifact WHERE snapshot_id=? AND name=?",
             (self._snapshot_id(), name),

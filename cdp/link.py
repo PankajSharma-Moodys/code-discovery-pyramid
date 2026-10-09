@@ -58,6 +58,7 @@ DIRECTIONS = [
 ]
 
 _ROUTE_PARAM_RE = re.compile(r"\{[^{}]*\}|:[A-Za-z_][A-Za-z0-9_]*")
+_VERB_PREFIX_RE = re.compile(r"^(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|ANY) ")
 _URL_PATH_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+(/.*)?$")
 
 
@@ -69,6 +70,11 @@ def _path_of(channel: str, target: str) -> str:
         path = path[len("route:"):] if path.startswith("route:") else path
     elif channel == "http_out":
         raw = target[len("http:"):] if target.startswith("http:") else target
+        # `http:POST http://host/x`: the verb is part of the edge, not the URL.
+        raw = _VERB_PREFIX_RE.sub("", raw)
+        # `${billing.url}/v1/x`: the host is a config key; only the path matches.
+        if raw.startswith("${") and "}" in raw:
+            raw = raw.split("}", 1)[1] or "/"
         m = _URL_PATH_RE.match(raw)
         path = (m.group(1) or "/") if m else raw
     else:
@@ -214,6 +220,38 @@ def scan_links(snapshots: Sequence[Dict]) -> Dict:
     }
 
 
+def resolve_service(edges: Sequence[Dict], service: str) -> str:
+    """A repo is named by its identity (`github.com/acme/orders`, or
+    `github.com/acme/mono#svc/api` for a folder of one). Nobody types that, so
+    a unique trailing name -- `orders`, `api` -- resolves to it; an exact match
+    always wins, and an ambiguous short name is left alone (it then matches
+    nothing, which `link query` reports rather than guessing)."""
+    known = set()
+    for e in edges:
+        data = e["data"]
+        for side in ("caller", "callee", "outbound"):
+            if side in data:
+                known.add(data[side]["repo"])
+    if service in known:
+        return service
+    short = [r for r in known if r.rsplit("#", 1)[-1].rstrip("/").rsplit("/", 1)[-1] == service]
+    return short[0] if len(short) == 1 else service
+
+
+def snapshots_from_store(backend) -> List[Dict]:
+    """One link snapshot per repo in the store, at that repo's latest scan."""
+    out: List[Dict] = []
+    for row in backend.latest_snapshots():
+        backend.use_snapshot(row["repo_id"], row["commit_sha"])
+        dataflow = backend.read_artifact("dataflow", None)
+        if dataflow is None:
+            continue
+        manifest = backend.read_artifact("manifest", {}) or {}
+        out.append({"repo": row["repo_id"], "head": manifest.get("head") or row["commit_sha"],
+                    "dataflow": dataflow})
+    return out
+
+
 def query_service(edges: Sequence[Dict], service: str) -> Dict:
     """M8.2 (5.6): `edges` is `SqliteStore.read_link_edges()`'s return value --
     persisted rows from the last `link scan --db`, each `{"kind": "link"|
@@ -225,6 +263,7 @@ def query_service(edges: Sequence[Dict], service: str) -> Dict:
     `service` itself makes -- rendered as a deliverable (5.6), not folded into
     "no results".
     """
+    service = resolve_service(edges, service)
     links = [e["data"] for e in edges if e["kind"] == "link"
              and (e["data"]["caller"]["repo"] == service or e["data"]["callee"]["repo"] == service)]
     unmatched = [e["data"] for e in edges if e["kind"] == "unmatched"

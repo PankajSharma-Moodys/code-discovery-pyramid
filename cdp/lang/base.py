@@ -211,35 +211,49 @@ def strip_block_comments(lines: Sequence[str]) -> List[str]:
     Line count preservation is not a nicety: every anchor in the run is a line
     number into the *original* file, so an extractor that reads a compacted copy
     would cite locations that do not exist.
+
+    A `//` or `/*` inside a string literal is not a comment: `"http://host/x"`
+    must survive intact, or every URL in the file is truncated at the scheme.
     """
     out: List[str] = []
     in_block = False
-    for raw in lines:
-        line = raw
-        result = []
+    for line in lines:
+        result: List[str] = []
         i = 0
-        while i < len(line):
+        quote = ""
+        n = len(line)
+        while i < n:
             if in_block:
                 end = line.find("*/", i)
                 if end == -1:
-                    i = len(line)
+                    i = n
                 else:
                     in_block = False
                     i = end + 2
                 continue
-            start = line.find("/*", i)
-            slash = line.find("//", i)
-            if start != -1 and (slash == -1 or start < slash):
-                result.append(line[i:start])
+            ch = line[i]
+            if quote:
+                result.append(ch)
+                if ch == "\\" and i + 1 < n:
+                    result.append(line[i + 1])
+                    i += 1
+                elif ch == quote:
+                    quote = ""
+                i += 1
+                continue
+            if ch in ('"', "'"):
+                quote = ch
+                result.append(ch)
+                i += 1
+                continue
+            if line.startswith("/*", i):
                 in_block = True
-                i = start + 2
+                i += 2
                 continue
-            if slash != -1:
-                result.append(line[i:slash])
-                i = len(line)
-                continue
-            result.append(line[i:])
-            i = len(line)
+            if line.startswith("//", i):
+                break
+            result.append(ch)
+            i += 1
         out.append("".join(result))
     return out
 

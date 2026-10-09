@@ -26,7 +26,7 @@ tokens, a couple of seconds on a 400-file repo — and it produces a queryable
 index in which every answer carries a citation.
 
 ```bash
-python3 .claude/skills/cdp/run.py scan --repo <path>     # writes ./.cdp/
+python3 .claude/skills/cdp/run.py scan --repo <path>     # writes ~/.cdp (CDP_HOME)
 python3 .claude/skills/cdp/run.py query stats
 ```
 
@@ -71,7 +71,7 @@ target the HTTP routes are declared through constants, so grepping for
 ## `docs` — the written artifacts
 
 ```bash
-python3 .claude/skills/cdp/run.py docs           # -> .cdp/docs/
+python3 .claude/skills/cdp/run.py docs           # -> ~/.cdp/work/<repo>/docs/
 python3 .claude/skills/cdp/run.py docs --out docs/architecture
 ```
 
@@ -96,8 +96,8 @@ not.
 ### `cdp run` is the orchestrator; you supply the model calls
 
 `cdp run` owns the wave loop, retries, leases and fold — the bookkeeping this
-skill used to describe by hand. Per scope it writes `.cdp/prompts/<node>.md`,
-then blocks waiting for `.cdp/patches/inbox/<node-with-slashes-as-__>.json` to
+skill used to describe by hand. Per scope it writes `<work>/prompts/<node>.md`,
+then blocks waiting for `<work>/patches/inbox/<node-with-slashes-as-__>.json` to
 appear (`FileRunner` — "drop the prompt, wait for the patch", the same contract
 this skill always used, now made explicit and supervised). When the patch
 lands, `cdp run` validates it, hands a schema violation back to the same scope
@@ -130,8 +130,8 @@ python3 .claude/skills/cdp/run.py run --scope root/billing &  # backgrounded
 ...then, **in one message**, spawn a `cdp-leaf` subagent per scope you just
 started — the prompt contract is unchanged:
 
-> Read `.cdp/prompts/<node>.md` and follow it. Read only the files it lists.
-> Write your patch to `.cdp/patches/inbox/<node-with-slashes-as-__>.json`.
+> Read `<work>/prompts/<node>.md` and follow it. Read only the files it lists.
+> Write your patch to the path the prompt names (`<work>/patches/inbox/<node-with-slashes-as-__>.json`).
 
 This is a Claude-Code-specific convenience, not a requirement — the `Agent`
 tool only ever launches Claude Code agents, so it makes leaves Claude by
@@ -148,7 +148,7 @@ If a run is interrupted, `cdp run --resume` reclaims scopes whose lease lapsed
 mid-flight and continues the same `run_id`; it never re-bills a scope that
 already folded.
 
-Never hand-edit `.cdp/state.json`. It is a materialized view over the patch log;
+Never hand-edit the folded state (`state` in the store). It is a materialized view over the patch log;
 `fold --check` will catch you, and a fact that is not derivable from its
 provenance is exactly what this tool exists to prevent.
 
@@ -184,13 +184,13 @@ registration for repos driving leaves purely through `cdp run --wave-all
 --runner-cmd`. Then, from that repo:
 
 ```bash
-python3 .claude/skills/cdp/run.py scan --in-repo
+python3 .claude/skills/cdp/run.py scan
 ```
 
-`--in-repo` writes state to `<repo>/.cdp` and adds the gitignore entry. Without
-it, state is written to `./.cdp` in the current directory and the target
-repository is left untouched — which is the default, because the repository
-being analysed is usually not yours.
+State goes to one store per machine, `CDP_HOME` (default `~/.cdp`): `index.db`
+holds every repo, and `work/<repo>/` holds the prompts, inbox and rendered docs.
+The repository being analysed is never written to. A folder below the git root
+is its own repo.
 
 ### Adding a language
 
@@ -209,7 +209,7 @@ The essentials:
 
 | Command | |
 |---|---|
-| `scan` | every deterministic phase; writes `.cdp/` |
+| `scan` | every deterministic phase; writes the machine store |
 | `query <kind> [term]` | `stats coverage symbol file module routes table config paths search claims unknowns conflicts` |
 | `docs [--out DIR]` | markdown artifacts |
 | `run --wave N\|--wave-all\|--stale-only\|--scope X` | dispatch -> collect -> fold, supervised |

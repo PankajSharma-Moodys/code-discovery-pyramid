@@ -43,12 +43,12 @@ npm run dev
 
 Open http://localhost:5173.
 
-By default the backend resolves the repo/state dir via `CDP_STORE` ->
-`.cdp.toml` -> the repo registry -> `cwd/.cdp`. Point it at a specific store
-with:
+The backend reads the one machine store, `CDP_HOME` (default `~/.cdp`), and
+selects the rows of the repo named by `?repo=` (default: the server's cwd).
+Point it at a specific store with:
 
 ```bash
-CDP_STORE=/path/to/repo/.cdp uvicorn web.api.app:app --reload --port 8000
+CDP_HOME=/path/to/home uvicorn web.api.app:app --reload --port 8000
 ```
 
 ## Regenerating the typed client

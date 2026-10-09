@@ -270,6 +270,24 @@ class WorkspaceStore(ABC):
     def snapshot_id(self) -> int:
         return 1
 
+    def has_selection(self) -> bool:
+        """Whether a snapshot was already chosen (by `begin_snapshot`,
+        `use_snapshot` or `use_current_snapshot`). `query.Store` only falls back
+        to "the latest snapshot" when nothing was chosen."""
+        return False
+
+    def use_current_snapshot(self, repo_id: str, head: Optional[str] = None) -> bool:
+        """Select `repo_id`'s snapshot for `head`, else its latest. A backend
+        without snapshot lineage has nothing to select."""
+        return False
+
+    def repo_ids(self) -> List[str]:
+        return []
+
+    def latest_snapshots(self) -> List[Dict]:
+        """One `{id, repo_id, commit_sha, created_at}` per repo, its latest."""
+        return []
+
     def use_latest_snapshot(self) -> None:
         """No-op default: a backend with no snapshot lineage has only ever
         one thing to be 'latest'."""
@@ -318,7 +336,7 @@ class WorkspaceStore(ABC):
     def copy_folded_tasks(self, old_run_id: str, new_run_id: str, scope_hashes) -> None:
         raise self._no_run_tracking()
 
-    def set_pinned(self, commit_sha: str, pinned: bool) -> None:
+    def set_pinned(self, commit_sha: str, pinned: bool, repo_id: Optional[str] = None) -> None:
         raise self._no_run_tracking()
 
     def delete_snapshot(self, snapshot_id: int) -> None:

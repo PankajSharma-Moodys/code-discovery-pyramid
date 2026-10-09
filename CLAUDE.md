@@ -13,3 +13,7 @@ Stay strictly within the requested scope during research/design/planning phasesâ
 ## Quality/Verification Standards
 
 Verify claims (statistics, architecture descriptions, secondhand technical facts) against primary sources before including them in documents or decisions.
+
+## Cost Optimization Rule
+
+Pipe output through head, tail, or grep to reduce result size. Avoid cat on large files â€” use Read with offset/limit instead.

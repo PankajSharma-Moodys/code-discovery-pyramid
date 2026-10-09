@@ -9,7 +9,7 @@
   "caveat": "This is a reading list, not an answer. CDP has no parameter or branch model: it collapses a wide grep into a small cited read whose completeness is stated by the `elided` count below — zero means the list is complete, anything else means it is qualified. Hops marked `medium` come from the import table: an import proves that a file *can* reach a symbol, not that it does.",
   "elided": 0,
   "entry": "/v1/widgets",
-  "file_count": 4,
+  "file_count": 6,
   "files": [
     {
       "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:19",
@@ -37,7 +37,21 @@
       "confidence": "high",
       "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
       "module": "core",
-      "why": "defines com.example.mini.core.WidgetRepository"
+      "why": "WidgetRepository --call--> WidgetEntity"
+    },
+    {
+      "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:10",
+      "confidence": "high",
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "module": "core",
+      "why": "defines com.example.mini.core.WidgetEntity"
+    },
+    {
+      "at": "core/src/main/resources/db/V001__create_widget.sql:1",
+      "confidence": "high",
+      "file": "core/src/main/resources/db/V001__create_widget.sql",
+      "module": "core",
+      "why": "defines table:widget"
     }
   ],
   "found": true,
@@ -53,6 +67,6 @@
     "module": "web",
     "node": "com.example.mini.web.WidgetResource"
   },
-  "trail": "5 node(s) reachable from com.example.mini.web.WidgetResource",
+  "trail": "8 node(s) reachable from com.example.mini.web.WidgetResource",
   "unknowns": []
 }

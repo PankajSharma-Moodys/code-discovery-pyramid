@@ -61,15 +61,12 @@ class StoreLocked(CdpError):
 
 
 def resolve_state_dir(repo: Path, state_dir: Optional[str] = None) -> Path:
-    """Mirrors `cdp.cli._paths`'s fallback chain, minus the `--in-repo`/
-    argparse-`Namespace` shape that function needs: an explicit `state_dir`
-    wins outright, otherwise `CDP_STORE` -> `.cdp.toml` -> registry -> `cwd/.cdp`.
-    """
-    repo = repo.expanduser().resolve()
+    """The machine home: an explicit `state_dir` (an alias for `CDP_HOME`), else
+    `CDP_HOME`, else `~/.cdp`. `repo` no longer selects a directory -- it selects
+    rows of the one store (`repo_identity`)."""
     if state_dir:
         return Path(state_dir).expanduser().resolve()
-    import os
-    return registry_mod.resolve_store(repo, env=os.environ.get("CDP_STORE"))
+    return registry_mod.cdp_home()
 
 
 class ReadOnlyConnection:
@@ -102,9 +99,9 @@ class ReadOnlyConnection:
             self._local.conn = conn
         return conn
 
-    def latest_pinned_snapshot(self) -> int:
-        """The latest snapshot (by `touch_seq`) that has a `manifest`
-        artifact row. `manifest` is written last in both the scan and
+    def latest_pinned_snapshot(self, repo_id: Optional[str] = None) -> int:
+        """The latest snapshot (by `touch_seq`) of `repo_id` -- of any repo if
+        none is named -- that has a `manifest` artifact row. `manifest` is written last in both the scan and
         refresh write paths (`cdp/cli.py:746`, `:1379`), so its presence is
         already a commit marker -- an in-flight `refresh` has bumped
         `touch_seq` for its new snapshot but not yet written `manifest`
@@ -113,7 +110,9 @@ class ReadOnlyConnection:
             row = self._conn().execute(
                 "SELECT s.id FROM snapshot_meta s "
                 "JOIN snapshot_artifact a ON a.snapshot_id = s.id AND a.name = 'manifest' "
-                "ORDER BY COALESCE(s.touch_seq, s.id) DESC LIMIT 1"
+                + ("WHERE s.repo_id = ? " if repo_id else "")
+                + "ORDER BY COALESCE(s.touch_seq, s.id) DESC LIMIT 1",
+                (repo_id,) if repo_id else (),
             ).fetchone()
         except sqlite3.OperationalError as exc:
             raise StoreLocked(
@@ -121,7 +120,8 @@ class ReadOnlyConnection:
             ) from exc
         if row is None:
             raise StoreUnavailable(
-                "no completed scan in %s yet -- run `cdp scan` first" % self.db_path
+                "no completed scan of %s in %s yet -- run `cdp scan` in that repo first"
+                % (repo_id or "any repo", self.db_path)
             )
         return row[0]
 

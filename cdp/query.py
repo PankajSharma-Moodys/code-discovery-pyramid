@@ -63,7 +63,10 @@ class Store:
         # for a caller that already activated a specific snapshot itself
         # (e.g. `cdp diff`'s sha mode via `use_snapshot`), this call would
         # otherwise silently override that choice back to "latest".
-        if use_latest:
+        # Only when nothing was chosen: a store opened for one repo
+        # (`cli._open_store`) already points at that repo's snapshot, and "the
+        # latest in the file" would now be some other repo's.
+        if use_latest and not self.backend.has_selection():
             self.backend.use_latest_snapshot()
         self._cache: Dict[str, Any] = {}
 
@@ -1112,7 +1115,9 @@ def q_stats(store: Store) -> Dict:
     # thing a newcomer trips over -- so it belongs in the first thing they run.
     build_name = None
     for row in store.extraction["defines"]:
-        if row["fqn"] == "build:rootProject.name":
+        # Only the root `settings.gradle`: a fixture or sub-build's own
+        # settings file names a different build.
+        if row["fqn"] == "build:rootProject.name" and row["file"] == "settings.gradle":
             build_name = row.get("value")
             break
     return _finish({

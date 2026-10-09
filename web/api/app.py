@@ -27,7 +27,6 @@ import json
 import subprocess
 import sys
 import time
-import tomllib
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -36,6 +35,7 @@ from fastapi.concurrency import run_in_threadpool
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.gzip import GZipMiddleware
 
+from cdp import catalog as catalog_mod
 from cdp import diffs as diffs_mod
 from cdp import freshness as freshness_mod
 from cdp import link as link_mod
@@ -99,6 +99,11 @@ async def _add_server_timing(request: Request, call_next):
     return response
 
 
+def _repo_id(repo) -> str:
+    """The rows of the one machine store this request is about."""
+    return registry_mod.repo_identity(Path(repo).expanduser().resolve())
+
+
 def _open_query_store(repo: Path, state_dir: Optional[str]) -> query_mod.Store:
     """Resolve `repo`/`state_dir` to a manifest-pinned, read-only
     `cdp.query.Store` -- the shared open used by `/api/query` and
@@ -107,7 +112,7 @@ def _open_query_store(repo: Path, state_dir: Optional[str]) -> query_mod.Store:
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot()
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
     adapter = ReadOnlyWorkspaceStore(conn, snapshot_id)
     return query_mod.Store(adapter, use_latest=False)
 
@@ -151,7 +156,7 @@ def _build_status(repo: Path, state_dir: Optional[str]) -> dict:
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot()
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
 
     manifest = conn.read_artifact(snapshot_id, "manifest", default={})
     inventory = conn.read_artifact(snapshot_id, "inventory")
@@ -874,7 +879,7 @@ def _build_graph(
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot()
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
 
     base_file_of = {node["id"]: node.get("file") for node in _dataflow_graph(conn, snapshot_id)["nodes"]}
     rungs = _graph_rungs(base_file_of)
@@ -967,7 +972,7 @@ def _build_confidence(repo: Path, state_dir: Optional[str], level: str, scope: O
 
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     conn = ReadOnlyConnection(resolved_state_dir / "index.db")
-    snapshot_id = conn.latest_pinned_snapshot()
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
     xref = conn.read_artifact(snapshot_id, "xref", default={})
     partition = conn.read_artifact(snapshot_id, "partition", default={})
     dataflow = conn.read_artifact(snapshot_id, "dataflow", default={})
@@ -1050,40 +1055,17 @@ def get_confidence(
     return ConfidenceResponse(**result)
 
 
-def _all_registry_entries() -> dict:
-    """Every `repo_id -> state_path` entry `cdp.store.registry` knows about,
-    read straight from `registry_mod.REGISTRY_PATH` (same file, same `[repos]`
-    TOML shape `registry_mod._read_registry()` reads) -- there is no public
-    "list everything" function on that module (`lookup` is one-at-a-time by
-    id) and this item's scope is web-layer-only, so the read is duplicated
-    here rather than adding a new public function to `cdp/store/registry.py`.
-    """
-    path = registry_mod.REGISTRY_PATH
-    if not path.is_file():
-        return {}
-    try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return {str(k): str(v) for k, v in data.get("repos", {}).items()}
-
-
-def _build_repo_info(repo_id: str, state_path_str: str) -> dict:
-    """One registry entry's freshness row. `as_of_commit` is the commit the
+def _build_repo_info(repo_id: str, home: Path) -> dict:
+    """One repo's freshness row. `as_of_commit` is the commit the repo's latest
     pinned snapshot's `inventory` was built against -- the same source
     `cdp.query._as_of` reads (`inventory.get("head")`). `head` is the
     *current* HEAD of the repo's working tree, read fresh via `git
-    rev-parse HEAD` in `inventory["repo"]` (the repo path recorded at scan
-    time -- the registry itself only maps id -> state path, not repo path).
-    Raises `StoreUnavailable`/`StoreLocked` on a broken state dir; the caller
+    rev-parse HEAD` in `inventory["repo"]` (the path recorded at scan time).
+    Raises `StoreUnavailable`/`StoreLocked` on a broken store; the caller
     turns either into an `error` row rather than a 500 for the whole list."""
-    # The registry value already names an exact state dir (highest-priority
-    # branch of `store_reader.resolve_state_dir`'s fallback chain), so it's
-    # used directly rather than re-run through repo-identity resolution.
-    state_dir = Path(state_path_str).expanduser().resolve()
-    db_path = state_dir / "index.db"
-    conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot()
+    state_dir = Path(home).expanduser().resolve()
+    conn = ReadOnlyConnection(state_dir / "index.db")
+    snapshot_id = conn.latest_pinned_snapshot(repo_id)
     inventory = conn.read_artifact(snapshot_id, "inventory")
 
     as_of_commit = inventory.get("head")
@@ -1140,7 +1122,7 @@ def _build_node(repo: Path, state_dir: Optional[str], node_id: str) -> dict:
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot()
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
 
     xref = conn.read_artifact(snapshot_id, "xref", default={})
     partition = conn.read_artifact(snapshot_id, "partition", default={})
@@ -1267,55 +1249,24 @@ def get_repos(
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
 ) -> ReposResponse:
-    """Every state dir this machine's `cdp` registry knows about, with
-    per-repo freshness (current git HEAD vs. the pinned snapshot's
-    `as_of` commit). A registry entry whose state dir vanished, whose
-    `index.db` is missing/locked, or whose git call fails gets its own
-    `error` row instead of 500ing the whole list (mirrors `get_status`'s
-    `StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped
-    to one row here instead of the whole response).
-
-    The registry only maps a repo's *git-remote identity* to a state dir
-    (`cdp.store.registry.register`, called from `cmd_scan`) -- a repo
-    scanned before that identity existed in the registry (e.g. this repo,
-    whose origin was never `register`ed under its current remote) has no
-    entry at all, even though `/api/status` resolves its state dir fine via
-    the same `resolve_state_dir` fallback chain every other endpoint uses.
-    Without this, `repos.repos[0]` (the frontend's single-repo assumption,
-    `RepoHealthStrip.tsx`) would silently show whichever *other* repo
-    happens to sort first in the registry. So: resolve the caller's actual
-    `repo`/`state_dir` the normal way, and put that entry first -- matching
-    an existing registry row by resolved state dir if one names the same
-    directory, else synthesizing one so the current repo is never invisible
-    or shadowed by an unrelated stale entry."""
-    entries = _all_registry_entries()
-
-    current_state_dir = resolve_state_dir(Path(repo), state_dir)
-    current_repo_id: Optional[str] = None
-    for repo_id, state_path_str in entries.items():
-        if Path(state_path_str).expanduser().resolve() == current_state_dir:
-            current_repo_id = repo_id
-            break
-    if current_repo_id is None:
-        current_repo_id = registry_mod.repo_identity(Path(repo).expanduser().resolve())
-
-    ordered_ids = [current_repo_id] + sorted(rid for rid in entries if rid != current_repo_id)
-    state_dirs = dict(entries)
-    state_dirs.setdefault(current_repo_id, str(current_state_dir))
+    """Every repo in this machine's one store (`cdp.catalog.list_repos`), with
+    per-repo freshness (current git HEAD vs. the latest pinned snapshot's
+    `as_of` commit). The caller's own repo is listed first -- even when it has
+    not been scanned yet, so the frontend's `repos[0]` is always the repo it
+    asked about -- then the rest by identity. A repo whose snapshot is missing,
+    locked or whose git call fails gets its own `error` row instead of 500ing
+    the whole list."""
+    home = resolve_state_dir(Path(repo), state_dir)
+    current = _repo_id(repo)
+    known = [row["repo_id"] for row in catalog_mod.list_repos(home)]
+    ordered_ids = [current] + [rid for rid in known if rid != current]
 
     repos = []
     for repo_id in ordered_ids:
-        state_path_str = state_dirs[repo_id]
         try:
-            repos.append(RepoInfoResponse(**_build_repo_info(repo_id, state_path_str)))
-        except (StoreUnavailable, StoreLocked) as exc:
-            repos.append(RepoInfoResponse(
-                repo_id=repo_id, state_dir=state_path_str, error=str(exc),
-            ))
-        except Exception as exc:  # noqa: BLE001 -- one bad entry must not 500 the list
-            repos.append(RepoInfoResponse(
-                repo_id=repo_id, state_dir=state_path_str, error=str(exc),
-            ))
+            repos.append(RepoInfoResponse(**_build_repo_info(repo_id, home)))
+        except Exception as exc:  # noqa: BLE001 -- one bad repo must not 500 the list
+            repos.append(RepoInfoResponse(repo_id=repo_id, state_dir=str(home), error=str(exc)))
     return ReposResponse(repos=repos)
 
 
@@ -1331,7 +1282,7 @@ def get_doctor(
     from cdp import doctor as doctor_mod
 
     resolved_state_dir = resolve_state_dir(Path(repo), state_dir)
-    doctor_dir = resolved_state_dir / "doctor"
+    doctor_dir = registry_mod.work_dir(resolved_state_dir, _repo_id(repo)) / "doctor"
     if not doctor_dir.is_dir():
         raise HTTPException(
             status_code=404,
@@ -1542,7 +1493,7 @@ async def get_events(
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
     try:
-        snapshot_id = conn.latest_pinned_snapshot()
+        snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
         if run_id is None:
             manifest = conn.read_artifact(snapshot_id, "manifest", default={})
             run_id = str(manifest.get("run_id", "cdp"))
@@ -1694,7 +1645,7 @@ def post_hookup_liveness(
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
     try:
-        snapshot_id = conn.latest_pinned_snapshot()
+        snapshot_id = conn.latest_pinned_snapshot(_repo_id(target))
         partition = conn.read_artifact(snapshot_id, "partition")
     except StoreUnavailable as exc:
         raise HTTPException(status_code=404, detail="%s -- run `cdp scan` first" % exc) from exc

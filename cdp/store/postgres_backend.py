@@ -430,10 +430,12 @@ class PostgresStore(WorkspaceStore):
             for r in rows
         ]
 
-    def set_pinned(self, commit_sha: str, pinned: bool) -> None:
+    def set_pinned(self, commit_sha: str, pinned: bool, repo_id: "str | None" = None) -> None:
         cur = self._cur()
         cur.execute(
-            "UPDATE snapshot_meta SET pinned=%s WHERE commit_sha=%s", (pinned, commit_sha)
+            "UPDATE snapshot_meta SET pinned=%s WHERE commit_sha=%s"
+            + (" AND repo_id=%s" if repo_id else ""),
+            (pinned, commit_sha) + ((repo_id,) if repo_id else ()),
         )
         rowcount = cur.rowcount
         self._conn.commit()
@@ -624,6 +626,50 @@ class PostgresStore(WorkspaceStore):
 
     def snapshot_id(self) -> int:
         return self._snapshot_id()
+
+    def has_selection(self) -> bool:
+        return self._snapshot is not None
+
+    def use_current_snapshot(self, repo_id: str, head: "str | None" = None) -> bool:
+        """Same contract as `SqliteStore.use_current_snapshot`: this repo's
+        snapshot for `head` (clean or dirty), else its latest; never another
+        repo's."""
+        cur = self._cur()
+        row = None
+        if head:
+            cur.execute(
+                "SELECT id FROM snapshot_meta WHERE repo_id=%s AND (commit_sha=%s OR commit_sha LIKE %s) "
+                "ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
+                (repo_id, head, head + "+dirty:%"),
+            )
+            row = cur.fetchone()
+        if row is None:
+            cur.execute(
+                "SELECT id FROM snapshot_meta WHERE repo_id=%s ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
+                (repo_id,),
+            )
+            row = cur.fetchone()
+        self._conn.commit()
+        self._snapshot = row[0] if row is not None else -1
+        return row is not None
+
+    def repo_ids(self) -> List[str]:
+        cur = self._cur()
+        cur.execute("SELECT DISTINCT repo_id FROM snapshot_meta WHERE repo_id IS NOT NULL ORDER BY repo_id")
+        rows = cur.fetchall()
+        self._conn.commit()
+        return [r[0] for r in rows]
+
+    def latest_snapshots(self) -> List[Dict]:
+        cur = self._cur()
+        cur.execute(
+            "SELECT m.id, m.repo_id, m.commit_sha, m.created_at FROM snapshot_meta m "
+            "WHERE m.repo_id IS NOT NULL AND m.id = (SELECT id FROM snapshot_meta "
+            "WHERE repo_id = m.repo_id ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1) ORDER BY m.repo_id"
+        )
+        rows = cur.fetchall()
+        self._conn.commit()
+        return [{"id": r[0], "repo_id": r[1], "commit_sha": r[2], "created_at": str(r[3])} for r in rows]
 
     def use_latest_snapshot(self) -> None:
         cur = self._cur()

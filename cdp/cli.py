@@ -11,10 +11,11 @@ orchestration lives in `SKILL.md`, not here: Python owns every deterministic
 phase and the session owns the wave loop. That split is what keeps the call
 stack at depth 1 while the pyramid grows in the state directory.
 
-**State is written outside the target repository by default** (PLAN.md C6). The
+**State is written outside the target repository, always** (PLAN.md C6). The
 repository being analysed is not this tool's repository, and a tool that leaves
 a directory behind in someone else's checkout has made a decision that was not
-its to make. `--in-repo` opts into `.cdp/` inside the target.
+its to make. Everything goes to one store per machine, `CDP_HOME` (default
+`~/.cdp`): `index.db` for every repo, `work/<repo>/` for hand-over files.
 """
 
 from __future__ import annotations
@@ -115,10 +116,8 @@ def _parser() -> argparse.ArgumentParser:
     common.add_argument("--repo", default=argparse.SUPPRESS,
                         help="repository to analyse (default: cwd)")
     common.add_argument("--state-dir", default=argparse.SUPPRESS,
-                        help="where to write state (default: ./.cdp; never inside --repo "
-                             "unless --in-repo)")
-    common.add_argument("--in-repo", action="store_true", default=argparse.SUPPRESS,
-                        help="write state into <repo>/.cdp and add a .gitignore entry")
+                        help="alias for CDP_HOME: the one machine-level store "
+                             "(default: ~/.cdp). Never inside --repo.")
 
     p = argparse.ArgumentParser(prog="cdp", parents=[common],
                                 description="Code Discovery Pyramid v%s" % CDP_VERSION)
@@ -302,18 +301,20 @@ def _parser() -> argparse.ArgumentParser:
     lk_sub = lk.add_subparsers(dest="link_command")
     lks = lk_sub.add_parser("scan", help="match channel edges within and across scanned "
                                           "state directories -- read-only, writes no snapshot")
-    lks.add_argument("state_dirs", nargs="+", metavar="STATE_DIR",
-                      help="one or more scanned state directories. Each is exploded by its "
-                           "edges' own `module` tag before matching, so one whole-monorepo "
-                           "scan already surfaces cross-module links; passing several state "
-                           "dirs additionally matches across snapshots (5.5: a link is "
-                           "between snapshots, not repos)")
+    lks.add_argument("state_dirs", nargs="*", metavar="STATE_DIR",
+                      help="with none, links every repo in the machine store at the latest "
+                           "snapshot of each. Optionally, older stand-alone state "
+                           "directories (each with its own index.db) to link instead. "
+                           "Each is exploded by its edges' own `module` tag before "
+                           "matching, so one whole-monorepo scan already surfaces "
+                           "cross-module links; several snapshots additionally match "
+                           "across repos (5.5: a link is between snapshots, not repos)")
     lks.add_argument("--json", action="store_true")
     lks.add_argument("--db", default=None,
                       help="also persist this scan's links/unmatched calls into the "
                            "link.* namespace of the store resolved the same way every "
-                           "other command's does (`.cdp.toml` -> registry -> cwd/.cdp, "
-                           "default sqlite, D3) -- replaces prior contents, since link "
+                           "other command's does (the machine store, `CDP_HOME`) -- replaces "
+                           "prior contents, since link "
                            "data is fully derived (R3). Pass an explicit path to persist "
                            "into a store other than the one this invocation resolves to")
     lks.set_defaults(func=cmd_link_scan)
@@ -324,7 +325,7 @@ def _parser() -> argparse.ArgumentParser:
     lkq.add_argument("--db", default=None,
                       help="read from this SqliteStore's link.* namespace instead of "
                            "the one this invocation resolves to (same default-resolution "
-                           "rule as every other command, `.cdp.toml`/registry/cwd, D3)")
+                           "rule as every other command: the machine store)")
     lkq.add_argument("--service", required=True, help="repo name/identifier to query, "
                                                         "as it appears in a scanned manifest's `repo` field")
     lkq.add_argument("--json", action="store_true")
@@ -373,13 +374,14 @@ def _parser() -> argparse.ArgumentParser:
 
     lkr = lk_sub.add_parser("refresh", help="re-verify a prior `link scan --db`'s contracts "
                                              "against freshly scanned state directories (M8.4, 5.3)")
-    lkr.add_argument("state_dirs", nargs="+", metavar="STATE_DIR",
-                      help="freshly scanned state directories for the repo(s) being refreshed "
-                           "-- a repo not named here is left byte-identical in the persisted report")
+    lkr.add_argument("state_dirs", nargs="*", metavar="STATE_DIR",
+                      help="with none, re-verifies against every repo in the machine store at "
+                           "its latest snapshot; or freshly scanned stand-alone state "
+                           "directories -- a repo not named here is left byte-identical in "
+                           "the persisted report")
     lkr.add_argument("--json", action="store_true")
     lkr.add_argument("--db", default=None,
-                      help="the store holding the prior `link scan --db` to refresh, resolved "
-                           "the same way every other command's is if omitted")
+                      help="the store holding the prior `link scan --db` to refresh (default: the machine store)")
     lkr.set_defaults(func=cmd_link_refresh)
 
     gc = add("gc", "drop snapshots not kept by the retention rule")
@@ -467,8 +469,7 @@ def _parser() -> argparse.ArgumentParser:
                         "and import guidance instead of writing .claude/agents/, "
                         "none skips agent registration entirely")
     i.add_argument("--hook", action="store_true",
-                   help="also install the PreToolUse nudge (requires in-repo state; "
-                        "claude-code only)")
+                   help="also install the PreToolUse nudge (claude-code only)")
     i.add_argument("--strict", action="store_true",
                    help="with --hook, block the first source read of a session "
                         "instead of nudging, when the index is fresh and its "
@@ -504,80 +505,67 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _paths(args) -> "Paths":
-    """`--in-repo` / `--state-dir` are an explicit override and win outright.
-    Otherwise M2.6's order applies: `CDP_STORE` -> `.cdp.toml` walking up ->
-    the registry (`~/.cdp/config.toml`, keyed by repo identity, not path) ->
-    `cwd/.cdp` (today's default, unchanged for a repo scanned for the first
-    time or from an environment with no registry entry yet).
-    """
+    """One store per machine: `--state-dir` (an alias for `CDP_HOME`), else
+    `CDP_HOME`, else `~/.cdp`. The repo only decides *which rows* of that store
+    a command reads (`Paths.repo_id`)."""
     repo = Path(getattr(args, "repo", ".")).expanduser().resolve()
+    if os.environ.get("CDP_STORE"):
+        raise CdpError("CDP_STORE is no longer read: CDP keeps one store per machine. "
+                       "Use CDP_HOME (default ~/.cdp) to move it.")
     state_dir = getattr(args, "state_dir", None)
-    if getattr(args, "in_repo", False):
-        state = repo / ".cdp"
-    elif state_dir:
-        state = Path(state_dir).expanduser().resolve()
-    else:
-        state = registry_mod.resolve_store(repo, env=os.environ.get("CDP_STORE"))
-    return Paths(repo=repo, state=state)
+    home = Path(state_dir).expanduser().resolve() if state_dir else registry_mod.cdp_home()
+    registry_mod.check_team_config(repo)
+    return Paths(repo=repo, state=home)
 
 
 class Paths:
+    """`state` is the machine home (`CDP_HOME`); `work` is this repo's own
+    hand-over directory under it."""
+
     def __init__(self, repo: Path, state: Path) -> None:
         self.repo = repo
         self.state = state
-
-    def inside_repo(self) -> bool:
-        try:
-            self.state.relative_to(self.repo)
-            return True
-        except ValueError:
-            return False
+        self.repo_id = registry_mod.repo_identity(repo)
+        self.work = registry_mod.work_dir(state, self.repo_id)
 
 
-def _resolve_backend(repo: Path) -> Tuple[str, Optional[Dict[str, str]]]:
-    """`.cdp.toml`'s `backend` key decides which `WorkspaceStore` `_open_store`
-    constructs -- default `"sqlite"` (D3's default, unchanged for a repo with
-    no `.cdp.toml`, or one that doesn't name a backend)."""
-    kind = registry_mod.team_backend(repo)
+def _resolve_backend(home: Path) -> Tuple[str, Optional[Dict[str, str]]]:
+    """`CDP_HOME/config.toml`'s `backend` key decides which `WorkspaceStore`
+    `_open_store` constructs -- default `"sqlite"`. One choice per machine."""
+    kind = registry_mod.machine_backend(home)
+    config = home / registry_mod.CONFIG_FILE
     if kind not in ("sqlite", "file", "postgres"):
-        raise CdpError('unknown backend %r in .cdp.toml (must be "sqlite", "file" or "postgres")' % kind)
-    pg = registry_mod.team_postgres_config(repo) if kind == "postgres" else None
+        raise CdpError('unknown backend %r in %s (must be "sqlite", "file" or "postgres")' % (kind, config))
+    pg = registry_mod.machine_postgres_config(home) if kind == "postgres" else None
     if kind == "postgres" and not (pg and pg.get("dsn")):
-        raise CdpError('backend = "postgres" in .cdp.toml needs a [postgres] dsn')
+        raise CdpError('backend = "postgres" in %s needs a [postgres] dsn' % config)
     return kind, pg
 
 
-def _default_postgres_schema(repo: Path) -> str:
-    """A stable, valid Postgres schema name derived from repo identity, so
-    two repos sharing one Postgres server without an explicit `schema =`
-    in `.cdp.toml` don't collide."""
-    raw = registry_mod.repo_identity(repo)
-    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", raw)
-    if not sanitized or not sanitized[0].isalpha():
-        sanitized = "r_" + sanitized
-    return ("cdp_" + sanitized)[:63]
-
-
 def _open_store(paths: "Paths") -> WorkspaceStore:
-    """No backend is hardcoded here: which `WorkspaceStore` implementation
-    this constructs is `.cdp.toml`'s `backend` key (`_resolve_backend`),
-    defaulting to `SqliteStore` (D3, `PHASE/FINDINGS.md`) at
-    `<state>/index.db` -- the path `CDP_CLI_SCOPE.md` 2.3 and
-    `phase_2_plan.md` already name. `paths.state` itself stays a directory
-    regardless of backend -- `docs/`, `prompts/` and the inbox are filesystem
-    handoffs every backend shares (`store/__init__.py`'s module docstring)."""
-    kind, pg = _resolve_backend(paths.repo)
+    """No backend is hardcoded here: `CDP_HOME/config.toml` picks the
+    `WorkspaceStore` (`_resolve_backend`), defaulting to `SqliteStore` at
+    `<home>/index.db`. The store is then pointed at *this repo's* snapshot for
+    HEAD (else its latest), so a read never answers from another repo.
+    Commands that scan or refresh move the selection themselves afterwards."""
+    kind, pg = _resolve_backend(paths.state)
     if kind == "file":
         return FileStore(paths.state)
     if kind == "postgres":
         from .store.postgres_backend import PostgresStore
 
-        schema = pg.get("schema") or _default_postgres_schema(paths.repo)
-        return PostgresStore(pg["dsn"], schema, inbox_root=paths.state)
-    return SqliteStore(paths.state / "index.db")
+        return PostgresStore(pg["dsn"], pg.get("schema") or "cdp", inbox_root=paths.work)
+    backend = SqliteStore(paths.state / "index.db", inbox_root=paths.work)
+    backend.use_current_snapshot(paths.repo_id, run_git_head(paths.repo))
+    return backend
 
 
-def _locked(shared: bool, timeout_s: float = lock_mod.DEFAULT_TIMEOUT_S):
+def run_git_head(repo: Path) -> Optional[str]:
+    out = run_git(repo, "rev-parse", "HEAD")
+    return out.strip() if out and out.strip() else None
+
+
+def _locked(shared: bool, timeout_s: float = lock_mod.DEFAULT_TIMEOUT_S, scope: Optional[str] = None):
     """Decorator: take the per-repo lock (`cdp/lock.py`) for this command's
     entire body before it touches the store, release it on any exit path.
 
@@ -596,8 +584,8 @@ def _locked(shared: bool, timeout_s: float = lock_mod.DEFAULT_TIMEOUT_S):
         @functools.wraps(func)
         def wrapper(args):
             paths = _paths(args)
-            kind, pg = _resolve_backend(paths.repo)
-            with lock_mod.repo_lock(paths, kind, pg, shared=shared, timeout_s=timeout_s):
+            kind, pg = _resolve_backend(paths.state)
+            with lock_mod.repo_lock(paths, kind, pg, shared=shared, timeout_s=timeout_s, scope=scope):
                 return func(args)
 
         return wrapper
@@ -668,13 +656,6 @@ def _extra_excludes(args, repo: Path) -> List[str]:
 def cmd_scan(args) -> int:
     paths = _paths(args)
     say = (lambda *a: None) if args.quiet else (lambda *a: print(*a))
-
-    # M2.6: only the resolved-by-default case needs registering -- an explicit
-    # `--in-repo`/`--state-dir` already tells every future command where to
-    # look, and never touching the registry then keeps a test (or a user who
-    # always passes `--state-dir`) from writing to `~/.cdp/config.toml` at all.
-    if not getattr(args, "in_repo", False) and not getattr(args, "state_dir", None):
-        registry_mod.register(registry_mod.repo_identity(paths.repo), paths.state)
 
     inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=_extra_excludes(args, paths.repo))
     say("\n".join(inventory_mod.summarise(inventory)))
@@ -781,12 +762,10 @@ def cmd_scan(args) -> int:
     # was invisible until someone remembered to run `cdp docs`. Rendering here
     # is the default; `--no-docs` opts out.
     if getattr(args, "docs", True):
-        written = _render_docs(query_mod.Store(store), state_dir / "docs")
-        say("docs      %d file(s) -> %s" % (len(written), state_dir / "docs"))
+        written = _render_docs(query_mod.Store(store), paths.work / "docs")
+        say("docs      %d file(s) -> %s" % (len(written), paths.work / "docs"))
 
-    if paths.inside_repo():
-        _ensure_gitignore(paths.repo)
-    say("\nstate     %s" % state_dir)
+    say("\nstate     %s  (repo %s)" % (state_dir, paths.repo_id))
     say("next      cdp query stats | cdp query trace <entrypoint> | cdp prompts")
     store.close()
     return 0
@@ -855,15 +834,6 @@ def _structural_unknowns(inventory: Dict, xref: Dict, graph: Dict) -> List[Dict]
             }
         )
     return out
-
-
-def _ensure_gitignore(repo: Path) -> None:
-    path = repo / ".gitignore"
-    entry = ".cdp/"
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
-    if entry in existing.split():
-        return
-    write_text(path, (existing.rstrip("\n") + "\n" if existing else "") + entry)
 
 
 def _fold_and_write(
@@ -956,7 +926,7 @@ def _render_docs(store: "query_mod.Store", out: Path) -> List[Path]:
 def cmd_docs(args) -> int:
     paths = _paths(args)
     store = query_mod.Store(_open_store(paths))
-    out = Path(args.out).expanduser().resolve() if args.out else paths.state / "docs"
+    out = Path(args.out).expanduser().resolve() if args.out else paths.work / "docs"
     for path in _render_docs(store, out):
         print(path)
     print("next      open %s/00-overview.md, or cdp query stats" % out)
@@ -980,7 +950,7 @@ def cmd_prompts(args) -> int:
     run_id = store.manifest.get("run_id", "cdp")
     prior = list(store.state.get("claims", []))
 
-    out_dir = paths.state / "prompts"
+    out_dir = paths.work / "prompts"
     out_dir.mkdir(parents=True, exist_ok=True)
     backend.ensure_inbox()
 
@@ -1017,6 +987,7 @@ def cmd_prompts(args) -> int:
             digest_mode=args.digest, repo_root=paths.repo, symbol_index=symbol_index,
             extra_third_party=lesson_hints.get("third_party_patterns", frozenset()),
             prompt_fixes=lesson_hints.get("prompt_fixes", ()),
+            inbox_dir=backend._inbox_dir(),
             **prompt_kwargs
         )
         path = out_dir / (node.replace("/", "__") + ".md")
@@ -1710,7 +1681,7 @@ def cmd_reflect(args) -> int:
         backend.close()
         return 0
     runner = runner_mod.SubprocessRunner(shlex.split(args.runner_cmd), timeout_s=args.timeout)
-    prompts_dir = paths.state / "reflections"
+    prompts_dir = paths.work / "reflections"
     prompts_dir.mkdir(parents=True, exist_ok=True)
     accepted, discarded = reflect_mod.reflect(outliers, runner, prompts_dir)
     for d in discarded:
@@ -1861,7 +1832,7 @@ def cmd_doctor(args) -> int:
 
     golden_by_module = doctor_mod.GOLDEN_MINIREPO if paths.repo.name == "minirepo" else {}
 
-    out_dir = paths.state / "doctor"
+    out_dir = paths.work / "doctor"
     out_dir.mkdir(parents=True, exist_ok=True)
     prompt_path = out_dir / "_scratch_prompt.md"
     patch_path = out_dir / "_scratch_patch.json"
@@ -2117,7 +2088,7 @@ def cmd_diff(args) -> int:
 # -------------------------------------------------------------------- link
 
 
-@_locked(shared=False)
+@_locked(shared=False, scope="links")
 def cmd_link_scan(args) -> int:
     """M8.1: read-only across N already-scanned state directories -- N may be
     1, since `link.scan_links` explodes each state dir's pooled edges by
@@ -2127,31 +2098,21 @@ def cmd_link_scan(args) -> int:
     store's `dataflow.json` and `manifest.json` (for the `(repo, head)`
     identity 5.5 requires).
     """
-    snapshots = []
-    stores = []
-    try:
-        for d in args.state_dirs:
-            store = query_mod.Store(Path(d).expanduser().resolve())
-            stores.append(store)
-            snapshots.append(
-                {
-                    "repo": store.manifest.get("repo", d),
-                    "head": store.manifest.get("head", "?"),
-                    "dataflow": store.dataflow,
-                }
-            )
-        report = link_mod.scan_links(snapshots)
-    finally:
-        for store in stores:
-            store.close()
     paths = _paths(args)
     db_store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
     try:
         if not db_store.supports_link_edges():
             raise CdpError(
-                "%s cannot back `cdp link scan --db` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(db_store).__name__
+                "%s cannot back `cdp link scan` -- needs the sqlite backend "
+                "(set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(db_store).__name__
             )
+        if args.state_dirs:
+            snapshots = _snapshots_from_dirs(args.state_dirs)
+        else:
+            snapshots = link_mod.snapshots_from_store(db_store)
+            if not snapshots:
+                raise CdpError("no scanned repos in %s -- run `cdp scan` in a repo first" % paths.state)
+        report = link_mod.scan_links(snapshots)
         db_store.write_link_edges(report)
     finally:
         db_store.close()
@@ -2167,6 +2128,21 @@ def cmd_link_scan(args) -> int:
     return 0
 
 
+def _snapshots_from_dirs(state_dirs) -> List[Dict]:
+    """Stand-alone state directories, each with its own `index.db` -- the
+    layout before there was one store per machine."""
+    snapshots = []
+    for d in state_dirs:
+        store = query_mod.Store(Path(d).expanduser().resolve())
+        try:
+            snapshots.append({"repo": store.manifest.get("repo", d),
+                              "head": store.manifest.get("head", "?"),
+                              "dataflow": store.dataflow})
+        finally:
+            store.close()
+    return snapshots
+
+
 def _read_link_report(store) -> Dict:
     edges = store.read_link_edges()
     return {
@@ -2175,7 +2151,7 @@ def _read_link_report(store) -> Dict:
     }
 
 
-@_locked(shared=False)
+@_locked(shared=False, scope="links")
 def cmd_link_prompts(args) -> int:
     """M8.3 (5.2): the LLM tier fires only on ambiguous (`heuristic`) matches
     a prior `link scan --db` already persisted. Writes one prompt per
@@ -2195,7 +2171,7 @@ def cmd_link_prompts(args) -> int:
         if not store.supports_link_edges():
             raise CdpError(
                 "%s cannot back `cdp link prompts` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(store).__name__
+                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
             )
         report = _read_link_report(store)
     finally:
@@ -2226,7 +2202,7 @@ def cmd_link_prompts(args) -> int:
     return 0
 
 
-@_locked(shared=False)
+@_locked(shared=False, scope="links")
 def cmd_link_collect(args) -> int:
     """M8.3 (5.2): validate -> verify -> entail -> fold, for link-task
     patches only -- `link.validate_task_patch` is the validate+verify+entail
@@ -2248,7 +2224,7 @@ def cmd_link_collect(args) -> int:
         if not store.supports_link_edges():
             raise CdpError(
                 "%s cannot back `cdp link collect` -- needs the sqlite backend "
-                "(pass --db, or set \"backend = \\\"sqlite\\\"\" in .cdp.toml)" % type(store).__name__
+                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
             )
         report = _read_link_report(store)
         run_id = "cdp-link"
@@ -2284,7 +2260,7 @@ def cmd_link_collect(args) -> int:
     return 0
 
 
-@_locked(shared=False)
+@_locked(shared=False, scope="links")
 def cmd_link_run(args) -> int:
     """Post-Phase-9 item 5: `link prompts`/`link collect` are a manual,
     file-handoff pair (M8.3) with no leases, no `link_task` rows, and no
@@ -2302,12 +2278,12 @@ def cmd_link_run(args) -> int:
         if not store.supports_link_edges():
             raise CdpError(
                 "%s cannot back `cdp link run` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(store).__name__
+                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
             )
         report = _read_link_report(store)
         tasks = link_mod.build_tasks(report)
         run_id = args.run_id or "cdp-link"
-        prompts_dir = Path(args.out).expanduser().resolve() if args.out else (paths.state / "link-tasks")
+        prompts_dir = Path(args.out).expanduser().resolve() if args.out else (paths.work / "link-tasks")
         prompts_dir.mkdir(parents=True, exist_ok=True)
         runner = _build_runner(args)
         model = args.runner_cmd.split()[0] if args.runner_cmd else "human"
@@ -2340,7 +2316,7 @@ def cmd_link_run(args) -> int:
     return 0
 
 
-@_locked(shared=False)
+@_locked(shared=False, scope="links")
 def cmd_link_refresh(args) -> int:
     """M8.4 (5.3): re-verify a prior `link scan --db`'s contracts against
     freshly scanned state directories for the repo(s) named here, mirroring
@@ -2350,31 +2326,16 @@ def cmd_link_refresh(args) -> int:
     a repo not named in `state_dirs` is left byte-identical in the persisted
     report (5.5).
     """
-    snapshots = []
-    stores = []
-    try:
-        for d in args.state_dirs:
-            store = query_mod.Store(Path(d).expanduser().resolve())
-            stores.append(store)
-            snapshots.append(
-                {
-                    "repo": store.manifest.get("repo", d),
-                    "head": store.manifest.get("head", "?"),
-                    "dataflow": store.dataflow,
-                }
-            )
-    finally:
-        for store in stores:
-            store.close()
-
     paths = _paths(args)
     db_store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else _open_store(paths)
     try:
         if not db_store.supports_link_edges():
             raise CdpError(
                 "%s cannot back `cdp link refresh` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(db_store).__name__
+                "(set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(db_store).__name__
             )
+        snapshots = (_snapshots_from_dirs(args.state_dirs) if args.state_dirs
+                     else link_mod.snapshots_from_store(db_store))
         old_report = _read_link_report(db_store)
         report = link_mod.refresh_links(old_report, snapshots)
         db_store.write_link_edges(report)
@@ -2388,7 +2349,7 @@ def cmd_link_refresh(args) -> int:
     return 0
 
 
-@_locked(shared=True)
+@_locked(shared=True, scope="links")
 def cmd_link_query(args) -> int:
     """M8.2 (5.6): reads back the `link.*` rows a prior `link scan --db`
     persisted and renders what touches one service -- links either direction,
@@ -2401,7 +2362,7 @@ def cmd_link_query(args) -> int:
         if not store.supports_link_edges():
             raise CdpError(
                 "%s cannot back `cdp link query` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in .cdp.toml)" % type(store).__name__
+                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
             )
         edges = store.read_link_edges()
     finally:
@@ -2439,9 +2400,9 @@ def cmd_gc(args) -> int:
         repo = paths.repo
         repo_id = registry_mod.repo_identity(repo)
         for sha in args.pin:
-            store.set_pinned(sha, True)
+            store.set_pinned(sha, True, repo_id)
         for sha in args.unpin:
-            store.set_pinned(sha, False)
+            store.set_pinned(sha, False, repo_id)
         head_sha = args.head_sha or _git_head_or_raise(repo)
         snapshots = [s for s in store.list_snapshots() if s["repo_id"] == repo_id]
         if not any(s["commit_sha"] == head_sha for s in snapshots):
@@ -2877,23 +2838,14 @@ HOOK_MATCHER = "Read|Grep|Glob"
 def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     """Register the PreToolUse nudge in `<target>/.claude/settings.json`.
 
-    Before M2.6 (`PHASE/phase_2_plan.md` 2.3) this stated a hard constraint:
-    the hook discovers state by walking up from the file being read
-    (`hook.find_state`), so it could only ever see an *in-repo* `.cdp/`, and
-    CDP's default writes state *outside* the repo (this module's docstring).
-    `hook.find_state` now also consults the registry (`store.registry`), which
-    `scan`'s default run populates, so a default-location scan is discoverable
-    too. What is still true unconditionally: the hook cannot see a scan that
-    has never happened, so that case is still named here rather than left to
-    a silent no-op.
+    The hook finds the machine store (`CDP_HOME`) and the repo's rows in it
+    (`hook.find_state`). It cannot see a scan that has never happened, so that
+    case is named here rather than left to a silent no-op.
     """
     import json as json_mod
 
     notes: List[str] = []
-    registered = registry_mod.lookup(registry_mod.repo_identity(target))
-    has_state = has_scanned(target / ".cdp") or (
-        registered is not None and has_scanned(registered)
-    )
+    has_state = hook_mod.has_snapshot(registry_mod.cdp_home(), registry_mod.repo_identity(target))
     if not has_state:
         notes.append(
             "note      no scan of %s yet, so the hook will no-op until you run:\n"
@@ -2965,7 +2917,7 @@ VOLATILE_FIELDS = ("generated_at",)
 def _state_files(root: Path) -> Dict[str, Path]:
     """Raw filesystem outputs under the state dir -- `docs/`, `prompts/`, and
     (for `check_determinism`'s test stubs, which write directly rather than
-    through a store) anything else. Excludes `index.db`: two independent
+    through a store) anything else. Excludes `index.db` and its WAL files: two independent
     writes of identical content are not guaranteed byte-identical at the
     SQLite file level (page allocation, not just logical data), so its
     content is compared separately, through the store API (`_store_snapshot`).
@@ -2973,7 +2925,7 @@ def _state_files(root: Path) -> Dict[str, Path]:
     return {
         str(p.relative_to(root)): p
         for p in sorted(root.rglob("*"))
-        if p.is_file() and "__pycache__" not in p.parts and p.name != "index.db"
+        if p.is_file() and "__pycache__" not in p.parts and not p.name.startswith("index.db")
     }
 
 
@@ -2989,6 +2941,8 @@ def _store_snapshot(repo: Path, root: Path) -> Dict[str, str]:
     directly."""
     backend = _open_store(Paths(repo=repo, state=root))
     try:
+        if not backend.exists():
+            return {}
         out = {
             "index.db:%s" % name: golden_mod.canonical(backend.read_artifact(name, {}))
             for name in ARTIFACTS

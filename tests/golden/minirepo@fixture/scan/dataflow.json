@@ -30,6 +30,18 @@
         "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
         "line": 7
       },
+      "channel": "call",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.WidgetRepository",
+      "target": "com.example.mini.core.WidgetEntity"
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
       "channel": "persist",
       "confidence": "high",
       "module": "core",
@@ -243,7 +255,7 @@
     }
   ],
   "totals": {
-    "edges": 15,
+    "edges": 16,
     "nodes": 20,
     "paths": 0,
     "sources": 5

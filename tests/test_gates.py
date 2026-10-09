@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from helpers import SKILL_ROOT, make_repo
+from helpers import SKILL_ROOT, make_repo, work_of
 
 from cdp.gates import (
     ABANDONED,
@@ -268,7 +268,7 @@ class CollectGatesEndToEndTest(unittest.TestCase):
                      "subject": "com.example.NoSuchSubject"},
                 ],
             }
-            (state / "patches" / "inbox" / (node.replace("/", "__") + ".json")).write_text(
+            (work_of(repo, state) / "patches" / "inbox" / (node.replace("/", "__") + ".json")).write_text(
                 json.dumps(patch)
             )
 

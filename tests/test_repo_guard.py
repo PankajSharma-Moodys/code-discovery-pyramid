@@ -54,9 +54,10 @@ class RepoMismatchTest(unittest.TestCase):
             finally:
                 sys.stderr = old_stderr
         self.assertEqual(code, 2)
-        self.assertIn("does not match the repo this state was scanned from", err.getvalue())
-        self.assertIn(str(self.repo), err.getvalue())
-        self.assertIn(str(self.other_repo), err.getvalue())
+        # The store holds every repo on the machine, so a different repo is not
+        # "the wrong tree for this state": it simply has no scan.
+        self.assertIn("no scan of", err.getvalue())
+        self.assertIn("run `cdp scan`", err.getvalue())
 
     def test_run_rejects_a_mismatched_repo(self) -> None:
         self._assert_mismatch(
@@ -131,3 +132,28 @@ class RunnerFallbackWarningTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SameIdentityElsewhereTest(unittest.TestCase):
+    """The guard's original case, kept: a *copy* of the scanned repo (same
+    identity, different path) would verify anchors against the wrong tree."""
+
+    def test_a_copy_of_the_repo_is_rejected(self) -> None:
+        import shutil
+        import sys
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp) / "repo")
+            state = Path(tmp) / "state"
+            code, _ = run(["scan", "--repo", str(repo), "--state-dir", str(state), "--quiet"])
+            assert code == 0
+            copy = Path(tmp) / "copy"
+            shutil.copytree(repo, copy)  # same `.git`, so the same identity
+            err, old = io.StringIO(), sys.stderr
+            sys.stderr = err
+            try:
+                code = main(["collect", "--repo", str(copy), "--state-dir", str(state)])
+            finally:
+                sys.stderr = old
+            self.assertEqual(code, 2)
+            self.assertIn("does not match the repo this state was scanned from", err.getvalue())

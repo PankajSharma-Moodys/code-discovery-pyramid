@@ -12,7 +12,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from helpers import SKILL_ROOT, make_repo
+from helpers import SKILL_ROOT, make_repo, work_of
 
 from cdp.store.sqlite_backend import SqliteStore
 
@@ -66,7 +66,7 @@ class AnswerEndToEndTest(unittest.TestCase):
                     "needs": "needs_human",
                 }],
             }
-            (state / "patches" / "inbox" / "core.json").write_text(json.dumps(patch))
+            (work_of(repo, state) / "patches" / "inbox" / "core.json").write_text(json.dumps(patch))
             _run("collect", "--repo", str(repo), "--state-dir", str(state))
 
             proc = _run(

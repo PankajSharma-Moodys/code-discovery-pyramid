@@ -59,8 +59,8 @@
   "repo": "tree",
   "resolution": {
     "ambiguous": 0,
-    "local": 0,
-    "matched": 2,
+    "local": 1,
+    "matched": 4,
     "third_party": 11,
     "unresolved": 0
   },

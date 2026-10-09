@@ -120,8 +120,8 @@
   "head": "<HEAD>",
   "resolution": {
     "ambiguous": 0,
-    "local": 0,
-    "matched": 2,
+    "local": 1,
+    "matched": 4,
     "third_party": 11,
     "unresolved": 0
   },
@@ -591,12 +591,41 @@
         "module": "web"
       }
     ],
+    "com.example.mini.core.WidgetEntity": [
+      {
+        "anchor": {
+          "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+          "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+          "line": 7
+        },
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "module": "core"
+      }
+    ],
     "com.example.mini.core.WidgetRepository": [
       {
         "anchor": {
           "anchor": "import com.example.mini.core.WidgetRepository;",
           "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
           "line": 4
+        },
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "module": "web"
+      },
+      {
+        "anchor": {
+          "anchor": "private final WidgetRepository repository;",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 13
+        },
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "module": "web"
+      },
+      {
+        "anchor": {
+          "anchor": "public WidgetResource(WidgetRepository repository) {",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 15
         },
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "module": "web"
@@ -620,6 +649,22 @@
     },
     {
       "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "fqn": "com.example.mini.core.WidgetEntity",
+      "from_file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "from_module": "core",
+      "from_symbol": "com.example.mini.core.WidgetRepository",
+      "kind": "binding",
+      "resolved": "local",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
         "anchor": "import com.example.mini.core.WidgetRepository;",
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 4
@@ -627,6 +672,38 @@
       "fqn": "com.example.mini.core.WidgetRepository",
       "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "from_module": "web",
+      "resolved": "matched",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "private final WidgetRepository repository;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 13
+      },
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "from_module": "web",
+      "from_symbol": "com.example.mini.web.WidgetResource",
+      "kind": "type",
+      "resolved": "matched",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "public WidgetResource(WidgetRepository repository) {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 15
+      },
+      "fqn": "com.example.mini.core.WidgetRepository",
+      "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "from_module": "web",
+      "from_symbol": "com.example.mini.web.WidgetResource#<init>",
+      "kind": "type",
       "resolved": "matched",
       "to_modules": [
         "core"

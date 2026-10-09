@@ -42,8 +42,9 @@ Use `cdp query table <name>` for who owns the schema, who writes, and who reads.
 
 Changing these has the widest blast radius.
 
+- `com.example.mini.core.WidgetRepository` — 3 references
 - `com.example.mini.core.Widget` — 1 references
-- `com.example.mini.core.WidgetRepository` — 1 references
+- `com.example.mini.core.WidgetEntity` — 1 references
 
 ## Querying this instead of grepping
 

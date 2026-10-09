@@ -159,6 +159,18 @@ def _resolve_uses(
         fqn = row["fqn"]
         module = row["module"]
         entry = symbols.get(fqn)
+        if row.get("kind"):
+            # Member-level rows (typed references, calls, bindings) name a type
+            # the extractor could only guess at -- same package or a wildcard
+            # import. Only a candidate that is a real symbol counts, and it is
+            # never settled through a namespace match: `pkg.Repo` resolving
+            # because `pkg` is a known package is how a call lands on a class
+            # that does not exist.
+            fqn, entry = _member_target(fqn, row.get("alts") or (), symbols)
+            if entry is None:
+                continue
+        elif entry is None and "#" in fqn:
+            entry = symbols.get(fqn.split("#", 1)[0])
         resolved = None
         target_modules: List[str] = []
         candidates: List[Dict] = []
@@ -195,6 +207,12 @@ def _resolve_uses(
             else:
                 resolved = "unresolved"
 
+        kind = row.get("kind")
+        if kind and resolved not in ("local", "matched", "ambiguous"):
+            # Member-level facts (typed references, calls) that name nothing
+            # in this repository are not "unresolved imports": most are
+            # `String`-like types or third-party calls. Dropped, not counted.
+            continue
         counts[resolved] = counts.get(resolved, 0) + 1
         record = {
             "fqn": fqn,
@@ -203,6 +221,9 @@ def _resolve_uses(
             "resolved": resolved,
             "anchor": row["anchor"],
         }
+        if kind:
+            record["kind"] = kind
+            record["from_symbol"] = row.get("from_symbol")
         if target_modules:
             record["to_modules"] = target_modules
         if candidates:
@@ -211,6 +232,18 @@ def _resolve_uses(
 
     out.sort(key=lambda r: (r["fqn"], r["from_file"], r["anchor"]["line"]))
     return out, counts
+
+
+def _member_target(fqn: str, alts, symbols: Dict[str, Dict]):
+    """First of `fqn` and its wildcard-import alternatives whose type exists.
+    `Type#method` names resolve through the owning type: the method may be
+    inherited (`save`) or an interface method the extractor never defines."""
+    for cand in (fqn, *alts):
+        owner = cand.split("#", 1)[0]
+        entry = symbols.get(cand) or symbols.get(owner)
+        if entry and entry["kind"] in ("class", "interface", "enum", "record", "annotation", "method"):
+            return cand, entry
+    return fqn, None
 
 
 def _transpose(uses: Sequence[Dict]) -> Dict[str, List[Dict]]:

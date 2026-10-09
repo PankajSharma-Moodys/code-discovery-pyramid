@@ -21,14 +21,11 @@ README.md"* is `role == "docs"` and never triggers it.
                                               no hook at all
     3. (retired by M2.6, see below)
 
-Through Phase 1, condition 1 was `--in-repo` only: CDP writes state to
-`./.cdp` *outside* the analysed repository by deliberate design (`cli.py:14-17`:
-"a tool that leaves a directory behind in someone else's checkout has made a
-decision that was not its to make"), and a directory walk from a file being
-read could never reach a `.cdp/` outside the repo. `PHASE/phase_2_plan.md`
-M2.6's store registry (`store.registry`) dissolves this: `find_state` walks up
-for an in-repo `.cdp/` first, and failing that, resolves the repo's identity
-and looks it up in the registry that a default-location `scan` populated.
+The index is the one machine-level store (`CDP_HOME`, default `~/.cdp`). The
+hook finds the scanned repo that contains the file being read -- the innermost
+folder with a scan, so a scanned subfolder beats its parent -- and selects that
+repo's snapshot **for the current HEAD**. Selecting "the oldest snapshot in the
+file" is what once made the hook go silent after a repo's second scan.
 
 **Strict mode (Phase 9, `--strict`)** turns the same one-shot trigger into a
 block instead of a nudge, but only when blocking cannot backfire: coverage
@@ -69,7 +66,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 #: Tools worth intercepting. Everything else is not a source read.
 WATCHED = ("Read", "Grep", "Glob")
@@ -77,8 +74,6 @@ WATCHED = ("Read", "Grep", "Glob")
 #: The only role that gets a nudge. Editing a README, a CI file or a fixture is
 #: not a question the index can answer better.
 NUDGE_ROLE = "source"
-
-STATE_DIRNAME = ".cdp"
 
 #: Below this, a block would deny the model the source *and* leave the index
 #: unable to answer (`RESEARCH_GRAPHIFY.md §7.8`) -- degrade to a nudge instead.
@@ -90,7 +85,7 @@ STRICT_MIN_COVERAGE = 0.95
 
 def nudge_text(sha: str, path: str, dirty: bool) -> str:
     lines = [
-        "`.cdp/` indexes this repository at %s." % sha[:12],
+        "CDP indexes this repository at %s." % sha[:12],
         "`cdp query symbol <name>` and `cdp query file %s` return the same facts "
         "with file:line citations at a fraction of the cost, and "
         "`cdp query trace <entrypoint>` returns the whole reading list for a "
@@ -130,34 +125,41 @@ def target_path(tool_name: str, tool_input: Dict) -> Optional[str]:
     return None
 
 
-def find_state(start: Path) -> Optional[Path]:
-    """Walk up from `start` looking for an in-repo `.cdp/`; failing that,
-    resolve the enclosing repo's identity and consult the registry.
-
-    Before M2.6 (`PHASE/phase_2_plan.md` 2.3) this was in-repo only: CDP's
-    default state location is *outside* the repo, so a directory walk from a
-    file being read could never reach it, and `cdp install --hook` refused
-    outside `--in-repo` rather than installing a hook that would silently
-    never fire. The registry (`store.registry`, keyed by repo identity, not
-    path) dissolves that: `scan`'s default run registers where it wrote state,
-    and this looks it up the same way.
-    """
-    from .store import has_scanned
+def find_state(start: Path) -> Optional[Tuple[Path, str, Path]]:
+    """`(home, repo_id, repo folder)` of the innermost scanned repo containing
+    `start`, or None. Never creates or migrates the store."""
+    from .store import SqliteStore, has_scanned
     from .store import registry
 
+    home = registry.cdp_home()
+    if not has_scanned(home):
+        return None
     current = start if start.is_dir() else start.parent
-    for candidate in [current] + list(current.parents):
-        state = candidate / STATE_DIRNAME
-        if has_scanned(state):
-            return state
-
-    for candidate in [current] + list(current.parents):
-        if (candidate / ".git").exists():
-            registered = registry.lookup(registry.repo_identity(candidate))
-            if registered is not None and has_scanned(registered):
-                return registered
-            break
+    candidates = registry.candidate_identities(current)
+    if not candidates:
+        return None
+    backend = SqliteStore(home / "index.db", readonly=True, busy_timeout_ms=1500)
+    try:
+        scanned = set(backend.repo_ids())
+    finally:
+        backend.close()
+    for folder, repo_id in candidates:
+        if repo_id in scanned:
+            return home, repo_id, folder
     return None
+
+
+def has_snapshot(home: Path, repo_id: str) -> bool:
+    """Whether `repo_id` has been scanned into the store at `home`."""
+    from .store import SqliteStore, has_scanned
+
+    if not has_scanned(home):
+        return False
+    backend = SqliteStore(Path(home) / "index.db", readonly=True, busy_timeout_ms=1500)
+    try:
+        return repo_id in backend.repo_ids()
+    finally:
+        backend.close()
 
 
 def git_head(repo: Path) -> Optional[str]:
@@ -174,9 +176,8 @@ def is_dirty(repo: Path) -> bool:
 
     The inventory is built from `git ls-files`, so an untracked file is not in
     the index and cannot make it stale. Counting untracked files would make the
-    qualifier fire permanently after `cdp scan --in-repo`, which writes an
-    untracked `.gitignore` entry of its own: a warning that is always on is a
-    warning nobody reads.
+    qualifier fire permanently for anything untracked: a warning that is
+    always on is a warning nobody reads.
     """
     try:
         proc = subprocess.run(
@@ -192,7 +193,7 @@ def claim_session(state: Path, session_id: str) -> bool:
 
     A nudge repeated on every read is nagging, and a model learns to ignore a
     channel that is always noisy. The marker lives under the OS temp directory
-    rather than in `.cdp/`: state is the fold of a scan, and a hook writing into
+    rather than in the store: state is the fold of a scan, and a hook writing into
     it would make the scan's output a function of how many times someone opened
     a file.
     """
@@ -226,30 +227,26 @@ def _gate(event: Dict) -> Optional[Dict]:
     cwd = Path(str(event.get("cwd") or os.getcwd()))
     anchor = Path(raw) if raw and Path(raw).is_absolute() else cwd / (raw or ".")
 
-    state = find_state(anchor) or find_state(cwd)
-    if state is None:
-        return None  # no-op 1 and 3: no `.cdp/` reachable from here
+    found = find_state(anchor) or find_state(cwd)
+    if found is None:
+        return None  # no-op 1: nothing scanned contains this path
+    home, repo_id, repo = found
+    state = home / "work" / repo_id  # session marker key only; never read or created
 
     from .store import SqliteStore
     from .util import CdpError
 
+    head = git_head(repo)
     try:
-        # `find_state` already confirmed `has_scanned(state)`, i.e. `index.db`
-        # exists -- opening it here never creates it as a side effect.
-        backend = SqliteStore(state / "index.db")
+        backend = SqliteStore(home / "index.db", readonly=True, busy_timeout_ms=1500)
+        backend.use_current_snapshot(repo_id, head)
         inventory = backend.read_artifact("inventory")
-        # `state.parent` is the repo only under the in-repo layout
-        # (`<repo>/.cdp`); once state can live anywhere (M2.6's registry), the
-        # manifest's own `repo` field is the only reliable source.
-        manifest_repo = backend.read_artifact("manifest", {}).get("repo")
-        repo = Path(manifest_repo) if manifest_repo else state.parent
         folded = backend.read_artifact("state", {})
         backend.close()
     except (OSError, ValueError, CdpError):
         return None
 
     indexed = str(inventory.get("head") or "")
-    head = git_head(repo)
     if not indexed or indexed == "unpinned" or head is None or indexed != head:
         return None  # no-op 2: the index does not describe this working tree
 
