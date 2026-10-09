@@ -584,3 +584,17 @@ class ShellSearchParsingTest(unittest.TestCase):
     def test_ripgrep_is_recursive_by_default(self) -> None:
         self.assertEqual(self.terms("rg ReservationService"), [("grep", ["ReservationService"])])
         self.assertEqual(self.terms("rg ReservationService src/File.java"), [])
+
+
+class LeafSessionTest(unittest.TestCase):
+    """A leaf session (`CDP_LEAF_SESSION` set) is never gated, nudged or briefed."""
+
+    def test_every_hook_mode_stands_down(self) -> None:
+        hook = Path(__file__).resolve().parent.parent / "cdp" / "hook.py"
+        env = dict(os.environ, CDP_LEAF_SESSION="1")
+        for flag in ("--gate", "--session-start", "--prompt-submit", ""):
+            result = subprocess.run(
+                [sys.executable, str(hook)] + ([flag] if flag else []),
+                input='{"tool_name": "Bash", "tool_input": {"command": "grep -rn FooBarBaz ."}, "cwd": "/tmp"}',
+                capture_output=True, text=True, env=env, timeout=60)
+            self.assertEqual((result.returncode, result.stdout), (0, ""), flag)

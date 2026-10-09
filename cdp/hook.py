@@ -510,8 +510,15 @@ def prompt_submit(event: Dict) -> Optional[str]:
             "line ranges. `python3 .claude/skills/cdp/run.py help` lists every query.")
 
 
+#: Set by `scripts/cdp-claude-leaf.sh` so a leaf session -- which must read its
+#: scope's files freely -- is not gated or nudged by the hooks of the repo it reads.
+LEAF_ENV = "CDP_LEAF_SESSION"
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if os.environ.get(LEAF_ENV) and "--explain" not in argv:
+        return 0
     if "--gate" in argv:
         try:
             event = json.loads(sys.stdin.read() or "{}")
