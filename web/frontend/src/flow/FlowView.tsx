@@ -2,9 +2,11 @@ import "@xyflow/react/dist/style.css";
 import { Background, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFlow } from "../api/flowHooks.ts";
+import { useRepoParams } from "../api/repoParams.ts";
 import { InspectorRail } from "../panels/InspectorRail.tsx";
 import { FlowBoxNode, FlowContainerNode } from "./FlowBoxNode.tsx";
 import { toRfEdges, toRfNodes } from "./flowGraph.ts";
+import { INITIAL_VIEW, popState, pushState, sameView, type FlowViewState } from "./flowHistory.ts";
 import { layoutFlow } from "./flowLayout.ts";
 import { buildView, trace, type ViewEdge, type ViewNode } from "./flowModel.ts";
 
@@ -13,17 +15,27 @@ const EMPTY = "No data-flow edges in this scan — try “+ calls”, or run Sca
 
 function FlowCanvas() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<ViewNode | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [history, setHistory] = useState<FlowViewState[]>([]);
+  const [fitTick, setFitTick] = useState(0); // bumped by Back/Reset to refit the whole graph
   const [include, setInclude] = useState<string[]>([]);
   const [hoverEdge, setHoverEdge] = useState<{ edge: ViewEdge; x: number; y: number } | null>(null);
   const { data, error, isLoading } = useFlow(include);
+  const repoKey = JSON.stringify(useRepoParams());
   const { fitView } = useReactFlow();
   const pendingFit = useRef<string | null>(null); // container id just expanded
 
   const model = useMemo(() => (data ? buildView(data, expanded) : null), [data, expanded]);
   const boxes = useMemo(() => (model && model.nodes.length ? layoutFlow(model) : null), [model]);
   // A selection that no longer exists (include toggle, refetch) is dropped.
-  const live = selected && model?.nodes.some((n) => n.id === selected.id) ? selected : null;
+  const live = (selectedId && model?.nodes.find((n) => n.id === selectedId)) || null;
+  const currentView = (): FlowViewState => ({ expanded: [...expanded].sort(), selectedId: live?.id ?? null });
+  const record = () => setHistory((h) => pushState(h, currentView()));
+  const clearSelection = () => {
+    if (!live) return;
+    record();
+    setSelectedId(null);
+  };
   const tr = useMemo(() => (model && live ? trace(model.edges, live.id) : null), [model, live]);
   const collapse = useCallback(
     (id: string) =>
@@ -34,14 +46,19 @@ function FlowCanvas() {
       }),
     [],
   );
+  const collapseRecorded = (id: string) => {
+    record();
+    collapse(id);
+  };
   const rfNodes = useMemo(
     () =>
       model && boxes
         ? toRfNodes(model.nodes, boxes, tr, live?.id ?? null).map((n) =>
-            n.type === "flowGroup" ? { ...n, data: { ...n.data, onCollapse: () => collapse(n.id) } } : n,
+            n.type === "flowGroup" ? { ...n, data: { ...n.data, onCollapse: () => collapseRecorded(n.id) } } : n,
           )
         : [],
-    [model, boxes, tr, live, collapse],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapseRecorded closes over current view
+    [model, boxes, tr, live, collapse, expanded],
   );
   const rfEdges = useMemo(
     () => (model ? toRfEdges(model.edges, tr, live?.id ?? null) : []),
@@ -57,10 +74,38 @@ function FlowCanvas() {
     requestAnimationFrame(() =>
       void fitView(target ? { nodes: [{ id: target }], padding: 0.1, maxZoom: 1 } : { padding: 0.15 }),
     );
-  }, [boxes, fitView]);
+  }, [boxes, fitView, fitTick]);
 
+  // Old node ids may not exist under another repo / include set.
+  useEffect(() => setHistory([]), [repoKey, include]);
+
+  const restore = (v: FlowViewState) => {
+    pendingFit.current = null;
+    setExpanded(new Set(v.expanded));
+    setSelectedId(v.selectedId); // dropped by `live` if the node no longer exists
+    setFitTick((t) => t + 1);
+  };
+  const back = () => {
+    const { history: rest, state } = popState(history);
+    if (!state) return false;
+    setHistory(rest);
+    restore(state);
+    return true;
+  };
+  const reset = () => {
+    if (sameView(currentView(), INITIAL_VIEW)) return;
+    record();
+    restore(INITIAL_VIEW);
+  };
+  const atInitial = sameView(currentView(), INITIAL_VIEW);
+
+  const keyRef = useRef({ back, clearSelection });
+  keyRef.current = { back, clearSelection };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSelected(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") keyRef.current.clearSelection();
+      else if (e.key === "Backspace" && !isEditable(e.target) && keyRef.current.back()) e.preventDefault();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -72,13 +117,15 @@ function FlowCanvas() {
     const n = (rf.data as { node: ViewNode }).node;
     if (n.isGroup) {
       if (n.count > 150 && !window.confirm(`Expand ${n.count} items?`)) return;
+      record();
       pendingFit.current = n.id;
       setExpanded((s) => new Set(s).add(n.id));
-      setSelected(null);
+      setSelectedId(null);
     } else if (n.isContainer) {
-      setSelected(null); // collapse is via the frame header only
-    } else {
-      setSelected(n);
+      clearSelection(); // collapse is via the frame header only
+    } else if (n.id !== live?.id) {
+      record();
+      setSelectedId(n.id);
     }
   };
 
@@ -97,7 +144,7 @@ function FlowCanvas() {
         fitView
         minZoom={0.05}
         onNodeClick={onNodeClick}
-        onPaneClick={() => setSelected(null)}
+        onPaneClick={clearSelection}
         onEdgeMouseEnter={(ev, e) =>
           setHoverEdge({ edge: (e.data as { edge: ViewEdge }).edge, x: ev.clientX, y: ev.clientY })
         }
@@ -117,6 +164,10 @@ function FlowCanvas() {
             <input type="checkbox" checked={include.includes(k)} onChange={() => toggle(k)} />+ {k}
           </label>
         ))}
+        <span className="flex gap-2 border-l pl-3" style={{ borderColor: "var(--atlas-border)" }}>
+          <HistoryButton label="Back" aria="Back" text="← Back" disabled={history.length === 0} onClick={back} />
+          <HistoryButton label="Reset" aria="Reset" text="Reset" disabled={atInitial} onClick={reset} />
+        </span>
       </div>
       {hoverEdge && (
         <div
@@ -131,10 +182,30 @@ function FlowCanvas() {
           altitude="L2"
           selectedRawId={live.id}
           selectedApiNodeId={live.apiNodeId}
-          onClose={() => setSelected(null)}
+          onClose={clearSelection}
         />
       )}
     </div>
+  );
+}
+
+function isEditable(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+}
+
+function HistoryButton(p: { label: string; aria: string; text: string; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={p.aria}
+      title={p.label}
+      disabled={p.disabled}
+      onClick={p.onClick}
+      style={{ opacity: p.disabled ? 0.4 : 1, cursor: p.disabled ? "default" : "pointer" }}
+    >
+      {p.text}
+    </button>
   );
 }
 
