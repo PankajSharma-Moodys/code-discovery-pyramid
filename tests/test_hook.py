@@ -411,3 +411,25 @@ class InstallHookTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SessionStartAndScriptEntryTest(unittest.TestCase):
+    """Run the way install registers it: `python3 .../cdp/hook.py`."""
+
+    HOOK = Path(__file__).resolve().parent.parent / "cdp" / "hook.py"
+
+    def _run(self, *args, stdin="{}"):
+        import subprocess, sys, tempfile
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, CDP_HOME=home)
+            return subprocess.run([sys.executable, str(self.HOOK), *args], input=stdin,
+                                  capture_output=True, text=True, env=env, timeout=60)
+
+    def test_script_entry_imports_the_package(self) -> None:
+        result = self._run("--explain")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Sample nudge", result.stdout)
+
+    def test_session_start_is_silent_for_an_unscanned_repo(self) -> None:
+        result = self._run("--session-start", stdin='{"cwd": "/tmp"}')
+        self.assertEqual((result.returncode, result.stdout), (0, ""))

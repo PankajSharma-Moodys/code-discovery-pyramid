@@ -82,6 +82,9 @@ NUDGE_ROLE = "source"
 #: "the index is worth mentioning."
 STRICT_MIN_COVERAGE = 0.95
 
+#: Seconds each of refresh/status may take at session start.
+SESSION_REFRESH_TIMEOUT = 60
+
 
 def nudge_text(sha: str, path: str, dirty: bool) -> str:
     lines = [
@@ -354,8 +357,48 @@ def payload(message: str, block: bool = False) -> Dict:
     }
 
 
+def session_start(event: Dict) -> Optional[str]:
+    """SessionStart: refresh the index (no model calls), return a short status.
+
+    Silent (None) when the repo was never scanned, or if refresh/status fail:
+    like the PreToolUse hook, this must never break starting a session.
+    """
+    cwd = Path(event.get("cwd") or os.getcwd())
+    if find_state(cwd) is None:
+        return None
+    run_py = Path(__file__).resolve().parent.parent / "run.py"
+    base = [sys.executable, str(run_py)]
+    try:
+        subprocess.run(base + ["refresh", "--repo", str(cwd), "--quiet"],
+                       capture_output=True, timeout=SESSION_REFRESH_TIMEOUT, check=False)
+        out = subprocess.run(base + ["status", "--repo", str(cwd), "--json"],
+                             capture_output=True, text=True,
+                             timeout=SESSION_REFRESH_TIMEOUT, check=False).stdout
+        status = json.loads(out)
+    except Exception:
+        return None
+    head = (status.get("head") or "unpinned")[:12]
+    cov = (status.get("coverage") or {}).get("fraction")
+    cov_text = "%d%%" % round(cov * 100) if isinstance(cov, (int, float)) else "unknown"
+    return ("CDP index for this repo: commit %s, coverage %s. Query before reading source: "
+            "`cdp query symbol <name>`, `cdp query file <path>`, `cdp query trace <entrypoint>`, "
+            "`cdp query coverage` (check before concluding something is absent)."
+            % (head, cov_text))
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--session-start" in argv:
+        try:
+            event = json.loads(sys.stdin.read() or "{}")
+            message = session_start(event if isinstance(event, dict) else {})
+        except Exception:
+            return 0
+        if message:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                                     "additionalContext": message},
+                              "systemMessage": message}))
+        return 0
     if "--explain" in argv:
         print(__doc__.strip())
         print()
@@ -382,4 +425,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
+    if not __package__:
+        # Run as `python3 .../cdp/hook.py` (how install registers it): relative
+        # imports need the package, so re-enter through it.
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from cdp.hook import main as _package_main
+        raise SystemExit(_package_main())
     raise SystemExit(main())

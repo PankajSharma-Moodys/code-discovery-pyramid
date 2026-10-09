@@ -44,7 +44,24 @@ def preview_install(target: Path, framework: str) -> Dict[str, Any]:
     else:
         agents_md_action = "none"
 
+    harness = None
+    if framework == "claude-code":
+        from cdp.install import HOOK_MATCHER, SESSION_MATCHER
+
+        harness = {
+            "flag": "cdp install --harness",
+            "remove": "cdp install --remove-harness",
+            "settings_file": str(target / ".claude" / "settings.json"),
+            "hooks": [
+                {"event": "PreToolUse", "matcher": HOOK_MATCHER},
+                {"event": "SessionStart", "matcher": SESSION_MATCHER},
+            ],
+            "mcp_file": str(target / ".mcp.json"),
+            "mcp_server": "cdp",
+        }
+
     return {
+        "harness": harness,
         "skill_dest": str(dest),
         "skill_members": list(DIST_MEMBERS),
         "leaf_agent_file": leaf_agent_file,

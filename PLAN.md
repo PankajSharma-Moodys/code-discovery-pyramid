@@ -164,6 +164,10 @@ CDP directly, so each phase's acceptance includes `web/tests` passing
   3. Run the MCP server against a real client; fix whatever breaks.
   4. One command, `cdp install --harness`, sets up 1–3.
   5. Cut `SKILL.md` to a short pointer.
+- **Status:** done except a live Claude Code session check. SessionStart hook,
+  `install --harness` / `--remove-harness`, stdio MCP server (own JSON-RPC,
+  verified with the `mcp` 2.3.0 client) and short `SKILL.md` are in; the old
+  `SKILL.md` is `docs/CDP_REFERENCE.md`.
 - **Acceptance:**
   - A fresh Claude Code session in an installed repo shows the CDP status
     without the model loading `SKILL.md`.

@@ -1,24 +1,23 @@
-"""Wires `tools.py` + `schemas.py` to the real `mcp` SDK's `Server`.
+"""stdio MCP server over `tools.py` + `schemas.py`.
 
-Not exercised end-to-end this session: the `mcp` PyPI package is not
-installed in this environment, so the SDK-facing half below (`create_server`,
-`main`) is written against its documented `Server`/stdio-transport shape but
-has not itself been run against a real MCP client. Per
-`PHASE/EXECUTION_RULES.md` R-E6 (design for the uncertainty rather than
-guessing further): `tools.py`/`schemas.py` carry no such risk -- they are
-plain functions and dicts, fully tested in `mcp_server/tests/test_tools.py`
-against a real scan -- and this file is a thin, mechanical adapter over them.
-Treat `create_server`/`main` as unverified until run against the installed
-SDK; everything they call is verified.
+Speaks the protocol directly (newline-delimited JSON-RPC 2.0: `initialize`,
+`ping`, `tools/list`, `tools/call`) instead of going through the `mcp` SDK.
+Verified against a real client (`mcp` 2.3.0's `ClientSession`); the SDK's
+server API differs between 1.x and 2.x, so depending on it meant a server
+that broke on whichever version a user happened to have installed.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+import sys
+from typing import Any, Dict, Optional
 
 from . import tools as tools_mod
 from .schemas import TOOL_SCHEMAS
+
+#: Newest first. The client's requested version is echoed back when we know it.
+PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
 
 def _call(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -27,52 +26,59 @@ def _call(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     return tools_mod.TOOLS[name](**arguments)
 
 
-def create_server() -> "Any":
-    """Builds a real `mcp.server.Server` registered with the three tools.
+def handle(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One JSON-RPC message in, the response out (None for notifications)."""
+    request_id = message.get("id")
+    method = message.get("method")
+    params = message.get("params") or {}
+    if request_id is None:
+        return None  # notifications (initialized, cancelled, ...) get no reply
 
-    Raises `ImportError` with a clear message if the `mcp` SDK is not
-    installed -- fail loudly (`PHASE/FINDINGS.md` F16's own posture) rather
-    than degrading silently into a server with no tools.
-    """
-    try:
-        from mcp.server import Server
-        from mcp.types import TextContent, Tool
-    except ImportError as exc:
-        raise ImportError(
-            "the `mcp` SDK is required to run the real server -- "
-            "`pip install cdp[mcp]`"
-        ) from exc
+    def ok(result: Dict[str, Any]) -> Dict[str, Any]:
+        return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
-    server = Server("cdp")
-
-    @server.list_tools()
-    async def list_tools() -> List[Tool]:
-        return [
-            Tool(name=name, description=schema["description"], inputSchema=schema["inputSchema"])
+    if method == "initialize":
+        asked = params.get("protocolVersion")
+        return ok({
+            "protocolVersion": asked if asked in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0],
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "cdp", "version": "1"},
+        })
+    if method == "ping":
+        return ok({})
+    if method == "tools/list":
+        return ok({"tools": [
+            {"name": name, "description": schema["description"],
+             "inputSchema": schema["inputSchema"]}
             for name, schema in TOOL_SCHEMAS.items()
-        ]
-
-    @server.call_tool()
-    async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        result = _call(name, arguments)
-        return [TextContent(type="text", text=json.dumps(result, sort_keys=True))]
-
-    return server
+        ]})
+    if method == "tools/call":
+        # Tool failures are results with isError, not protocol errors, so the
+        # model sees the message and can correct its call.
+        try:
+            result = _call(str(params.get("name")), params.get("arguments") or {})
+            return ok({"content": [{"type": "text", "text": json.dumps(result, sort_keys=True)}]})
+        except Exception as exc:  # noqa: BLE001 -- any failure is reported to the model
+            return ok({"content": [{"type": "text", "text": "%s: %s" % (type(exc).__name__, exc)}],
+                       "isError": True})
+    return {"jsonrpc": "2.0", "id": request_id,
+            "error": {"code": -32601, "message": "method not found: %s" % method}}
 
 
 def main() -> None:
-    """`python3 -m mcp_server.server` -- stdio transport, the SDK's default."""
-    import asyncio
-
-    from mcp.server.stdio import stdio_server
-
-    server = create_server()
-
-    async def _run() -> None:
-        async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream, server.create_initialization_options())
-
-    asyncio.run(_run())
+    """`python3 -m mcp_server.server` -- stdio transport."""
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        response = handle(message) if isinstance(message, dict) else None
+        if response is not None:
+            sys.stdout.write(json.dumps(response) + "\n")
+            sys.stdout.flush()
 
 
 if __name__ == "__main__":

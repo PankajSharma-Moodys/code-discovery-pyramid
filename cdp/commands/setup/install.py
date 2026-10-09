@@ -10,7 +10,7 @@ from pathlib import Path
 
 SPEC = Spec(
     group='setup',
-    usage='install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook]',
+    usage='install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook] [--harness] [--remove-harness]',
     what='Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent).',
     next='next: `scan --repo <target>` (printed for you). tip: `--hook` to auto-refresh on every commit, `--framework {langgraph,adk}` for non-Claude-Code leaves.',
 )
@@ -29,6 +29,13 @@ def register(add) -> None:
                         "none skips agent registration entirely")
     i.add_argument("--hook", action="store_true",
                    help="also install the PreToolUse nudge (claude-code only)")
+    i.add_argument("--harness", action="store_true",
+                   help="one-step Claude Code setup: the Read/Grep/Glob hook, a SessionStart "
+                        "hook that refreshes the index and shows its status, and the MCP "
+                        "server in .mcp.json (claude-code only)")
+    i.add_argument("--remove-harness", action="store_true",
+                   help="remove everything --harness / --hook added to settings.json and "
+                        ".mcp.json; copied skill files stay")
     i.add_argument("--strict", action="store_true",
                    help="with --hook, block the first source read of a session "
                         "instead of nudging, when the index is fresh and its "
@@ -58,12 +65,18 @@ def cmd_install(args) -> int:
     if not target.is_dir():
         raise CdpError("not a directory: %s" % target)
 
+    if getattr(args, "remove_harness", False):
+        for line in install_mod.remove_harness(target):
+            print(line)
+        return 0
+
     framework = getattr(args, "framework", "claude-code")
-    hook = getattr(args, "hook", False)
+    harness = getattr(args, "harness", False)
+    hook = getattr(args, "hook", False) or harness
     if hook and framework != "claude-code":
-        raise CdpError("--hook installs a Claude Code PreToolUse nudge; "
-                        "it does not apply to --framework %s" % framework)
+        raise CdpError("--hook/--harness set up Claude Code; "
+                        "they do not apply to --framework %s" % framework)
 
     install_mod.install(target, framework=framework, hook=hook,
-                        strict=getattr(args, "strict", False), say=print)
+                        strict=getattr(args, "strict", False), harness=harness, say=print)
     return 0

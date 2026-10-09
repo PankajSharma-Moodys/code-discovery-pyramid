@@ -158,12 +158,102 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     return notes
 
 
+SESSION_MATCHER = "startup|resume"
+
+
+def _load_json_object(path: Path, hint: str) -> Dict:
+    if not path.exists():
+        return {}
+    try:
+        data = read_json(path)
+    except ValueError:
+        raise CdpError("%s is not valid JSON; refusing to overwrite it. %s" % (path, hint))
+    if not isinstance(data, dict):
+        raise CdpError("%s does not contain a JSON object" % path)
+    return data
+
+
+def install_session_hook(target: Path, dest: Path) -> List[str]:
+    """Register the SessionStart hook: refresh the index, show a short status."""
+    settings_path = target / ".claude" / "settings.json"
+    settings = _load_json_object(settings_path, "Fix or move it, then re-run.")
+    command = "python3 %s --session-start" % (dest / "cdp" / "hook.py")
+    groups = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
+    already = any(isinstance(h, dict) and h.get("command") == command
+                  for g in groups if isinstance(g, dict) for h in g.get("hooks", []))
+    if not already:
+        groups.append({"matcher": SESSION_MATCHER,
+                       "hooks": [{"type": "command", "command": command, "timeout": 120}]})
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(settings_path, settings)
+    return ["hook      SessionStart (%s) -> refresh + status, in %s" % (SESSION_MATCHER, settings_path)]
+
+
+def install_mcp(target: Path) -> List[str]:
+    """Register the `cdp` MCP server in `<target>/.mcp.json`.
+
+    `mcp_server/` is not vendored into the target (see `DIST_MEMBERS`), so the
+    server runs from this checkout via PYTHONPATH.
+    """
+    mcp_path = target / ".mcp.json"
+    config = _load_json_object(mcp_path, "Fix or move it, then re-run.")
+    config.setdefault("mcpServers", {})["cdp"] = {
+        "command": "python3",
+        "args": ["-m", "mcp_server.server"],
+        "env": {"PYTHONPATH": str(SKILL_ROOT)},
+    }
+    write_json(mcp_path, config)
+    return ["mcp       server `cdp` (cdp_query, cdp_scan, cdp_status) -> %s" % mcp_path]
+
+
+def remove_harness(target: Path) -> List[str]:
+    """Undo `install_hook` / `install_session_hook` / `install_mcp`; leaves the
+    copied skill files and every non-CDP entry alone."""
+    notes: List[str] = []
+    settings_path = target / ".claude" / "settings.json"
+    if settings_path.exists():
+        settings = _load_json_object(settings_path, "Fix or move it, then re-run.")
+        hooks = settings.get("hooks")
+        removed = 0
+        if isinstance(hooks, dict):
+            for event in list(hooks):
+                kept_groups = []
+                for group in hooks[event]:
+                    handlers = group.get("hooks", []) if isinstance(group, dict) else []
+                    kept = [h for h in handlers
+                            if not (isinstance(h, dict) and "cdp/hook.py" in str(h.get("command", "")))]
+                    removed += len(handlers) - len(kept)
+                    if kept or not isinstance(group, dict):
+                        if isinstance(group, dict):
+                            group["hooks"] = kept
+                        kept_groups.append(group)
+                if kept_groups:
+                    hooks[event] = kept_groups
+                else:
+                    del hooks[event]
+            if not hooks:
+                del settings["hooks"]
+        write_json(settings_path, settings)
+        notes.append("removed   %d CDP hook(s) from %s" % (removed, settings_path))
+    mcp_path = target / ".mcp.json"
+    if mcp_path.exists():
+        config = _load_json_object(mcp_path, "Fix or move it, then re-run.")
+        servers = config.get("mcpServers")
+        if isinstance(servers, dict) and servers.pop("cdp", None) is not None:
+            if not servers:
+                del config["mcpServers"]
+            write_json(mcp_path, config)
+            notes.append("removed   MCP server `cdp` from %s" % mcp_path)
+    return notes
+
+
 def install(
     target: Path,
     *,
     framework: str = "claude-code",
     hook: bool = False,
     strict: bool = False,
+    harness: bool = False,
     say: Callable[..., None] = lambda *a: None,
 ) -> Path:
     """Copy the skill into `target`'s `.claude/skills/cdp/`, register the leaf agent for
@@ -185,8 +275,11 @@ def install(
     elif source_agents_md.exists():
         shutil.copy2(source_agents_md, agents_md)
         say("wrote     %s" % agents_md)
-    if hook:
+    if hook or harness:
         for line in install_hook(target, dest, strict=strict):
+            say(line)
+    if harness:
+        for line in install_session_hook(target, dest) + install_mcp(target):
             say(line)
     say("try       python3 %s scan --repo %s"
           % (dest / "run.py", target))

@@ -2,8 +2,7 @@
 acceptance line) and the SDK-free half of `server.py` (`_call`'s dispatch).
 
 Run by `make check-interfaces`, never by `make check` -- the real-protocol
-half of `server.py` (`create_server`/`main`) needs the `mcp` SDK installed;
-this file skips that part cleanly when it is absent.
+half of `server.py` (`handle`) is plain JSON-RPC, no SDK needed.
 """
 
 from __future__ import annotations
@@ -97,14 +96,18 @@ class CallDispatchTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             server_mod._call("not_a_real_tool", {})
 
-    def test_create_server_fails_loudly_without_the_sdk(self) -> None:
-        try:
-            import mcp  # noqa: F401
-        except ImportError:
-            with self.assertRaises(ImportError):
-                server_mod.create_server()
-        else:
-            self.skipTest("`mcp` SDK is installed -- this asserts the absent-SDK path")
+    def test_protocol_handshake_list_and_call(self) -> None:
+        init = server_mod.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                  "params": {"protocolVersion": "2025-06-18"}})
+        self.assertEqual(init["result"]["protocolVersion"], "2025-06-18")
+        self.assertIsNone(server_mod.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+        listed = server_mod.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        self.assertEqual([t["name"] for t in listed["result"]["tools"]], list(TOOL_SCHEMAS))
+        bad = server_mod.handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                                 "params": {"name": "nope", "arguments": {}}})
+        self.assertTrue(bad["result"]["isError"])
+        unknown = server_mod.handle({"jsonrpc": "2.0", "id": 4, "method": "x/y"})
+        self.assertEqual(unknown["error"]["code"], -32601)
 
 
 if __name__ == "__main__":

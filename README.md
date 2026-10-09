@@ -84,7 +84,7 @@ table below is that same guidance, gathered in one place.
 | `doctor --runner-cmd <cmd>` | Cross-model conformance harness: schema validity, anchor survival, entailment, recall, false-unknown rate against a golden set. Writes `<state>/doctor/<model>.json`. | next (only one model report so far): `doctor --model <other>` to build the compatibility table. |
 | `validate <patch.json>` | Validates a patch file against the schema. | — |
 | `githook install \| uninstall` | Installs/uninstalls git `post-commit`/`post-checkout` hooks that auto-run `cdp refresh`. | — |
-| `install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook]` | Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent). | next: `scan --repo <target>` (printed for you). tip: `--hook` to auto-refresh on every commit, `--framework {langgraph,adk}` for non-Claude-Code leaves. |
+| `install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook] [--harness] [--remove-harness]` | Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent). | next: `scan --repo <target>` (printed for you). tip: `--hook` to auto-refresh on every commit, `--framework {langgraph,adk}` for non-Claude-Code leaves. |
 | `selftest [--determinism <repo>] [--golden] [--min-tests N]` | Runs the bundled test suite (or the reproducibility/golden gates). | — |
 | `help [<command> \| workflows] [--json]` | When to use what, in what order, and what comes next — derived from the live parser, never hand-maintained. | — |
 
