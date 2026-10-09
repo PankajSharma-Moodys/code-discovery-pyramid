@@ -448,3 +448,20 @@ class SessionStartAndScriptEntryTest(unittest.TestCase):
     def test_session_start_is_silent_for_an_unscanned_repo(self) -> None:
         result = self._run("--session-start", stdin='{"cwd": "/tmp"}')
         self.assertEqual((result.returncode, result.stdout), (0, ""))
+
+
+@unittest.skipUnless(have_git(), "needs a real git repository")
+class SessionStartFromSubfolderTest(_OwnHome, unittest.TestCase):
+    """A session launched in `repo/sub` must still get the status line: the scan
+    is registered under the repo root, and refresh/status must be told that."""
+
+    def test_status_line_from_a_subfolder_of_the_scanned_repo(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.make_home()
+        repo = make_repo(Path(self.tmp.name))
+        main(["scan", "--repo", str(repo), "--quiet"])
+        message = hook_mod.session_start({"cwd": str(repo / "core")})
+        self.assertIsNotNone(message)
+        self.assertIn("CDP index for this repo is ready", message)
+        self.assertNotIn("could not be read", message)

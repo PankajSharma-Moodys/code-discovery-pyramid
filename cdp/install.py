@@ -161,7 +161,7 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     return notes
 
 
-SESSION_MATCHER = "startup|resume"
+SESSION_MATCHER = "startup|resume|clear|compact"
 
 
 def _load_json_object(path: Path, hint: str) -> Dict:
@@ -182,11 +182,15 @@ def install_session_hook(target: Path, dest: Path) -> List[str]:
     settings = _load_json_object(settings_path, "Fix or move it, then re-run.")
     command = "python3 %s --session-start" % (dest / "cdp" / "hook.py")
     groups = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
-    already = any(isinstance(h, dict) and h.get("command") == command
-                  for g in groups if isinstance(g, dict) for h in g.get("hooks", []))
-    if not already:
-        groups.append({"matcher": SESSION_MATCHER,
-                       "hooks": [{"type": "command", "command": command, "timeout": 120}]})
+    # Replace, not skip: an older install registered a narrower matcher
+    # (`startup|resume`), which never fires after `/clear`.
+    for group in groups:
+        if isinstance(group, dict) and isinstance(group.get("hooks"), list):
+            group["hooks"] = [h for h in group["hooks"]
+                              if not (isinstance(h, dict) and h.get("command") == command)]
+    groups[:] = [g for g in groups if not (isinstance(g, dict) and g.get("hooks") == [])]
+    groups.append({"matcher": SESSION_MATCHER,
+                   "hooks": [{"type": "command", "command": command, "timeout": 120}]})
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     write_json(settings_path, settings)
     return ["hook      SessionStart (%s) -> refresh + status, in %s" % (SESSION_MATCHER, settings_path)]

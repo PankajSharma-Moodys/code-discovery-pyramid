@@ -360,33 +360,43 @@ def payload(message: str, block: bool = False) -> Dict:
 def session_start(event: Dict) -> Optional[str]:
     """SessionStart: refresh the index (no model calls), return a short status.
 
-    Silent (None) when the repo was never scanned, or if refresh/status fail:
-    like the PreToolUse hook, this must never break starting a session.
+    Silent (None) when the repo was never scanned. A failure after that point
+    is reported in the message instead of swallowed: a hook that silently does
+    nothing is indistinguishable from one that never ran.
     """
     cwd = Path(event.get("cwd") or os.getcwd())
-    if find_state(cwd) is None:
+    found = find_state(cwd)
+    if found is None:
         return None
+    # The folder the scan is registered under, not the launch directory: a
+    # session started in a subfolder (`repo/sql-pool`) would otherwise resolve
+    # to a different, never-scanned identity and fail.
+    repo = found[2]
     run_py = Path(__file__).resolve().parent.parent / "run.py"
     base = [sys.executable, str(run_py)]
     try:
-        subprocess.run(base + ["refresh", "--repo", str(cwd), "--quiet"],
+        subprocess.run(base + ["refresh", "--repo", str(repo), "--quiet"],
                        capture_output=True, timeout=SESSION_REFRESH_TIMEOUT, check=False)
-        out = subprocess.run(base + ["status", "--repo", str(cwd), "--json"],
-                             capture_output=True, text=True,
-                             timeout=SESSION_REFRESH_TIMEOUT, check=False).stdout
-        status = json.loads(out)
-    except Exception:
-        return None
+        proc = subprocess.run(base + ["status", "--repo", str(repo), "--json"],
+                              capture_output=True, text=True,
+                              timeout=SESSION_REFRESH_TIMEOUT, check=False)
+        status = json.loads(proc.stdout)
+    except Exception as exc:  # noqa: BLE001 -- reported, never raised
+        return "CDP index exists but its status could not be read (%s)." % type(exc).__name__
     head = (status.get("head") or "unpinned")[:12]
+    fresh = status.get("freshness") or {}
     cov = (status.get("coverage") or {}).get("fraction")
-    cov_text = "%d%%" % round(cov * 100) if isinstance(cov, (int, float)) else "unknown"
-    return ("CDP index for this repo is ready: commit %s, coverage %s. BEFORE grepping, "
+    if isinstance(cov, (int, float)) and cov > 0:
+        depth = "model-reviewed coverage %d%%" % round(cov * 100)
+    else:
+        depth = "deterministic index (%s live claims, no model review)" % fresh.get("live", "?")
+    return ("CDP index for this repo is ready: commit %s, %s. BEFORE grepping, "
             "finding or reading source to locate code, use `cdp_query` (MCP) or "
             "`python3 .claude/skills/cdp/run.py query <kind> <name>`: it returns cited "
             "file:line locations; then Read only those ranges. Run "
             "`python3 .claude/skills/cdp/run.py help` once for every query kind and when "
             "to use it (trace, paths, symbol, table, config, routes, link). Run "
-            "`query coverage` before concluding something is absent." % (head, cov_text))
+            "`query coverage` before concluding something is absent." % (head, depth))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
