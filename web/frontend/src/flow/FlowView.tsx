@@ -1,6 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import { Background, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFlow } from "../api/flowHooks.ts";
 import { InspectorRail } from "../panels/InspectorRail.tsx";
 import { FlowBoxNode, FlowContainerNode } from "./FlowBoxNode.tsx";
@@ -8,7 +8,7 @@ import { toRfEdges, toRfNodes } from "./flowGraph.ts";
 import { layoutFlow } from "./flowLayout.ts";
 import { buildView, trace, type ViewEdge, type ViewNode } from "./flowModel.ts";
 
-const nodeTypes = { flowBox: FlowBoxNode, group: FlowContainerNode };
+const nodeTypes = { flowBox: FlowBoxNode, flowGroup: FlowContainerNode };
 const EMPTY = "No data-flow edges in this scan — try “+ calls”, or run Scan on a repo with routes/tables.";
 
 function FlowCanvas() {
@@ -18,22 +18,45 @@ function FlowCanvas() {
   const [hoverEdge, setHoverEdge] = useState<{ edge: ViewEdge; x: number; y: number } | null>(null);
   const { data, error, isLoading } = useFlow(include);
   const { fitView } = useReactFlow();
+  const pendingFit = useRef<string | null>(null); // container id just expanded
 
   const model = useMemo(() => (data ? buildView(data, expanded) : null), [data, expanded]);
   const boxes = useMemo(() => (model && model.nodes.length ? layoutFlow(model) : null), [model]);
-  const tr = useMemo(() => (model && selected ? trace(model.edges, selected.id) : null), [model, selected]);
+  // A selection that no longer exists (include toggle, refetch) is dropped.
+  const live = selected && model?.nodes.some((n) => n.id === selected.id) ? selected : null;
+  const tr = useMemo(() => (model && live ? trace(model.edges, live.id) : null), [model, live]);
+  const collapse = useCallback(
+    (id: string) =>
+      setExpanded((s) => {
+        const next = new Set(s);
+        next.delete(id);
+        return next;
+      }),
+    [],
+  );
   const rfNodes = useMemo(
-    () => (model && boxes ? toRfNodes(model.nodes, boxes, tr, selected?.id ?? null) : []),
-    [model, boxes, tr, selected],
+    () =>
+      model && boxes
+        ? toRfNodes(model.nodes, boxes, tr, live?.id ?? null).map((n) =>
+            n.type === "flowGroup" ? { ...n, data: { ...n.data, onCollapse: () => collapse(n.id) } } : n,
+          )
+        : [],
+    [model, boxes, tr, live, collapse],
   );
   const rfEdges = useMemo(
-    () => (model ? toRfEdges(model.edges, tr, selected?.id ?? null) : []),
-    [model, tr, selected],
+    () => (model ? toRfEdges(model.edges, tr, live?.id ?? null) : []),
+    [model, tr, live],
   );
 
-  // Re-fit after the layout changes (expand/collapse, include toggles).
+  // Fit all on first load / collapse / include change; after an expand,
+  // centre on the expanded container instead of zooming the whole graph out.
   useEffect(() => {
-    if (boxes) requestAnimationFrame(() => void fitView({ padding: 0.15 }));
+    if (!boxes) return;
+    const target = pendingFit.current;
+    pendingFit.current = null;
+    requestAnimationFrame(() =>
+      void fitView(target ? { nodes: [{ id: target }], padding: 0.1, maxZoom: 1 } : { padding: 0.15 }),
+    );
   }, [boxes, fitView]);
 
   useEffect(() => {
@@ -49,15 +72,11 @@ function FlowCanvas() {
     const n = (rf.data as { node: ViewNode }).node;
     if (n.isGroup) {
       if (n.count > 150 && !window.confirm(`Expand ${n.count} items?`)) return;
+      pendingFit.current = n.id;
       setExpanded((s) => new Set(s).add(n.id));
       setSelected(null);
     } else if (n.isContainer) {
-      setExpanded((s) => {
-        const next = new Set(s);
-        next.delete(n.id);
-        return next;
-      });
-      setSelected(null);
+      setSelected(null); // collapse is via the frame header only
     } else {
       setSelected(n);
     }
@@ -65,7 +84,7 @@ function FlowCanvas() {
 
   let body;
   if (isLoading) body = <Centered>loading flow…</Centered>;
-  else if (error) body = <Centered>{error instanceof Error ? error.message : JSON.stringify(error)}</Centered>;
+  else if (error) body = <Centered>{errorText(error)}</Centered>;
   else if (!data || data.edges.length === 0 || !boxes) body = <Centered>{EMPTY}</Centered>;
   else
     body = (
@@ -107,16 +126,23 @@ function FlowCanvas() {
           {Object.entries(hoverEdge.edge.kinds).map(([k, c]) => `${k} · ${c}`).join(", ")}
         </div>
       )}
-      {selected && !selected.isGroup && !selected.isContainer && (
+      {live && !live.isGroup && !live.isContainer && (
         <InspectorRail
           altitude="L2"
-          selectedRawId={selected.id}
-          selectedApiNodeId={selected.apiNodeId}
+          selectedRawId={live.id}
+          selectedApiNodeId={live.apiNodeId}
           onClose={() => setSelected(null)}
         />
       )}
     </div>
   );
+}
+
+function errorText(error: unknown): string {
+  const detail = (error as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string") return detail;
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === "string" ? message : "failed to load flow";
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

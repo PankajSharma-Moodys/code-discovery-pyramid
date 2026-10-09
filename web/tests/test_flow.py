@@ -76,6 +76,20 @@ class BuildFlowTest(unittest.TestCase):
         self.assertEqual((jobs[0]["role"], jobs[0]["group"]), ("source", "group:jobs"))
         self.assertNotIn("schedule", {x["kind"] for x in out["edges"]})
 
+    def test_job_call_edge_kept_by_default(self):
+        out = self.flow([
+            e("jobs.Nightly", "library:io.dropwizard.jobs", "schedule"),
+            e("jobs.Nightly", "dal.Repo", "call"),
+            e("dal.Repo", "table:users", "persist"),
+            e("api.Res", "dal.Repo", "call"),
+        ])
+        groups = {x["id"]: x["group"] for x in out["nodes"]}
+        self.assertEqual(groups["jobs.Nightly"], "group:jobs")
+        pairs = {(x["source"], x["target"], x["kind"]) for x in out["edges"]}
+        self.assertIn(("jobs.Nightly", "dal.Repo", "call"), pairs)
+        self.assertIn(("dal.Repo", "table:users", "persist"), pairs)
+        self.assertNotIn(("api.Res", "dal.Repo", "call"), pairs)
+
     def test_tests_excluded(self):
         out = self.flow([e("jobs.NightlyTest", "table:users", "persist")])
         self.assertEqual(out, {"nodes": [], "groups": [], "edges": []})

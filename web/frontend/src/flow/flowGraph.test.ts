@@ -20,6 +20,13 @@ describe("flowGraph", () => {
     expect(rf[0].position).toEqual({ x: 100, y: 50 });
   });
 
+  it("tints upstream blue and downstream orange, selected keeps role colour", () => {
+    const nodes = [vn("u"), vn("s"), vn("d")];
+    const boxes = new Map(nodes.map((n) => [n.id, { x: 0, y: 0, width: 10, height: 10 }]));
+    const rf = toRfNodes(nodes, boxes, { upstream: new Set(["u"]), downstream: new Set(["d"]) }, "s");
+    expect(rf.map((n) => n.data.tint)).toEqual([UPSTREAM, null, DOWNSTREAM]);
+  });
+
   it("colours trace edges and dims the rest", () => {
     const edges = [
       { id: "1", source: "u", target: "s", count: 3, kinds: {} },

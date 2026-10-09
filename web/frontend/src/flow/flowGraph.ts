@@ -8,6 +8,10 @@ const DIM = 0.2;
 
 export interface FlowNodeData extends Record<string, unknown> {
   node: ViewNode;
+  /** Trace border colour (upstream/downstream); null when not traced. */
+  tint: string | null;
+  /** Containers only: collapse this expanded group. */
+  onCollapse?: () => void;
 }
 
 /** Boxes -> React Flow nodes. Children use parent-relative positions and
@@ -22,17 +26,22 @@ export function toRfNodes(
     const b = boxes.get(n.id)!;
     const pb = n.parent ? boxes.get(n.parent) : undefined;
     const lit = !tr || n.id === selectedId || tr.upstream.has(n.id) || tr.downstream.has(n.id);
+    // Trace tint; the selected node keeps its role colour.
+    const tint =
+      tr && n.id !== selectedId && !n.isContainer
+        ? tr.upstream.has(n.id) ? UPSTREAM : tr.downstream.has(n.id) ? DOWNSTREAM : null
+        : null;
     const node: Node<FlowNodeData> = {
       id: n.id,
-      type: n.isContainer ? "group" : "flowBox",
+      type: n.isContainer ? "flowGroup" : "flowBox",
       position: { x: b.x - (pb?.x ?? 0), y: b.y - (pb?.y ?? 0) },
-      data: { node: n },
+      data: { node: n, tint },
       style: { width: b.width, height: b.height, opacity: lit ? 1 : DIM },
       ...(n.parent ? { parentId: n.parent } : {}),
     };
     return node;
   });
-  return out.sort((a, b) => Number(b.type === "group") - Number(a.type === "group"));
+  return out.sort((a, b) => Number(b.type === "flowGroup") - Number(a.type === "flowGroup"));
 }
 
 export function toRfEdges(

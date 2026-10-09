@@ -9,14 +9,14 @@ const ROLE_BORDER = {
 
 /** Leaf or collapsed-group box. */
 export function FlowBoxNode({ data }: NodeProps) {
-  const n = (data as FlowNodeData).node;
+  const { node: n, tint } = data as FlowNodeData;
   return (
     <div
       className="flex h-full w-full items-center justify-between gap-2 rounded px-2 text-xs"
       style={{
         background: "var(--atlas-bg-2)",
         color: "var(--atlas-text)",
-        border: `1px solid ${ROLE_BORDER[n.role]}`,
+        border: `1px solid ${tint ?? ROLE_BORDER[n.role]}`,
         cursor: "pointer",
       }}
       title={n.label}
@@ -35,13 +35,21 @@ export function FlowBoxNode({ data }: NodeProps) {
 
 /** Expanded group frame with a header label; clicking it collapses. */
 export function FlowContainerNode({ data }: NodeProps) {
+  const onCollapse = (data as FlowNodeData).onCollapse;
   const n = (data as FlowNodeData).node;
   return (
     <div
       className="h-full w-full rounded"
-      style={{ border: `1px dashed ${ROLE_BORDER[n.role]}`, background: "rgba(127,127,127,0.06)", cursor: "pointer" }}
+      style={{ border: `1px dashed ${ROLE_BORDER[n.role]}`, background: "rgba(127,127,127,0.06)" }}
     >
-      <div className="px-2 py-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+      <div
+        className="px-2 py-1 text-xs"
+        style={{ color: "var(--atlas-text-dim)", cursor: "pointer" }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCollapse?.();
+        }}
+      >
         {n.label} ▾
       </div>
     </div>

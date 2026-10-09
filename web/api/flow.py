@@ -64,7 +64,8 @@ def build_flow(nodes: List[dict], edges: List[dict], include: Iterable[str] = ()
 
     for edge in edges:
         kind, s, t = edge["kind"], edge["source"], edge["target"]
-        if kind not in wanted or s not in by_id or t not in by_id or is_test(s) or is_test(t):
+        # A job's first hop is a call; keep it so jobs reach data by default.
+        if (kind not in wanted and not (kind == "call" and s in jobs)) or s not in by_id or t not in by_id or is_test(s) or is_test(t):
             continue
         if typ(s) not in CODE_TYPES:
             continue
