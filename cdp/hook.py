@@ -399,8 +399,38 @@ def session_start(event: Dict) -> Optional[str]:
             "`query coverage` before concluding something is absent." % (head, depth))
 
 
+def prompt_submit(event: Dict) -> Optional[str]:
+    """UserPromptSubmit: the one hook that runs before the model's first move.
+
+    Once per session, and only for a repo with a scan. No refresh here (the
+    SessionStart hook did that); just the instruction, so it arrives with the
+    prompt instead of after the model has already started grepping.
+    """
+    cwd = Path(event.get("cwd") or os.getcwd())
+    found = find_state(cwd)
+    if found is None:
+        return None
+    home, repo_id, _repo = found
+    if not claim_session(home / "work" / repo_id, str(event.get("session_id") or "no-session") + ":prompt"):
+        return None
+    return ("This repo has a CDP index. To locate code or trace a flow, call `cdp_query` "
+            "(MCP; kinds: trace, paths, symbol, table, config, routes) FIRST, before grep/find/Read; "
+            "then Read only the cited line ranges. `python3 .claude/skills/cdp/run.py help` "
+            "lists every query.")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--prompt-submit" in argv:
+        try:
+            event = json.loads(sys.stdin.read() or "{}")
+            message = prompt_submit(event if isinstance(event, dict) else {})
+        except Exception:
+            return 0
+        if message:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                                     "additionalContext": message}}))
+        return 0
     if "--session-start" in argv:
         try:
             event = json.loads(sys.stdin.read() or "{}")

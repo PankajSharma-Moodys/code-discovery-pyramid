@@ -191,9 +191,20 @@ def install_session_hook(target: Path, dest: Path) -> List[str]:
     groups[:] = [g for g in groups if not (isinstance(g, dict) and g.get("hooks") == [])]
     groups.append({"matcher": SESSION_MATCHER,
                    "hooks": [{"type": "command", "command": command, "timeout": 120}]})
+    # UserPromptSubmit runs before the model's first tool call, which no other
+    # hook can promise (PreToolUse only sees the tools it matches).
+    prompt_command = "python3 %s --prompt-submit" % (dest / "cdp" / "hook.py")
+    prompt_groups = settings["hooks"].setdefault("UserPromptSubmit", [])
+    for group in prompt_groups:
+        if isinstance(group, dict) and isinstance(group.get("hooks"), list):
+            group["hooks"] = [h for h in group["hooks"]
+                              if not (isinstance(h, dict) and h.get("command") == prompt_command)]
+    prompt_groups[:] = [g for g in prompt_groups if not (isinstance(g, dict) and g.get("hooks") == [])]
+    prompt_groups.append({"hooks": [{"type": "command", "command": prompt_command, "timeout": 30}]})
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     write_json(settings_path, settings)
-    return ["hook      SessionStart (%s) -> refresh + status, in %s" % (SESSION_MATCHER, settings_path)]
+    return ["hook      SessionStart (%s) -> refresh + status; UserPromptSubmit -> use the index first, in %s"
+            % (SESSION_MATCHER, settings_path)]
 
 
 def install_mcp(target: Path) -> List[str]:

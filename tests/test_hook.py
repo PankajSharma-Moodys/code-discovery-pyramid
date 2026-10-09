@@ -465,3 +465,17 @@ class SessionStartFromSubfolderTest(_OwnHome, unittest.TestCase):
         self.assertIsNotNone(message)
         self.assertIn("CDP index for this repo is ready", message)
         self.assertNotIn("could not be read", message)
+
+
+@unittest.skipUnless(have_git(), "needs a real git repository")
+class PromptSubmitTest(_OwnHome, unittest.TestCase):
+    def test_once_per_session_and_silent_without_a_scan(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.make_home()
+        repo = make_repo(Path(self.tmp.name))
+        ev = {"cwd": str(repo), "session_id": self.id()}
+        self.assertIsNone(hook_mod.prompt_submit(ev))  # not scanned yet
+        main(["scan", "--repo", str(repo), "--quiet"])
+        self.assertIn("cdp_query", hook_mod.prompt_submit(ev))
+        self.assertIsNone(hook_mod.prompt_submit(ev))
