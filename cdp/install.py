@@ -60,7 +60,8 @@ def copy_distribution(dest: Path) -> None:
             shutil.copy2(src, dest / member)
 
 
-def register_leaf_agent(target: Path, framework: str) -> None:
+def register_leaf_agent(target: Path, framework: str,
+                        say: Callable[..., None] = lambda *a: None) -> None:
     """Point `target` at whatever produces leaf patches for `framework`.
 
     `claude-code` is the only framework with a file to copy: `.claude/agents/`
@@ -78,12 +79,12 @@ def register_leaf_agent(target: Path, framework: str) -> None:
         source_agent = SKILL_ROOT / "agents" / "cdp-leaf.md"
         if source_agent.exists():
             shutil.copy2(source_agent, agents / "cdp-leaf.md")
-            print("installed %s" % (agents / "cdp-leaf.md"))
+            say("installed %s" % (agents / "cdp-leaf.md"))
     elif framework in ("langgraph", "adk"):
         module = "agent_adapter.%s_leaf" % framework
-        print("no files copied for --framework %s -- in %s, run:" % (framework, target))
-        print("  pip install cdp[agent]")
-        print("  from %s import run_leaf" % module)
+        say("no files copied for --framework %s -- in %s, run:" % (framework, target))
+        say("  pip install cdp[agent]")
+        say("  from %s import run_leaf" % module)
     elif framework == "none":
         pass
 
@@ -171,7 +172,7 @@ def install(
     copy_distribution(dest)
     say("installed %s" % dest)
 
-    register_leaf_agent(target, framework)
+    register_leaf_agent(target, framework, say)
 
     # Tier-0 (7.9): a root-level AGENTS.md works for any assistant, hook-less
     # or not — Cursor, Codex, Copilot, Aider all read it. Placed at the

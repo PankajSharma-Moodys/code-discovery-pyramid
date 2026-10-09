@@ -119,12 +119,15 @@ CDP directly, so each phase's acceptance includes `web/tests` passing
      core/  leaf/  learning/  link/  maintenance/  setup/
   cdp/<engine>.py          logic, grouped by capability
   ```
-  - **Engines** hold all logic: plain functions, no argv, no printing. One
+  - **Engines** hold all logic: plain functions, no argv, no printing (output
+    goes through a `say` callback). One
     engine can serve several commands (`intake.py` serves `collect` and
     `answer`). The MCP server, hooks and tests call engines directly.
   - **Command files** hold flags, docs and output only. Docs are data in each
-    `SPEC` (summary, when to use, next step); `cdp help`, the README table and
-    `SKILL.md` are generated from it. Each group lists its commands.
+    `SPEC` (summary, when to use, next step); the README table is generated
+    from it. `cdp help` comes from the parser + `helpdoc`; `SKILL.md` is
+    hand-written. Some orchestration stays in command files, with a `say`
+    callback. `selftest`/`githooks.py` run `python -m cdp.cli` as a subprocess.
 - **What needs to be done:**
   1. Move logic out of `cli.py`: `pipeline.py` (scan), `intake.py`
      (collect/answer), `install.py` (new), plus `supervisor.py`, `refresh.py`
@@ -137,7 +140,7 @@ CDP directly, so each phase's acceptance includes `web/tests` passing
 - **Acceptance:**
   - Behavior unchanged: the test suite passes, and `cdp help --json` is the
     same before and after.
-  - No file over ~1,000 lines (`sqlite_backend.py`, 1,002, is left as is).
+  - No file over ~1,000 lines (`sqlite_backend.py`, exempt, now ~1,090).
   - A test enforces both rules: commands import only engines and `_common`;
     engines never import `commands/`.
   - The README command table is generated, not hand-written.

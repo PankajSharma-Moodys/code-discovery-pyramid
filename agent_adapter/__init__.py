@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict
 
 from cdp import helpdoc
-from cdp.cli import build_parser
+from cdp.parser import build_parser
 from mcp_server import tools as mcp_tools
 
 #: `mcp_server.tools.TOOLS`' keys are also `cdp help --json`'s command names

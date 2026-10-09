@@ -50,7 +50,7 @@ class LayeringTest(unittest.TestCase):
     def test_engines_never_import_commands(self) -> None:
         bad = []
         for path in sorted(CDP.rglob("*.py")):
-            if COMMANDS in path.parents or path.name in ("cli.py", "__main__.py"):
+            if COMMANDS in path.parents or path.name in ("cli.py", "parser.py", "__main__.py"):
                 continue
             for line, mod, names in _targets(path):
                 if mod[:1] == ["commands"]:
