@@ -115,6 +115,24 @@ class ScanEndpointTest(unittest.TestCase):
         hits = [v for v in _all_registry_entries().values() if Path(v).resolve() == target]
         self.assertEqual(len(hits), 1, _all_registry_entries())
 
+    def test_non_git_registered_id_matches_snapshot_repo_id(self) -> None:
+        shutil.rmtree(self.repo / ".git")
+        resp = self.client.post("/api/scan", params={"repo": str(self.repo)}, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        job = self._wait(resp.json()["job_id"])
+        self.assertEqual(job["returncode"], 0, job["log_tail"])
+        from web.api.app import _all_registry_entries
+        from web.api.store_reader import ReadOnlyConnection
+
+        conn = ReadOnlyConnection(self.repo / ".cdp" / "index.db")
+        try:
+            snapshot_repo_id = conn.snapshot_repo_id(conn.latest_pinned_snapshot())
+        finally:
+            conn.close()
+        target = (self.repo / ".cdp").resolve()
+        ids = [k for k, v in _all_registry_entries().items() if Path(v).resolve() == target]
+        self.assertEqual(ids, [snapshot_repo_id])
+
     def test_home_is_400(self) -> None:
         with mock.patch.object(Path, "home", return_value=self.repo):
             with mock.patch("web.api.app.jobs_mod.spawn_or_join") as spawn:

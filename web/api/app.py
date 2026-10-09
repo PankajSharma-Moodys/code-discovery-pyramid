@@ -1706,7 +1706,8 @@ def post_scan(repo: str = Query(..., description="folder to scan")) -> JobRespon
     """Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses
     `resolve_state_dir`: that would honour the server's `CDP_STORE`/registry
     and overwrite an unrelated repo's store. Because an explicit `--state-dir`
-    makes `cmd_scan` skip registration, this endpoint registers the folder."""
+    makes `cmd_scan` skip registration, the folder is registered by `get_job`
+    once the scan has finished."""
     repo_path = Path(repo).expanduser().resolve()
     if not repo_path.is_dir():
         raise HTTPException(status_code=404, detail="not a directory: %s" % repo_path)
@@ -1718,11 +1719,6 @@ def post_scan(repo: str = Query(..., description="folder to scan")) -> JobRespon
     # Rescanning the store this server serves would rewrite it under live readers.
     if state_dir.resolve() == resolve_state_dir(Path("."), None):
         raise HTTPException(status_code=409, detail="%s is the store this server is serving; refusing to rescan it" % state_dir)
-    # Non-git folders get a fresh random identity per call (registry
-    # `_persisted_uuid`), so only register when no entry already points here.
-    already = any(Path(v).expanduser().resolve() == state_dir.resolve() for v in _all_registry_entries().values())
-    if not already:
-        registry_mod.register(registry_mod.repo_identity(repo_path), state_dir)
     job, joined = jobs_mod.spawn_or_join("scan", str(repo_path), str(state_dir), [])
     return JobResponse(
         job_id=job.job_id, status="joined" if joined else "started",
@@ -1730,15 +1726,33 @@ def post_scan(repo: str = Query(..., description="folder to scan")) -> JobRespon
     )
 
 
+def _register_scanned_state_dir(state_dir: Path) -> None:
+    resolved = state_dir.resolve()
+    if any(Path(v).expanduser().resolve() == resolved for v in _all_registry_entries().values()):
+        return
+    repo_id = _store_repo_id(state_dir)
+    if repo_id is not None:
+        registry_mod.register(repo_id, state_dir)
+
+
 @app.get("/api/job/{job_id}", response_model=JobStatusResponse)
 def get_job(job_id: str) -> JobStatusResponse:
     """Poll for a job's completion when there is no task table to watch --
     `POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such
-    caller; `/api/run`/`/api/refresh` instead poll `/api/status`."""
+    caller; `/api/run`/`/api/refresh` instead poll `/api/status`.
+
+    A finished successful `scan` job also registers its state dir here. The
+    explicit `--state-dir` `POST /api/scan` passes makes `cmd_scan` skip
+    registering, and non-git folders get a fresh random identity per
+    `repo_identity()` call, so only the finished scan's own snapshot knows
+    the id it was recorded under. Idempotent: skipped when an entry already
+    maps to that state dir."""
     job = jobs_mod.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="unknown job_id %r (server restart loses these)" % job_id)
     running = job.is_running()
+    if job.kind == "scan" and not running and job.returncode == 0:
+        _register_scanned_state_dir(Path(job.state_dir))
     return JobStatusResponse(
         job_id=job.job_id, kind=job.kind, repo=job.repo, state_dir=job.state_dir,
         running=running, returncode=job.returncode,
