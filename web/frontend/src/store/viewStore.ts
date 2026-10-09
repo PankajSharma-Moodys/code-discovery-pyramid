@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type View = "atlas" | "control-room" | "links";
+export type View = "flow" | "atlas" | "control-room" | "links" | "setup";
 
 /** Lifted out of `App.tsx`'s local `useState` so `AskBar` -- mounted once,
  * shared by both rooms per `WEB_RESEARCH.md` §2 ("same cmd-K, same ask-bar,
@@ -12,6 +12,6 @@ interface ViewState {
 }
 
 export const useViewStore = create<ViewState>((set) => ({
-  view: "atlas",
+  view: "flow",
   setView: (view) => set({ view }),
 }));

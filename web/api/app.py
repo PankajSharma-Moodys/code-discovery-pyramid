@@ -23,11 +23,15 @@ threadpool.
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import json
+import sqlite3
+import shlex
 import subprocess
 import sys
 import time
 import tomllib
+import uuid
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -44,14 +48,19 @@ from cdp import util as cdp_util
 from cdp.store import registry as registry_mod
 
 from . import encoding
+from . import flow as flow_mod
 from . import hookup as hookup_mod
 from . import jobs as jobs_mod
 from . import nodeid
 from .auth import require_mutation_auth
 from .models import (
+    RunSpendResponse,
     ConfidenceResponse,
     DiffResponse,
     DoctorResponse,
+    FlowResponse,
+    FsEntry,
+    FsListResponse,
     GraphResponse,
     InstallPreviewResponse,
     InstallResultResponse,
@@ -944,6 +953,28 @@ def get_graph(
     return GraphResponse(**result)
 
 
+@app.get("/api/flow", response_model=FlowResponse)
+def get_flow(
+    include: Optional[List[str]] = Query(None, description="extra edge kinds: calls, config (repeatable)"),
+    repo: str = Query(".", description="repo path to resolve state for"),
+    state_dir: Optional[str] = Query(None, alias="state_dir"),
+) -> FlowResponse:
+    """Flow tab payload: the same typed dataflow graph `/api/graph` L2 serves,
+    reduced to source -> sink data edges by `web/api/flow.py`."""
+    unknown = sorted(set(include or []) - set(flow_mod.OPTIONAL_KINDS))
+    if unknown:
+        raise HTTPException(status_code=400, detail="unknown include %s -- one of %s"
+                            % (unknown, sorted(flow_mod.OPTIONAL_KINDS)))
+    try:
+        conn = ReadOnlyConnection(resolve_state_dir(Path(repo), state_dir) / "index.db")
+        base = _dataflow_graph(conn, conn.latest_pinned_snapshot())
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return FlowResponse(**flow_mod.build_flow(base["nodes"], base["edges"], include or []))
+
+
 #: Most-conservative-wins, mirroring `theme/confidence.ts`'s `dominantConfidence`
 #: -- a node with any low/contested claim is not "high confidence" just because
 #: it also has a high-confidence one.
@@ -1066,6 +1097,23 @@ def _all_registry_entries() -> dict:
     except (OSError, ValueError):
         return {}
     return {str(k): str(v) for k, v in data.get("repos", {}).items()}
+
+
+def _store_repo_id(state_dir: Path) -> Optional[str]:
+    """The `repo_id` the store's latest pinned snapshot was recorded under,
+    or None if the store can't be read (the caller falls back, and the row
+    itself then surfaces the real error via `_build_repo_info`)."""
+    db_path = state_dir / "index.db"
+    if not db_path.is_file():
+        return None
+    conn = ReadOnlyConnection(db_path)
+    try:
+        return conn.snapshot_repo_id(conn.latest_pinned_snapshot())
+    except (StoreUnavailable, StoreLocked, sqlite3.DatabaseError):
+        # DatabaseError: index.db exists but isn't a valid sqlite file.
+        return None
+    finally:
+        conn.close()
 
 
 def _build_repo_info(repo_id: str, state_path_str: str) -> dict:
@@ -1262,6 +1310,42 @@ def get_node(
     return NodeResponse(**result)
 
 
+@app.get("/api/fs/list", response_model=FsListResponse)
+def get_fs_list(
+    path: Optional[str] = Query(None, description="directory to list; defaults to $HOME"),
+) -> FsListResponse:
+    """Read-only folder browser for the "Open folder..." picker. Lists
+    subdirectories only (never file contents), skips dotfiles, and flags
+    which folders are git repos or already carry a `.cdp` scan so the UI can
+    pick the right action. Paths are returned resolved and absolute because
+    the client derives `<path>/.cdp` from them."""
+    target = Path(path).expanduser().resolve() if path else Path.home().resolve()
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail=f"not a directory: {target}")
+
+    def flags(d: Path) -> tuple[bool, bool]:
+        return (d / ".git").exists(), (d / ".cdp" / "index.db").is_file()
+
+    entries: List[FsEntry] = []
+    try:
+        children = sorted(target.iterdir(), key=lambda p: p.name.lower())
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=f"permission denied: {target}") from exc
+    for child in children:
+        if child.name.startswith("."):
+            continue
+        try:
+            if not child.is_dir():
+                continue
+            is_git, has_scan = flags(child)
+        except OSError:
+            continue
+        entries.append(FsEntry(name=child.name, path=str(child.resolve()), is_git=is_git, has_scan=has_scan))
+    is_git, has_scan = flags(target)
+    parent = None if target.parent == target else str(target.parent)
+    return FsListResponse(path=str(target), parent=parent, is_git=is_git, has_scan=has_scan, entries=entries)
+
+
 @app.get("/api/repos", response_model=ReposResponse)
 def get_repos(
     repo: str = Query(".", description="repo path to resolve state for"),
@@ -1297,11 +1381,18 @@ def get_repos(
             current_repo_id = repo_id
             break
     if current_repo_id is None:
-        current_repo_id = registry_mod.repo_identity(Path(repo).expanduser().resolve())
+        # Name the served store by the identity its own snapshot was scanned
+        # under, not the server cwd's git remote: with `CDP_STORE` pointing at
+        # another repo's scan, the cwd identity names the wrong repo entirely.
+        current_repo_id = _store_repo_id(current_state_dir) or registry_mod.repo_identity(
+            Path(repo).expanduser().resolve()
+        )
 
     ordered_ids = [current_repo_id] + sorted(rid for rid in entries if rid != current_repo_id)
     state_dirs = dict(entries)
-    state_dirs.setdefault(current_repo_id, str(current_state_dir))
+    # The current row always describes the store actually being served; a
+    # registry entry under the same id but naming another dir must not win.
+    state_dirs[current_repo_id] = str(current_state_dir)
 
     repos = []
     for repo_id in ordered_ids:
@@ -1579,25 +1670,95 @@ def _run_extra_args(target: str, resume: bool) -> list:
     return extra
 
 
+_RUNNER_MODELS = {"sonnet", "opus", "haiku"}
+
+
+def _recorded_repo(state_dir: Path) -> str:
+    """The repo path the store's scan recorded (`inventory.repo`). The UI's
+    default `repo="."` is the server's cwd, which `cdp run`'s repo-mismatch
+    guard rejects, so runner mode always uses the recorded path."""
+    conn = None
+    try:
+        conn = ReadOnlyConnection(state_dir / "index.db")
+        inventory = conn.read_artifact(conn.latest_pinned_snapshot(), "inventory", default={})
+    except StoreUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreLocked as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    finally:
+        if conn is not None:
+            conn.close()
+    repo = (inventory or {}).get("repo")
+    if not repo or not Path(repo).is_dir():
+        raise HTTPException(status_code=409, detail="this store has no usable recorded repo path (%r)" % repo)
+    return str(repo)
+
+
 @app.post("/api/run", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
 def post_run(
     repo: str = Query(".", description="repo path to resolve state for"),
     state_dir: Optional[str] = Query(None, alias="state_dir"),
     target: str = Query("wave-all", description="wave-all | stale-only | scope:<node> | wave:<n>"),
     resume: bool = Query(True, description="pass --resume through so a restarted job can rejoin"),
+    use_claude_runner: bool = Query(False, description="run leaf agents through headless Claude Code"),
+    model: str = Query("sonnet", description="Claude runner model: sonnet | opus | haiku"),
+    run_budget_usd: float = Query(5.0, description="Claude runner spend cap for this launch (USD, estimate)"),
 ) -> JobResponse:
     """Shells out to `cdp run` (`web/api/jobs.py`'s `spawn_or_join`) rather
     than calling `supervisor` in-process -- the subprocess inherits the real
     lock, `--resume`'s lease logic, and the repo-mismatch guard for free. A
     second POST while one is in flight for this `(repo, state_dir)` returns
-    the same job's handle (`status="joined"`), not a second process."""
+    the same job's handle (`status="joined"`), not a second process.
+
+    With `use_claude_runner=true` the leaf agents run through headless Claude
+    Code (`cdp/runners/claude_code.py`), configured via `CDP_RUNNER_*` env and
+    capped by `run_budget_usd`; the job's `--repo` is the store's recorded repo
+    path. Progress and cost are readable at `GET /api/run/spend`."""
     resolved_state_dir = str(resolve_state_dir(Path(repo), state_dir))
     extra_args = _run_extra_args(target, resume)
-    job, joined = jobs_mod.spawn_or_join("run", repo, resolved_state_dir, extra_args)
+    run_repo, env = repo, None
+    if use_claude_runner:
+        if model not in _RUNNER_MODELS:
+            raise HTTPException(status_code=400, detail="model must be one of %s" % sorted(_RUNNER_MODELS))
+        if not 0 < run_budget_usd <= 100:
+            raise HTTPException(status_code=400, detail="run_budget_usd must be > 0 and <= 100")
+        run_repo = _recorded_repo(Path(resolved_state_dir))
+        ledger = Path(resolved_state_dir) / "runner" / ("spend-%s.json" % uuid.uuid4().hex[:12])
+        extra_args += ["--runner-cmd", "%s -m cdp.runners.claude_code" % shlex.quote(sys.executable),
+                       "--timeout", "900", "--max-attempts", "2"]
+        env = {
+            "CDP_RUNNER_REPO": run_repo, "CDP_RUNNER_MODEL": model,
+            "CDP_RUNNER_SCOPE_BUDGET_USD": "1.00", "CDP_RUNNER_MAX_TURNS": "30",
+            "CDP_RUNNER_RUN_BUDGET_USD": str(run_budget_usd), "CDP_RUNNER_LEDGER": str(ledger),
+        }
+    job, joined = jobs_mod.spawn_or_join("run", run_repo, resolved_state_dir, extra_args, env=env)
     return JobResponse(
         job_id=job.job_id, status="joined" if joined else "started",
-        pid=job.pid, kind=job.kind, repo=repo, state_dir=resolved_state_dir,
+        pid=job.pid, kind=job.kind, repo=run_repo, state_dir=resolved_state_dir,
     )
+
+
+@app.get("/api/run/spend", response_model=RunSpendResponse)
+def get_run_spend(job_id: str = Query(..., description="job id returned by POST /api/run")) -> RunSpendResponse:
+    """Live cost of a Claude-runner launch, read under a shared lock so a
+    ledger mid-rewrite is never parsed half-written."""
+    job = jobs_mod.get_job(job_id)
+    ledger = (getattr(job, "env", None) or {}).get("CDP_RUNNER_LEDGER") if job else None
+    if job is None or not ledger:
+        raise HTTPException(status_code=404, detail="no Claude-runner launch with job_id %r" % job_id)
+    budget = float(job.env.get("CDP_RUNNER_RUN_BUDGET_USD", "0"))
+    data = {"budget_usd": budget, "spent_usd": 0.0, "calls": []}
+    path = Path(ledger)
+    if path.is_file():
+        with open(path, encoding="utf-8") as fh:
+            fcntl.flock(fh, fcntl.LOCK_SH)
+            raw = fh.read()
+        if raw.strip():
+            data = json.loads(raw)
+    calls = data.get("calls", [])
+    ok = sum(1 for c in calls if c.get("ok"))
+    return RunSpendResponse(budget_usd=float(data.get("budget_usd", budget)), spent_usd=float(data.get("spent_usd", 0.0)),
+                            calls=len(calls), ok=ok, failed=len(calls) - ok, running=job.is_running())
 
 
 @app.post("/api/refresh", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
@@ -1614,18 +1775,73 @@ def post_refresh(
     )
 
 
+@app.post("/api/scan", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
+def post_scan(repo: str = Query(..., description="folder to scan")) -> JobResponse:
+    """Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses
+    `resolve_state_dir`: that would honour the server's `CDP_STORE`/registry
+    and overwrite an unrelated repo's store. Because an explicit `--state-dir`
+    makes `cmd_scan` skip registration, the folder is registered by `get_job`
+    once the scan has finished."""
+    repo_path = Path(repo).expanduser().resolve()
+    if not repo_path.is_dir():
+        raise HTTPException(status_code=404, detail="not a directory: %s" % repo_path)
+    # $HOME holds the registry config (~/.cdp) and `/` is the whole disk: a
+    # scan of either walks far more than a project and writes into the wrong place.
+    if repo_path == Path.home().resolve() or repo_path == Path(repo_path.anchor):
+        raise HTTPException(status_code=400, detail="refusing to scan %s: choose a project folder, not a home or root directory" % repo_path)
+    state_dir = repo_path / ".cdp"
+    # Rescanning the store this server serves would rewrite it under live readers.
+    if state_dir.resolve() == resolve_state_dir(Path("."), None):
+        raise HTTPException(status_code=409, detail="%s is the store this server is serving; refusing to rescan it" % state_dir)
+    job, joined = jobs_mod.spawn_or_join("scan", str(repo_path), str(state_dir), [])
+    return JobResponse(
+        job_id=job.job_id, status="joined" if joined else "started",
+        pid=job.pid, kind=job.kind, repo=str(repo_path), state_dir=str(state_dir),
+    )
+
+
+def _register_scanned_state_dir(state_dir: Path) -> None:
+    resolved = state_dir.resolve()
+    if any(Path(v).expanduser().resolve() == resolved for v in _all_registry_entries().values()):
+        return
+    repo_id = _store_repo_id(state_dir)
+    if repo_id is not None:
+        registry_mod.register(repo_id, state_dir)
+
+
 @app.get("/api/job/{job_id}", response_model=JobStatusResponse)
 def get_job(job_id: str) -> JobStatusResponse:
     """Poll for a job's completion when there is no task table to watch --
     `POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such
-    caller; `/api/run`/`/api/refresh` instead poll `/api/status`."""
+    caller; `/api/run`/`/api/refresh` instead poll `/api/status`.
+
+    A finished successful `scan` job also registers its state dir here. The
+    explicit `--state-dir` `POST /api/scan` passes makes `cmd_scan` skip
+    registering, and non-git folders get a fresh random identity per
+    `repo_identity()` call, so only the finished scan's own snapshot knows
+    the id it was recorded under. Idempotent: skipped when an entry already
+    maps to that state dir."""
     job = jobs_mod.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="unknown job_id %r (server restart loses these)" % job_id)
+    running = job.is_running()
+    if job.kind == "scan" and not running and job.returncode == 0:
+        _register_scanned_state_dir(Path(job.state_dir))
     return JobStatusResponse(
         job_id=job.job_id, kind=job.kind, repo=job.repo, state_dir=job.state_dir,
-        running=job.is_running(), returncode=job.returncode,
+        running=running, returncode=job.returncode,
+        log_tail=None if running else _log_tail(job.log_path),
     )
+
+
+def _log_tail(log_path: Path, lines: int = 20) -> str:
+    """Last `lines` lines of a finished job's log, so a UI can show why a
+    scan failed without a separate log endpoint."""
+    try:
+        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return "\n".join(text.splitlines()[-lines:])
 
 
 @app.get("/api/hookup/preview", response_model=InstallPreviewResponse)

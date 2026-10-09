@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import type { paths } from "@cdp/web-client";
 import { cdp } from "./client.ts";
 import { useRepoParams } from "./repoParams.ts";
 import { mutationClient } from "./mutationClient.ts";
@@ -49,7 +50,7 @@ export class MutationAuthError extends Error {
   }
 }
 
-function raiseAuthOr<T>(result: { data?: T; error?: unknown; response: Response }): T {
+export function raiseAuthOr<T>(result: { data?: T; error?: unknown; response: Response }): T {
   const { data, error, response } = result;
   if (error) {
     if (response.status === 403) throw new MutationAuthError("bad or missing X-CDP-Web-Token");
@@ -64,14 +65,43 @@ export function useRunMutation() {
   const repoParams = useRepoParams();
 
   return useMutation({
-    mutationFn: async (vars: { target: import("../store/controlRoomStore.ts").DispatchTarget; resume: boolean }) => {
+    mutationFn: async (vars: {
+      target: import("../store/controlRoomStore.ts").DispatchTarget;
+      resume: boolean;
+      claude?: { model: "sonnet" | "opus" | "haiku"; budgetUsd: number };
+    }) => {
       const client = mutationClient(authToken);
       const result = await client.POST("/api/run", {
-        params: { query: { ...repoParams, target: serializeTarget(vars.target), resume: vars.resume } },
+        params: {
+          query: {
+            ...repoParams,
+            target: serializeTarget(vars.target),
+            resume: vars.resume,
+            ...(vars.claude
+              ? { use_claude_runner: true, model: vars.claude.model, run_budget_usd: vars.claude.budgetUsd }
+              : {}),
+          },
+        },
       });
       return raiseAuthOr(result);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["status"] }),
+  });
+}
+
+type RunSpend = paths["/api/run/spend"]["get"]["responses"][200]["content"]["application/json"];
+
+/** Live cost of a Claude-runner launch; polls until the runner reports it is no longer running. */
+export function useRunSpend(jobId: string | null) {
+  return useQuery<RunSpend>({
+    queryKey: ["run-spend", jobId],
+    enabled: jobId !== null,
+    refetchInterval: (q) => (q.state.data && !q.state.data.running ? false : 2000),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await cdp.GET("/api/run/spend", { params: { query: { job_id: jobId! } }, signal });
+      if (error) throw error;
+      return data as RunSpend;
+    },
   });
 }
 

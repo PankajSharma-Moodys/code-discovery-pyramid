@@ -14,6 +14,7 @@ passed through: a server restart loses this dict, but a new `cdp run
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,7 @@ class Job:
     def __init__(
         self, job_id: str, kind: str, process: "subprocess.Popen[bytes]",
         repo: str, state_dir: str, command: List[str], log_path: Path,
+        env: Optional[Dict[str, str]] = None,
     ) -> None:
         self.job_id = job_id
         self.kind = kind
@@ -36,6 +38,7 @@ class Job:
         self.state_dir = state_dir
         self.command = command
         self.log_path = log_path
+        self.env = dict(env or {})
         self.started_at = time.time()
 
     def is_running(self) -> bool:
@@ -65,11 +68,14 @@ def _key(repo: str, state_dir: str) -> Tuple[str, str]:
     return (str(Path(repo).expanduser().resolve()), state_dir)
 
 
-def spawn_or_join(kind: str, repo: str, state_dir: str, extra_args: List[str]) -> Tuple[Job, bool]:
+def spawn_or_join(kind: str, repo: str, state_dir: str, extra_args: List[str],
+                  env: Optional[Dict[str, str]] = None) -> Tuple[Job, bool]:
     """Returns `(job, joined)`. `joined=True` means a job for this
     `(repo, state_dir)` was already in flight and nothing new was spawned --
     the caller gets that job's handle back instead of a second process racing
-    the first one (§7.2.4's single-flight semantics, not a queue)."""
+    the first one (§7.2.4's single-flight semantics, not a queue). `env`, when
+    given, is overlaid on `os.environ` for the subprocess and kept on the Job
+    (e.g. the Claude runner's `CDP_RUNNER_*` settings)."""
     key = _key(repo, state_dir)
     with _lock:
         existing = _jobs.get(key)
@@ -84,8 +90,9 @@ def spawn_or_join(kind: str, repo: str, state_dir: str, extra_args: List[str]) -
             "--repo", repo, "--state-dir", state_dir, *extra_args,
         ]
         log_handle = open(log_fd, "wb")
-        process = subprocess.Popen(command, stdout=log_handle, stderr=subprocess.STDOUT)
-        job = Job(job_id, kind, process, repo, state_dir, command, log_path)
+        process = subprocess.Popen(command, stdout=log_handle, stderr=subprocess.STDOUT,
+                                   env={**os.environ, **env} if env else None)
+        job = Job(job_id, kind, process, repo, state_dir, command, log_path, env=env)
         _jobs[key] = job
         return job, False
 

@@ -1,14 +1,11 @@
-import { DoctorHeatmap } from "./DoctorHeatmap.tsx";
-import { HookupTab } from "./HookupTab.tsx";
 import { RepoHealthStrip } from "./RepoHealthStrip.tsx";
 import { RunConsole } from "./RunConsole.tsx";
-import { TokenGate } from "./TokenGate.tsx";
 import { TrajectoryExplorer } from "./TrajectoryExplorer.tsx";
 
-/** Bento dashboard, pre/during-scan (`WEB_RESEARCH.md` §2, §4). Ships the
- * repo health strip, run console, the agent-layer hookup tab, the doctor
- * heatmap, and the trajectory explorer. The L4 constellation/time scrubber
- * (Phase 4) is a separate, later pass -- see `web/frontend/TODO.md`.
+/** Deep-analysis dashboard, pre/during-scan (`WEB_RESEARCH.md` §2, §4). Ships the
+ * repo health strip, run console, and trajectory explorer. Agent setup and
+ * model conformance checking live on the Setup tab. The L4 constellation/time
+ * scrubber (Phase 4) is a separate, later pass -- see `web/frontend/TODO.md`.
  * Collapses to one column on narrow viewports rather than duplicating the
  * DOM (§5). */
 export function ControlRoom() {
@@ -19,16 +16,17 @@ export function ControlRoom() {
           <h1 className="text-lg font-medium" style={{ color: "var(--atlas-text)" }}>
             Control Room
           </h1>
-          <TokenGate />
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <RepoHealthStrip />
           </div>
-          <RunConsole />
-          <HookupTab />
-          <DoctorHeatmap />
-          <TrajectoryExplorer />
+          <div className="md:col-span-2">
+            <RunConsole />
+          </div>
+          <div className="md:col-span-2">
+            <TrajectoryExplorer />
+          </div>
         </div>
       </div>
     </div>

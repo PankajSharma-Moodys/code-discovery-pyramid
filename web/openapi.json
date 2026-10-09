@@ -763,6 +763,86 @@
         }
       }
     },
+    "/api/flow": {
+      "get": {
+        "summary": "Get Flow",
+        "description": "Flow tab payload: the same typed dataflow graph `/api/graph` L2 serves,\nreduced to source -> sink data edges by `web/api/flow.py`.",
+        "operationId": "get_flow_api_flow_get",
+        "parameters": [
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "extra edge kinds: calls, config (repeatable)",
+              "title": "Include"
+            },
+            "description": "extra edge kinds: calls, config (repeatable)"
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "repo path to resolve state for",
+              "default": ".",
+              "title": "Repo"
+            },
+            "description": "repo path to resolve state for"
+          },
+          {
+            "name": "state_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/confidence": {
       "get": {
         "summary": "Get Confidence",
@@ -900,6 +980,55 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NodeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fs/list": {
+      "get": {
+        "summary": "Get Fs List",
+        "description": "Read-only folder browser for the \"Open folder...\" picker. Lists\nsubdirectories only (never file contents), skips dotfiles, and flags\nwhich folders are git repos or already carry a `.cdp` scan so the UI can\npick the right action. Paths are returned resolved and absolute because\nthe client derives `<path>/.cdp` from them.",
+        "operationId": "get_fs_list_api_fs_list_get",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "directory to list; defaults to $HOME",
+              "title": "Path"
+            },
+            "description": "directory to list; defaults to $HOME"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FsListResponse"
                 }
               }
             }
@@ -1438,7 +1567,7 @@
     "/api/run": {
       "post": {
         "summary": "Post Run",
-        "description": "Shells out to `cdp run` (`web/api/jobs.py`'s `spawn_or_join`) rather\nthan calling `supervisor` in-process -- the subprocess inherits the real\nlock, `--resume`'s lease logic, and the repo-mismatch guard for free. A\nsecond POST while one is in flight for this `(repo, state_dir)` returns\nthe same job's handle (`status=\"joined\"`), not a second process.",
+        "description": "Shells out to `cdp run` (`web/api/jobs.py`'s `spawn_or_join`) rather\nthan calling `supervisor` in-process -- the subprocess inherits the real\nlock, `--resume`'s lease logic, and the repo-mismatch guard for free. A\nsecond POST while one is in flight for this `(repo, state_dir)` returns\nthe same job's handle (`status=\"joined\"`), not a second process.\n\nWith `use_claude_runner=true` the leaf agents run through headless Claude\nCode (`cdp/runners/claude_code.py`), configured via `CDP_RUNNER_*` env and\ncapped by `run_budget_usd`; the job's `--repo` is the store's recorded repo\npath. Progress and cost are readable at `GET /api/run/spend`.",
         "operationId": "post_run_api_run_post",
         "parameters": [
           {
@@ -1492,6 +1621,42 @@
               "title": "Resume"
             },
             "description": "pass --resume through so a restarted job can rejoin"
+          },
+          {
+            "name": "use_claude_runner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "run leaf agents through headless Claude Code",
+              "default": false,
+              "title": "Use Claude Runner"
+            },
+            "description": "run leaf agents through headless Claude Code"
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Claude runner model: sonnet | opus | haiku",
+              "default": "sonnet",
+              "title": "Model"
+            },
+            "description": "Claude runner model: sonnet | opus | haiku"
+          },
+          {
+            "name": "run_budget_usd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "Claude runner spend cap for this launch (USD, estimate)",
+              "default": 5.0,
+              "title": "Run Budget Usd"
+            },
+            "description": "Claude runner spend cap for this launch (USD, estimate)"
           }
         ],
         "responses": {
@@ -1501,6 +1666,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/spend": {
+      "get": {
+        "summary": "Get Run Spend",
+        "description": "Live cost of a Claude-runner launch, read under a shared lock so a\nledger mid-rewrite is never parsed half-written.",
+        "operationId": "get_run_spend_api_run_spend_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "job id returned by POST /api/run",
+              "title": "Job Id"
+            },
+            "description": "job id returned by POST /api/run"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSpendResponse"
                 }
               }
             }
@@ -1588,10 +1795,52 @@
         }
       }
     },
+    "/api/scan": {
+      "post": {
+        "summary": "Post Scan",
+        "description": "Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses\n`resolve_state_dir`: that would honour the server's `CDP_STORE`/registry\nand overwrite an unrelated repo's store. Because an explicit `--state-dir`\nmakes `cmd_scan` skip registration, the folder is registered by `get_job`\nonce the scan has finished.",
+        "operationId": "post_scan_api_scan_post",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "folder to scan",
+              "title": "Repo"
+            },
+            "description": "folder to scan"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/job/{job_id}": {
       "get": {
         "summary": "Get Job",
-        "description": "Poll for a job's completion when there is no task table to watch --\n`POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such\ncaller; `/api/run`/`/api/refresh` instead poll `/api/status`.",
+        "description": "Poll for a job's completion when there is no task table to watch --\n`POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such\ncaller; `/api/run`/`/api/refresh` instead poll `/api/status`.\n\nA finished successful `scan` job also registers its state dir here. The\nexplicit `--state-dir` `POST /api/scan` passes makes `cmd_scan` skip\nregistering, and non-git folders get a fresh random identity per\n`repo_identity()` call, so only the finished scan's own snapshot knows\nthe id it was recorded under. Idempotent: skipped when an entry already\nmaps to that state dir.",
         "operationId": "get_job_api_job__job_id__get",
         "parameters": [
           {
@@ -2145,6 +2394,139 @@
         ],
         "title": "EvidenceResponse"
       },
+      "FlowEdge": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "kind",
+          "count"
+        ],
+        "title": "FlowEdge"
+      },
+      "FlowGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "role",
+          "count"
+        ],
+        "title": "FlowGroup"
+      },
+      "FlowNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "role",
+          "group"
+        ],
+        "title": "FlowNode",
+        "description": "One `/api/flow` node (`web/api/flow.py`). `node_id` is the namespaced\nid `/api/node` resolves, None for synthetic library sinks."
+      },
+      "FlowResponse": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/FlowNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/FlowGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/FlowEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "groups",
+          "edges"
+        ],
+        "title": "FlowResponse"
+      },
       "FreshnessResponse": {
         "properties": {
           "live": {
@@ -2172,6 +2554,78 @@
           "unknown_churn"
         ],
         "title": "FreshnessResponse"
+      },
+      "FsEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "is_git": {
+            "type": "boolean",
+            "title": "Is Git"
+          },
+          "has_scan": {
+            "type": "boolean",
+            "title": "Has Scan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "is_git",
+          "has_scan"
+        ],
+        "title": "FsEntry",
+        "description": "One subdirectory in `GET /api/fs/list`. `path` is absolute and resolved\n(the picker builds `<path>/.cdp` from it); `has_scan` means\n`<path>/.cdp/index.db` is a file."
+      },
+      "FsListResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "is_git": {
+            "type": "boolean",
+            "title": "Is Git"
+          },
+          "has_scan": {
+            "type": "boolean",
+            "title": "Has Scan"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FsEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "is_git",
+          "has_scan",
+          "entries"
+        ],
+        "title": "FsListResponse",
+        "description": "Directory listing for the folder picker. `parent` is `None` only at the\nfilesystem root; `is_git`/`has_scan` describe `path` itself."
       },
       "GraphEdgeResponse": {
         "properties": {
@@ -2689,6 +3143,17 @@
               }
             ],
             "title": "Returncode"
+          },
+          "log_tail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Tail"
           }
         },
         "type": "object",
@@ -2952,6 +3417,45 @@
           "repos"
         ],
         "title": "ReposResponse"
+      },
+      "RunSpendResponse": {
+        "properties": {
+          "budget_usd": {
+            "type": "number",
+            "title": "Budget Usd"
+          },
+          "spent_usd": {
+            "type": "number",
+            "title": "Spent Usd"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          }
+        },
+        "type": "object",
+        "required": [
+          "budget_usd",
+          "spent_usd",
+          "calls",
+          "ok",
+          "failed",
+          "running"
+        ],
+        "title": "RunSpendResponse",
+        "description": "`GET /api/run/spend`: the Claude runner's per-launch ledger\n(`cdp/runners/claude_code.py`), costs are client-side estimates."
       },
       "ScopeSummaryResponse": {
         "properties": {

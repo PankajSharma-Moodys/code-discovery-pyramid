@@ -182,6 +182,15 @@ class ReadOnlyConnection:
             ) from exc
         return [json.loads(r[0]) for r in rows]
 
+    def snapshot_repo_id(self, snapshot_id: int) -> Optional[str]:
+        """The `repo_id` this snapshot was scanned under -- the identity of
+        the repo the store actually describes, independent of whichever
+        directory the API server happens to run from."""
+        row = self._conn().execute(
+            "SELECT repo_id FROM snapshot_meta WHERE id=?", (snapshot_id,),
+        ).fetchone()
+        return row[0] if row else None
+
     def snapshot_id_for_sha(self, repo_id: str, commit_sha: str) -> Optional[int]:
         """`snapshot_meta` is keyed `(repo_id, commit_sha)`
         (`cdp/store/sqlite_backend.py:54-60`) -- the same lookup

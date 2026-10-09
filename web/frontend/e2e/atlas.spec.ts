@@ -86,6 +86,7 @@ async function clickNodeReliably(page: Page, candidates: string[], click: "click
 
 test("top rung (Packages) renders real container nodes, not the 823-singleton wall", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
   const { order } = await atlasSigma(page);
   // This repo's own real index has a handful of top-level directories/type
@@ -96,6 +97,7 @@ test("top rung (Packages) renders real container nodes, not the 823-singleton wa
 
 test("selecting a node reveals Focus/Pin toggles and they are actually clickable", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
   const before = await atlasSigma(page);
   await clickNodeReliably(page, before.nodes.slice(0, 8));
@@ -124,6 +126,7 @@ test("selecting a node reveals Focus/Pin toggles and they are actually clickable
 
 test("pin toggle survives an altitude round-trip", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
   const { nodes } = await atlasSigma(page);
   const target = await clickNodeReliably(page, nodes.slice(0, 8));
@@ -158,6 +161,7 @@ test("pin toggle survives an altitude round-trip", async ({ page }) => {
 
 test("double-click expands a container in place (node count grows, parent stays on canvas)", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
   const before = await atlasSigma(page);
 
@@ -202,6 +206,7 @@ test("double-click expands a container in place (node count grows, parent stays 
 
 test("expanding a second sibling container keeps the first one's children on canvas", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
   const before = await atlasSigma(page);
 
@@ -250,6 +255,7 @@ test("expanding a second sibling container keeps the first one's children on can
 
 test("collapsing an outer container tears down its nested expansion too (no orphaned nodes)", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
   const before = await atlasSigma(page);
 
@@ -317,6 +323,7 @@ test("collapsing an outer container tears down its nested expansion too (no orph
 
 test("minimap click pans the main camera", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
   await waitForGraph(page);
 
   const minimap = page.getByLabel("Minimap: click to pan");

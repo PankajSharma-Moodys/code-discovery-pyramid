@@ -151,6 +151,28 @@ class ReposResponse(BaseModel):
     repos: List[RepoInfoResponse]
 
 
+class FsEntry(BaseModel):
+    """One subdirectory in `GET /api/fs/list`. `path` is absolute and resolved
+    (the picker builds `<path>/.cdp` from it); `has_scan` means
+    `<path>/.cdp/index.db` is a file."""
+
+    name: str
+    path: str
+    is_git: bool
+    has_scan: bool
+
+
+class FsListResponse(BaseModel):
+    """Directory listing for the folder picker. `parent` is `None` only at the
+    filesystem root; `is_git`/`has_scan` describe `path` itself."""
+
+    path: str
+    parent: Optional[str] = None
+    is_git: bool
+    has_scan: bool
+    entries: List[FsEntry]
+
+
 class GraphNodeResponse(BaseModel):
     """One node per package (L3) or typed `dataflow` node (L2). Fields that
     don't apply at a given level are left `None`/empty rather than the model
@@ -391,6 +413,7 @@ class JobStatusResponse(BaseModel):
     state_dir: str
     running: bool
     returncode: Optional[int] = None
+    log_tail: Optional[str] = None  # last 20 log lines once finished; None while running
 
 
 class InstallPreviewResponse(BaseModel):
@@ -443,3 +466,45 @@ class SourceResponse(BaseModel):
     end_line: int
     total_lines: int
     lines: List[str]
+
+
+class FlowNode(BaseModel):
+    """One `/api/flow` node (`web/api/flow.py`). `node_id` is the namespaced
+    id `/api/node` resolves, None for synthetic library sinks."""
+    id: str
+    label: str
+    kind: str
+    role: str
+    group: str
+    node_id: Optional[str] = None
+
+
+class FlowGroup(BaseModel):
+    id: str
+    label: str
+    role: str
+    count: int
+
+
+class FlowEdge(BaseModel):
+    source: str
+    target: str
+    kind: str
+    count: int
+
+
+class FlowResponse(BaseModel):
+    nodes: List[FlowNode]
+    groups: List[FlowGroup]
+    edges: List[FlowEdge]
+
+
+class RunSpendResponse(BaseModel):
+    """`GET /api/run/spend`: the Claude runner's per-launch ledger
+    (`cdp/runners/claude_code.py`), costs are client-side estimates."""
+    budget_usd: float
+    spent_usd: float
+    calls: int
+    ok: int
+    failed: int
+    running: bool

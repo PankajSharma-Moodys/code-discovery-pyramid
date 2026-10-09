@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { MutationAuthError, useRunEvents, useRunMutation, useStatus } from "../../api/controlRoomHooks.ts";
+import { MutationAuthError, useRunEvents, useRunMutation, useRunSpend, useStatus } from "../../api/controlRoomHooks.ts";
 import { useControlRoomStore, type DispatchTarget } from "../../store/controlRoomStore.ts";
+import { formatSpend, remainingScopes } from "./runEstimate.ts";
 import { taskStateColor, taskStateStroke } from "../../theme/taskState.ts";
 
 type TargetKind = DispatchTarget["kind"];
@@ -32,6 +33,16 @@ export function RunConsole() {
   const run = useRunMutation();
   const [scopeDraft, setScopeDraft] = useState("");
   const [waveDraft, setWaveDraft] = useState("0");
+  const [useClaude, setUseClaude] = useState(true);
+  const [model, setModel] = useState<"sonnet" | "opus" | "haiku">("sonnet");
+  const [budget, setBudget] = useState(5);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmReq, setConfirmReq] = useState<{ target: DispatchTarget; resume: boolean }>({
+    target: { kind: "wave-all" },
+    resume: false,
+  });
+  const [jobId, setJobId] = useState<string | null>(null);
+  const spend = useRunSpend(jobId).data;
 
   // Stays enabled from dispatch through the SSE `complete` event; a fresh
   // dispatch re-enables it (the effect below flips it back on whenever a
@@ -98,8 +109,53 @@ export function RunConsole() {
           resume
         </label>
 
+        <label className="flex items-center gap-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          <input
+            type="checkbox"
+            checked={useClaude}
+            onChange={(e) => {
+              setUseClaude(e.target.checked);
+              if (!e.target.checked) setConfirming(false);
+            }}
+          />
+          Use Claude Code
+        </label>
+        <select
+          value={model}
+          disabled={!useClaude}
+          onChange={(e) => setModel(e.target.value as "sonnet" | "opus" | "haiku")}
+          className="rounded border px-2 py-1 text-xs"
+          style={{ background: "var(--atlas-bg-2)", borderColor: "var(--atlas-border)", color: "var(--atlas-text)", opacity: useClaude ? 1 : 0.5 }}
+        >
+          <option value="sonnet">sonnet</option>
+          <option value="opus">opus</option>
+          <option value="haiku">haiku</option>
+        </select>
+        <label className="flex items-center gap-1 text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          Cap $
+          <input
+            type="number"
+            min={0.5}
+            max={100}
+            step={0.5}
+            value={budget}
+            disabled={!useClaude}
+            onChange={(e) => setBudget(Number(e.target.value))}
+            className="w-16 rounded border px-2 py-1"
+            style={{ background: "var(--atlas-bg-2)", borderColor: "var(--atlas-border)", color: "var(--atlas-text)", opacity: useClaude ? 1 : 0.5 }}
+          />
+        </label>
+
         <button
-          onClick={() => run.mutate({ target: dispatchTarget, resume })}
+          onClick={() => {
+            if (useClaude) {
+              setConfirmReq({ target: dispatchTarget, resume });
+              setConfirming(true);
+            } else {
+              setJobId(null);
+              run.mutate({ target: dispatchTarget, resume });
+            }
+          }}
           disabled={run.isPending}
           className="atlas-btn-primary rounded px-3 py-1"
           style={{ background: "var(--atlas-accent)", color: "#07090c", opacity: run.isPending ? 0.6 : 1 }}
@@ -108,7 +164,15 @@ export function RunConsole() {
         </button>
 
         <button
-          onClick={() => run.mutate({ target: { kind: "wave-all" }, resume: true })}
+          onClick={() => {
+            if (useClaude) {
+              setConfirmReq({ target: { kind: "wave-all" }, resume: true });
+              setConfirming(true);
+            } else {
+              setJobId(null);
+              run.mutate({ target: { kind: "wave-all" }, resume: true });
+            }
+          }}
           disabled={run.isPending}
           className="rounded border px-3 py-1 text-xs"
           style={{ borderColor: "var(--atlas-border)", color: "var(--atlas-text-dim)" }}
@@ -116,6 +180,33 @@ export function RunConsole() {
           resume run
         </button>
 
+        {confirming && (
+          <span className="flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--atlas-text)" }}>
+            ≈ {remainingScopes(status?.waves ?? [])} scopes left · cap ${budget} · {model} · one scope at a time · up to 2 attempts per scope
+            <button
+              disabled={run.isPending || !(budget > 0 && budget <= 100)}
+              onClick={() => {
+                setConfirming(false);
+                setJobId(null);
+                run.mutate(
+                  { ...confirmReq, claude: { model, budgetUsd: budget } },
+                  { onSuccess: (result) => setJobId(result.job_id) },
+                );
+              }}
+              className="atlas-btn-primary rounded px-3 py-1"
+              style={{ background: "var(--atlas-accent)", color: "#07090c" }}
+            >
+              Start
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded border px-3 py-1"
+              style={{ borderColor: "var(--atlas-border)", color: "var(--atlas-text-dim)" }}
+            >
+              Cancel
+            </button>
+          </span>
+        )}
         {run.data?.status === "joined" && (
           <span className="text-xs" style={{ color: "var(--atlas-inferred)" }}>
             already running (job {run.data.job_id})
@@ -127,6 +218,15 @@ export function RunConsole() {
           </span>
         )}
       </div>
+
+      {jobId !== null && spend && (
+        <div className="text-xs" style={{ color: "var(--atlas-text-dim)" }}>
+          {formatSpend(spend.spent_usd, spend.budget_usd)} · {spend.ok} ok · {spend.failed} failed
+          {spend.spent_usd >= spend.budget_usd && (
+            <span style={{ color: "var(--atlas-inferred)" }}> · budget reached — remaining scopes skipped</span>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         {status?.waves.map((wave) => (

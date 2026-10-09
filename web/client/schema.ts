@@ -165,6 +165,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Flow
+         * @description Flow tab payload: the same typed dataflow graph `/api/graph` L2 serves,
+         *     reduced to source -> sink data edges by `web/api/flow.py`.
+         */
+        get: operations["get_flow_api_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/confidence": {
         parameters: {
             query?: never;
@@ -191,6 +212,30 @@ export interface paths {
         };
         /** Get Node */
         get: operations["get_node_api_node__node_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/fs/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Fs List
+         * @description Read-only folder browser for the "Open folder..." picker. Lists
+         *     subdirectories only (never file contents), skips dotfiles, and flags
+         *     which folders are git repos or already carry a `.cdp` scan so the UI can
+         *     pick the right action. Paths are returned resolved and absolute because
+         *     the client derives `<path>/.cdp` from them.
+         */
+        get: operations["get_fs_list_api_fs_list_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -409,8 +454,34 @@ export interface paths {
          *     lock, `--resume`'s lease logic, and the repo-mismatch guard for free. A
          *     second POST while one is in flight for this `(repo, state_dir)` returns
          *     the same job's handle (`status="joined"`), not a second process.
+         *
+         *     With `use_claude_runner=true` the leaf agents run through headless Claude
+         *     Code (`cdp/runners/claude_code.py`), configured via `CDP_RUNNER_*` env and
+         *     capped by `run_budget_usd`; the job's `--repo` is the store's recorded repo
+         *     path. Progress and cost are readable at `GET /api/run/spend`.
          */
         post: operations["post_run_api_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/run/spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Spend
+         * @description Live cost of a Claude-runner launch, read under a shared lock so a
+         *     ledger mid-rewrite is never parsed half-written.
+         */
+        get: operations["get_run_spend_api_run_spend_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -434,6 +505,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Scan
+         * @description Scan a user-chosen folder into `<folder>/.cdp`. Deliberately bypasses
+         *     `resolve_state_dir`: that would honour the server's `CDP_STORE`/registry
+         *     and overwrite an unrelated repo's store. Because an explicit `--state-dir`
+         *     makes `cmd_scan` skip registration, the folder is registered by `get_job`
+         *     once the scan has finished.
+         */
+        post: operations["post_scan_api_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/job/{job_id}": {
         parameters: {
             query?: never;
@@ -446,6 +541,13 @@ export interface paths {
          * @description Poll for a job's completion when there is no task table to watch --
          *     `POST /api/hookup/liveness`'s `cdp doctor` subprocess is the first such
          *     caller; `/api/run`/`/api/refresh` instead poll `/api/status`.
+         *
+         *     A finished successful `scan` job also registers its state dir here. The
+         *     explicit `--state-dir` `POST /api/scan` passes makes `cmd_scan` skip
+         *     registering, and non-git folders get a fresh random identity per
+         *     `repo_identity()` call, so only the finished scan's own snapshot knows
+         *     the id it was recorded under. Idempotent: skipped when an entry already
+         *     maps to that state dir.
          */
         get: operations["get_job_api_job__job_id__get"];
         put?: never;
@@ -659,6 +761,56 @@ export interface components {
             /** Anchor */
             anchor?: string | null;
         };
+        /** FlowEdge */
+        FlowEdge: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /** Kind */
+            kind: string;
+            /** Count */
+            count: number;
+        };
+        /** FlowGroup */
+        FlowGroup: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Role */
+            role: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * FlowNode
+         * @description One `/api/flow` node (`web/api/flow.py`). `node_id` is the namespaced
+         *     id `/api/node` resolves, None for synthetic library sinks.
+         */
+        FlowNode: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Kind */
+            kind: string;
+            /** Role */
+            role: string;
+            /** Group */
+            group: string;
+            /** Node Id */
+            node_id?: string | null;
+        };
+        /** FlowResponse */
+        FlowResponse: {
+            /** Nodes */
+            nodes: components["schemas"]["FlowNode"][];
+            /** Groups */
+            groups: components["schemas"]["FlowGroup"][];
+            /** Edges */
+            edges: components["schemas"]["FlowEdge"][];
+        };
         /** FreshnessResponse */
         FreshnessResponse: {
             /** Live */
@@ -669,6 +821,39 @@ export interface components {
             unreviewed: number;
             /** Unknown Churn */
             unknown_churn: number;
+        };
+        /**
+         * FsEntry
+         * @description One subdirectory in `GET /api/fs/list`. `path` is absolute and resolved
+         *     (the picker builds `<path>/.cdp` from it); `has_scan` means
+         *     `<path>/.cdp/index.db` is a file.
+         */
+        FsEntry: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Is Git */
+            is_git: boolean;
+            /** Has Scan */
+            has_scan: boolean;
+        };
+        /**
+         * FsListResponse
+         * @description Directory listing for the folder picker. `parent` is `None` only at the
+         *     filesystem root; `is_git`/`has_scan` describe `path` itself.
+         */
+        FsListResponse: {
+            /** Path */
+            path: string;
+            /** Parent */
+            parent?: string | null;
+            /** Is Git */
+            is_git: boolean;
+            /** Has Scan */
+            has_scan: boolean;
+            /** Entries */
+            entries: components["schemas"]["FsEntry"][];
         };
         /**
          * GraphEdgeResponse
@@ -892,6 +1077,8 @@ export interface components {
             running: boolean;
             /** Returncode */
             returncode?: number | null;
+            /** Log Tail */
+            log_tail?: string | null;
         };
         /** LinkQueryResponse */
         LinkQueryResponse: {
@@ -996,6 +1183,25 @@ export interface components {
         ReposResponse: {
             /** Repos */
             repos: components["schemas"]["RepoInfoResponse"][];
+        };
+        /**
+         * RunSpendResponse
+         * @description `GET /api/run/spend`: the Claude runner's per-launch ledger
+         *     (`cdp/runners/claude_code.py`), costs are client-side estimates.
+         */
+        RunSpendResponse: {
+            /** Budget Usd */
+            budget_usd: number;
+            /** Spent Usd */
+            spent_usd: number;
+            /** Calls */
+            calls: number;
+            /** Ok */
+            ok: number;
+            /** Failed */
+            failed: number;
+            /** Running */
+            running: boolean;
         };
         /** ScopeSummaryResponse */
         ScopeSummaryResponse: {
@@ -1472,6 +1678,41 @@ export interface operations {
             };
         };
     };
+    get_flow_api_flow_get: {
+        parameters: {
+            query?: {
+                /** @description extra edge kinds: calls, config (repeatable) */
+                include?: string[] | null;
+                /** @description repo path to resolve state for */
+                repo?: string;
+                state_dir?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_confidence_api_confidence_get: {
         parameters: {
             query: {
@@ -1531,6 +1772,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_fs_list_api_fs_list_get: {
+        parameters: {
+            query?: {
+                /** @description directory to list; defaults to $HOME */
+                path?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FsListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1825,6 +2098,12 @@ export interface operations {
                 target?: string;
                 /** @description pass --resume through so a restarted job can rejoin */
                 resume?: boolean;
+                /** @description run leaf agents through headless Claude Code */
+                use_claude_runner?: boolean;
+                /** @description Claude runner model: sonnet | opus | haiku */
+                model?: string;
+                /** @description Claude runner spend cap for this launch (USD, estimate) */
+                run_budget_usd?: number;
             };
             header?: never;
             path?: never;
@@ -1852,6 +2131,38 @@ export interface operations {
             };
         };
     };
+    get_run_spend_api_run_spend_get: {
+        parameters: {
+            query: {
+                /** @description job id returned by POST /api/run */
+                job_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSpendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_refresh_api_refresh_post: {
         parameters: {
             query?: {
@@ -1860,6 +2171,38 @@ export interface operations {
                 state_dir?: string | null;
                 /** @description cdp refresh --mode */
                 mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_scan_api_scan_post: {
+        parameters: {
+            query: {
+                /** @description folder to scan */
+                repo: string;
             };
             header?: never;
             path?: never;

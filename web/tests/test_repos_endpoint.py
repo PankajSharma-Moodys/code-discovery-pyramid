@@ -128,6 +128,60 @@ class ReposEndpointTest(unittest.TestCase):
         self.assertIsNone(row["head"])
         self.assertIsNone(row["as_of_commit"])
 
+    def test_current_row_names_the_served_store_not_the_server_cwd(self) -> None:
+        """The server runs from this checkout with `CDP_STORE` pointing at a
+        store scanned from some *other* repo. The registry already maps this
+        checkout's own git-remote identity to a different state dir. The
+        first ("current") row must describe the store actually being served:
+        its own state dir and the `repo_id` its snapshot was recorded under,
+        never the cwd's remote identity with the registry's unrelated dir."""
+        import os
+
+        from cdp.store import registry as registry_mod
+        from fastapi.testclient import TestClient
+
+        from web.api.app import app
+        from web.api.store_reader import ReadOnlyConnection
+
+        other_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, other_dir, ignore_errors=True)
+        cwd_identity = registry_mod.repo_identity(REPO_ROOT)
+        registry_mod.register(cwd_identity, other_dir)
+
+        conn = ReadOnlyConnection(self.state_dir / "index.db")
+        expected_id = conn.snapshot_repo_id(conn.latest_pinned_snapshot())
+        conn.close()
+
+        with mock.patch.dict(os.environ, {"CDP_STORE": str(self.state_dir)}):
+            resp = TestClient(app).get("/api/repos")
+        self.assertEqual(resp.status_code, 200)
+        repos = resp.json()["repos"]
+
+        current = repos[0]
+        self.assertEqual(Path(current["state_dir"]), self.state_dir.resolve())
+        self.assertEqual(current["repo_id"], expected_id)
+        self.assertIsNone(current["error"])
+        ids = [r["repo_id"] for r in repos]
+        self.assertEqual(len(ids), len(set(ids)), repos)
+
+    def test_garbage_index_db_gets_error_row_not_500(self) -> None:
+        import os
+
+        from fastapi.testclient import TestClient
+
+        from web.api.app import app
+
+        bad_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, bad_dir, ignore_errors=True)
+        (bad_dir / "index.db").write_bytes(b"this is not a sqlite database\x00\xff" * 64)
+
+        with mock.patch.dict(os.environ, {"CDP_STORE": str(bad_dir)}):
+            resp = TestClient(app).get("/api/repos")
+        self.assertEqual(resp.status_code, 200)
+        first = resp.json()["repos"][0]
+        self.assertEqual(Path(first["state_dir"]), bad_dir.resolve())
+        self.assertIsNotNone(first["error"])
+
 
 if __name__ == "__main__":
     unittest.main()
