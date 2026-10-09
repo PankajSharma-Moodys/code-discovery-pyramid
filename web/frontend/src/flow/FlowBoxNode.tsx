@@ -42,16 +42,24 @@ export function FlowContainerNode({ data }: NodeProps) {
       className="h-full w-full rounded"
       style={{ border: `1px dashed ${ROLE_BORDER[n.role]}`, background: "rgba(127,127,127,0.06)" }}
     >
-      <div
-        className="px-2 py-1 text-xs"
-        style={{ color: "var(--atlas-text-dim)", cursor: "pointer" }}
+      <button
+        type="button"
+        aria-label={`Collapse ${n.label}`}
+        className="px-2 py-1 text-left text-xs"
+        style={{
+          color: "var(--atlas-text-dim)",
+          cursor: "pointer",
+          font: "inherit",
+          background: "transparent",
+          border: "none",
+        }}
         onClick={(e) => {
           e.stopPropagation();
           onCollapse?.();
         }}
       >
         {n.label} ▾
-      </div>
+      </button>
     </div>
   );
 }
