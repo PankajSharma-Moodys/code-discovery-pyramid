@@ -67,9 +67,11 @@ def build_flow(nodes: List[dict], edges: List[dict], include: Iterable[str] = ()
         # A job's first hop is a call; keep it so jobs reach data by default.
         if (kind not in wanted and not (kind == "call" and s in jobs)) or s not in by_id or t not in by_id or is_test(s) or is_test(t):
             continue
-        if typ(s) not in CODE_TYPES:
+        # `http:<url>` ids are typed `module` but are outbound endpoints, not code.
+        if typ(s) not in CODE_TYPES or s.startswith("http:"):
             continue
         tt = typ(t)
+        t_is_url = t.startswith("http:")
         if kind == "http_in" and tt == "route":
             pair = (add(t, label(t), "route", "source", "group:routes", "Routes", by_id[t].get("node_id")), add_code(s))
         elif kind == "config_read" and tt == "config":
@@ -77,11 +79,15 @@ def build_flow(nodes: List[dict], edges: List[dict], include: Iterable[str] = ()
         elif kind == "persist" and tt in _SINK_OF_TYPE:
             gid, glabel = _SINK_OF_TYPE[tt]
             pair = (add_code(s), add(t, label(t), tt, "sink", gid, glabel, by_id[t].get("node_id")))
+        elif kind == "http_out" and t_is_url:
+            gid, glabel = _LIB_SINK[kind]
+            sink = add(t, "%s · %s" % (glabel, t[len("http:"):]), kind, "sink", gid, glabel, by_id[t].get("node_id"))
+            pair = (add_code(s), sink)
         elif kind in _LIB_SINK and tt == "library":
             gid, glabel = _LIB_SINK[kind]
             sink = add("flow-sink:%s:%s" % (kind, t), "%s · %s" % (glabel, label(t)), kind, "sink", gid, glabel, None)
             pair = (add_code(s), sink)
-        elif kind == "call" and tt in CODE_TYPES and s != t:
+        elif kind == "call" and tt in CODE_TYPES and not t_is_url and s != t:
             pair = (add_code(s), add_code(t))
         else:
             continue

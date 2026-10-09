@@ -33,6 +33,7 @@ NODES = [
     n("library:io.dropwizard.jobs", "library", None, role=None),
     n("config:DB_URL", "config", None, role=None),
     n("orphan.NoFile", "module", None),
+    n("http:https://api.example.com/v1", "module", None, role=None),
 ]
 
 
@@ -65,6 +66,20 @@ class BuildFlowTest(unittest.TestCase):
         self.assertEqual((node["label"], node["role"], node["group"], node["node_id"]),
                          ("HTTP out · okhttp", "sink", "group:http-out", None))
         self.assertEqual(out["edges"], [{"source": "api.Res", "target": sink, "kind": "http_out", "count": 2}])
+
+    def test_http_out_to_url_target_is_its_own_sink(self):
+        url = "http:https://api.example.com/v1"
+        out = self.flow([e("api.Res", url, "http_out")])
+        node = next(x for x in out["nodes"] if x["id"] == url)
+        self.assertEqual((node["label"], node["kind"], node["role"], node["group"], node["node_id"]),
+                         ("HTTP out · https://api.example.com/v1", "http_out", "sink", "group:http-out", "sym:" + url))
+        self.assertEqual(out["edges"], [{"source": "api.Res", "target": url, "kind": "http_out", "count": 1}])
+
+    def test_call_into_http_id_does_not_create_code_node(self):
+        url = "http:https://api.example.com/v1"
+        out = self.flow([e("api.Res", url, "call")], include=("calls",))
+        self.assertEqual([x["id"] for x in out["nodes"]], [])
+        self.assertEqual(out["edges"], [])
 
     def test_scheduled_job_is_a_source_once_even_when_it_writes(self):
         out = self.flow([
