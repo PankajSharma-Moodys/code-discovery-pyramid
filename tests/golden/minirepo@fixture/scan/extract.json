@@ -48,6 +48,7 @@
         "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
         "line": 19
       },
+      "end_line": 21,
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget#equals",
       "kind": "method",
@@ -60,6 +61,7 @@
         "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
         "line": 14
       },
+      "end_line": 16,
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget#getId",
       "kind": "method",
@@ -72,6 +74,7 @@
         "file": "core/src/test/java/com/example/mini/core/Widget.java",
         "line": 6
       },
+      "end_line": 8,
       "file": "core/src/test/java/com/example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget#stub",
       "kind": "method",
@@ -96,6 +99,7 @@
         "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
         "line": 17
       },
+      "end_line": 19,
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity#getId",
       "kind": "method",
@@ -170,6 +174,7 @@
         "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
         "line": 5
       },
+      "end_line": 7,
       "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
       "fqn": "com.example.mini.web.WebApplication#main",
       "kind": "method",
@@ -194,6 +199,7 @@
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 26
       },
+      "end_line": 28,
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.web.WidgetResource#get",
       "kind": "method",
@@ -206,6 +212,7 @@
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 20
       },
+      "end_line": 22,
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.web.WidgetResource#list",
       "kind": "method",

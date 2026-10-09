@@ -40,6 +40,7 @@ VAR_NEW_RE = re.compile(r"(?<![\w$.])var\s+([a-z_$][\w$]*)\s*=\s*new\s+([A-Z][\w
 RECEIVER_CALL_RE = re.compile(r"(?<![\w$.])(this\.)?([A-Za-z_$][\w$]*)\.([a-zA-Z_$][\w$]*)\s*\(")
 BARE_CALL_RE = re.compile(r"(?<![\w$.])([a-zA-Z_$][\w$]*)\s*\(")
 IMPLEMENTS_RE = re.compile(r"\bimplements\s+([^{]+)")
+EXTENDS_RE = re.compile(r"\bextends\s+([A-Za-z_$][\w$.]*(?:<[^{]*?>)?)(?=\s+implements\b|\s*\{|\s*$)")
 IDENT_RE = re.compile(r"[A-Z][\w$]*")
 VALUE_FIELD_RE = re.compile(r"@Value\s*\(\s*\"\$\{([^}:]+)(?::[^}]*)?\}\"\s*\)")
 
@@ -137,14 +138,21 @@ def emit_flow(ctx: ExtractContext, facts: FileFacts, code: List[str], masked: Li
 
 
 def _emit_type_header(ctx, facts, code, idx, fqn, resolver) -> None:
-    """`class X implements Y` -> an `implements` row, read across wrapped lines."""
+    """`class X extends B implements Y` -> `extends` and `implements` rows, read
+    across wrapped lines."""
+    if not re.match(r"^\s*(?:\w+\s+)*class\s", code[idx]):
+        return
     text = " ".join(code[idx: idx + 4])
     text = text.split("{", 1)[0]
-    m = IMPLEMENTS_RE.search(text)
-    if not m or not re.match(r"^\s*(?:\w+\s+)*class\s", code[idx]):
-        return
     anchor = anchor_at(ctx, idx)
     if anchor is None:
+        return
+    em = EXTENDS_RE.search(text)
+    if em:
+        target, state = resolver.resolve(em.group(1).split("<", 1)[0].strip())
+        _use(facts, target, anchor, "extends", fqn, state, resolver)
+    m = IMPLEMENTS_RE.search(text)
+    if not m:
         return
     for name in _split_top_level(m.group(1)):
         base = name.strip().split("<", 1)[0].strip()
@@ -294,6 +302,10 @@ def _emit_body(ctx, facts, code, member: _Member, fields: Dict[str, str], consta
 
         for cm in RECEIVER_CALL_RE.finditer(line):
             this_prefix, receiver, method = cm.group(1), cm.group(2), cm.group(3)
+            if receiver == "this" and not this_prefix:
+                # `this.validate(x)`: a call to one of the class's own methods.
+                _own_call(ctx, facts, idx, member, method, own_methods)
+                continue
             type_text = fields.get(receiver) if this_prefix else scope.get(receiver)
             if type_text is None and not this_prefix and receiver[:1].isupper():
                 type_text = receiver  # static call on a type name
@@ -310,12 +322,17 @@ def _emit_body(ctx, facts, code, member: _Member, fields: Dict[str, str], consta
                      resolver, "#" + method)
         for bm in BARE_CALL_RE.finditer(line):
             name = bm.group(1)
-            if name in own_methods and name not in NOT_METHODS and name != member.name:
-                anchor = anchor_at(ctx, idx)
-                if anchor is not None:
-                    row = mk_use("%s#%s" % (member.cls, name), anchor, via_import=False, resolved="external")
-                    row.update({"kind": "call", "from_symbol": caller, "speculative": False})
-                    facts.uses.append(row)
+            if name not in NOT_METHODS:
+                _own_call(ctx, facts, idx, member, name, own_methods)
+
+
+def _own_call(ctx, facts, idx: int, member: _Member, name: str, own_methods: set) -> None:
+    if name in own_methods and name != member.name:
+        anchor = anchor_at(ctx, idx)
+        if anchor is not None:
+            row = mk_use("%s#%s" % (member.cls, name), anchor, via_import=False, resolved="external")
+            row.update({"kind": "call", "from_symbol": member.symbol, "speculative": False})
+            facts.uses.append(row)
 
 
 # --------------------------------------------------------------- HTTP out

@@ -76,9 +76,6 @@ WATCHED = ("Read", "Grep", "Glob", "Bash")
 #: the gate (`--gate`) watches Bash; the plain nudge matcher never includes it.
 SEARCH_COMMAND = re.compile(r"(?:^|[|;&(]\s*|\bxargs\s+)(?:grep|egrep|rg|ag|ack|find)\b")
 
-#: Using the index from the shell counts as consulting it.
-CDP_CLI = re.compile(r"(?:run\.py|\bcdp)\s+(?:query|help|scan)\b")
-
 #: The only role that gets a nudge. Editing a README, a CI file or a fixture is
 #: not a question the index can answer better.
 NUDGE_ROLE = "source"
@@ -288,52 +285,72 @@ def _marker(state: Path, session_id: str, tag: str) -> Path:
     return Path(tempfile.gettempdir()) / ("cdp-gate-%s" % key)
 
 
-def _mark_consulted(event: Dict) -> bool:
-    """Record that this session has asked the index (MCP tool or the CLI)."""
-    tool = str(event.get("tool_name") or "")
-    tool_input = event.get("tool_input")
-    command = tool_input.get("command") if isinstance(tool_input, dict) else None
-    if not (tool.startswith("mcp__cdp__") or (tool == "Bash" and isinstance(command, str)
-                                              and CDP_CLI.search(command))):
-        return False
-    found = find_state(Path(str(event.get("cwd") or os.getcwd())))
-    if found is None:
-        return True
-    home, repo_id, _ = found
+def _claim(state: Path, session_id: str, tag: str) -> bool:
+    """True the first time this session sees `tag`."""
     try:
-        _marker(home / "work" / repo_id, str(event.get("session_id") or "no-session"),
-                "consulted").touch()
-    except OSError:
-        pass
-    return True
+        _marker(state, session_id, tag).touch(exist_ok=False)
+        return True
+    except (FileExistsError, OSError):
+        return False
+
+
+#: A whole-file Read of a source file longer than this gets the file's outline first.
+READ_MIN_LOC = 250
 
 
 def gate_decide(event: Dict) -> Optional[Dict]:
-    """Make the index the first move: deny the session's first source search or
-    read until it has asked the index, once, with the reason.
+    """Answer from the index instead of running the call, where it can.
 
-    Denied at most once (the retry goes through, so an index that cannot answer
-    never traps the model), never after the session has queried the index, and
-    only where `_gate` holds: a fresh index and a source file or a shell search.
+    * A recursive grep or a find by name on an identifier the index knows
+      exactly: denied, with the definitions and uses inline.
+    * A whole-file Read of a long source file: denied once per file, with its
+      member outline, so the retry can be the range it needs.
+
+    Everything else runs: single-file greps, string and regex searches, unknown
+    names, and the retry of anything denied. Each denial is once per session
+    and subject, so an index that falls short never traps the model.
     """
-    if _mark_consulted(event):
-        return None
+    from . import hook_rules
+
     gated = _gate(event)
     if gated is None:
         return None
+    tool = str(event.get("tool_name"))
+    tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
     sid = str(event.get("session_id") or "no-session")
-    if _marker(gated["state"], sid, "consulted").exists():
+    repo, state = gated["repo"], gated["state"]
+    commit = gated["indexed"][:12]
+
+    if tool == "Read":
+        if "offset" in tool_input or "limit" in tool_input:
+            return None
+        entry = next((f for f in gated["inventory"].get("files", []) if f.get("path") == gated["rel"]), {})
+        if int(entry.get("loc") or 0) <= READ_MIN_LOC:
+            return None
+        shape = hook_rules.outline(repo, gated["rel"])
+        if shape is None or not _claim(state, sid, "read:" + gated["rel"]):
+            return None
+        shown = shape["lines"][:hook_rules.MAX_OUTLINE_LINES]
+        more = "\n  (+%d more members)" % (len(shape["lines"]) - len(shown)) if len(shape["lines"]) > len(shown) else ""
+        return {"block": True, "message": (
+            "Not read yet: %s has %d lines. CDP's outline of it (commit %s):\n  %s%s\n"
+            "Read just the member you need with offset/limit. To read the whole file anyway, "
+            "repeat this call." % (gated["rel"], shape["loc"], commit, "\n  ".join(shown), more))}
+
+    searches = (hook_rules.shell_searches(str(tool_input.get("command") or ""))
+                if tool == "Bash" else hook_rules.tool_searches(tool, tool_input))
+    if not searches:
         return None
-    try:
-        _marker(gated["state"], sid, "denied").touch(exist_ok=False)
-    except (FileExistsError, OSError):
+    subject = "|".join(sorted(t for s in searches for t in s["terms"]))
+    if not _claim(state, sid, "search:" + subject):
+        return None
+    answer = hook_rules.search_answer(repo, searches)
+    if answer is None:
         return None
     return {"block": True, "message": (
-        "Not run yet: this repo has a fresh CDP index (commit %s). Ask it first -- "
-        "`cdp_query` (MCP) with kind trace / symbol / paths / routes / table / config, or "
-        "`python3 .claude/skills/cdp/run.py query <kind> <name>` -- it returns cited "
-        "file:line locations; then Read only those ranges. If the index cannot answer, "
-        "repeat this exact call and it will run." % gated["indexed"][:12])}
+        "Not run: the CDP index (commit %s) already answers this search:\n%s\n"
+        "Read the cited ranges for the code. If this is not what you needed, repeat the same "
+        "call and it will run." % (commit, answer))}
 
 
 def decide(event: Dict) -> Optional[str]:
@@ -386,6 +403,8 @@ def _role_of(inventory: Dict, rel: str) -> Optional[str]:
     that cost the most.
     """
     files = inventory.get("files") or []
+    if rel in (".", ""):
+        return NUDGE_ROLE if any(f.get("role") == NUDGE_ROLE for f in files) else None
     prefix = rel.rstrip("/") + "/"
     globbed = rel.split("*", 1)[0].rstrip("/")
     for entry in files:

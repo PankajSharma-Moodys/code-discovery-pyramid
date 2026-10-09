@@ -24,7 +24,14 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
     keys = [name] if exact else [
         k for k in xref["symbols"] if k == name or k.rsplit(".", 1)[-1] == name or _matches(k, name)
     ]
-    keys = sorted(keys, key=lambda k: (k.rsplit(".", 1)[-1] != name, len(k)))
+    # An exact match on the last name first -- a class or, for `Class#method`,
+    # the method -- so a bare method name finds the method and its callers
+    # before any class whose name merely contains it.
+    def tier(k: str) -> int:
+        last = k.rsplit(".", 1)[-1]
+        return 0 if last == name or last.rsplit("#", 1)[-1] == name else 1
+
+    keys = sorted(keys, key=lambda k: (tier(k), len(k)))
     keys = budget.take(keys)
     if not keys:
         return _finish({"query": "symbol", "name": name, "found": []}, store, budget)
@@ -50,6 +57,13 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                 "modules": entry["modules"],
                 "value": entry.get("value"),
                 "defined_at": [cite(s["anchor"]) for s in sites],
+                # `file:start-end` where the extent is known, so a read can be
+                # exactly the member.
+                "defined_range": [
+                    cite(s["anchor"]) + ("-%d" % s["end_line"]
+                                         if s.get("end_line") and s["end_line"] != s["anchor"]["line"] else "")
+                    for s in sites
+                ],
                 "collision": bool(entry.get("collision")),
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
@@ -62,6 +76,12 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
             }
         )
     return _finish({"query": "symbol", "name": name, "found": out}, store, budget)
+
+
+def _short_name(fqn: str) -> str:
+    """`pkg.Outer.Inner#method` -> `Inner#method`; `pkg.Type` -> `Type`."""
+    owner, sep, member = fqn.partition("#")
+    return owner.rsplit(".", 1)[-1] + sep + member
 
 
 def q_file(store: Store, path: str, budget: Optional[Budget] = None,
@@ -78,7 +98,8 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
     for entry in budget.take(sorted(files, key=lambda f: (f["path"] != path, len(f["path"])))):
         rel = entry["path"]
         info = store.extraction["files"].get(rel, {})
-        defines = [d for d in store.extraction["defines"] if d["file"] == rel]
+        defines = sorted((d for d in store.extraction["defines"] if d["file"] == rel),
+                         key=lambda d: d["anchor"]["line"])
         edges = [e for e in store.extraction["io_edges"] if e["file"] == rel]
         claims = [
             c for c in store.state["claims"]
@@ -97,7 +118,9 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
                 "signals": info.get("signals", []),
                 "defines_count": len(defines),
                 "defines": [
-                    {"fqn": d["fqn"], "kind": d["kind"], "at": cite(d["anchor"])}
+                    {"fqn": d["fqn"], "kind": d["kind"], "at": cite(d["anchor"]),
+                     "name": _short_name(d["fqn"]), "visibility": d.get("visibility"),
+                     "line": d["anchor"]["line"], "end_line": d.get("end_line")}
                     for d in budget.take(defines)
                 ],
                 "io_edges_count": len(edges),

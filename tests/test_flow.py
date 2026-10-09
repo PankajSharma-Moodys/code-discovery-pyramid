@@ -113,7 +113,9 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(out, ["http:POST ${billing.url}/v1/charges"])
 
     def test_a_second_implementation_stops_the_guess(self):
-        # Two implementers: the interface hop must not pick one.
+        # Two implementers: the interface hop must not pick one. It lists each
+        # implementation that really defines the method, as a medium-confidence
+        # candidate cited at that definition, and invents none for the other.
         from cdp.dataflow import build_dataflow
         x = self.p.xref
         extra = dict(x["uses"][0])
@@ -122,7 +124,9 @@ class WiringTest(unittest.TestCase):
                       "from_module": extra["from_module"]})
         x2 = dict(x, uses=x["uses"] + [extra])
         flow = build_dataflow(self.p.extraction, x2, self.p.graph)
-        self.assertFalse([e for e in flow["edges"] if e["source"] == "com.acme.wired.Greeter#greet"])
+        out = [e for e in flow["edges"] if e["source"] == "com.acme.wired.Greeter#greet"]
+        self.assertEqual({e["target"] for e in out}, {"com.acme.wired.GreeterImpl#greet"})
+        self.assertEqual({e["confidence"] for e in out}, {"medium"})
 
 
 if __name__ == "__main__":

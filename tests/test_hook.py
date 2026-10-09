@@ -483,40 +483,70 @@ class PromptSubmitTest(_OwnHome, unittest.TestCase):
 
 @unittest.skipUnless(have_git(), "needs a real git repository")
 class GateTest(_OwnHome, unittest.TestCase):
-    """`--gate`: the first source search/read is denied once until the index is asked."""
+    """`--gate`: a search or read the index can answer is answered, not run."""
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.make_home()
-        self.repo = make_repo(Path(self.tmp.name))
+        self.repo = make_repo(Path(self.tmp.name), "reservrepo")
         main(["scan", "--repo", str(self.repo), "--quiet"])
-        self.source = str(self.repo / "core/src/main/java/COM/Example/mini/core/Widget.java")
+        self.service = str(self.repo / "src/main/java/com/acme/res/ReservationService.java")
 
     def ev(self, tool, session, **tool_input):
         return {"session_id": self.id() + session, "cwd": str(self.repo),
                 "tool_name": tool, "tool_input": tool_input}
 
-    def test_first_read_is_denied_once_then_allowed(self) -> None:
-        first = hook_mod.gate_decide(self.ev("Read", "a", file_path=self.source))
-        self.assertTrue(first["block"])
-        self.assertIn("cdp_query", first["message"])
-        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "a", file_path=self.source)))
+    def bash(self, command, session="a"):
+        return hook_mod.gate_decide(self.ev("Bash", session, command=command))
 
-    def test_first_shell_search_is_denied(self) -> None:
-        self.assertTrue(hook_mod.gate_decide(self.ev("Bash", "b", command="grep -rn Widget core"))["block"])
-        self.assertIsNone(hook_mod.gate_decide(self.ev("Bash", "c", command="git status")))
+    def test_recursive_grep_of_a_known_name_is_answered_with_its_callers(self) -> None:
+        result = self.bash('grep -rn "processPendingReservations" --include=*.java . | head')
+        self.assertTrue(result["block"])
+        self.assertIn("ProcessPendingJob.java", result["message"])
+        self.assertIn("ReservationService.java:", result["message"])
 
-    def test_asking_the_index_first_means_never_denied(self) -> None:
-        self.assertIsNone(hook_mod.gate_decide(self.ev("mcp__cdp__cdp_query", "d", kind="trace")))
-        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "d", file_path=self.source)))
-        self.assertIsNone(hook_mod.gate_decide(self.ev(
-            "Bash", "e", command="python3 .claude/skills/cdp/run.py query symbol X")))
-        self.assertIsNone(hook_mod.gate_decide(self.ev("Bash", "e", command="grep -rn Widget .")))
+    def test_the_retry_runs(self) -> None:
+        self.assertIsNotNone(self.bash("grep -rn processPendingReservations ."))
+        self.assertIsNone(self.bash("grep -rn processPendingReservations ."))
+
+    def test_calls_the_index_cannot_improve_on_run(self) -> None:
+        for command in ("grep -rIl -i reservations .",                      # plain word
+                        "grep -rn NoSuchSymbolAnywhere .",                   # unknown to the index
+                        "grep -n validateMakeReservation ReservationService.java",  # one file
+                        "cat x | grep processPendingReservations",           # piped, not a repo search
+                        "git status", "ls src"):
+            self.assertIsNone(self.bash(command, session=command), command)
+
+    def test_find_by_name_is_answered_with_the_path(self) -> None:
+        result = self.bash("find . -name 'ReservationService*.java' -not -path '*/build/*'")
+        self.assertIn("ReservationService.java", result["message"])
+
+    def test_grep_tool_without_a_path_is_covered(self) -> None:
+        result = hook_mod.gate_decide(self.ev("Grep", "g", pattern="createReservationCredentials"))
+        self.assertIn("PostgresServerHelper", result["message"])
+        self.assertIn("MssqlServerHelper", result["message"])
+
+    def test_whole_file_read_gets_the_outline_once(self) -> None:
+        from unittest import mock
+        with mock.patch.object(hook_mod, "READ_MIN_LOC", 5):
+            first = hook_mod.gate_decide(self.ev("Read", "r", file_path=self.service))
+            self.assertTrue(first["block"])
+            self.assertIn("ReservationService#validateMakeReservation", first["message"])
+            self.assertIn("private", first["message"])
+            self.assertIn("L15-24", first["message"])  # makeReservations, start-end
+            self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "r", file_path=self.service)))
+
+    def test_ranged_and_short_reads_run(self) -> None:
+        from unittest import mock
+        with mock.patch.object(hook_mod, "READ_MIN_LOC", 5):
+            self.assertIsNone(hook_mod.gate_decide(
+                self.ev("Read", "r2", file_path=self.service, offset=10, limit=20)))
+        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "r3", file_path=self.service)))
 
     def test_silent_without_a_fresh_index(self) -> None:
         shutil.rmtree(self.home)
-        self.assertIsNone(hook_mod.gate_decide(self.ev("Read", "f", file_path=self.source)))
+        self.assertIsNone(self.bash("grep -rn processPendingReservations .", session="z"))
 
     def test_harness_installs_the_gate_not_the_nudge(self) -> None:
         target = Path(self.tmp.name) / "target"
@@ -527,3 +557,30 @@ class GateTest(_OwnHome, unittest.TestCase):
         self.assertEqual(len(pre), 1)
         self.assertTrue(pre[0]["hooks"][0]["command"].endswith("hook.py --gate"))
         self.assertIn("mcp__cdp__", pre[0]["matcher"])
+
+
+class ShellSearchParsingTest(unittest.TestCase):
+    """The commands Claude actually ran against the real repo."""
+
+    def terms(self, command):
+        from cdp import hook_rules
+        return [(s["kind"], s["terms"]) for s in hook_rules.shell_searches(command)]
+
+    def test_commands_from_real_sessions(self) -> None:
+        self.assertEqual(self.terms("grep -rIl --include=*.java -i \"reservations\" . | grep -v /build/ | head -40"), [])
+        self.assertEqual(self.terms("grep -rn 'processPendingReservations\\|createReservationCredentials' --include='*.java' . | head"),
+                         [("grep", ["processPendingReservations", "createReservationCredentials"])])
+        self.assertEqual(self.terms("cd sql-pool && grep -rnE \"validateMakeReservation|checkIdempotency\" ."),
+                         [("grep", ["validateMakeReservation", "checkIdempotency"])])
+        self.assertEqual(self.terms("find . -name 'ReservationService*.java' -not -path '*/build/*' | head"),
+                         [("find", ["ReservationService"])])
+
+    def test_targeted_or_piped_greps_are_not_repo_searches(self) -> None:
+        self.assertEqual(self.terms("grep -n FooBarBaz src/main/Foo.java"), [])
+        self.assertEqual(self.terms("grep -rn FooBarBaz src/main/Foo.java"), [])
+        self.assertEqual(self.terms("cat x | grep FooBarBaz"), [])
+        self.assertEqual(self.terms("echo 'unterminated"), [])
+
+    def test_ripgrep_is_recursive_by_default(self) -> None:
+        self.assertEqual(self.terms("rg ReservationService"), [("grep", ["ReservationService"])])
+        self.assertEqual(self.terms("rg ReservationService src/File.java"), [])

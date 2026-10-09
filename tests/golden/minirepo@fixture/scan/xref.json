@@ -233,6 +233,7 @@
             "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
             "line": 19
           },
+          "end_line": 21,
           "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
           "module": "core",
           "role": "source"
@@ -253,6 +254,7 @@
             "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
             "line": 14
           },
+          "end_line": 16,
           "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
           "module": "core",
           "role": "source"
@@ -273,6 +275,7 @@
             "file": "core/src/test/java/com/example/mini/core/Widget.java",
             "line": 6
           },
+          "end_line": 8,
           "file": "core/src/test/java/com/example/mini/core/Widget.java",
           "module": "core",
           "role": "test"
@@ -313,6 +316,7 @@
             "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
             "line": 17
           },
+          "end_line": 19,
           "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
           "module": "core",
           "role": "source"
@@ -435,6 +439,7 @@
             "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
             "line": 5
           },
+          "end_line": 7,
           "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
           "module": "web",
           "role": "source"
@@ -475,6 +480,7 @@
             "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
             "line": 26
           },
+          "end_line": 28,
           "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
           "module": "web",
           "role": "source"
@@ -495,6 +501,7 @@
             "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
             "line": 20
           },
+          "end_line": 22,
           "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
           "module": "web",
           "role": "source"

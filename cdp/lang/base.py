@@ -174,10 +174,13 @@ def anchor_at(ctx: ExtractContext, index: int) -> Optional[Dict]:
     return build_anchor(ctx.path, ctx.lines, index)
 
 
-def mk_define(fqn: str, kind: str, visibility: str, anchor: Dict, value: Optional[str] = None) -> Dict:
+def mk_define(fqn: str, kind: str, visibility: str, anchor: Dict, value: Optional[str] = None,
+              end_line: Optional[int] = None) -> Dict:
     row = {"fqn": fqn, "kind": kind, "visibility": visibility, "anchor": anchor}
     if value is not None:
         row["value"] = value
+    if end_line is not None:
+        row["end_line"] = end_line
     return row
 
 

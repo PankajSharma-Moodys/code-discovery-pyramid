@@ -251,18 +251,41 @@ def _read_declarations(
                 elif METHOD_RE.match(line):
                     mm = METHOD_RE.match(line)
                     assert mm is not None
-                    if mm.group(1) == "public" and mm.group(3) != mm.group(3).upper():
+                    if mm.group(3) != mm.group(3).upper():
                         anchor = anchor_at(ctx, idx)
                         if anchor is not None:
                             fqn = owner + "#" + mm.group(3)
-                            facts.defines.append(mk_define(fqn, "method", "public", anchor))
-                            decls.append({"fqn": fqn, "kind": "method", "visibility": "public",
+                            visibility = mm.group(1)
+                            end_line = _member_end(masked, idx) + 1
+                            facts.defines.append(mk_define(fqn, "method", visibility, anchor,
+                                                           end_line=end_line))
+                            decls.append({"fqn": fqn, "kind": "method", "visibility": visibility,
                                           "anchor": anchor, "index": idx, "name": mm.group(3)})
 
         depth += masked[idx].count("{") - masked[idx].count("}")
 
     decls.sort(key=lambda d: d["index"])
     return decls
+
+
+def _member_end(masked: List[str], idx: int, limit: int = 4000) -> int:
+    """Index of the line where the member declared at `idx` ends: its closing
+    brace, or the `;` of an abstract/interface declaration. Reads the masked
+    lines, so braces in string literals do not count."""
+    depth = 0
+    opened = False
+    for j in range(idx, min(len(masked), idx + limit)):
+        for ch in masked[j]:
+            if ch == "{":
+                depth += 1
+                opened = True
+            elif ch == "}":
+                depth -= 1
+                if opened and depth <= 0:
+                    return j
+            elif ch == ";" and not opened:
+                return j
+    return idx
 
 
 def _mask_literals(line: str) -> str:

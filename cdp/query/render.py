@@ -57,7 +57,13 @@ def render(result: Dict) -> str:
             if entry["defines"]:
                 lines.append("  defines:")
                 for d in entry["defines"]:
-                    lines.append("    %-9s %-60s %s" % (d["kind"], truncate(d["fqn"], 60), d["at"]))
+                    if d.get("name"):
+                        end = d.get("end_line")
+                        span = "%s-%s" % (d["line"], end) if end and end != d["line"] else str(d["line"])
+                        lines.append("    L%-9s %-9s %-9s %s" % (
+                            span, d.get("visibility") or "", d["kind"], d["name"]))
+                    else:
+                        lines.append("    %-9s %-60s %s" % (d["kind"], truncate(d["fqn"], 60), d["at"]))
                 lines.extend(_more("    ", entry["defines_count"], entry["defines"]))
             if entry["io_edges"]:
                 lines.append("  edges:")

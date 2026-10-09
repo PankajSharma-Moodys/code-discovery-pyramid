@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .budget import Budget
@@ -256,10 +257,25 @@ def _walk(
                 if target in seen:
                     continue
                 seen.add(target)
-                reached[target] = edge
+                reached[target] = dict(edge, hop=hops)
                 nxt.append(target)
         frontier = nxt
     return reached, bool(frontier)
+
+
+_ACCESSOR = re.compile(r"#(?:get|set|is|has)[A-Z]\w*$|#(?:toString|equals|hashCode|builder|build|<init>)$")
+_ACCESSOR_MAX_LINES = 3
+
+
+def _is_boilerplate(store: Store, target: str) -> bool:
+    """A getter, setter or `toString`: named like one and no longer than a few
+    lines. Extent matters because `getInstance` or `getConnection` carry logic."""
+    if not _ACCESSOR.search(target):
+        return False
+    for site in store.xref["symbols"].get(target, {}).get("sites", [])[:1]:
+        end = site.get("end_line")
+        return end is None or end - site["anchor"]["line"] <= _ACCESSOR_MAX_LINES
+    return True
 
 
 def _trace_files(
@@ -286,7 +302,10 @@ def _trace_files(
         "entry point (%s) %s" % (resolved["channel"], resolved["label"]),
         resolved.get("at"), "high")
 
-    for target in sorted(reached):
+    # Nearest hops first, and plain accessors last: a reading list is cut by the
+    # budget from the end, and a getter should go before the service that matters.
+    order = sorted(reached, key=lambda t: (_is_boilerplate(store, t), reached[t].get("hop", 0), t))
+    for target in order:
         edge = reached[target]
         add(edge["anchor"]["file"], edge.get("module"),
             "%s --%s--> %s" % (edge["source"].rsplit(".", 1)[-1], edge["channel"],

@@ -76,10 +76,13 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
         )
         if row["module"] not in entry["modules"]:
             entry["modules"].append(row["module"])
-        entry["sites"].append({
+        site = {
             "file": row["file"], "anchor": row["anchor"], "module": row["module"],
             "role": role_of.get(row["file"], "source"),
-        })
+        }
+        if row.get("end_line"):
+            site["end_line"] = row["end_line"]
+        entry["sites"].append(site)
         if row.get("value") is not None:
             entry["value"] = row["value"]
 

@@ -172,6 +172,35 @@ def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]
         if len(rs) == 1 and symbols.get(iface, {}).get("kind") == "interface"
     }
 
+    # Every subtype of a base, interfaces and abstract classes alike: a call on
+    # the base may run any override. Direct `extends`/`implements` rows only;
+    # the transitive closure is taken below.
+    subtypes: Dict[str, List[str]] = {}
+    for r in rows:
+        if r["kind"] not in ("implements", "extends") or not r.get("from_symbol"):
+            continue
+        sites = symbols.get(r["from_symbol"], {}).get("sites", [])
+        if sites and all(s.get("role") == "test" for s in sites):
+            continue
+        subtypes.setdefault(r["fqn"], []).append(r["from_symbol"])
+
+    def overrides(owner: str, method: str) -> List[Dict]:
+        found: List[Dict] = []
+        seen_types = {owner}
+        queue = list(subtypes.get(owner, []))
+        while queue:
+            sub = queue.pop(0)
+            if sub in seen_types:
+                continue
+            seen_types.add(sub)
+            queue.extend(subtypes.get(sub, []))
+            entry = symbols.get("%s#%s" % (sub, method))
+            sites = [s for s in (entry or {}).get("sites", []) if s.get("role") != "test"]
+            if sites:
+                found.append({"target": "%s#%s" % (sub, method),
+                              "from_module": sites[0]["module"], "anchor": sites[0]["anchor"]})
+        return found
+
     def add(edge: Dict) -> None:
         key = (edge["source"], edge["target"], "call")
         if key not in seen:
@@ -191,6 +220,8 @@ def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]
         if impl:
             target = "%s#%s" % (impl["from_symbol"], method)
             add(_edge(r["fqn"], target, impl, "medium"))
+        for over in overrides(owner, method):
+            add(_edge(r["fqn"], over["target"], over, "medium"))
 
 
 def _sources(edges: Sequence[Dict]) -> List[Dict]:
