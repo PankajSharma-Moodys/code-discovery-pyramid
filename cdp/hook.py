@@ -62,7 +62,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -70,11 +69,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 #: Tools worth intercepting. Everything else is not a source read.
-WATCHED = ("Read", "Grep", "Glob", "Bash")
-
-#: A Bash command only counts as a source search when it runs one of these.
-#: (Bash is how models grep/find in practice; the Grep/Glob tools are rarely used.)
-SEARCH_COMMAND = re.compile(r"(?:^|[|;&(]\s*|\bxargs\s+)(?:grep|egrep|rg|ag|ack|find)\b")
+WATCHED = ("Read", "Grep", "Glob")
 
 #: The only role that gets a nudge. Editing a README, a CI file or a fixture is
 #: not a question the index can answer better.
@@ -91,26 +86,15 @@ STRICT_MIN_COVERAGE = 0.95
 SESSION_REFRESH_TIMEOUT = 60
 
 
-def nudge_text(sha: str, path: str, dirty: bool, search: bool = False) -> str:
-    if search:
-        lines = [
-            "CDP indexes this repository at %s." % sha[:12],
-            "Before grepping or finding, ask the index: `cdp_query` (MCP) or "
-            "`cdp query symbol <name>` / `cdp query file <path>` / `cdp query trace "
-            "<entrypoint>` return cited file:line locations. The index is a map, not "
-            "the logic: once you know where, Read only the cited line ranges "
-            "(offset/limit), not whole files.",
-            "Check `cdp query coverage` before concluding something is absent.",
-        ]
-    else:
-        lines = [
-            "CDP indexes this repository at %s." % sha[:12],
-            "`cdp query symbol <name>` and `cdp query file %s` give cited locations "
-            "and relationships, and `cdp query trace <entrypoint>` gives the reading "
-            "list for a question. It is a map, not the logic: Read only the cited "
-            "line ranges (offset/limit), not whole files." % path,
-            "Check `cdp query coverage` before concluding something is absent.",
-        ]
+def nudge_text(sha: str, path: str, dirty: bool) -> str:
+    lines = [
+        "CDP indexes this repository at %s." % sha[:12],
+        "`cdp query file %s`, `cdp query symbol <name>` and `cdp query trace "
+        "<entrypoint>` give cited locations and relationships. It is a map, not "
+        "the logic: Read only the cited line ranges (offset/limit), not whole "
+        "files. `cdp help` lists every query and when to use it." % path,
+        "Check `cdp query coverage` before concluding something is absent.",
+    ]
     if dirty:
         # Stress test, and the decision it forced: HEAD matches but files are
         # edited, so the index is stale in a way the HEAD check structurally
@@ -242,16 +226,8 @@ def _gate(event: Dict) -> Optional[Dict]:
     if event.get("tool_name") not in WATCHED:
         return None
 
-    is_search = event.get("tool_name") == "Bash"
+    raw = target_path(str(event.get("tool_name")), event.get("tool_input") or {})
     cwd = Path(str(event.get("cwd") or os.getcwd()))
-    if is_search:
-        tool_input = event.get("tool_input")
-        command = tool_input.get("command") if isinstance(tool_input, dict) else None
-        if not isinstance(command, str) or not SEARCH_COMMAND.search(command):
-            return None
-        raw = None
-    else:
-        raw = target_path(str(event.get("tool_name")), event.get("tool_input") or {})
     anchor = Path(raw) if raw and Path(raw).is_absolute() else cwd / (raw or ".")
 
     found = find_state(anchor) or find_state(cwd)
@@ -280,22 +256,14 @@ def _gate(event: Dict) -> Optional[Dict]:
     rel = _relative(anchor, repo)
     if rel is None:
         return None
-    if not is_search and _role_of(inventory, rel) != NUDGE_ROLE:
+    if _role_of(inventory, rel) != NUDGE_ROLE:
         return None
 
     return {
-        "search": is_search,
         "state": state, "inventory": inventory, "repo": repo,
         "indexed": indexed, "rel": rel, "coverage_fraction": folded.get(
             "coverage", {}).get("fraction", 0.0),
     }
-
-
-def _session_key(event: Dict, gated: Dict) -> str:
-    """Shell searches get their own once-per-session marker, so nudging the
-    first grep does not use up the nudge (or strict block) for the first Read."""
-    key = str(event.get("session_id") or "no-session")
-    return key + ":search" if gated["search"] else key
 
 
 def decide(event: Dict) -> Optional[str]:
@@ -303,10 +271,9 @@ def decide(event: Dict) -> Optional[str]:
     gated = _gate(event)
     if gated is None:
         return None
-    if not claim_session(gated["state"], _session_key(event, gated)):
+    if not claim_session(gated["state"], str(event.get("session_id") or "no-session")):
         return None
-    return nudge_text(gated["indexed"], gated["rel"], is_dirty(gated["repo"]),
-                      search=gated["search"])
+    return nudge_text(gated["indexed"], gated["rel"], is_dirty(gated["repo"]))
 
 
 def strict_decide(event: Dict) -> Optional[Dict]:
@@ -320,14 +287,10 @@ def strict_decide(event: Dict) -> Optional[Dict]:
     gated = _gate(event)
     if gated is None:
         return None
-    if not claim_session(gated["state"], _session_key(event, gated)):
+    if not claim_session(gated["state"], str(event.get("session_id") or "no-session")):
         return None
-    message = nudge_text(gated["indexed"], gated["rel"], is_dirty(gated["repo"]),
-                         search=gated["search"])
-    # A shell search is never blocked (it cannot be judged from a command
-    # string), only nudged; its own once-per-session marker leaves the strict
-    # block on the first source read intact.
-    if gated["search"] or gated["coverage_fraction"] < STRICT_MIN_COVERAGE:
+    message = nudge_text(gated["indexed"], gated["rel"], is_dirty(gated["repo"]))
+    if gated["coverage_fraction"] < STRICT_MIN_COVERAGE:
         return {"block": False, "message": message}
     block_message = (
         "Blocked: the index covers %.0f%% of this repository at %s and can "
@@ -418,10 +381,12 @@ def session_start(event: Dict) -> Optional[str]:
     cov = (status.get("coverage") or {}).get("fraction")
     cov_text = "%d%%" % round(cov * 100) if isinstance(cov, (int, float)) else "unknown"
     return ("CDP index for this repo is ready: commit %s, coverage %s. BEFORE grepping, "
-            "finding or reading source to locate code, call `cdp_query` (MCP) or run "
-            "`cdp query symbol|file|trace <name>`: it returns cited file:line locations. "
-            "Then Read only the cited line ranges. Run `cdp query coverage` before "
-            "concluding something is absent." % (head, cov_text))
+            "finding or reading source to locate code, use `cdp_query` (MCP) or "
+            "`python3 .claude/skills/cdp/run.py query <kind> <name>`: it returns cited "
+            "file:line locations; then Read only those ranges. Run "
+            "`python3 .claude/skills/cdp/run.py help` once for every query kind and when "
+            "to use it (trace, paths, symbol, table, config, routes, link). Run "
+            "`query coverage` before concluding something is absent." % (head, cov_text))
 
 
 def main(argv: Optional[List[str]] = None) -> int:

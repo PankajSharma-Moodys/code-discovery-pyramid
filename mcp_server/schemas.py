@@ -23,7 +23,12 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "structure -- symbols, files, modules, routes, config, call "
             "traces, unknowns, conflicts, coverage. `repo` must already be "
             "scanned (`cdp_scan` first). Cheaper and more reliable than "
-            "grepping the repository yourself."
+            "grepping the repository yourself. Pick `kind` by question: "
+            "`trace` an entry point's reading list; `paths` (frm, to) how A "
+            "reaches B; `symbol` definition and every use; `table`/`config` "
+            "who reads or writes it; `routes` the HTTP surface. It returns "
+            "cited locations, not logic: Read only the cited lines. Run "
+            "`cdp help` for the full guide."
         ),
         "inputSchema": {
             "type": "object",

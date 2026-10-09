@@ -37,7 +37,7 @@ DIST_IGNORE = shutil.ignore_patterns(
 
 #: `matcher` is compared as an exact string when it contains only letters,
 # digits and `|`, so this fires on exactly these three tools and nothing else.
-HOOK_MATCHER = "Read|Grep|Glob|Bash"
+HOOK_MATCHER = "Read|Grep|Glob"
 
 
 def copy_distribution(dest: Path) -> None:
