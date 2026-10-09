@@ -161,7 +161,7 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     return notes
 
 
-SESSION_MATCHER = "startup|resume|clear|compact"
+SESSION_MATCHER = "startup|resume|clear|compact|fork"
 
 
 def _load_json_object(path: Path, hint: str) -> Dict:

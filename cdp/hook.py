@@ -460,13 +460,12 @@ def session_start(event: Dict) -> Optional[str]:
         depth = "model-reviewed coverage %d%%" % round(cov * 100)
     else:
         depth = "deterministic index (%s live claims, no model review)" % fresh.get("live", "?")
-    return ("CDP index for this repo is ready: commit %s, %s. BEFORE grepping, "
-            "finding or reading source to locate code, use `cdp_query` (MCP) or "
-            "`python3 .claude/skills/cdp/run.py query <kind> <name>`: it returns cited "
-            "file:line locations; then Read only those ranges. Run "
-            "`python3 .claude/skills/cdp/run.py help` once for every query kind and when "
-            "to use it (trace, paths, symbol, table, config, routes, link). Run "
-            "`query coverage` before concluding something is absent." % (head, depth))
+    return ("CDP index for this repo is ready: commit %s, %s. `cdp_query` (MCP) or "
+            "`python3 .claude/skills/cdp/run.py query <kind> <name>` returns cited file:line "
+            "locations, so code can be located without grep/find, and only the cited line "
+            "ranges need reading. `run.py help` lists every query kind (trace, paths, symbol, "
+            "table, config, routes, link). `query coverage` says what the index did not examine."
+            % (head, depth))
 
 
 def prompt_submit(event: Dict) -> Optional[str]:
@@ -483,10 +482,13 @@ def prompt_submit(event: Dict) -> Optional[str]:
     home, repo_id, _repo = found
     if not claim_session(home / "work" / repo_id, str(event.get("session_id") or "no-session") + ":prompt"):
         return None
-    return ("This repo has a CDP index. To locate code or trace a flow, call `cdp_query` "
-            "(MCP; kinds: trace, paths, symbol, table, config, routes) FIRST, before grep/find/Read; "
-            "then Read only the cited line ranges. `python3 .claude/skills/cdp/run.py help` "
-            "lists every query.")
+    # Facts, not commands: the hooks docs warn that imperative "system
+    # instruction" phrasing in additionalContext can trip the model's
+    # prompt-injection defenses, which would explain it being ignored.
+    return ("This repo has a CDP index (cdp_query over MCP; kinds: trace, paths, symbol, "
+            "table, config, routes). It returns cited file:line locations for the whole call "
+            "chain in one call, so grep/find/Read are only needed afterwards, on the cited "
+            "line ranges. `python3 .claude/skills/cdp/run.py help` lists every query.")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
