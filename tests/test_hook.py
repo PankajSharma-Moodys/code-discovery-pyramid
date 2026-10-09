@@ -366,7 +366,8 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
             self.assertEqual(len(handlers), 1)
-            self.assertEqual(handlers[0]["args"], ["--strict"])
+            self.assertTrue(handlers[0]["command"].endswith("hook.py --strict"))
+            self.assertNotIn("args", handlers[0])
 
             # Re-installing without --strict updates the existing entry in
             # place rather than leaving the old choice or stacking a duplicate.
@@ -375,7 +376,7 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
             self.assertEqual(len(handlers), 1)
-            self.assertEqual(handlers[0]["args"], [])
+            self.assertTrue(handlers[0]["command"].endswith("hook.py"))
 
     def test_install_states_no_scan_yet_without_requiring_in_repo(self) -> None:
         # M2.6: the hook is no longer `--in-repo` only (`store.registry`

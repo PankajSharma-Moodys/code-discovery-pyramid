@@ -120,22 +120,23 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     if not isinstance(settings, dict):
         raise CdpError("%s does not contain a JSON object" % settings_path)
 
-    command = "python3 %s" % (dest / "cdp" / "hook.py")
-    entry = {"type": "command", "command": command, "args": ["--strict"] if strict else []}
+    # Flags live in the command string, not an `args` field: with `args` present
+    # Claude Code spawns `command` as a bare executable (no shell), so
+    # "python3 /path/hook.py" fails with ENOENT.
+    base = "python3 %s" % (dest / "cdp" / "hook.py")
+    command = base + (" --strict" if strict else "")
+    entry = {"type": "command", "command": command}
     hooks = settings.setdefault("hooks", {})
     groups = hooks.setdefault("PreToolUse", [])
     for group in groups:
         if isinstance(group, dict) and group.get("matcher") == HOOK_MATCHER:
             handlers = group.setdefault("hooks", [])
-            # Idempotent: re-running `install --hook` must not stack duplicates,
-            # and re-running with a different `--strict` choice updates the
-            # existing entry's args in place rather than leaving the old choice.
-            existing = next((h for h in handlers
-                              if isinstance(h, dict) and h.get("command") == command), None)
-            if existing is None:
-                handlers.append(entry)
-            else:
-                existing["args"] = entry["args"]
+            # Idempotent: replace any earlier CDP entry (including the old
+            # `args` form) rather than stacking duplicates or keeping a stale
+            # --strict choice.
+            handlers[:] = [h for h in handlers
+                           if not (isinstance(h, dict) and str(h.get("command", "")).startswith(base))]
+            handlers.append(entry)
             break
     else:
         groups.append({"matcher": HOOK_MATCHER, "hooks": [entry]})
