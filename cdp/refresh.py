@@ -16,12 +16,16 @@ back into `patches/`.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+import datetime
 
+from . import dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, snapshot as snapshot_mod, state as state_mod
 from .extract import MAX_PARSE_BYTES, _sorted
 from .lang import extract_file
-from .util import normalise_ws, read_lines, run_git, stable_hash
+from .session import Paths, check_repo_matches_manifest, extra_excludes, git_head_or_raise, open_store
+from .util import CdpError, normalise_ws, read_lines, run_git, stable_hash
+from .verify import STRICT
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 
 class HistoryUnavailable(Exception):
@@ -223,3 +227,119 @@ def incremental_extract(
             "imports": len(imports),
         },
     }
+
+
+def refresh_repo(
+    paths: Paths,
+    *,
+    mode: str = STRICT,
+    exclude: Optional[Sequence[str]] = None,
+    say: Callable[..., None] = lambda *a: None,
+) -> int:
+    """M3.3: re-verify every live claim against HEAD, zero model calls.
+
+    Re-derives nothing: the patch log is untouched (R5). What moves is the
+    *view* -- incremental extraction (M3.2) for `xref`/`graph`/`dataflow`, and
+    rename-aware re-verification for the claims already in the log, via the
+    same `rename_map`/`edited_files` arguments `state.fold` now accepts.
+    """
+
+    backend = open_store(paths)
+    store = query_mod.Store(backend)
+    check_repo_matches_manifest(paths, store.manifest)
+    prior_snapshot_id = backend.snapshot_id()
+
+    if snapshot_mod.is_dirty(paths.repo):
+        raise CdpError("refresh requires a clean working tree (dirty trees are ephemeral, "
+                       "never a refresh target)")
+    prev_head = store.inventory.get("head")
+    new_head = git_head_or_raise(paths.repo)
+    if prev_head in (None, "unpinned"):
+        raise CdpError("no prior scan to refresh from -- run `cdp scan` first")
+    if new_head == prev_head:
+        say("refresh   HEAD unchanged (%s); nothing to do" % new_head[:12])
+        backend.close()
+        return 0
+
+    history_ok = True
+    try:
+        rename_map, edited, added, deleted = classify_changes(paths.repo, prev_head, new_head)
+    except HistoryUnavailable:
+        history_ok = False
+        rename_map, edited, added, deleted = {}, set(), set(), set()
+
+    new_inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=extra_excludes(paths.repo, exclude))
+    if history_ok:
+        changed = set(rename_map.values()) | edited | added
+    else:
+        changed = {e["path"] for e in new_inventory["files"]}
+    new_extraction = incremental_extract(paths.repo, new_inventory, store.extraction, changed)
+
+    new_graph = graph_mod.build_graph(new_inventory, new_extraction)
+    new_xref = resolve_mod.build_xref(new_inventory, new_extraction, new_graph)
+    budgets = store.manifest.get("budgets", {})
+    new_part = partition_mod.partition(
+        new_inventory,
+        budgets.get("max_leaf_files", partition_mod.DEFAULT_MAX_FILES),
+        budgets.get("max_leaf_loc", partition_mod.DEFAULT_MAX_LOC),
+    )
+    annotate_scope_hashes(paths.repo, new_part)
+    dispatch = changed_scopes(store.partition, new_part)
+    new_flow = dataflow_mod.build_dataflow(
+        new_extraction, new_xref, new_graph, budgets.get("max_hops", dataflow_mod.DEFAULT_MAX_HOPS)
+    )
+
+    # Read before `begin_snapshot` moves the backend's selection forward --
+    # `store` wraps this same backend instance, and `state` is not read
+    # anywhere above this line, so reading it after the snapshot switch would
+    # silently return the new (not-yet-written) snapshot's empty default.
+    before_demoted = len(store.state.get("unknowns", []))
+
+    backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"]))
+    # M2.4's per-snapshot patch isolation (`test_store_sqlite.py`) means the
+    # snapshot just selected starts with an empty log. Carry the prior
+    # snapshot's log forward verbatim -- refresh re-verifies the *existing*
+    # log (D10), it never appends to it, so an empty one would fold to zero
+    # claims regardless of how many were live a moment ago.
+    if not backend.load_patches():
+        backend.copy_patches_from(prior_snapshot_id)
+    backend.write_artifact("inventory", new_inventory)
+    backend.write_artifact("extract", new_extraction)
+    backend.write_artifact("graph", new_graph)
+    backend.write_artifact("partition", new_part)
+    backend.write_artifact("xref", new_xref)
+    backend.write_artifact("dataflow", new_flow)
+    folded = state_mod.fold(
+        backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=mode,
+        rename_map=rename_map, edited_files=frozenset(edited),
+        excluded_run_ids=rollback_mod.load_excluded_run_ids(backend),
+        extraction=new_extraction,
+    )
+    backend.write_artifact("state", folded)
+    backend.write_artifact(
+        "manifest",
+        dict(store.manifest, head=new_inventory["head"],
+             generated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")),
+    )
+
+    buckets = freshness_mod.bucket_counts(folded["claims"], paths.repo, new_head, store=backend)
+    after_demoted = len(folded.get("unknowns", []))
+    say("refresh   %s -> %s" % (prev_head[:12], new_head[:12]))
+    if not history_ok:
+        say("          history unavailable for that range (rebase/shallow) -- full "
+            "re-extract, staleness reported as unknown rather than assumed live")
+    say("extract   %d file(s) changed (renamed/edited/added), %d total parsed"
+        % (len(changed), new_extraction["totals"]["parsed_files"]))
+    say("rename    %d file(s) renamed, %d edited, %d added, %d deleted"
+        % (len(rename_map), len(edited), len(added), len(deleted)))
+    say("scopes    %d/%d changed (dispatch needed for %d, %d reuse the prior claim)"
+        % (len(dispatch), len(new_part["scopes"]), len(dispatch),
+           len(new_part["scopes"]) - len(dispatch)))
+    say("verify    %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn "
+        "(%d newly demoted), zero model calls"
+        % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
+           buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN],
+           after_demoted - before_demoted))
+    say("next      cdp query stats")
+    backend.close()
+    return 0

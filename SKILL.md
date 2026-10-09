@@ -219,7 +219,7 @@ The essentials:
 `cdp help` lists everything else (`doctor`, `reflect`, `lessons`, `diff`,
 `link`, `gc`, `compact`, `verify`, `export`, `rollback`, `answer`, `githook`,
 `selftest`, ...) with when to reach for each. It is generated from the live
-argument parser (`cdp/cli.py` `cmd_help`/`helpdoc.describe`), so unlike this
+argument parser (`cdp/commands/setup/help.py` / `helpdoc.describe`), so unlike this
 file it cannot drift from the actual CLI. `cdp help --json` gives the same
 surface as data, for a non-Claude driver to bootstrap against.
 

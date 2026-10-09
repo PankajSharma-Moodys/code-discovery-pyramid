@@ -42,6 +42,7 @@ patch-level field queried by `load_patches`/`collect` today.
 from __future__ import annotations
 
 import datetime
+import fcntl
 import json
 import sqlite3
 from pathlib import Path
@@ -803,6 +804,18 @@ class SqliteStore(WorkspaceStore):
     # ---------------------------------------------------------------- schema
 
     def _migrate(self) -> None:
+        """Bring the schema up to date. Two processes opening a fresh machine
+        store at once would both read version 0 and both run migration 2's
+        `ALTER TABLE`; the second fails with `duplicate column name`. A lock
+        file serialises the check-then-apply, so the loser sees the new version."""
+        with open(str(self.db_path) + ".migrate", "a") as fh:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            try:
+                self._migrate_locked()
+            finally:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+    def _migrate_locked(self) -> None:
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"
         )

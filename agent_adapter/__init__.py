@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict
 
 from cdp import helpdoc
-from cdp.cli import _parser
+from cdp.cli import build_parser
 from mcp_server import tools as mcp_tools
 
 #: `mcp_server.tools.TOOLS`' keys are also `cdp help --json`'s command names
@@ -45,7 +45,7 @@ class ToolSpec:
 
 
 def _command_summaries() -> Dict[str, str]:
-    surface = helpdoc.describe(_parser())
+    surface = helpdoc.describe(build_parser())
     return {c["name"]: c["summary"] for c in surface["commands"]}
 
 

@@ -17,6 +17,9 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+#: The skill's own root: where `schema/`, `agents/` and the bundled tests live.
+SKILL_ROOT = Path(__file__).resolve().parent.parent
+
 SCHEMA_VERSION = "1.0.0"
 CDP_VERSION = "0.1.0"
 

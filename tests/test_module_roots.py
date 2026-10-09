@@ -19,7 +19,7 @@ from pathlib import Path
 
 from helpers import Pipeline, have_git, make_repo  # noqa: F401  (sets sys.path)
 
-from cdp.cli import _structural_unknowns
+from cdp.pipeline import structural_unknowns
 from cdp.inventory import ROOT_MODULE
 
 
@@ -86,7 +86,7 @@ class SingleModuleRepoTest(unittest.TestCase):
         self.assertEqual(self.pipeline.graph["declared"], [])
 
     def test_no_identity_unknown_is_raised(self) -> None:
-        unknowns = _structural_unknowns(
+        unknowns = structural_unknowns(
             self.pipeline.inventory, self.pipeline.xref, self.pipeline.graph
         )
         self.assertNotIn(
@@ -121,7 +121,7 @@ class UnnameableRootTest(unittest.TestCase):
         self.assertNotIn("src", names)
 
     def test_a_structural_unknown_states_the_gap(self) -> None:
-        unknowns = _structural_unknowns(
+        unknowns = structural_unknowns(
             self.pipeline.inventory, self.pipeline.xref, self.pipeline.graph
         )
         matching = [u for u in unknowns if u["question"] == "What is this module called?"]

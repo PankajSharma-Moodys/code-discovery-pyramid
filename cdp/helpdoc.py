@@ -9,7 +9,7 @@ programmatically, actually needs.
 A help text that drifts from the CLI is worse than no help text: it is a
 confident wrong answer about the tool itself, and it is the failure mode a
 parallel table guarantees eventually. `describe()` walks the real parser, so a
-subcommand added in `cli._parser` appears here without anyone remembering to add
+subcommand added in `cli.build_parser` appears here without anyone remembering to add
 it, and `tests/test_help.py` asserts exactly that.
 
 `--json` is the machine-readable surface. `RESEARCH_GRAPHIFY.md §7.11` and

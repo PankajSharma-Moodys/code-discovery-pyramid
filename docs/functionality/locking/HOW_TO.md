@@ -2,7 +2,7 @@
 
 Locking is automatic and not user-facing — every store-touching command
 already takes the right kind of lock via the `@_locked(shared=...)`
-decorator in `cdp/cli.py`. There is nothing to opt into and no flag to
+decorator in `cdp/commands/_common.py`. There is nothing to opt into and no flag to
 disable it.
 
 If a command hangs waiting on the lock, it raises after the 60s default

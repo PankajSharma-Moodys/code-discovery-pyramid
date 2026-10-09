@@ -34,13 +34,17 @@ from __future__ import annotations
 
 import datetime
 import threading
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence
 
+from . import entail as entail_mod, freshness as freshness_mod, gates as gates_mod, query as query_mod, reflect as reflect_mod, trajectory as trajectory_mod
 from .prompts import build_prompt
-from .schema import Validator, validate_patch
-from .util import git_head, read_json, write_text
+from .schema import Validator, schema_path, validate_patch
+from .session import Paths, check_repo_matches_manifest, fold_and_write, next_generation, next_run_id, open_store, stamp_claims
+from .store import registry as registry_mod
+from .util import CdpError, SKILL_ROOT, git_head, read_json, stable_hash, write_text
 from .verify import FileCache, STRICT, verify_patch
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Sequence, Set
+
 
 PENDING = "pending"
 DISPATCHED = "dispatched"
@@ -269,3 +273,265 @@ def _classify_returned(patch_path: Path, node: str, validator: Validator, repo: 
             reasons = ", ".join("%s %d" % kv for kv in stats["reasons"].items()) or "no anchor survived"
             return ANCHORS_FAILED, "every claim's anchor failed (%s)" % reasons, None
     return VALIDATED, None, patch
+
+
+def apply_wave_results(backend, store, results: List[Dict], run_id: str, mode: str, paths: "Paths",
+                         trajectory: Optional["trajectory_mod.TrajectoryStore"] = None,
+                         repo_id: Optional[str] = None, model: Optional[str] = None) -> Dict:
+    """The terminal outcome of one wave: append a `complete` patch for every
+    scope that validated, a `status: failed` patch (no claims) for every one
+    abandoned -- `state.fold`'s existing superseded-node handling turns the
+    latter into an honest unknown (R6) with no further code here -- then one
+    fold for the whole wave, and bump `validated` tasks to `folded`."""
+    log_so_far = backend.load_patches()
+    def_fqns, edge_subjects, edges_by_key = gates_mod.build_extraction_index(store.extraction)
+    scope_nodes = {s["node"] for s in store.partition["scopes"]}
+    node_to_hash = {s["node"]: s.get("scope_hash") for s in store.partition["scopes"]}
+    node_to_scope = {s["node"]: s for s in store.partition["scopes"]}
+    task_rows = backend.task_states(run_id)
+    tiering_report = backend.read_report("tiering", {}).get("tiering", {})
+    for row in results:
+        node = row["node"]
+        claims_emitted = unknowns_emitted = None
+        entailed = consistent = contradicted = elision_regret = None
+        if row["state"] == VALIDATED and row["patch"] is not None:
+            patch = dict(row["patch"])
+            patch["node"] = node
+            patch["run_id"] = run_id
+            patch["status"] = "complete"
+            patch.setdefault("author_kind", "llm")
+            patch["generation"] = next_generation(log_so_far, node)
+            log_so_far.append(patch)
+            stamp_claims(patch.get("claims") or [], store.inventory["head"])
+            kept, _rejected = gates_mod.gate_patch_unknowns(
+                patch.get("unknowns") or [], node, def_fqns, edge_subjects, edges_by_key,
+                scope_nodes, {node: task_rows.get(node_to_hash.get(node))},
+            )
+            patch["unknowns"] = kept
+            backend.append_patch(patch, node)
+            backend.clear_inbox(node)
+            claims_emitted = len(patch.get("claims") or [])
+            unknowns_emitted = len(kept)
+            # M9.2 (6.3): output scorecard -- entailment split on this leaf's
+            # own emitted claims, against the same extraction the leaf saw.
+            verdicts = [c.get("verdict") for c in entail_mod.entail_claims(patch.get("claims") or [], store.extraction)]
+            entailed = verdicts.count(entail_mod.ENTAILED)
+            consistent = verdicts.count(entail_mod.CONSISTENT)
+            contradicted = verdicts.count(entail_mod.CONTRADICTED)
+            # M9.2 (6.4): elision regret -- did this leaf emit an unknown
+            # about a subject the digest budget had already elided as a
+            # prior claim? That is the concrete "was the answer in a row the
+            # budget elided" question `prompts.py`'s ranking function needs
+            # graded against.
+            elided_subjects = (row.get("prompt_stats") or {}).get("elided_subjects") or []
+            unknown_subjects = [str(u.get("subject", "")) for u in kept]
+            elision_regret = trajectory_mod.elision_regret(elided_subjects, unknown_subjects)
+        elif row["state"] == ABANDONED:
+            backend.append_patch(
+                {"schema_version": "1.0.0", "node": node, "run_id": run_id, "status": "failed",
+                 "error": row["last_error"] or "abandoned after %d attempts" % row["attempts"]},
+                node + "-abandoned",
+            )
+        if trajectory is not None and repo_id is not None:
+            scope = node_to_scope.get(node, {})
+            prompt_stats = row.get("prompt_stats") or {}
+            trajectory.record_leaf_run(
+                run_id=run_id, node=node, scope_hash=node_to_hash.get(node), repo_id=repo_id,
+                model=model, scope_shape_key=trajectory_mod.scope_shape_key(scope),
+                template_version=None, tier=tiering_report.get(node, {}).get("tier"),
+                task_kind="scope", state=row["state"], attempts=row.get("attempts"),
+                claims_emitted=claims_emitted, unknowns_emitted=unknowns_emitted,
+                rows_elided=prompt_stats.get("elided_claims"), tokens_est=prompt_stats.get("tokens_est"),
+                digest_mode=prompt_stats.get("digest_mode"), entailed=entailed,
+                consistent=consistent, contradicted=contradicted, elision_regret=elision_regret,
+                sigma_claims=prompt_stats.get("sigma_claims"),
+            )
+    folded = fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=mode)
+    mark_folded(backend, run_id, results)
+    return folded
+
+
+def stale_nodes(store: "query_mod.Store", repo: Path) -> List[str]:
+    """Nodes owning at least one non-`live` claim (M3.1's freshness bucket) --
+    the set `--stale-only` re-reviews, per `ARCHITECTURE.md`'s own worked
+    example ('cdp run --stale-only re-reviews just those 11 scopes')."""
+    head = store.inventory.get("head")
+    if not head or head == "unpinned":
+        return []
+    cache: freshness_mod.ChurnCache = {}
+    nodes = set()
+    for claim in store.state.get("claims", []):
+        if freshness_mod.claim_bucket(claim, repo, head, cache, store=store.backend) != freshness_mod.LIVE:
+            owners = claim.get("source_nodes") or ([claim["source_node"]] if claim.get("source_node") else [])
+            nodes.update(owners)
+    return sorted(nodes)
+
+
+def lessons_hint(trajectory: "trajectory_mod.TrajectoryStore") -> Optional[str]:
+    """Every `LESSONS_HINT_EVERY` finished runs (global, cross-repo cadence,
+    per the user's own decision -- cutting itself stays manual), the message
+    that pending promotions exist and the exact command to freeze them.
+    None off-cadence, or when nothing is pending."""
+    count = trajectory.finished_run_count()
+    if count % trajectory_mod.LESSONS_HINT_EVERY != 0:
+        return None
+    pending = trajectory.pending_promotion_count()
+    if pending == 0:
+        return None
+    return ("lessons   %d promotion(s) pending after %d runs -- `cdp lessons cut` to freeze them"
+            % (pending, count))
+
+
+def run_waves(
+    paths: Paths,
+    runner,
+    *,
+    runner_cmd: Optional[str],
+    timeout: float,
+    mode: str,
+    max_attempts: int,
+    resume: bool,
+    lessons: Optional[int],
+    no_lessons: bool,
+    stale_only: bool,
+    scope: Optional[str],
+    wave: Optional[int],
+    say: Callable[..., None],
+) -> Dict:
+    """M5.3: `read schedule -> dispatch a wave -> collect -> adjudicate ->
+    fold -> next wave`. `prompts`/`collect` still work standalone (M5.1's
+    protocol doc); this drives them through this module's state machine
+    (M5.2) instead of a human running the loop from `SKILL.md`.
+
+    `--resume` (M5.5, 4.6): `runs.partition_hash` (a `stable_hash` of every
+    scope's `(node, scope_hash)`, computed fresh from *this* invocation's
+    partition) decides which of two things happened since the run named by
+    `manifest.run_id` last touched this store:
+
+      unchanged  -- the same run continues. Any task still `dispatched` past
+                    its lease is reclaimed as `expired` (the supervisor that
+                    held it is presumed dead) and re-attempted; `folded` tasks
+                    are left alone -- untouched and unpaid-for again.
+      differs    -- a file changed the partition since this run started
+                    (Phase 3's open interaction: a `refresh` landing mid-run).
+                    Folding stale work against a changed partition is exactly
+                    what R6/the merge operator must not do, so this opens a
+                    *new* run (`<run_id>-rN`) rather than continuing the old
+                    one, inheriting every scope whose own `scope_hash` did not
+                    move (nothing to redo) and re-queuing the rest.
+
+    Without `--resume`, a second invocation behaves as before M5.5: it
+    reuses the existing run row (`begin_run` is idempotent) and redispatches
+    everything asked for, from a fresh `--max-attempts` budget -- correct, but
+    not resume-aware.
+    """
+
+    backend = open_store(paths)
+    if not backend.supports_run_tracking():
+        raise CdpError(
+            "%s has no run/task tracking -- `cdp run` needs the sqlite or "
+            "postgres backend" % type(backend).__name__
+        )
+    store = query_mod.Store(backend)
+    check_repo_matches_manifest(paths, store.manifest)
+    sched = store._load("schedule")
+    run_id = str(store.manifest.get("run_id", "cdp"))
+    validator = Validator.load(schema_path(SKILL_ROOT))
+    if not runner_cmd:
+        say("run       no --runner-cmd given -- waiting for a human/external "
+              "process to drop the patch file (FileRunner, timeout %ss)" % timeout)
+
+    partition_hash = stable_hash(
+        sorted((s["node"], s.get("scope_hash")) for s in store.partition["scopes"])
+    )
+    skip_hashes: Set[str] = set()
+    existing = backend.get_run(run_id)
+    if existing is None:
+        backend.begin_run(run_id, partition_hash)
+    elif not resume:
+        backend.begin_run(run_id, partition_hash)  # idempotent no-op; pre-M5.5 behaviour
+    elif existing["partition_hash"] == partition_hash:
+        reclaimed = backend.reclaim_expired(run_id)
+        if reclaimed:
+            say("resume    run %s: partition unchanged, reclaimed %d task(s) past lease"
+                  % (run_id, len(reclaimed)))
+        skip_hashes = {sh for sh, row in backend.task_states(run_id).items() if row["state"] == "folded"}
+    else:
+        old_run_id = run_id
+        old_folded = {sh for sh, row in backend.task_states(old_run_id).items() if row["state"] == "folded"}
+        new_hashes = {s.get("scope_hash") for s in store.partition["scopes"]}
+        unchanged = old_folded & new_hashes
+        run_id = next_run_id(backend, old_run_id)
+        backend.begin_run(run_id, partition_hash)
+        backend.copy_folded_tasks(old_run_id, run_id, unchanged)
+        skip_hashes = set(unchanged)
+        say("resume    partition changed since run %s -- opened new run %s, "
+              "inherited %d unchanged scope(s), %d re-queued"
+              % (old_run_id, run_id, len(unchanged), len(new_hashes) - len(unchanged)))
+
+    repo_id = registry_mod.repo_identity(paths.repo)
+    model = (runner_cmd.split()[0] if runner_cmd else "human")
+    trajectory = trajectory_mod.TrajectoryStore()
+    trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="started")
+
+    if no_lessons:
+        lessons_version = None
+    elif lessons is not None:
+        lessons_version = lessons
+    else:
+        lessons_version = trajectory.latest_lesson_version()  # None until the first cut (6.7)
+    backend.set_run_lessons_version(run_id, lessons_version)
+    lesson_hints: Dict = {}
+    if lessons_version is not None:
+        lesson_hints = reflect_mod.apply_lessons(trajectory.load_lessons(lessons_version))
+        say("lessons   pinned v%d" % lessons_version)
+
+    if stale_only:
+        stale = stale_nodes(store, paths.repo)
+        if not stale:
+            say("stale-only  zero scopes need review")
+            backend.finish_run(run_id, "complete")
+            trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="finished", reason="complete")
+            hint = lessons_hint(trajectory)
+            trajectory.close()
+            backend.close()
+            return {"run_id": run_id, "any_incomplete": False, "nothing_stale": True, "hint": hint}
+        wave_groups = [("stale", stale)]
+    elif scope:
+        if scope not in {s["node"] for s in store.partition["scopes"]}:
+            raise CdpError("%r is not a scope in partition.json" % scope)
+        wave_groups = [("scope", [scope])]
+    elif wave is not None:
+        found = next((w for w in sched["waves"] if w["wave"] == wave), None)
+        if found is None:
+            raise CdpError("no wave %d (schedule has %d)" % (wave, len(sched["waves"])))
+        wave_groups = [(wave, found["nodes"])]
+    else:  # --wave-all
+        wave_groups = [(w["wave"], w["nodes"]) for w in sched["waves"]]
+
+    any_incomplete = False
+    for label, nodes in wave_groups:
+        results = run_wave(
+            nodes, store, backend, runner, paths, run_id, validator, sched, mode,
+            max_attempts=max_attempts, skip_hashes=skip_hashes, lesson_hints=lesson_hints,
+        )
+        apply_wave_results(backend, store, results, run_id, mode, paths,
+                             trajectory=trajectory, repo_id=repo_id, model=model)
+        counts: Dict[str, int] = {}
+        for row in results:
+            counts[row["state"]] = counts.get(row["state"], 0) + 1
+        say("wave %-6s %2d scope(s)  %s" % (label, len(results),
+              ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "nothing to dispatch"))
+        for row in results:
+            if row["state"] != VALIDATED:
+                say("  %-9s %-40s attempts %d  %s"
+                      % (row["state"], row["node"], row["attempts"], row["last_error"] or ""))
+                any_incomplete = True
+        store = query_mod.Store(backend)  # re-read state.json: next wave inherits this wave's claims
+
+    backend.finish_run(run_id, "complete")
+    trajectory.record_run_event(run_id=run_id, repo_id=repo_id, event="finished", reason="complete")
+    hint = lessons_hint(trajectory)
+    trajectory.close()
+    backend.close()
+    return {"run_id": run_id, "any_incomplete": any_incomplete, "nothing_stale": False, "hint": hint}

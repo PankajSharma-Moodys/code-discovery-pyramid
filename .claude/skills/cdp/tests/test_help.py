@@ -17,12 +17,12 @@ from contextlib import redirect_stdout
 from helpers import SKILL_ROOT  # noqa: F401  (sets sys.path)
 
 from cdp import helpdoc
-from cdp.cli import _parser, main
+from cdp.cli import build_parser, main
 from cdp.schema import Validator, help_schema_path
 
 
 def surface():
-    return helpdoc.describe(_parser())
+    return helpdoc.describe(build_parser())
 
 
 def run(*argv) -> str:
@@ -38,7 +38,7 @@ class DerivedFromTheParserTest(unittest.TestCase):
         import argparse
 
         expected = set()
-        for action in _parser()._actions:
+        for action in build_parser()._actions:
             if isinstance(action, argparse._SubParsersAction):
                 expected |= set(action.choices)
         self.assertEqual({c["name"] for c in surface()["commands"]}, expected)

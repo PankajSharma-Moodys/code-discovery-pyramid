@@ -97,8 +97,8 @@ class RepoMismatchTest(unittest.TestCase):
     def test_no_recorded_repo_is_not_an_error(self) -> None:
         """A state with nothing recorded yet (or an older one) has nothing
         to cross-check against -- this guard must not invent a failure."""
-        from cdp.cli import _check_repo_matches_manifest, Paths
-        _check_repo_matches_manifest(Paths(repo=Path("/anything"), state=Path(".")), {})
+        from cdp.session import check_repo_matches_manifest, Paths
+        check_repo_matches_manifest(Paths(repo=Path("/anything"), state=Path(".")), {})
 
 
 class RunnerFallbackWarningTest(unittest.TestCase):

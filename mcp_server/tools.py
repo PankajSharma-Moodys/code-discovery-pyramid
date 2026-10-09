@@ -15,7 +15,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
-from cdp import cli as cdp_cli
+from cdp import pipeline as pipeline_mod
+from cdp import session as session_mod
 from cdp import dataflow as dataflow_mod
 from cdp import freshness as freshness_mod
 from cdp import partition as partition_mod
@@ -24,12 +25,11 @@ from cdp import schedule as schedule_mod
 
 
 def _paths(repo: str, state_dir: Optional[str] = None):
-    args = SimpleNamespace(repo=repo, state_dir=state_dir)
-    return cdp_cli._paths(args)
+    return session_mod.paths_for(repo, state_dir)
 
 
 def _store(repo: str, state_dir: Optional[str] = None) -> "query_mod.Store":
-    return query_mod.Store(cdp_cli._open_store(_paths(repo, state_dir)))
+    return query_mod.Store(session_mod.open_store(_paths(repo, state_dir)))
 
 
 def cdp_query(
@@ -54,7 +54,7 @@ def cdp_query(
     store = _store(repo, state_dir)
     try:
         if as_of:
-            cdp_cli._apply_as_of(store, as_of)
+            session_mod.apply_as_of(store, as_of)
         return query_mod.dispatch(
             store, kind, term, budget=budget, claim_kind=claim_kind, module=module,
             subject=subject, frm=frm, to=to, max_hops=max_hops,
@@ -73,24 +73,20 @@ def cdp_scan(
     max_hops: Optional[int] = None,
     workers: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Runs a real scan through `cli.cmd_scan` (same code path as `cdp scan`,
+    """Runs a real scan through `pipeline.scan` (same code path as `cdp scan`,
     not a reimplementation) and returns `query stats`'s result against the
     fresh store -- a scan has no single natural return value of its own, and
     `stats` is what every other command already treats as the answer to
     "what does this store now hold?"."""
-    args = SimpleNamespace(
-        repo=repo,
-        state_dir=state_dir,
+    pipeline_mod.scan(
+        _paths(repo, state_dir),
         max_leaf_files=max_leaf_files or partition_mod.DEFAULT_MAX_FILES,
         max_leaf_loc=max_leaf_loc or partition_mod.DEFAULT_MAX_LOC,
         max_concurrent=max_concurrent or schedule_mod.DEFAULT_MAX_CONCURRENT,
         max_hops=max_hops or dataflow_mod.DEFAULT_MAX_HOPS,
         workers=workers,
-        exclude=None,
         docs=False,
-        quiet=True,
     )
-    cdp_cli.cmd_scan(args)
     store = _store(repo, state_dir)
     try:
         return query_mod.dispatch(store, "stats")

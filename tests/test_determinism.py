@@ -25,7 +25,7 @@ from pathlib import Path
 
 from helpers import SKILL_ROOT, have_git, make_repo  # noqa: F401  (sets sys.path)
 
-from cdp.cli import VOLATILE_FIELDS, VOLATILE_FILE, check_determinism
+from cdp.selftest import VOLATILE_FIELDS, VOLATILE_FILE, check_determinism
 
 
 class DeterminismTest(unittest.TestCase):

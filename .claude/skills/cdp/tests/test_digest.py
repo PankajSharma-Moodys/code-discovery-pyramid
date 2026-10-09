@@ -11,7 +11,9 @@ from pathlib import Path
 
 from helpers import make_repo  # noqa: F401  (sets sys.path)
 
-from cdp.cli import Paths, _escalation_rate, _open_store, main
+from cdp.cli import main
+from cdp.intake import escalation_rate
+from cdp.session import Paths, open_store
 from cdp.prompts import build_prompt
 from cdp.query import Store
 
@@ -149,15 +151,15 @@ class PromptFixTest(unittest.TestCase):
 
 class EscalationRateTest(unittest.TestCase):
     def test_none_when_no_claims(self) -> None:
-        self.assertIsNone(_escalation_rate([]))
-        self.assertIsNone(_escalation_rate([{"claims": []}]))
+        self.assertIsNone(escalation_rate([]))
+        self.assertIsNone(escalation_rate([{"claims": []}]))
 
     def test_fraction_of_escalated_claims(self) -> None:
         patches = [
             {"claims": [{"escalated": True}, {"escalated": False}]},
             {"claims": [{}]},
         ]
-        self.assertAlmostEqual(_escalation_rate(patches), 1 / 3)
+        self.assertAlmostEqual(escalation_rate(patches), 1 / 3)
 
 
 class CliDigestFlagTest(unittest.TestCase):
@@ -177,7 +179,7 @@ class CliDigestFlagTest(unittest.TestCase):
                 code = main(["prompts", "--digest", "--repo", str(repo), "--state-dir", str(state)])
             self.assertEqual(code, 0)
 
-            backend = _open_store(Paths(repo=repo, state=state))
+            backend = open_store(Paths(repo=repo, state=state))
             report = backend.read_report("prompts")
             backend.close()
             self.assertTrue(report["prompts"])

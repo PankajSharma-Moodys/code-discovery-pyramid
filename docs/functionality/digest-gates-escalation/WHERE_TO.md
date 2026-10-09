@@ -2,5 +2,5 @@
 
 | | |
 |---|---|
-| Core | `cdp/cli.py` (`_escalation_rate`), schema `claim.escalated` |
+| Core | `cdp/intake.py` (`escalation_rate`), schema `claim.escalated` |
 | Tests | `tests/test_digest.py` |

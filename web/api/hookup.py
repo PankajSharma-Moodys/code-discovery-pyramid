@@ -16,7 +16,8 @@ def preview_install(target: Path, framework: str) -> Dict[str, Any]:
     """What `cdp install --framework <framework> <target>` would do, without
     doing it -- mirrors `cdp.cli.cmd_install`/`register_leaf_agent`
     (`cli.py:2785-2864`) read-only."""
-    from cdp.cli import DIST_MEMBERS, SKILL_ROOT
+    from cdp.install import DIST_MEMBERS
+    from cdp.util import SKILL_ROOT
 
     dest = target / ".claude" / "skills" / "cdp"
     leaf_agent_file: Optional[str] = None

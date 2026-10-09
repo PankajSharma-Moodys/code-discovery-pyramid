@@ -12,6 +12,10 @@ dirs, or one worktree scanned twice).
 from __future__ import annotations
 
 from typing import Any, Dict, List, Set, Tuple
+from pathlib import Path
+from . import query as query_mod
+from .store import FileStore, WorkspaceStore
+from .util import CdpError
 
 
 def _edge_pairs(edges: List[Dict]) -> Set[Tuple[str, str]]:
@@ -102,3 +106,31 @@ def summarise(diff: Dict) -> List[str]:
     for finding in diff["findings"]:
         lines.append("finding   %s" % finding)
     return lines
+
+
+def open_diff_side(state_dir: Path) -> "query_mod.Store":
+    """Directory-pair mode: detect which directory-shaped backend is
+    actually present instead of assuming `SqliteStore` -- `FileStore`'s
+    loose-JSON layout is just as diffable, it was simply never tried.
+    Postgres has no per-snapshot directory at all, so it can't be reached
+    this way; that's what `--repo`/`--old-sha`/`--new-sha` is for."""
+    state_dir = state_dir.expanduser().resolve()
+    if (state_dir / "index.db").is_file():
+        return query_mod.Store(state_dir)
+    if (state_dir / "graph.json").is_file():
+        return query_mod.Store(FileStore(state_dir))
+    raise CdpError(
+        "no CDP state at %s -- run `scan` first. If this is postgres-backed "
+        "state, `cdp diff <dir> <dir>` can't read it (postgres has no "
+        "per-snapshot directory) -- use `cdp diff --repo ... --old-sha ... "
+        "--new-sha ...` instead." % state_dir
+    )
+
+
+def current_snapshot_sha(backend: WorkspaceStore, repo_id: str) -> str:
+    backend.use_latest_snapshot()
+    sid = backend.snapshot_id()
+    row = next((r for r in backend.list_snapshots() if r["id"] == sid), None)
+    if row is None:
+        raise CdpError("no scanned snapshot for %s -- run `cdp scan` first" % repo_id)
+    return row["commit_sha"]

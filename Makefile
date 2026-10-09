@@ -34,7 +34,7 @@ check: selftest determinism fold golden
 ## check-fast: everything except the scans. For a tight edit loop.
 check-fast: selftest
 
-## selftest: the bundled suite. Fails below cdp.cli.MIN_TESTS.
+## selftest: the bundled suite. Fails below cdp.selftest.MIN_TESTS.
 selftest:
 	@echo "== selftest =="
 	@$(CDP) selftest

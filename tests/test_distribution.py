@@ -22,7 +22,8 @@ from pathlib import Path
 
 from helpers import SKILL_ROOT  # noqa: F401  (sets sys.path)
 
-from cdp.cli import DIST_MEMBERS, _DIST_IGNORE, main
+from cdp.cli import main
+from cdp.install import DIST_IGNORE, DIST_MEMBERS
 
 VENDORED = SKILL_ROOT / ".claude" / "skills" / "cdp"
 
@@ -30,7 +31,7 @@ VENDORED = SKILL_ROOT / ".claude" / "skills" / "cdp"
 def _members(directory: Path) -> set:
     """Names in `directory`, minus anything `install` would not have copied."""
     names = {p.name for p in directory.iterdir()}
-    return names - set(_DIST_IGNORE(str(directory), sorted(names)))
+    return names - set(DIST_IGNORE(str(directory), sorted(names)))
 
 
 def _compare(left: Path, right: Path, rel: str, differing: list, missing: list) -> None:

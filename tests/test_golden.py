@@ -26,7 +26,7 @@ from pathlib import Path
 from helpers import SKILL_ROOT, make_repo  # noqa: F401  (sets sys.path)
 
 from cdp import golden
-from cdp.cli import GOLDEN_ROOT, run_golden
+from cdp.selftest import GOLDEN_ROOT, run_golden
 
 FIXTURE_SLUG = "minirepo@fixture"
 

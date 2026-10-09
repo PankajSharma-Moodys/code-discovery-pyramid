@@ -22,7 +22,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from helpers import make_repo  # noqa: E402
-from cdp.cli import check_determinism, main, run_golden  # noqa: E402
+from cdp.cli import main
+from cdp.selftest import check_determinism, run_golden  # noqa: E402
 
 FIXTURE_SLUG = "minirepo@fixture"
 

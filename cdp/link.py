@@ -39,6 +39,8 @@ import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .util import read_json, stable_hash, write_text
+from pathlib import Path
+from . import query as query_mod
 
 LIBRARY_PREFIX = "library:"
 
@@ -656,3 +658,26 @@ def summarise(report: Dict) -> List[str]:
             o = u["outbound"]
             lines.append("  %-6s %s %s:%d" % (u["protocol"], o["target"], o["anchor"]["file"], o["anchor"]["line"]))
     return lines
+
+
+def snapshots_from_dirs(state_dirs) -> List[Dict]:
+    """Stand-alone state directories, each with its own `index.db` -- the
+    layout before there was one store per machine."""
+    snapshots = []
+    for d in state_dirs:
+        store = query_mod.Store(Path(d).expanduser().resolve())
+        try:
+            snapshots.append({"repo": store.manifest.get("repo", d),
+                              "head": store.manifest.get("head", "?"),
+                              "dataflow": store.dataflow})
+        finally:
+            store.close()
+    return snapshots
+
+
+def read_link_report(store) -> Dict:
+    edges = store.read_link_edges()
+    return {
+        "links": [e["data"] for e in edges if e["kind"] == "link"],
+        "unmatched": [e["data"] for e in edges if e["kind"] == "unmatched"],
+    }

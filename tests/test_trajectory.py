@@ -15,7 +15,7 @@ from helpers import SKILL_ROOT, make_repo
 
 from cdp.store.sqlite_backend import SqliteStore
 from cdp.trajectory import LESSONS_HINT_EVERY, TrajectoryStore, elision_regret, scope_shape_key
-from cdp.cli import _maybe_print_lessons_hint
+from cdp.commands.leaf.run import maybe_print_lessons_hint
 
 RUN_PY = SKILL_ROOT / "run.py"
 
@@ -249,7 +249,7 @@ class LessonsHintTest(unittest.TestCase):
                     store.record_run_event(run_id="r%d" % i, repo_id="repo", event="finished", reason="complete")
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf):
-                    _maybe_print_lessons_hint(store)
+                    maybe_print_lessons_hint(store)
                 self.assertEqual(buf.getvalue(), "")
 
     def test_silent_on_cadence_with_nothing_pending(self):
@@ -259,7 +259,7 @@ class LessonsHintTest(unittest.TestCase):
                     store.record_run_event(run_id="r%d" % i, repo_id="repo", event="finished", reason="complete")
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf):
-                    _maybe_print_lessons_hint(store)
+                    maybe_print_lessons_hint(store)
                 self.assertEqual(buf.getvalue(), "")
 
     def test_hints_on_cadence_with_pending_promotions_and_names_the_command(self):
@@ -271,7 +271,7 @@ class LessonsHintTest(unittest.TestCase):
                     store.record_run_event(run_id="r%d" % i, repo_id="repo", event="finished", reason="complete")
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf):
-                    _maybe_print_lessons_hint(store)
+                    maybe_print_lessons_hint(store)
                 out = buf.getvalue()
                 self.assertIn("2 promotion(s) pending", out)
                 self.assertIn("cdp lessons cut", out)
