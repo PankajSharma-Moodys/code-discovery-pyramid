@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import datetime
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from . import entail as entail_mod, freshness as freshness_mod, gates as gates_mod, query as query_mod, reflect as reflect_mod, trajectory as trajectory_mod
 from .prompts import build_prompt
@@ -195,12 +196,33 @@ def dispatch_scope(
     }
 
 
+class _SerialBackend:
+    """One lock around every store call, so scopes can be dispatched from several
+    threads over the store's single connection. Store calls take milliseconds;
+    the slow part, the runner (a model call), runs outside the lock."""
+
+    def __init__(self, backend) -> None:
+        self._backend = backend
+        self._lock = threading.RLock()
+
+    def __getattr__(self, name):
+        attr = getattr(self._backend, name)
+        if not callable(attr):
+            return attr
+
+        def call(*args, **kwargs):
+            with self._lock:
+                return attr(*args, **kwargs)
+        return call
+
+
 def run_wave(
     nodes: Sequence[str], store, backend, runner, paths, run_id: str,
     validator: Validator, sched: Dict, mode: str = STRICT,
     lease_seconds: float = LEASE_SECONDS, heartbeat_seconds: float = HEARTBEAT_SECONDS,
     max_attempts: int = MAX_ATTEMPTS, skip_hashes=frozenset(),
-    lesson_hints: Optional[Dict] = None,
+    lesson_hints: Optional[Dict] = None, parallel: int = 1,
+    progress: Optional[Callable[[Dict], None]] = None,
 ) -> List[Dict]:
     """Dispatch every scope named in `nodes`, sequentially within this
     process -- M5.4's atomic lease acquisition is what makes it safe for a
@@ -224,20 +246,30 @@ def run_wave(
     backend.ensure_inbox()
     prior = list(store.state.get("claims", []))
     node_set = set(nodes)
-    results = []
-    for scope in store.partition["scopes"]:
-        if scope["node"] not in node_set:
-            continue
-        if scope.get("scope_hash") in skip_hashes:
-            continue
+    todo = [s for s in store.partition["scopes"]
+            if s["node"] in node_set and s.get("scope_hash") not in skip_hashes]
+    workers = max(1, min(int(parallel or 1), len(todo)))
+    shared = _SerialBackend(backend) if workers > 1 else backend
+
+    def dispatch(scope: Dict) -> Optional[Dict]:
         row = dispatch_scope(
             scope, store.inventory, store.extraction, store.xref, sched, prior,
-            run_id, runner, backend, prompts_dir, validator, paths.repo, mode,
+            run_id, runner, shared, prompts_dir, validator, paths.repo, mode,
             lease_seconds, heartbeat_seconds, max_attempts, lesson_hints,
         )
-        if row is not None:
-            results.append(row)
-    return results
+        if row is not None and progress is not None:
+            progress(row)
+        return row
+
+    if workers == 1:
+        rows = [dispatch(scope) for scope in todo]
+    else:
+        # Scopes of one wave do not depend on each other (the schedule's waves
+        # are dependency levels), so they run together. Results keep partition
+        # order, so the fold does not depend on which finished first.
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            rows = [f.result() for f in [pool.submit(dispatch, scope) for scope in todo]]
+    return [row for row in rows if row is not None]
 
 
 def mark_folded(backend, run_id: str, results: Sequence[Dict]) -> None:
@@ -397,6 +429,7 @@ def run_waves(
     scope: Optional[str],
     wave: Optional[int],
     say: Callable[..., None],
+    parallel: int = 1,
 ) -> Dict:
     """M5.3: `read schedule -> dispatch a wave -> collect -> adjudicate ->
     fold -> next wave`. `prompts`/`collect` still work standalone (M5.1's
@@ -437,6 +470,8 @@ def run_waves(
     sched = store._load("schedule")
     run_id = str(store.manifest.get("run_id", "cdp"))
     validator = Validator.load(schema_path(SKILL_ROOT))
+    if parallel > 1:
+        say("run       up to %d scope(s) at a time within each wave (--parallel)" % parallel)
     if not runner_cmd:
         say("run       no --runner-cmd given -- waiting for a human/external "
               "process to drop the patch file (FileRunner, timeout %ss)" % timeout)
@@ -514,6 +549,8 @@ def run_waves(
         results = run_wave(
             nodes, store, backend, runner, paths, run_id, validator, sched, mode,
             max_attempts=max_attempts, skip_hashes=skip_hashes, lesson_hints=lesson_hints,
+            parallel=parallel,
+            progress=lambda row: say("  done      %-9s %s" % (row["state"], row["node"])),
         )
         apply_wave_results(backend, store, results, run_id, mode, paths,
                              trajectory=trajectory, repo_id=repo_id, model=model)

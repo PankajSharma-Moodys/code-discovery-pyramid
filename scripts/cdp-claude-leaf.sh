@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # A `cdp run --runner-cmd` for Claude Code: one headless `cdp-leaf` session per scope.
 #
-#   python3 .claude/skills/cdp/run.py run --wave 0 --runner-cmd /path/to/cdp-claude-leaf.sh
+#   python3 .claude/skills/cdp/run.py run --wave-all --parallel 5 --timeout 900 \\
+#       --runner-cmd /path/to/cdp-claude-leaf.sh
 #
 # `cdp run` calls this as `cdp-claude-leaf.sh <prompt-path> <patch-path>`; the patch
 # must exist when it exits 0.

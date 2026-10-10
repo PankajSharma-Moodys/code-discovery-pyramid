@@ -12,7 +12,7 @@ SPEC = Spec(
     group='leaf',
     usage='run --wave N \\| --wave-all \\| --stale-only \\| --scope X',
     what='Dispatch → collect → adjudicate → fold, wave by wave, supervised (leases, retries, resume).',
-    next='next: `query stats`, or `fold --check`. tip (on partial failure): `run --resume --run-id <id>`. Flags: `--runner-cmd`, `--max-attempts`, `--resume`, `--lessons vN`/`--no-lessons`.',
+    next='next: `query stats`, or `fold --check`. tip (on partial failure): `run --resume --run-id <id>`. Flags: `--runner-cmd`, `--parallel N` (scopes of a wave at once), `--max-attempts`, `--resume`, `--lessons vN`/`--no-lessons`.',
 )
 
 
@@ -29,9 +29,13 @@ def register(add) -> None:
                      help="shell command for SubprocessRunner, given prompt and patch "
                           "paths as its last two arguments (default: FileRunner -- "
                           "wait for a human/external process to drop the patch file)")
-    rn.add_argument("--timeout", type=float, default=300.0,
+    rn.add_argument("--timeout", type=float, default=900.0,
                      help="seconds before a task's runner call is treated as failed "
                           "(SubprocessRunner) or abandoned (FileRunner's poll deadline)")
+    rn.add_argument("--parallel", type=int, default=1, metavar="N",
+                     help="dispatch up to N scopes of a wave at the same time (default 1). "
+                          "A wave costs its slowest scope instead of the sum of all of them; "
+                          "waves still go in order")
     rn.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
     rn.add_argument("--resume", action="store_true",
                      help="reclaim past-lease tasks and continue this run_id if the "
@@ -56,7 +60,7 @@ def cmd_run(args) -> int:
         runner_cmd=args.runner_cmd, timeout=args.timeout, mode=args.mode,
         max_attempts=args.max_attempts, resume=args.resume, lessons=args.lessons,
         no_lessons=args.no_lessons, stale_only=args.stale_only, scope=args.scope,
-        wave=args.wave, say=print,
+        wave=args.wave, say=print, parallel=args.parallel,
     )
     if not r["nothing_stale"]:
         print("next      cdp query stats, or cdp fold --check")
