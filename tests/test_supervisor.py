@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -363,7 +364,7 @@ class RunCommandEndToEndTest(unittest.TestCase):
                  "--wave-all", "--runner-cmd", runner_cmd, "--resume"],
                 check=True, capture_output=True, text=True,
             )
-            self.assertIn("reclaimed 1 task(s) past lease", result.stdout)
+            self.assertIn("reclaimed 1 task(s) left dispatched by a dead run", result.stdout)
 
             backend = SqliteStore(state / "index.db")
             rows = backend.task_rows(run_id)
@@ -391,13 +392,18 @@ class RunCommandEndToEndTest(unittest.TestCase):
             old_folded = {r["scope_hash"] for r in backend.task_rows(old_run_id) if r["state"] == "folded"}
             backend.close()
 
-            # A real content change: append to one file the pipeline already
-            # scanned, then re-scan (as `refresh`/a fresh `scan` would) so the
-            # partition's scope_hash for the touched scope moves.
+            # A real content change: commit an edit to one file the pipeline already
+            # scanned, then `refresh` so the partition's scope_hash for the touched
+            # scope moves. (A dirty scan would not do: claims are only ever added
+            # to a snapshot of a commit.)
             touched = next(repo.rglob("*.java"))
             touched.write_text(touched.read_text() + "\n// touched for M5.5's drift guard\n")
+            git_env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@e.invalid",
+                           GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@e.invalid")
+            for args in (["add", "-A"], ["-c", "commit.gpgsign=false", "commit", "-q", "-m", "touch"]):
+                subprocess.run(["git", "-C", str(repo)] + args, check=True, capture_output=True, env=git_env)
             subprocess.run(
-                [sys.executable, str(RUN_PY), "scan", "--repo", str(repo),
+                [sys.executable, str(RUN_PY), "refresh", "--repo", str(repo),
                  "--state-dir", str(state), "--quiet"], check=True, capture_output=True)
 
             result = subprocess.run(

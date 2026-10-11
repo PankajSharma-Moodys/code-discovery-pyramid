@@ -43,7 +43,8 @@ class WorkspaceStore(ABC):
     # cannot hold more than one live snapshot -- `FileStore`, an export format
     # -- accept the call and no-op.)
 
-    def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False) -> None:
+    def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False,
+                       checkout: str = "") -> None:
         """Select, creating if needed, the snapshot subsequent calls apply to.
 
         A no-op on backends without snapshot lineage (`FileStore`). Backends
@@ -100,6 +101,20 @@ class WorkspaceStore(ABC):
     @abstractmethod
     def has_artifact(self, name: str) -> bool:
         ...
+
+    def reject_inbox(self, name: str) -> None:
+        """Move a patch file out of the inbox into `inbox/rejected/`, so a later `collect`
+        can never accept what an earlier one (or a failed run) turned down."""
+        inbox = self._inbox_dir()
+        source = inbox / name
+        if source.is_file():
+            (inbox / "rejected").mkdir(parents=True, exist_ok=True)
+            target = inbox / "rejected" / name
+            n = 1
+            while target.exists():
+                n += 1
+                target = inbox / "rejected" / ("%s.%d" % (name, n))
+            source.replace(target)
 
     def exists(self) -> bool:
         """Whether a scan has ever written to this store."""
@@ -210,6 +225,9 @@ class WorkspaceStore(ABC):
 
     # --------------------------------------------------------- link.* (M8.2)
 
+    def save_link_resolution(self, link_id: str, resolution: Dict) -> None:
+        raise CdpError("%s has no link.* namespace" % type(self).__name__)
+
     def supports_link_edges(self) -> bool:
         """Whether this backend can back `cdp link scan --db`/`cdp link
         query` (Phase 8). `False` by default -- `FileStore` has no
@@ -272,14 +290,13 @@ class WorkspaceStore(ABC):
 
     def has_selection(self) -> bool:
         """Whether a snapshot was already chosen (by `begin_snapshot`,
-        `use_snapshot` or `use_current_snapshot`). `query.Store` only falls back
+        `use_snapshot` or `select_none`). `query.Store` only falls back
         to "the latest snapshot" when nothing was chosen."""
         return False
 
-    def use_current_snapshot(self, repo_id: str, head: Optional[str] = None) -> bool:
-        """Select `repo_id`'s snapshot for `head`, else its latest. A backend
-        without snapshot lineage has nothing to select."""
-        return False
+    def select_none(self, repo_id: str, reason: str = "", label: str = "") -> None:
+        """Park reads on "no snapshot qualifies": the next read says "scan needed"
+        (with `reason`) instead of answering from another tree. No-op without lineage."""
 
     def repo_ids(self) -> List[str]:
         return []
@@ -330,7 +347,7 @@ class WorkspaceStore(ABC):
     def release_lease(self, run_id: str, scope_hash: str) -> None:
         raise self._no_run_tracking()
 
-    def reclaim_expired(self, run_id: str) -> List[str]:
+    def reclaim_expired(self, run_id: str, force: bool = False) -> List[str]:
         raise self._no_run_tracking()
 
     def copy_folded_tasks(self, old_run_id: str, new_run_id: str, scope_hashes) -> None:

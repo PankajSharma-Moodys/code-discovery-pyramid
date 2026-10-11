@@ -45,6 +45,10 @@ EXCLUDED = ("manifest.json",)
 _PLACEHOLDER_REPO = "<REPO>"
 _PLACEHOLDER_HEAD = "<HEAD>"
 _PLACEHOLDER_TIME = "<TIME>"
+_PLACEHOLDER_ID = "<REPO_ID>"
+
+# A repo's identity is a fresh UUID per checkout (answers name it as `as_of.identity`).
+_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 _TIMESTAMP_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?"
@@ -67,7 +71,7 @@ def normalise_text(text: str, repo: Path, head: Optional[str]) -> str:
             if len(candidate) >= 7:
                 out = out.replace(candidate, _PLACEHOLDER_HEAD)
     out = _TIMESTAMP_RE.sub(_PLACEHOLDER_TIME, out)
-    return out
+    return _UUID_RE.sub(_PLACEHOLDER_ID, out)
 
 
 def canonical(obj) -> str:
@@ -179,7 +183,9 @@ def summarise(reports: List[str], limit: int = 6) -> str:
 
 
 def slug(repo_name: str, head: Optional[str]) -> str:
-    """Directory name for a baseline: `<repo>@<sha12>`, or `@unpinned`."""
+    """Directory name for a baseline: `<repo>@<sha12>`, or `@unpinned`. Characters
+    outside `[A-Za-z0-9._-]` in the repo name become `_`."""
+    repo_name = re.sub(r"[^A-Za-z0-9._-]", "_", repo_name)
     if head and head != "unpinned":
         return "%s@%s" % (repo_name, head[:12])
     return "%s@unpinned" % repo_name

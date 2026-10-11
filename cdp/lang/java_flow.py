@@ -1,14 +1,14 @@
 """Java member-level facts: typed references, call sites, outbound HTTP.
 
-`java.py` reads what a file *declares*. This reads what its method bodies *do*,
+`java.py` reads what a file *declares*. This reads what its member bodies *do*,
 which is what a "how does this behave" question needs: `OrderResource#place`
 calls `OrderService#placeOrder`, which calls `OrderRepository#save`.
 
-Everything is read from declared types, never guessed from names. A call
-`service.placeOrder(...)` becomes an edge only because `service` was declared
-as an `OrderService` in this same file (field, constructor/method parameter or
-local). Receivers whose type this file does not state (lambda parameters,
-chained results) produce no edge rather than a wrong one.
+Declarations come from `java_decl`; the body walk (locals, fields, chained
+calls, method references, constructors) is `java_body`. Everything is read from
+declared types, never guessed from names. Receivers whose type the file does not
+state are carried as a chain for the resolve phase to settle against the symbol
+table; receivers nobody can type produce no edge rather than a wrong one.
 
 Rows are emitted as `uses[]` with extra keys (`kind`, `from_symbol`,
 `speculative`) so the resolve phase, which owns the symbol table this file
@@ -23,29 +23,15 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from .base import ExtractContext, FileFacts, anchor_at, first_string_literal, mk_edge, mk_use
+from .java_body import FileInfo, Scan
+from .java_config import emit_config, emit_provider_reads, provider_names
+from .java_decl import JMember, JType, parse_type
+from .java_types import split_type, wildcard_alts
+from .java_tokens import Tokens
 
-MODS = r"(?:(?:public|protected|private|static|final|abstract|synchronized|transient|volatile|default|native)\s+)*"
-FIELD_RE = re.compile(r"^" + MODS + r"([A-Za-z_$][\w$.]*(?:<[^()=;]*>)?(?:\[\])*)\s+([a-zA-Z_$][\w$]*)\s*(?:=|;)")
-METHOD_HEAD_RE = re.compile(
-    r"^" + MODS + r"(?:<[^>]*>\s+)?(?:([A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*)\s+)?([a-zA-Z_$][\w$]*)\s*\("
-)
-TYPE_HEAD_RE = re.compile(
-    r"^\s*(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*"
-    r"(class|interface|enum|record)\s+([A-Za-z_$][\w$]*)"
-)
-LOCAL_RE = re.compile(
-    r"(?<![\w$.])([A-Z][\w$.]*(?:<[^;=()]*>)?(?:\[\])*)\s+([a-z_$][\w$]*)\s*(?==|;|:|\))"
-)
-VAR_NEW_RE = re.compile(r"(?<![\w$.])var\s+([a-z_$][\w$]*)\s*=\s*new\s+([A-Z][\w$.]*)")
-RECEIVER_CALL_RE = re.compile(r"(?<![\w$.])(this\.)?([A-Za-z_$][\w$]*)\.([a-zA-Z_$][\w$]*)\s*\(")
-BARE_CALL_RE = re.compile(r"(?<![\w$.])([a-zA-Z_$][\w$]*)\s*\(")
-IMPLEMENTS_RE = re.compile(r"\bimplements\s+([^{]+)")
-EXTENDS_RE = re.compile(r"\bextends\s+([A-Za-z_$][\w$.]*(?:<[^{]*?>)?)(?=\s+implements\b|\s*\{|\s*$)")
 IDENT_RE = re.compile(r"[A-Z][\w$]*")
+QUALIFIED_RE = re.compile(r"[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*")
 VALUE_FIELD_RE = re.compile(r"@Value\s*\(\s*\"\$\{([^}:]+)(?::[^}]*)?\}\"\s*\)")
-
-NOT_METHODS = frozenset(["if", "for", "while", "switch", "catch", "return", "new", "super", "this",
-                         "synchronized", "throw", "else", "try", "assert"])
 HTTP_CLIENT_TYPES = frozenset(["RestTemplate", "TestRestTemplate", "WebClient", "RestClient"])
 REST_TEMPLATE_VERBS = {
     "getForObject": "GET", "getForEntity": "GET", "postForObject": "POST", "postForEntity": "POST",
@@ -56,175 +42,148 @@ CLIENT_VERB_CALLS = {"get": "GET", "post": "POST", "put": "PUT", "delete": "DELE
                      "patch": "PATCH", "head": "HEAD", "options": "OPTIONS"}
 SPRING_VERBS = {"GetMapping": "GET", "PostMapping": "POST", "PutMapping": "PUT",
                 "DeleteMapping": "DELETE", "PatchMapping": "PATCH", "RequestMapping": "ANY"}
+METHOD_HEAD_RE = re.compile(
+    r"^(?:(?:public|protected|private|static|final|abstract|synchronized|default)\s+)*"
+    r"(?:<[^>]*>\s+)?(?:([A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*)\s+)?([a-zA-Z_$][\w$]*)\s*\("
+)
+NOT_METHODS = frozenset(["if", "for", "while", "switch", "catch", "return", "new", "super", "this",
+                         "synchronized", "throw", "else", "try", "assert"])
 
 
-class _Member:
-    __slots__ = ("cls", "simple", "name", "start", "end", "sig_end", "has_body", "params", "ctor")
-
-    def __init__(self, cls, simple, name, start, params, ctor):
-        self.cls, self.simple, self.name = cls, simple, name
-        self.start, self.end, self.params, self.ctor = start, start, params, ctor
-        self.sig_end, self.has_body = start, False
-
-    @property
-    def symbol(self) -> str:
-        return "%s#%s" % (self.cls, "<init>" if self.ctor else self.name)
-
-
-def emit_flow(ctx: ExtractContext, facts: FileFacts, code: List[str], masked: List[str],
-              pkg: str, resolver, primary: str) -> None:
+def emit_flow(ctx: ExtractContext, facts: FileFacts, code: List[str], tk: Tokens, types: List[JType],
+              resolver, static_imports: Dict[str, str], static_wild: List[str]) -> None:
     """Append typed-reference, call and HTTP-out facts for one Java file."""
-    types: List[Tuple[str, str, int]] = []  # (fqn, simple, body depth)
-    fields: Dict[str, Dict[str, str]] = {}
     constants: Dict[str, str] = {}
-    members: List[_Member] = []
-    open_member: Optional[_Member] = None
     feign: Dict[str, Dict] = {}
-    depth = 0
-    pending_annotations: List[str] = []
+    constants_of: Dict[str, Dict[str, str]] = {}
 
-    for idx, line in enumerate(code):
-        while types and depth < types[-1][2]:
-            types.pop()
-        if open_member and depth <= types[-1][2] and idx > open_member.sig_end:
-            open_member.end = idx - 1
-            open_member = None
+    def http(line: int, caller: str, client: str, receiver: str, method: str) -> bool:
+        _emit_http_call(ctx, facts, code, line, caller, client, receiver, method, constants)
+        return True
 
-        stripped = line.strip()
-        tm = TYPE_HEAD_RE.match(line)
-        if tm:
-            simple = tm.group(2)
-            outer = types[-1][0] if types else None
-            fqn = (outer + "." + simple) if outer else ((pkg + "." + simple) if pkg else simple)
-            _emit_type_header(ctx, facts, code, idx, fqn, resolver)
-            if pending_annotations:
-                feign_info = _feign_info("\n".join(pending_annotations))
-                if feign_info:
-                    feign[fqn] = feign_info
-            types.append((fqn, simple, depth + 1))
-            pending_annotations = []
-        elif types and depth == types[-1][2] and open_member is None and stripped:
-            if stripped.startswith("@"):
-                pending_annotations.append(stripped)
-                # `@Autowired private Foo foo;` carries the declaration on the same line.
-                rest = re.sub(r"^(?:@[\w$.]+(?:\([^)]*\))?\s*)+", "", stripped)
-                if rest:
-                    opened = _member_line(ctx, facts, code, idx, rest, types[-1], resolver,
-                                          fields, constants, members, pending_annotations)
-                    pending_annotations = []
-                    if opened and opened.has_body:
-                        open_member = opened
-            else:
-                opened = _member_line(ctx, facts, code, idx, stripped, types[-1], resolver, fields,
-                                      constants, members, pending_annotations)
-                pending_annotations = []
-                if opened and opened.has_body:
-                    open_member = opened
-        depth += masked[idx].count("{") - masked[idx].count("}")
+    own = frozenset(jt.fqn.rsplit(".", 1)[-1] for jt in types)
+    fi = FileInfo(ctx, facts, tk, resolver, types, static_imports, static_wild, http,
+                  lambda scan, recv, name_i: _emit_event_post(ctx, facts, scan, recv, name_i))
+    fi.http_types = HTTP_CLIENT_TYPES
+    fi.constants, fi.own = constants, own
+    providers = provider_names(tk)
+    for jt in types:
+        tv = jt.all_tparams()
+        for m in jt.members:
+            if m.kind in ("field", "enum_const"):
+                fi.fields.setdefault(jt.fqn, {})[m.name] = fi.norm(m.ftype, tv)
+                _note_constant(tk, m, constants)
+        info = _feign_info("\n".join(text for _, text in jt.anns))
+        if info:
+            feign[jt.fqn] = info
+        _emit_type_header(ctx, facts, jt, resolver)
 
-    if open_member:
-        open_member.end = len(code) - 1
+    for jt in types:
+        tv = jt.all_tparams()
+        for m in jt.members:
+            anchor = anchor_at(ctx, m.line)
+            if m.kind in ("field", "enum_const"):
+                if anchor is not None and m.kind == "field":
+                    type_uses(facts, m.ftype, anchor, jt.fqn, resolver)
+                if m.kind == "enum_const" and anchor is not None:
+                    row = mk_use(jt.fqn + "#<init>", anchor, via_import=False, resolved="external")
+                    row.update({"kind": "call", "from_symbol": m.symbol, "speculative": False,
+                                "how": "new"})
+                    facts.uses.append(row)
+                if m.init and m.init[1] > m.init[0]:
+                    scan = Scan(fi, jt, m.symbol, tv, bounds=jt.all_bounds())
+                    scan.run(*m.init)
+                    emit_config(ctx, facts, tk, m.init[0], m.init[1], m.symbol, constants, static_imports, own)
+                    emit_provider_reads(ctx, facts, tk, m.init[0], m.init[1], m.symbol, constants,
+                                        static_imports, own, providers)
+            elif m.kind in ("method", "ctor", "init"):
+                mtv = tv | set(m.tparams)
+                if m.kind == "method" and anchor is not None and m.params \
+                        and any(n.rsplit(".", 1)[-1] == "Subscribe" for n, _ in m.anns):
+                    event = split_type(fi.norm(m.params[0][0], mtv))[0]
+                    if event and not event.startswith("~"):
+                        facts.signals.append("event_subscriber")
+                        facts.io_edges.append(mk_edge(m.symbol, "event:" + event, "event_subscribe", anchor))
+                if anchor is not None:
+                    for ptype, _ in m.params:
+                        type_uses(facts, ptype, anchor, m.symbol, resolver)
+                    if m.kind == "method" and m.ret:
+                        type_uses(facts, m.ret, anchor, m.symbol, resolver)
+                if m.body:
+                    scan = Scan(fi, jt, m.symbol, mtv,
+                                bounds=dict(jt.all_bounds(), **getattr(m.tparams, "bounds", {})))
+                    scan.declare_params(m.params)
+                    if m.kind == "ctor" and jt.extends and not _calls_ctor(tk, m.body[0]):
+                        # javac's implicit `super();` at the top of a constructor
+                        sup = fi.norm(jt.extends[0], tv)
+                        scan.emit(sup.split("<", 1)[0], "<init>", tk.line[m.body[0] - 1], "ctor", ())
+                    scan.run(*m.body)
+                    names = [n for _, n in m.params]
+                    emit_config(ctx, facts, tk, m.body[0], m.body[1], m.symbol, constants, static_imports, own,
+                                names)
+                    emit_provider_reads(ctx, facts, tk, m.body[0], m.body[1], m.symbol, constants,
+                                        static_imports, own, providers, names)
 
-    own_methods: Dict[str, set] = {}
-    for m in members:
-        if not m.ctor:
-            own_methods.setdefault(m.cls, set()).add(m.name)
-
-    for m in members:
-        _emit_body(ctx, facts, code, m, fields.get(m.cls, {}), constants,
-                   own_methods.get(m.cls, set()), resolver)
-
-    _emit_feign(ctx, facts, code, feign, members, resolver)
+    _emit_feign(ctx, facts, code, feign, [], resolver)
 
 
-def _emit_type_header(ctx, facts, code, idx, fqn, resolver) -> None:
-    """`class X extends B implements Y` -> `extends` and `implements` rows, read
-    across wrapped lines."""
-    if not re.match(r"^\s*(?:\w+\s+)*class\s", code[idx]):
+EVENT_BUS_TYPES = frozenset(["EventBus", "AsyncEventBus"])
+
+
+def _emit_event_post(ctx: ExtractContext, facts: FileFacts, scan: Scan, recv_type: str, name_i: int) -> None:
+    """`eventBus.post(new X(...))` (or `post(x)` with `x` declared `X`) publishes event type
+    `X`: an `event_publish` edge to `event:X`, which `dataflow` joins to the `@Subscribe`
+    methods taking `X`. The receiver must be declared as a Guava `EventBus`/`AsyncEventBus`;
+    any other `post` (an HTTP client, say) is not an event."""
+    tk = scan.tk
+    if split_type(recv_type)[0].rsplit(".", 1)[-1] not in EVENT_BUS_TYPES or tk.at(name_i + 1) != "(":
         return
-    text = " ".join(code[idx: idx + 4])
-    text = text.split("{", 1)[0]
-    anchor = anchor_at(ctx, idx)
+    j = name_i + 2
+    event = None
+    if tk.at(j) == "new":
+        r = parse_type(tk, j + 1)
+        if r and tk.at(r[0]) == "(":
+            event = split_type(scan.fi.norm(r[1], scan.tvars))[0]
+    elif tk.is_id(j) and tk.at(j + 1) in (")", ","):
+        found, val = scan.lookup(tk.text[j])
+        if found and val and not val[1]:
+            event = split_type(val[0])[0]
+    anchor = anchor_at(ctx, tk.line[name_i])
+    if event and not event.startswith("~") and anchor is not None:
+        facts.signals.append("event_publisher")
+        facts.io_edges.append(mk_edge(scan.caller, "event:" + event, "event_publish", anchor))
+
+
+def _calls_ctor(tk: Tokens, i: int) -> bool:
+    return tk.at(i) in ("this", "super") and tk.at(i + 1) == "("
+
+
+def _note_constant(tk: Tokens, m: JMember, constants: Dict[str, str]) -> None:
+    for name, text in m.anns:
+        if name == "Value":
+            vm = VALUE_FIELD_RE.search(text)
+            if vm:
+                constants[m.name] = "${%s}" % vm.group(1)
+    if m.init and m.init[1] - m.init[0] == 1 and tk.kind[m.init[0]] == "str" \
+            and ("static" in m.mods or "final" in m.mods):
+        constants[m.name] = first_string_literal(tk.text[m.init[0]]) or ""
+
+
+def _emit_type_header(ctx: ExtractContext, facts: FileFacts, jt: JType, resolver) -> None:
+    """`class X extends B implements Y` -> `extends` and `implements` rows. An
+    interface's `extends` list is a list of super-interfaces: `extends` rows."""
+    anchor = anchor_at(ctx, jt.line)
     if anchor is None:
         return
-    em = EXTENDS_RE.search(text)
-    if em:
-        target, state = resolver.resolve(em.group(1).split("<", 1)[0].strip())
-        _use(facts, target, anchor, "extends", fqn, state, resolver)
-    m = IMPLEMENTS_RE.search(text)
-    if not m:
-        return
-    for name in _split_top_level(m.group(1)):
-        base = name.strip().split("<", 1)[0].strip()
-        if not base:
-            continue
-        target, state = resolver.resolve(base)
-        _use(facts, target, anchor, "implements", fqn, state, resolver)
-
-
-def _member_line(ctx, facts, code, idx, stripped, type_info, resolver, fields, constants,
-                 members, pending_annotations) -> Optional[_Member]:
-    cls, simple, _ = type_info
-    # Join a signature that wraps until its parameter list closes.
-    text = stripped
-    j = idx
-    while text.count("(") > text.count(")") and j + 1 < len(code) and j - idx < 12:
-        j += 1
-        text += " " + code[j].strip()
-
-    fm = FIELD_RE.match(text)
-    if fm and "(" not in fm.group(1):
-        type_text, name = fm.group(1), fm.group(2)
-        fields.setdefault(cls, {})[name] = type_text
-        anchor = anchor_at(ctx, idx)
-        if anchor is not None:
-            _type_uses(facts, type_text, anchor, cls, resolver)
-        for annotation in pending_annotations:
-            vm = VALUE_FIELD_RE.search(annotation)
-            if vm:
-                constants[name] = "${%s}" % vm.group(1)
-        sm = re.search(r"=\s*(\"(?:[^\"\\]|\\.)*\")\s*;", text)
-        if sm and re.search(r"\bstatic\b|\bfinal\b", text.split("=", 1)[0]):
-            constants[name] = first_string_literal(sm.group(1)) or ""
-        return None
-
-    mm = METHOD_HEAD_RE.match(text)
-    if not mm or mm.group(2) in NOT_METHODS or "=" in text.split("(", 1)[0]:
-        return None
-    ret, name = mm.group(1), mm.group(2)
-    ctor = ret is None
-    if ctor and name != simple:
-        return None
-    params = _params(text)
-    member = _Member(cls, simple, name, idx, params, ctor)
-    member.sig_end, member.has_body = j, "{" in text
-    members.append(member)
-    anchor = anchor_at(ctx, idx)
-    if anchor is not None:
-        for type_text, _ in params:
-            _type_uses(facts, type_text, anchor, member.symbol, resolver)
-    return member
-
-
-def _params(text: str) -> List[Tuple[str, str]]:
-    start = text.index("(")
-    depth = 0
-    end = start
-    for i in range(start, len(text)):
-        if text[i] == "(":
-            depth += 1
-        elif text[i] == ")":
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    out = []
-    for chunk in _split_top_level(text[start + 1:end]):
-        chunk = re.sub(r"@[\w$.]+(?:\([^)]*\))?\s*", "", chunk).replace("final ", "").strip()
-        parts = chunk.rsplit(None, 1)
-        if len(parts) == 2:
-            out.append((parts[0].strip(), parts[1].strip()))
-    return out
+    for name in jt.extends:
+        target, state = resolver.resolve(name.split("<", 1)[0].strip())
+        _use(facts, target, anchor, "extends", jt.fqn, state, resolver)
+    kind = "extends" if jt.kind in ("interface", "annotation") else "implements"
+    for name in jt.implements:
+        base = name.split("<", 1)[0].strip()
+        if base:
+            target, state = resolver.resolve(base)
+            _use(facts, target, anchor, kind, jt.fqn, state, resolver)
 
 
 def _split_top_level(text: str) -> List[str]:
@@ -253,8 +212,7 @@ def _use(facts: FileFacts, fqn: str, anchor: Dict, kind: str, from_symbol: str, 
     # candidate that exists and drops the row if none does.
     row["speculative"] = state in ("local", "unresolved")
     if row["speculative"] and resolver is not None:
-        simple = fqn.split("#", 1)[0].rsplit(".", 1)[-1]
-        alts = [w + "." + simple + suffix for w in resolver.wildcards]
+        alts = wildcard_alts(resolver, fqn, suffix)
         if alts:
             row["alts"] = alts
     facts.uses.append(row)
@@ -266,76 +224,23 @@ def use_row(facts: FileFacts, fqn: str, anchor: Dict, kind: str, from_symbol: st
     _use(facts, fqn, anchor, kind, from_symbol, state, resolver)
 
 
-def _type_uses(facts: FileFacts, type_text: str, anchor: Dict, from_symbol: str, resolver) -> None:
+def type_uses(facts: FileFacts, type_text: str, anchor: Dict, from_symbol: str, resolver) -> None:
     seen = set()
-    for name in IDENT_RE.findall(type_text.replace("[]", "")):
-        if name in seen:
-            continue
-        seen.add(name)
-        target, state = resolver.resolve(name)
-        if state == "third_party" and "." not in target:
-            continue
-        _use(facts, target, anchor, "type", from_symbol, state, resolver)
-
-
-def _emit_body(ctx, facts, code, member: _Member, fields: Dict[str, str], constants: Dict[str, str],
-               own_methods: set, resolver) -> None:
-    scope: Dict[str, str] = dict(fields)
-    scope.update({n: t for t, n in member.params})
-    caller = member.symbol
-
-    in_body = False
-    for idx in range(member.start, member.end + 1):
-        line = code[idx]
-        if not in_body:
-            if "{" not in line:
+    for name in QUALIFIED_RE.findall(type_text.replace("[]", "")):
+        name = re.sub(r"\s+", "", name)
+        # `a.b.Type` is one reference (by its full path), `Outer.Inner` a reference to
+        # Inner and to Outer; a lone lowercase word is a keyword or a package.
+        parts = name.split(".")
+        names = [name] + [".".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)
+                          if parts[i - 1][:1].isupper()]
+        for one in names:
+            if one in seen or not one.rsplit(".", 1)[-1][:1].isupper():
                 continue
-            in_body = True
-            line = line.split("{", 1)[1]
-        for lm in LOCAL_RE.finditer(line):
-            scope[lm.group(2)] = lm.group(1)
-            anchor = anchor_at(ctx, idx)
-            if anchor is not None:
-                _type_uses(facts, lm.group(1), anchor, caller, resolver)
-        for vm in VAR_NEW_RE.finditer(line):
-            scope[vm.group(1)] = vm.group(2)
-
-        for cm in RECEIVER_CALL_RE.finditer(line):
-            this_prefix, receiver, method = cm.group(1), cm.group(2), cm.group(3)
-            if receiver == "this" and not this_prefix:
-                # `this.validate(x)`: a call to one of the class's own methods.
-                _own_call(ctx, facts, idx, member, method, own_methods)
+            seen.add(one)
+            target, state = resolver.resolve(one)
+            if state == "third_party" and "." not in target:
                 continue
-            type_text = fields.get(receiver) if this_prefix else scope.get(receiver)
-            if type_text is None and not this_prefix and receiver[:1].isupper():
-                type_text = receiver  # static call on a type name
-            if type_text is None:
-                continue
-            base = type_text.split("<", 1)[0].replace("[]", "").strip()
-            if base in HTTP_CLIENT_TYPES:
-                _emit_http_call(ctx, facts, code, idx, caller, base, receiver, method, constants)
-                continue
-            target, state = resolver.resolve(base)
-            anchor = anchor_at(ctx, idx)
-            if anchor is not None and target:
-                _use(facts, "%s#%s" % (target, method), anchor, "call", caller, state,
-                     resolver, "#" + method)
-        for bm in BARE_CALL_RE.finditer(line):
-            name = bm.group(1)
-            if name not in NOT_METHODS:
-                _own_call(ctx, facts, idx, member, name, own_methods)
-
-
-def _own_call(ctx, facts, idx: int, member: _Member, name: str, own_methods: set) -> None:
-    if name in own_methods and name != member.name:
-        anchor = anchor_at(ctx, idx)
-        if anchor is not None:
-            row = mk_use("%s#%s" % (member.cls, name), anchor, via_import=False, resolved="external")
-            row.update({"kind": "call", "from_symbol": member.symbol, "speculative": False})
-            facts.uses.append(row)
-
-
-# --------------------------------------------------------------- HTTP out
+            _use(facts, target, anchor, "type", from_symbol, state, resolver)
 
 
 def _statement(code: List[str], idx: int, span: int = 6) -> str:
@@ -423,7 +328,7 @@ def _first_arg(text: str, open_at: int) -> str:
 
 def _emit_http_call(ctx, facts, code, idx, caller, client, receiver, method, constants) -> None:
     text = _statement(code, idx)
-    m = re.search(r"(?<![\w$.])%s\.%s\s*\(" % (re.escape(receiver), re.escape(method)), text)
+    m = re.search(r"(?<![\w$])(?:this\.)?%s\.%s\s*\(" % (re.escape(receiver), re.escape(method)), text)
     if not m:
         return
     verb: Optional[str] = None

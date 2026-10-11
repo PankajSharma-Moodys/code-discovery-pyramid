@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence
 
 from .budget import Budget
-from .common import _claim_module, _fair_split_budget, _finish, _matches, _role_index, _search_rank_key
+from .common import cite, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _search_rank_key
 from .store import Store
+
+
+SEARCHED = "claim subjects and statements, symbol names, constant values, unknown questions, file paths"
 
 
 def q_search(store: Store, text: str, budget: Optional[Budget] = None,
@@ -21,6 +24,13 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
         key=lambda s: _search_rank_key(s, text),
     )
     unknowns = [u for u in store.state["unknowns"] if _matches(u.get("question", ""), text)]
+    # A constant is found by its value too (`"X-Request-Id"`), not only its name.
+    named = set(symbols)
+    constants = sorted(
+        ("%s = %s  %s" % (k, e["value"], cite(e["sites"][0]["anchor"]) if e["sites"] else "-")
+         for k, e in store.xref["symbols"].items()
+         if k not in named and e.get("value") is not None and _matches(e["value"], text)),
+    )
     files = sorted(
         (
             f["path"] for f in store.inventory["files"]
@@ -31,9 +41,11 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     # Fair-split, not a single shared budget spent in construction order --
     # see `_fair_split_budget`'s docstring for the real-repo failure mode
     # this replaced.
-    claims_room, symbols_room, unknowns_room, files_room = _fair_split_budget(
-        budget.limit, [len(claims), len(symbols), len(unknowns), len(files)]
+    claims_room, symbols_room, unknowns_room, files_room, constants_room = _fair_split_budget(
+        budget.limit, [len(claims), len(symbols), len(unknowns), len(files), len(constants)]
     )
+    constants_budget = Budget(constants_room)
+    kept_constants = constants_budget.take(constants)
     claims_budget = Budget(claims_room)
     symbols_budget = Budget(symbols_room)
     unknowns_budget = Budget(unknowns_room)
@@ -44,11 +56,11 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     kept_files = files_budget.take(files)
     budget.spent = (
         claims_budget.spent + symbols_budget.spent
-        + unknowns_budget.spent + files_budget.spent
+        + unknowns_budget.spent + files_budget.spent + constants_budget.spent
     )
     budget.elided = (
         claims_budget.elided + symbols_budget.elided
-        + unknowns_budget.elided + files_budget.elided
+        + unknowns_budget.elided + files_budget.elided + constants_budget.elided
     )
     return _finish(
         {
@@ -57,11 +69,15 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
             "counts": {
                 "claims": len(claims), "symbols": len(symbols),
                 "unknowns": len(unknowns), "files": len(files),
+                "constants": len(constants),
             },
+            "searched": SEARCHED,
+            "not_searched": "file contents (use grep for text inside a file)",
             "claims": kept_claims,
             "symbols": kept_symbols,
             "unknowns": kept_unknowns,
             "files": kept_files,
+            "constants": kept_constants,
         },
         store,
         budget,

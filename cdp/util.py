@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -22,6 +23,9 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent
 
 SCHEMA_VERSION = "1.0.0"
 CDP_VERSION = "0.1.0"
+
+# Files above this size are censused but not parsed (listed under `skipped` in the inventory).
+MAX_PARSE_BYTES = 2_000_000
 
 # Directories a filesystem walk must never descend into. Only consulted when the
 # target is not a git repository (§5.1 prefers `git ls-files` precisely so that
@@ -47,6 +51,152 @@ BINARY_EXTS = frozenset(
 
 class CdpError(RuntimeError):
     """A user-facing failure. The CLI prints these without a traceback."""
+
+
+class ArgError(CdpError, ValueError):
+    """An argument of the wrong type or outside its range. One class for the CLI and
+    for MCP tool arguments: the CLI prints it, the MCP server answers -32602."""
+
+
+# --------------------------------------------------------- argument validation
+# One validation layer: argparse `type=` helpers for the CLI, `check_*` for tool
+# arguments (MCP), both built on the same functions.
+
+
+def check_int(value: Any, name: str, minimum: Optional[int] = None, maximum: Optional[int] = None,
+              strict: bool = False) -> int:
+    """`value` as an int in [minimum, maximum]. Digit strings are accepted (they come
+    from a command line) unless `strict` (a typed tool argument); bools, floats and
+    other text never are."""
+    if not strict and isinstance(value, str) and re.fullmatch(r"[+-]?\d+", value.strip()):
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ArgError("%s must be an integer, got %s %r" % (name, type(value).__name__, value))
+    if minimum is not None and value < minimum:
+        raise ArgError("%s must be %s, got %d" % (name, _range_text(minimum, maximum), value))
+    if maximum is not None and value > maximum:
+        raise ArgError("%s must be %s, got %d" % (name, _range_text(minimum, maximum), value))
+    return value
+
+
+def check_number(value: Any, name: str, minimum: float, maximum: Optional[float] = None,
+                 exclusive_min: bool = False) -> float:
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError:
+            raise ArgError("%s must be a number, got %r" % (name, value))
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        raise ArgError("%s must be a number, got %s %r" % (name, type(value).__name__, value))
+    low_bad = value <= minimum if exclusive_min else value < minimum
+    if low_bad or (maximum is not None and value > maximum):
+        raise ArgError("%s must be %s%s, got %g" % (
+            name, "greater than %g" % minimum if exclusive_min else "at least %g" % minimum,
+            " and at most %g" % maximum if maximum is not None else "", value))
+    return float(value)
+
+
+def _range_text(minimum: Optional[int], maximum: Optional[int]) -> str:
+    if minimum is not None and maximum is not None:
+        return "between %d and %d" % (minimum, maximum)
+    if maximum is not None:
+        return "at most %d" % maximum
+    return "at least %d" % minimum
+
+
+def _arg_type(check, what: str):
+    """An argparse `type=` that reports `ArgError` as a plain usage error."""
+    import argparse
+
+    def convert(text: str):
+        try:
+            return check(text, "value")
+        except ArgError as exc:
+            raise argparse.ArgumentTypeError(str(exc).replace("value ", "", 1))
+
+    convert.__name__ = what
+    return convert
+
+
+def bounded_int(minimum: Optional[int] = None, maximum: Optional[int] = None):
+    return _arg_type(lambda v, n: check_int(v, n, minimum, maximum), "integer")
+
+
+positive_int = bounded_int(1)
+non_negative_int = bounded_int(0)
+positive_float = _arg_type(lambda v, n: check_number(v, n, 0, exclusive_min=True), "number")
+fraction = _arg_type(lambda v, n: check_number(v, n, 0, 1), "fraction")
+
+
+#: Bounds of the integer parameters the CLI and the MCP tools share (min, max). The CLI
+#: flags (`--max-hops`, ...) and the tool arguments (`max_hops`, ...) must agree on these.
+LIMITS = {
+    "budget": (0, None), "max_hops": (0, None), "max_leaf_files": (1, None),
+    "max_leaf_loc": (1, None), "max_concurrent": (1, None), "workers": (1, None),
+}
+
+
+def check_limit(name: str, value: Any) -> int:
+    """A tool argument named in `LIMITS`, checked at run time (a direct call, a client
+    that skipped the schema): the same type and range rules as the CLI flag."""
+    lo, hi = LIMITS[name]
+    return check_int(value, name, lo, hi, strict=True)
+
+
+def name_arg(text: str) -> str:
+    """argparse `type=` for a label that becomes a file or directory name."""
+    import argparse
+
+    try:
+        return safe_name(text, "name")
+    except CdpError as exc:
+        raise argparse.ArgumentTypeError(str(exc))
+
+
+def resolve_prefix(value: str, candidates: Iterable[str], what: str = "commit") -> str:
+    """The one candidate that `value` names: exactly, or as a unique prefix (git's
+    own short sha, 4+ hex digits). Unknown or ambiguous prefixes raise with the
+    candidates listed. A clean `sha` wins over its `sha+dirty:tree` snapshots."""
+    cands = sorted({c for c in candidates if c})
+    if value in cands:
+        return value
+    shown = lambda items: ", ".join(c[:12] + ("+dirty" if "+dirty" in c else "") for c in items[:8]) \
+        + (" ..." if len(items) > 8 else "")
+    if not re.fullmatch(r"[0-9a-fA-F]{4,64}", value or ""):
+        raise CdpError("%s %r matches nothing%s" % (what, value, "; known: " + shown(cands) if cands else ""))
+    low = value.lower()
+    hits = [c for c in cands if c.lower().startswith(low)]
+    clean = [c for c in hits if "+dirty" not in c]
+    if len(clean) == 1 and all(h == clean[0] or h.startswith(clean[0] + "+") for h in hits):
+        return clean[0]
+    if len(hits) == 1:
+        return hits[0]
+    if not hits:
+        raise CdpError("%s %r matches no known commit%s" % (what, value, "; known: " + shown(cands) if cands else ""))
+    raise CdpError("%s prefix %r is ambiguous: %s -- give more digits" % (what, value, shown(hits)))
+
+
+# ------------------------------------------------------------------ safe names
+
+
+def safe_name(value: str, what: str, extra: str = "") -> str:
+    """A label that becomes a file or directory name: `[A-Za-z0-9._-]+` (plus `extra`),
+    never all dots. Anything else could climb out of the directory it is joined onto."""
+    if (not isinstance(value, str) or not re.fullmatch("[A-Za-z0-9._%s-]+" % re.escape(extra), value)
+            or set(value) <= {"."}):
+        raise CdpError("%s %r is not a valid name: use letters, digits, '.', '_' and '-' only%s"
+                       % (what, value, " (and %r)" % extra if extra else ""))
+    return value
+
+
+def path_within(base: Path, name: str, what: str) -> Path:
+    """`base / name`, refusing a result whose resolved location is outside `base`
+    (a symlink or `..` in `name`)."""
+    base = Path(base).resolve()
+    target = (base / name).resolve()
+    if target.parent != base:
+        raise CdpError("%s %r resolves outside %s" % (what, name, base))
+    return target
 
 
 # --------------------------------------------------------------- deterministic IO
@@ -175,6 +325,15 @@ def count_disk_files(repo: Path) -> int:
 
 
 # ------------------------------------------------------------------------ text
+
+
+def resolves_inside(root: Path, path: Path) -> bool:
+    """False for a path (typically a symlink) whose real location is outside `root`."""
+    try:
+        Path(path).resolve().relative_to(Path(root).resolve())
+        return True
+    except (ValueError, OSError, RuntimeError):
+        return False
 
 
 def is_binary_path(rel: str) -> bool:

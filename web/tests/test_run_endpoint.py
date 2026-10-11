@@ -20,6 +20,8 @@ MINIREPO = REPO_ROOT / "tests" / "fixtures" / "minirepo"
 class RunEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
         subprocess.run(
             [sys.executable, "-m", "cdp", "scan", "--repo", str(MINIREPO),

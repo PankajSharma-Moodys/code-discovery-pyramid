@@ -16,7 +16,7 @@ from pathlib import Path
 
 from helpers import have_git, make_repo
 
-from cdp import githooks
+from cdp import githooks, snapshot as snapshot_mod
 from cdp.store import registry
 from cdp.store.sqlite_backend import SqliteStore
 from cdp.util import CdpError, run_git
@@ -53,6 +53,17 @@ class InstallUninstallTest(unittest.TestCase):
             self.assertIn(githooks.MARKER, target.read_text())
             self.assertTrue(target.stat().st_mode & 0o111, "hook must be executable")
         self.assertTrue(any("cost" in l for l in lines))
+        self.assertEqual(set(githooks.HOOK_NAMES),
+                         {"post-commit", "post-checkout", "post-merge", "post-rewrite"})
+
+    def test_refusal_on_a_later_hook_installs_nothing(self) -> None:
+        hdir = githooks.hooks_dir(self.repo)
+        hdir.mkdir(parents=True, exist_ok=True)
+        (hdir / "post-rewrite").write_text("#!/bin/sh\necho not cdp's\n")
+        with self.assertRaises(CdpError):
+            githooks.install(self.repo)
+        for name in ("post-commit", "post-checkout", "post-merge"):
+            self.assertFalse((hdir / name).exists(), name)
 
     def test_install_is_idempotent(self) -> None:
         githooks.install(self.repo)
@@ -69,7 +80,8 @@ class InstallUninstallTest(unittest.TestCase):
         # the untouched hook and the never-written post-checkout both prove
         # the refusal aborted before writing anything
         self.assertNotIn(githooks.MARKER, (hdir / "post-commit").read_text())
-        self.assertFalse((hdir / "post-checkout").exists())
+        for name in githooks.HOOK_NAMES[1:]:
+            self.assertFalse((hdir / name).exists(), "partial install: " + name)
 
     def test_uninstall_removes_only_what_it_installed(self) -> None:
         hdir = githooks.hooks_dir(self.repo)
@@ -101,14 +113,14 @@ class RealHookFiringTest(unittest.TestCase):
         self.repo = make_repo(Path(self.tmp.name) / "work")
         self.env = {
             "HOME": str(self.home), "PATH": "/usr/bin:/bin:/usr/local/bin",
-            "PYTHONPATH": str(CDP_ROOT),
+            # No PYTHONPATH: the hook must find cdp itself (J1).
             "CDP_HOME": str(self.home / ".cdp"),
         }
         # No `--state-dir`: state lands in the machine store (`CDP_HOME`, set
         # above), so the hook's own `cdp refresh --repo <repo>` -- run from
         # whatever cwd git gives the hook -- finds the same store.
         scan = subprocess.run(
-            [sys.executable, "-m", "cdp.cli", "scan", "--repo", str(self.repo), "--quiet"],
+            [sys.executable, str(CDP_ROOT / "run.py"), "scan", "--repo", str(self.repo), "--quiet"],
             cwd=str(self.scancwd), env=self.env, capture_output=True, text=True,
         )
         assert scan.returncode == 0, scan.stderr
@@ -124,7 +136,7 @@ class RealHookFiringTest(unittest.TestCase):
         # `read_artifact` would silently re-check the lazy `id=1` default.
         store = SqliteStore(self.db)
         # Reads follow the checked-out commit: HEAD's snapshot when it exists.
-        store.use_current_snapshot(self.repo_id, run_git(self.repo, "rev-parse", "HEAD").strip())
+        snapshot_mod.select(store, self.repo, self.repo_id)
         head = store.read_artifact("manifest", {}).get("head")
         store.close()
         return head
@@ -155,6 +167,43 @@ class RealHookFiringTest(unittest.TestCase):
         (self.repo / "README.md").write_text("dirty, about to be discarded\n")
         _git(self.repo, "checkout", "--", "README.md", env=self.env)
         self.assertEqual(self._head(), branch_sha)
+
+    def test_merge_rebase_and_worktree_all_refresh(self) -> None:
+        # post-merge (what `git pull` runs after a fast-forward or merge)
+        _git(self.repo, "checkout", "-q", "-b", "topic", env=self.env)
+        (self.repo / "topic.txt").write_text("t\n")
+        topic = _commit(self.repo, "topic work", self.env)
+        _git(self.repo, "checkout", "-q", "main", env=self.env)
+        self.assertNotEqual(self._head_of(self.repo), topic)
+        proc = _git(self.repo, "merge", "-q", "--ff-only", "topic", env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self._head_of(self.repo), topic, "post-merge did not refresh")
+        # post-rewrite: a rebase onto new work
+        _git(self.repo, "checkout", "-q", "-b", "feature", env=self.env)
+        (self.repo / "feature.txt").write_text("f\n")
+        _commit(self.repo, "feature work", self.env)
+        _git(self.repo, "checkout", "-q", "main", env=self.env)
+        (self.repo / "README.md").write_text("main moves\n")
+        _commit(self.repo, "main moves", self.env)
+        _git(self.repo, "checkout", "-q", "feature", env=self.env)
+        proc = _git(self.repo, "-c", "user.name=cdp", "-c", "user.email=cdp@example.invalid",
+                    "rebase", "main", env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        rebased = _git(self.repo, "rev-parse", "HEAD", env=self.env).stdout.strip()
+        self.assertEqual(self._head_of(self.repo), rebased, "post-rewrite did not refresh: " + proc.stderr)
+        # a linked worktree shares the hooks directory and refreshes its own checkout
+        wt = Path(self.tmp.name) / "wt"
+        _git(self.repo, "worktree", "add", "-q", "-b", "wtbranch", str(wt), env=self.env)
+        (wt / "wt.txt").write_text("w\n")
+        wt_sha = _commit(wt, "in the worktree", self.env)
+        self.assertEqual(self._head_of(wt), wt_sha, "worktree commit did not refresh")
+
+    def _head_of(self, repo: Path) -> str:
+        store = SqliteStore(self.db)
+        snapshot_mod.select(store, repo, registry.repo_identity(repo))
+        head = store.read_artifact("manifest", {}).get("head")
+        store.close()
+        return head
 
 
 if __name__ == "__main__":

@@ -32,8 +32,10 @@ exactly where an n-way tie degrades into an arbitrary pair.
 
 from __future__ import annotations
 
+import re
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+from . import factcheck
 from .util import stable_hash
 
 # The closed-vocabulary fields conflict detection is defined over. Deliberately
@@ -43,7 +45,7 @@ ENUM_FIELDS = ("channel", "visibility", "side_effect_type")
 CONFIDENCE_ORDER = {"low": 0, "medium": 1, "high": 2, "contested": 3}
 
 
-def merge_claims(claims: Sequence[Dict], symbols: Dict[str, Dict]) -> Dict:
+def merge_claims(claims: Sequence[Dict], symbols: Dict[str, Dict], facts=None) -> Dict:
     """Fold a flat list of verified claims into merged state.
 
     `symbols` is the global symbol table from the resolve phase; it is what
@@ -76,6 +78,11 @@ def merge_claims(claims: Sequence[Dict], symbols: Dict[str, Dict]) -> Dict:
             # C4 instrumentation: same subject, same kind, same enums, different
             # prose. Free to collect, and it is the only number that separates
             # "the detection rule is well calibrated" from "it never fires".
+            clash = _negation_clash(members)
+            if clash:
+                stats["conflicts"] += 1
+                stats["negation_clashes"] = stats.get("negation_clashes", 0) + 1
+                conflicts.append(clash_record(subject, kind, clash))
             if len({str(c.get("statement", "")).strip() for c in members}) > 1:
                 stats["near_misses"] += 1
                 near_misses.append(
@@ -109,6 +116,12 @@ def merge_claims(claims: Sequence[Dict], symbols: Dict[str, Dict]) -> Dict:
             conflicts.append(
                 _conflict_record(subject, kind, by_signature, resolved_by=None, winner=None)
             )
+
+    if facts is not None:  # K1: same subject and predicate, different value, judged against the index
+        for record in factcheck.table_clashes(claims, facts):
+            stats["conflicts"] += 1
+            stats["value_clashes"] = stats.get("value_clashes", 0) + 1
+            conflicts.append(record)
 
     return {
         "claims": sorted(merged, key=lambda c: (c["kind"], c["subject"], c["id"])),
@@ -178,7 +191,8 @@ def _resolve(
 
     counts = {sig: len(_distinct_anchors(group)) for sig, group in by_signature.items()}
     best = max(counts.values())
-    leaders = sorted(sig for sig, n in counts.items() if n == best)
+    leaders = sorted((sig for sig, n in counts.items() if n == best),
+                     key=lambda sig: tuple("" if v is None else str(v) for v in sig))  # None (unstated) vs a value must not raise
     if len(leaders) == 1:
         return leaders[0], "evidence"
 
@@ -225,6 +239,36 @@ def _union(subject: str, kind: str, claims: Sequence[Dict]) -> Dict:
     base["source_nodes"] = sorted({str(c.get("source_node", "")) for c in claims if c.get("source_node")})
     base.pop("source_node", None)
     return base
+
+
+_NEGATION = re.compile(r"\b(no|not|never|none|without|neither|nor|cannot)\b|n't\b", re.I)
+_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]{3,}")
+
+
+def _negation_clash(members: Sequence[Dict]) -> Optional[Tuple[List[Dict], List[Dict]]]:
+    """K1: same subject and kind, one statement denies what another asserts. Two statements clash
+    when exactly one is negated and they talk about the same things (share two content words).
+    Returns `(asserting claims, denying claims)` or None."""
+    denying = [c for c in members if _NEGATION.search(str(c.get("statement", "")))]
+    asserting = [c for c in members if c not in denying]
+    for neg in denying:
+        words = {w.lower() for w in _WORD.findall(_NEGATION.sub(" ", str(neg.get("statement", ""))))}
+        for pos in asserting:
+            if len(words & {w.lower() for w in _WORD.findall(str(pos.get("statement", "")))}) >= 2:
+                return asserting, denying
+    return None
+
+
+def clash_record(subject: str, kind: str, clash: Tuple[List[Dict], List[Dict]]) -> Dict:
+    return {
+        "subject": subject, "kind": kind, "resolved_by": None, "reason": "negation",
+        "question": "One claim denies what another asserts about %s; which is correct?" % subject,
+        "positions": [
+            {"values": {}, "nodes": sorted({str(c.get("source_node", "")) for c in group}),
+             "statements": sorted({str(c.get("statement", "")) for c in group}),
+             "evidence_count": len(_distinct_anchors(group)), "won": False}
+            for group in clash],
+    }
 
 
 def _conflict_record(

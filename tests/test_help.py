@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import json
 import unittest
+import contextlib
 from contextlib import redirect_stdout
 
 from helpers import SKILL_ROOT  # noqa: F401  (sets sys.path)
@@ -95,9 +96,11 @@ class RenderedHelpTest(unittest.TestCase):
         # Guidance, not flags: the honest-reading section is the point.
         self.assertIn("elided: 0", out)
 
-    def test_workflows_render_all_four_recipes(self) -> None:
-        out = run("help", "workflows")
-        for name in ("onboard", "refresh", "investigate", "review"):
+    def test_workflows_render_every_recipe(self) -> None:
+        out = run("help", "recipes")
+        self.assertEqual(out, run("help", "workflows"))
+        for name in ("who-calls", "blast-radius", "route-tables", "config-reads", "onboard",
+                     "two-repos", "refresh", "review"):
             self.assertIn(name, out)
         self.assertIn("$ cdp scan", out)
 
@@ -105,9 +108,13 @@ class RenderedHelpTest(unittest.TestCase):
         self.assertIn("--budget", run("help", "query"))
 
     def test_unknown_topic_says_what_is_available(self) -> None:
-        out = run("help", "nonsense")
-        self.assertIn("No help topic", out)
-        self.assertIn("workflows", out)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = main(["help", "nonsense"])
+        self.assertEqual(code, 2)
+        self.assertIn("no help topic", err.getvalue())
+        self.assertIn("recipes", err.getvalue())
+        self.assertIn("trace", err.getvalue())
 
 
 if __name__ == "__main__":

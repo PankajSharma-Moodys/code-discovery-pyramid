@@ -26,6 +26,8 @@ class SnapshotsEndpointTest(unittest.TestCase):
         self.repo_dir = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.repo_dir, ignore_errors=True)
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
 
         _git(self.repo_dir, "init", "-q")
@@ -71,6 +73,8 @@ class SnapshotsEndpointTest(unittest.TestCase):
 
     def test_never_scanned_state_dir_returns_empty_list(self) -> None:
         empty_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, empty_dir)
         self.addCleanup(shutil.rmtree, empty_dir, ignore_errors=True)
         resp = self._client().get("/api/snapshots", params={
             "repo": str(self.repo_dir), "state_dir": str(empty_dir),

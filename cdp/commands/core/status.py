@@ -14,7 +14,7 @@ SPEC = Spec(
     group='core',
     usage='status',
     what="Waves, per-node statuses, coverage, freshness, and the current run's task table.",
-    next='tip (stale/unreviewed scopes exist): `run --stale-only`. next (incomplete tasks): `run --resume --run-id <id>`.',
+    next='tip (stale/unreviewed scopes exist): `run --stale-only`. next (incomplete tasks): `run --resume`.',
 )
 
 
@@ -37,6 +37,15 @@ def cmd_status(args) -> int:
 
 def print_status(result: Dict) -> None:
     print("run       %s @ %s" % (result["run_id"], (result["head"] or "?")[:12]))
+    if result.get("behind"):
+        print("behind    %d commit(s): git HEAD is %s; `cdp refresh` brings the index up to it"
+              % (result["behind"], (result.get("git_head") or "?")[:12]))
+    if result.get("dirty_files"):
+        print("dirty     %d uncommitted file(s) %s: %s"
+              % (len(result["dirty_files"]),
+                 "included in this index (it is a scan of the uncommitted tree)" if result.get("snapshot_uncommitted")
+                 else "the index does not reflect",
+                 ", ".join(result["dirty_files"][:5])))
     cov = result["coverage"]
     print("coverage  %.1f%% (%d/%d tracked files)"
           % (100 * cov["fraction"], cov["files_complete"], cov["files_total"]))
@@ -63,5 +72,4 @@ def print_status(result: Dict) -> None:
             if row["state"] not in (supervisor_mod.FOLDED,):
                 incomplete = True
         if incomplete:
-            print("next      cdp run --resume --run-id %s to continue the incomplete task(s) above"
-                  % result["run_id"])
+            print("next      cdp run --resume to continue the incomplete task(s) above")

@@ -127,4 +127,4 @@ def work_of(repo, state) -> Path:
     prompts, docs): `<state>/work/<repo>/`."""
     from cdp.store import registry
 
-    return registry.work_dir(Path(state), registry.repo_identity(Path(repo)))
+    return registry.work_dir_of(Path(state), Path(repo))

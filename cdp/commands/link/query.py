@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from .._common import Spec, locked, paths_from_args
+from .._common import Spec, locked, open_link_store, paths_from_args
 from ... import link as link_mod
-from ...session import open_store
-from ...store import SqliteStore
 from ...util import CdpError
 from pathlib import Path
 
@@ -40,17 +38,14 @@ def cmd_link_query(args) -> int:
     rather than an absence.
     """
     paths = paths_from_args(args)
-    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    store = open_link_store(args, paths, "query", writable=False)
     try:
-        if not store.supports_link_edges():
-            raise CdpError(
-                "%s cannot back `cdp link query` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
-            )
         edges = store.read_link_edges()
+        repos = [row["repo_id"] for row in store.latest_snapshots() if row.get("repo_id")]
     finally:
         store.close()
-    result = link_mod.query_service(edges, args.service)
+    link_mod.require_known_service(edges, args.service, repos)
+    result = link_mod.query_service(edges, args.service, repos)
     if args.json:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:

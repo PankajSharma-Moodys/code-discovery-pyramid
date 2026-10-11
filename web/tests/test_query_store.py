@@ -20,6 +20,8 @@ MINIREPO = REPO_ROOT / "tests" / "fixtures" / "minirepo"
 class ReadOnlyWorkspaceStoreTest(unittest.TestCase):
     def setUp(self) -> None:
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
         subprocess.run(
             [sys.executable, "-m", "cdp", "scan", "--repo", str(MINIREPO),
@@ -32,9 +34,12 @@ class ReadOnlyWorkspaceStoreTest(unittest.TestCase):
         from web.api.query_store import ReadOnlyWorkspaceStore
         from web.api.store_reader import ReadOnlyConnection
 
+        from cdp.store import registry
+
         conn = ReadOnlyConnection(self.state_dir / "index.db")
-        snapshot_id = conn.latest_pinned_snapshot()
+        snapshot_id, choice = conn.current_snapshot(MINIREPO, registry.repo_identity(MINIREPO))
         adapter = ReadOnlyWorkspaceStore(conn, snapshot_id)
+        adapter.choice = choice
         return query_mod.Store(adapter, use_latest=False)
 
     def test_dispatch_matches_cli_json_for_stats(self) -> None:

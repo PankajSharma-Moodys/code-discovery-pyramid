@@ -20,6 +20,23 @@
       "minItems": 1,
       "items": { "$ref": "#/$defs/workflow" }
     },
+    "kinds": {
+      "type": "array",
+      "description": "Query kinds, each with What / How / Where (generated from cdp/guide_kinds.py).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "summary", "what", "how", "where", "examples"],
+        "properties": {
+          "name": { "type": "string" },
+          "summary": { "type": "string" },
+          "what": { "type": "string" },
+          "how": { "type": "string" },
+          "where": { "type": "string" },
+          "examples": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "guidance": {
       "type": "object",
       "description": "Ordered prose sections: heading -> lines. Guidance, not flags — when to use what, in what order, what comes next.",
@@ -35,7 +52,12 @@
         "name": { "type": "string" },
         "summary": { "type": "string" },
         "usage": { "type": "string" },
-        "options": { "type": "array", "items": { "$ref": "#/$defs/option" } }
+        "options": { "type": "array", "items": { "$ref": "#/$defs/option" } },
+        "what": { "type": "string" },
+        "how": { "type": "string" },
+        "where": { "type": "string" },
+        "examples": { "type": "array", "items": { "type": "string" } },
+        "subcommands": { "type": "array", "items": { "$ref": "#/$defs/command" } }
       }
     },
     "option": {

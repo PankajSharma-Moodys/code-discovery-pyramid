@@ -35,10 +35,12 @@ links between import statements, not services.
 
 from __future__ import annotations
 
-import re
+import json
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .util import read_json, stable_hash, write_text
+from . import linkroute
+from .linkid import anchor_of, link_id, reanchor
+from .util import CdpError, read_json, stable_hash, write_text
 from pathlib import Path
 from . import query as query_mod
 
@@ -59,46 +61,18 @@ DIRECTIONS = [
     ("persist", "schema_own"),
 ]
 
-_ROUTE_PARAM_RE = re.compile(r"\{[^{}]*\}|:[A-Za-z_][A-Za-z0-9_]*")
-_VERB_PREFIX_RE = re.compile(r"^(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|ANY) ")
-_URL_PATH_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+(/.*)?$")
-
-
 def _path_of(channel: str, target: str) -> str:
-    """The bare path/table a raw edge target names, verb/scheme/host stripped."""
-    if channel == "http_in":
-        # "route:GET /orders/{id}" -> "/orders/{id}"
-        path = target.split(" ", 1)[1] if " " in target else target
-        path = path[len("route:"):] if path.startswith("route:") else path
-    elif channel == "http_out":
-        raw = target[len("http:"):] if target.startswith("http:") else target
-        # `http:POST http://host/x`: the verb is part of the edge, not the URL.
-        raw = _VERB_PREFIX_RE.sub("", raw)
-        # `${billing.url}/v1/x`: the host is a config key; only the path matches.
-        if raw.startswith("${") and "}" in raw:
-            raw = raw.split("}", 1)[1] or "/"
-        m = _URL_PATH_RE.match(raw)
-        path = (m.group(1) or "/") if m else raw
-    else:
-        path = target
-    return path.lower() if channel in ("persist", "schema_own") else path
+    return linkroute.path_of(channel, target)
 
 
 def _normalise(channel: str, target: str) -> str:
-    """The key two edges must share to be considered a match at all. Path
-    params (`{id}`, `:id`) become `*` so `/orders/{id}` and `/orders/:id`
-    compare equal -- the ambiguity is real (5.7's stress test: "path alone is
-    ambiguous"), this only removes syntactic noise, not the ambiguity itself.
-
-    HTTP channels only: a `table:`/`entity:` target is a single flat token,
-    not a URL path, and the same `:identifier` pattern that denotes a path
-    param in a route also matches that token's own `prefix:name` separator --
-    applying it there collapsed every distinct table name onto one key
-    (found live against two real modules of $TARGET_REPO, F-link1).
-    """
-    path = _path_of(channel, target)
+    """The key two edges must share to be considered a match at all. HTTP paths
+    compare segment-wise with every param spelling (`{id}`, `:id`, `<int:id>`,
+    `${id}`) as `*` (cdp/linkroute.py); table/entity targets are a flat token
+    and are never param-normalised (`prefix:name` would collapse -- F-link1)."""
+    path = linkroute.path_of(channel, target)
     if channel in ("http_in", "http_out"):
-        path = _ROUTE_PARAM_RE.sub("*", path)
+        return linkroute.key_of(linkroute.segments(path))
     return path
 
 
@@ -162,21 +136,30 @@ def scan_links(snapshots: Sequence[Dict]) -> Dict:
     matched_out_keys = set()
 
     for out_channel, in_channel in DIRECTIONS:
+        http = out_channel == "http_out"
         inbound_index: Dict[str, List[Tuple[int, Dict]]] = {}
+        routes = linkroute.RouteIndex()
         for si, snap in enumerate(exploded):
             for edge in _edges_for(snap, in_channel):
-                key = _normalise(in_channel, edge["target"])
-                inbound_index.setdefault(key, []).append((si, edge))
+                if http:
+                    routes.add(linkroute.segments(_path_of(in_channel, edge["target"])), (si, edge))
+                else:
+                    inbound_index.setdefault(_normalise(in_channel, edge["target"]), []).append((si, edge))
 
         for so, snap in enumerate(exploded):
             for edge in _edges_for(snap, out_channel):
-                key = _normalise(out_channel, edge["target"])
                 out_id = (so, out_channel, edge["source"], edge["target"], edge["anchor"]["line"])
-                candidates = inbound_index.get(key, [])
+                out_path = _path_of(out_channel, edge["target"])
+                if http:
+                    out_verb = linkroute.verb_of(out_channel, edge["target"])
+                    candidates = [c for c in routes.lookup(linkroute.segments(out_path))
+                                  if linkroute.verbs_compatible(
+                                      out_verb, linkroute.verb_of(in_channel, c[1]["target"]))]
+                else:
+                    candidates = inbound_index.get(_normalise(out_channel, edge["target"]), [])
                 if not candidates:
                     continue
                 matched_out_keys.add(out_id)
-                out_path = _path_of(out_channel, edge["target"])
                 for si, in_edge in candidates:
                     in_path = _path_of(in_channel, in_edge["target"])
                     kind = "exact" if out_path == in_path else "heuristic"
@@ -222,39 +205,73 @@ def scan_links(snapshots: Sequence[Dict]) -> Dict:
     }
 
 
-def resolve_service(edges: Sequence[Dict], service: str) -> str:
+def known_services(edges: Sequence[Dict], extra: Sequence[str] = ()) -> set:
+    known = set(extra)
+    for e in edges:
+        for side in ("caller", "callee", "outbound"):
+            if side in e["data"]:
+                known.add(e["data"][side]["repo"])
+    return known
+
+
+def _short(repo: str) -> str:
+    return repo.rsplit("#", 1)[-1].rstrip("/").rsplit("/", 1)[-1]
+
+
+def resolve_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()) -> str:
     """A repo is named by its identity (`github.com/acme/orders`, or
     `github.com/acme/mono#svc/api` for a folder of one). Nobody types that, so
     a unique trailing name -- `orders`, `api` -- resolves to it; an exact match
     always wins, and an ambiguous short name is left alone (it then matches
     nothing, which `link query` reports rather than guessing)."""
-    known = set()
-    for e in edges:
-        data = e["data"]
-        for side in ("caller", "callee", "outbound"):
-            if side in data:
-                known.add(data[side]["repo"])
+    known = known_services(edges, extra)
     if service in known:
         return service
-    short = [r for r in known if r.rsplit("#", 1)[-1].rstrip("/").rsplit("/", 1)[-1] == service]
+    short = [r for r in known if _short(r) == service]
     return short[0] if len(short) == 1 else service
 
 
 def snapshots_from_store(backend) -> List[Dict]:
-    """One link snapshot per repo in the store, at that repo's latest scan."""
+    """One link snapshot per repo in the store: the snapshot that answers for that
+    repo's tree (`snapshot.choose_snapshot`: HEAD or its nearest clean ancestor,
+    never a dirty scan or another branch). A repo whose checkout is gone falls back
+    to its newest clean snapshot; a repo with no qualifying snapshot is skipped."""
+    from pathlib import Path
+    from .snapshot import choose_snapshot
+
+    everything = backend.list_snapshots()
     out: List[Dict] = []
     for row in backend.latest_snapshots():
-        backend.use_snapshot(row["repo_id"], row["commit_sha"])
+        repo_id = row["repo_id"]
+        mine = [s for s in everything if s.get("repo_id") == repo_id]
+        clean = [s for s in mine if not s["ephemeral"]]
+        backend.use_snapshot(repo_id, (clean[-1] if clean else row)["commit_sha"])
+        repo_path = (backend.read_artifact("inventory", {}) or {}).get("repo")
+        pick = clean[-1] if clean else None
+        if repo_path and Path(repo_path).is_dir():
+            choice = choose_snapshot(Path(repo_path), repo_id, mine)
+            pick = choice.row
+        if pick is None:
+            continue
+        backend.use_snapshot(repo_id, pick["commit_sha"])
         dataflow = backend.read_artifact("dataflow", None)
         if dataflow is None:
             continue
         manifest = backend.read_artifact("manifest", {}) or {}
-        out.append({"repo": row["repo_id"], "head": manifest.get("head") or row["commit_sha"],
+        out.append({"repo": repo_id, "head": manifest.get("head") or pick["commit_sha"],
                     "dataflow": dataflow})
     return out
 
 
-def query_service(edges: Sequence[Dict], service: str) -> Dict:
+def require_known_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()) -> None:
+    """A service no scanned repo goes by is an error (exit non-zero), not an empty answer."""
+    known = known_services(edges, extra)
+    if resolve_service(edges, service, extra) not in known:
+        raise CdpError("unknown service %r: no scanned repo has that name (known: %s)"
+                       % (service, ", ".join(sorted(_short(r) for r in known)) or "none"))
+
+
+def query_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()) -> Dict:
     """M8.2 (5.6): `edges` is `SqliteStore.read_link_edges()`'s return value --
     persisted rows from the last `link scan --db`, each `{"kind": "link"|
     "unmatched", "data": <link or unmatched dict from scan_links>}`.
@@ -265,7 +282,7 @@ def query_service(edges: Sequence[Dict], service: str) -> Dict:
     `service` itself makes -- rendered as a deliverable (5.6), not folded into
     "no results".
     """
-    service = resolve_service(edges, service)
+    service = resolve_service(edges, service, extra)
     links = [e["data"] for e in edges if e["kind"] == "link"
              and (e["data"]["caller"]["repo"] == service or e["data"]["callee"]["repo"] == service)]
     unmatched = [e["data"] for e in edges if e["kind"] == "unmatched"
@@ -273,71 +290,86 @@ def query_service(edges: Sequence[Dict], service: str) -> Dict:
     return {"service": service, "links": links, "unmatched": unmatched}
 
 
+def _where(side: Dict) -> str:
+    return "%s:%d" % (side["anchor"]["file"], side["anchor"]["line"])
+
+
+def _tags(link: Dict) -> str:
+    res = link.get("resolution")
+    return "%s%s%s" % (link["match_kind"], ", self" if link["self_link"] else "",
+                       ", %s" % res["verdict"] if res else "")
+
+
 def summarise_query(result: Dict) -> List[str]:
+    """Each link as `caller -> callee`, both ends named; `calls`/`called by` says which end the
+    queried service is."""
     service = result["service"]
     lines = ["link query %s: %d link(s), %d unmatched outbound call(s)"
              % (service, len(result["links"]), len(result["unmatched"]))]
     for link in result["links"]:
-        direction = "calls" if link["caller"]["repo"] == service else "called by"
-        other = link["callee"] if link["caller"]["repo"] == service else link["caller"]
-        lines.append(
-            "  %-6s %s [%s] %s %s:%d [%s%s]"
-            % (link["protocol"], direction, other["repo"], other["target"],
-               other["anchor"]["file"], other["anchor"]["line"], link["match_kind"],
-               ", self" if link["self_link"] else "")
-        )
+        caller, callee = link["caller"], link["callee"]
+        direction = "calls" if caller["repo"] == service else "called by"
+        lines.append("  %-6s %s: [%s] %s %s -> [%s] %s %s [%s]"
+                     % (link["protocol"], direction, _short(caller["repo"]), caller["target"], _where(caller),
+                        _short(callee["repo"]), callee["target"], _where(callee), _tags(link)))
     if result["unmatched"]:
         lines.append("unmatched %d outbound call(s) from %s with no registered callee:"
                       % (len(result["unmatched"]), service))
         for u in result["unmatched"]:
             o = u["outbound"]
-            lines.append("  %-6s %s %s:%d" % (u["protocol"], o["target"], o["anchor"]["file"], o["anchor"]["line"]))
+            lines.append("  %-6s %s %s" % (u["protocol"], o["target"], _where(o)))
     return lines
 
 
-def _link_id(link: Dict) -> str:
-    """A stable identifier for one candidate pairing, independent of list
-    position, so `collect` can find the same link again after a report has
-    been read back from the store and possibly reordered."""
-    return stable_hash({
-        "protocol": link["protocol"], "caller": link["caller"], "callee": link["callee"],
-    })[:16]
+_link_id = link_id  # one id per pairing across scans and commits (cdp/linkid.py)
 
 
-def build_tasks(report: Dict) -> List[Dict]:
+def _candidates(links: List[Dict]) -> List[Dict]:
+    """One candidate per link id, listing every call site (and callee site) that shares it: two
+    calls to one endpoint from one method are one pairing with two sites, not one dropped."""
+    by_id: Dict[str, Dict] = {}
+    for link in links:
+        c = by_id.setdefault(_link_id(link), {"link_id": _link_id(link), "caller": link["caller"],
+                                              "callee": link["callee"], "caller_sites": [], "callee_sites": []})
+        for key, side in (("caller_sites", "caller"), ("callee_sites", "callee")):
+            site = anchor_of(link[side])
+            if site not in c[key]:
+                c[key].append(site)
+    for c in by_id.values():
+        for key in ("caller_sites", "callee_sites"):
+            c[key].sort(key=lambda a: (a["file"], a["line"]))
+    return list(by_id.values())
+
+
+def build_tasks(report: Dict, unresolved_only: bool = False) -> List[Dict]:
     """M8.3 (5.2): the LLM tier fires only on ambiguous matches. `scan_links`
     already names the ambiguous case at scan time -- `match_kind == "heuristic"`
-    (the normalised key matched; the raw path/topic/table did not) -- so no
-    second ambiguity detector is invented here, one already exists.
+    -- so no second ambiguity detector is invented here.
 
-    One task per *distinct caller target string*, not per link: the stress
-    test ("a topic built by string concatenation in three places... must not
-    become three unrelated tasks") means several call sites sharing one raw
-    ambiguous string are one question, answered once. `report["links"]`
-    already carries every candidate callee for that string as a separate
-    entry (multiple inbound matches on the same normalised key), so grouping
-    by `(protocol, caller.target)` collects them all under one task.
+    One task per *distinct caller target string*, not per link: several call
+    sites sharing one raw ambiguous string are one question, answered once.
+    With `unresolved_only`, a link that already has a verdict is left out (a task
+    whose every link has one disappears), so nothing is asked twice.
     """
     groups: Dict[Tuple[str, str], List[Dict]] = {}
     for link in report["links"]:
-        if link["match_kind"] != "heuristic":
+        if link["match_kind"] != "heuristic" or (unresolved_only and link.get("resolution")):
             continue
-        key = (link["protocol"], link["caller"]["target"])
-        groups.setdefault(key, []).append(link)
+        groups.setdefault((link["protocol"], link["caller"]["target"]), []).append(link)
 
     tasks = []
     for (protocol, target), links in sorted(groups.items()):
         task_id = "link-" + stable_hash({"protocol": protocol, "target": target})[:16]
-        tasks.append({
-            "task_id": task_id,
-            "protocol": protocol,
-            "target": target,
-            "candidates": [
-                {"link_id": _link_id(link), "caller": link["caller"], "callee": link["callee"]}
-                for link in links
-            ],
-        })
+        tasks.append({"task_id": task_id, "protocol": protocol, "target": target,
+                      "candidates": _candidates(links)})
     return tasks
+
+
+def _example_patch(task: Dict) -> Dict:
+    c = task["candidates"][0]
+    return {"task_id": task["task_id"], "resolutions": [
+        {"link_id": c["link_id"], "verdict": "match", "reason": "one sentence of evidence",
+         "anchor": c["caller_sites"][0]}]}
 
 
 def render_task_prompt(task: Dict) -> str:
@@ -346,7 +378,7 @@ def render_task_prompt(task: Dict) -> str:
         "",
         "Protocol: %s" % task["protocol"],
         "Ambiguous target (same raw string, matched only after path-param",
-        "normalisation, at every site below): `%s`" % task["target"],
+        "normalisation or a missing context prefix, at every site below): `%s`" % task["target"],
         "",
         "For EACH candidate below, decide whether the caller genuinely calls",
         "that callee. Cite only anchors already shown here -- do not invent one.",
@@ -355,82 +387,132 @@ def render_task_prompt(task: Dict) -> str:
     for c in task["candidates"]:
         caller, callee = c["caller"], c["callee"]
         lines.append("## candidate %s" % c["link_id"])
-        lines.append("  caller  [%s] %s %s %s:%d" % (
-            caller["repo"], caller["module"], caller["target"],
-            caller["anchor"]["file"], caller["anchor"]["line"]))
-        lines.append("  callee  [%s] %s %s %s:%d" % (
-            callee["repo"], callee["module"], callee["target"],
-            callee["anchor"]["file"], callee["anchor"]["line"]))
+        for label, side, sites in (("caller", caller, c["caller_sites"]), ("callee", callee, c["callee_sites"])):
+            lines.append("  %s  [%s] %s %s %s" % (label, side["repo"], side["module"], side["target"],
+                                                 ", ".join("%s:%d" % (a["file"], a["line"]) for a in sites)))
         lines.append("")
+    lines.append("Respond with exactly one JSON object, no other keys, e.g.:")
+    lines.append("")
+    lines.append(json.dumps(_example_patch(task), indent=2))
+    lines.append("")
     lines.append(
-        "Respond with a JSON patch: {\"task_id\": %r, \"resolutions\": "
-        "[{\"link_id\": ..., \"verdict\": \"match\"|\"no_match\"|\"uncertain\", "
-        "\"reason\": str, \"anchor\": {\"file\": str, \"line\": int}}]}. "
-        "`anchor` must be one of the caller/callee anchors shown above -- a "
-        "citation not shown here is rejected, not trusted." % task["task_id"]
+        "`verdict` is one of match, no_match, uncertain. `anchor` is {repo, file, line} of one "
+        "caller or callee site of THAT candidate, as shown above (repo is optional; if given it "
+        "must be that site's repo). One resolution per candidate. A citation not shown here, or "
+        "from another repo, is rejected."
     )
     return "\n".join(lines)
 
 
+def _line_of(value) -> Optional[int]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _repo_matches(cited: str, repo: str) -> bool:
+    return cited == repo or cited == _short(repo)
+
+
+PATCH_KEYS = {"task_id", "resolutions"}
+RESOLUTION_KEYS = {"link_id", "verdict", "reason", "anchor"}
+ANCHOR_KEYS = {"repo", "file", "line"}
+
+
 def validate_task_patch(patch: Dict, task: Dict) -> List[str]:
-    """M8.3's validate+verify+entail step, kept in one function since a link
-    patch is a handful of fields, not a full claim: schema shape, the closed
-    verdict vocabulary (validate), then a citation check -- every `anchor` in
-    the response must equal a caller or callee anchor this task actually
-    showed the model (entail: no fabricated citation is trusted, the same
-    spirit as Phase 4's negative-entailment gate, applied to a cross-repo
-    verdict instead of a single repo's extraction index).
-    """
+    """M8.3's validate+verify+entail step: closed schema (an unknown key is an error), the closed
+    verdict vocabulary, one resolution per link (a repeat with another verdict is a contradiction),
+    and a citation that is one of THAT link's own sites -- repo, file and line (a numeric string
+    line is accepted). No fabricated or wrong-repo citation is trusted."""
     errors: List[str] = []
+    if not isinstance(patch, dict):
+        return ["/: a link patch is a JSON object, got %s" % type(patch).__name__]
     if patch.get("task_id") != task["task_id"]:
-        errors.append("/task_id: %r does not match task %r" % (patch.get("task_id"), task["task_id"]))
-        return errors
+        return ["/task_id: %r does not match task %r" % (patch.get("task_id"), task["task_id"])]
+    for key in sorted(set(patch) - PATCH_KEYS):
+        errors.append("/%s: unknown key (allowed: %s)" % (key, ", ".join(sorted(PATCH_KEYS))))
     resolutions = patch.get("resolutions")
     if not isinstance(resolutions, list) or not resolutions:
-        errors.append("/resolutions: must be a non-empty list")
-        return errors
-    known_links = {c["link_id"]: c for c in task["candidates"]}
-    known_anchors = set()
-    for c in task["candidates"]:
-        known_anchors.add((c["caller"]["anchor"]["file"], c["caller"]["anchor"]["line"]))
-        known_anchors.add((c["callee"]["anchor"]["file"], c["callee"]["anchor"]["line"]))
+        return errors + ["/resolutions: must be a non-empty list"]
+    known = {c["link_id"]: c for c in task["candidates"]}
+    seen: Dict[str, str] = {}
     for i, res in enumerate(resolutions):
-        if res.get("link_id") not in known_links:
-            errors.append("/resolutions/%d/link_id: %r is not a candidate this task showed"
-                           % (i, res.get("link_id")))
+        if not isinstance(res, dict):
+            errors.append("/resolutions/%d: must be an object, got %s" % (i, type(res).__name__))
+            continue
+        for key in sorted(set(res) - RESOLUTION_KEYS):
+            errors.append("/resolutions/%d/%s: unknown key (allowed: %s)" % (i, key, ", ".join(sorted(RESOLUTION_KEYS))))
+        cand = known.get(res.get("link_id")) if isinstance(res.get("link_id"), str) else None
+        if cand is None:
+            errors.append("/resolutions/%d/link_id: %r is not a candidate this task showed" % (i, res.get("link_id")))
             continue
         if res.get("verdict") not in VERDICTS:
-            errors.append("/resolutions/%d/verdict: %r is not one of %s"
-                           % (i, res.get("verdict"), sorted(VERDICTS)))
-        if not res.get("reason"):
-            errors.append("/resolutions/%d/reason: required" % i)
-        anchor = res.get("anchor") or {}
-        if (anchor.get("file"), anchor.get("line")) not in known_anchors:
-            errors.append("/resolutions/%d/anchor: %r was not shown to the model for this task -- "
-                           "fabricated citation rejected" % (i, anchor))
+            errors.append("/resolutions/%d/verdict: %r is not one of %s" % (i, res.get("verdict"), sorted(VERDICTS)))
+        if not isinstance(res.get("reason"), str) or not res["reason"].strip():
+            errors.append("/resolutions/%d/reason: a non-empty string is required" % i)
+        if res["link_id"] in seen and seen[res["link_id"]] != res.get("verdict"):
+            errors.append("/resolutions/%d/link_id: %r is resolved twice with different verdicts (%s, %s)"
+                          % (i, res["link_id"], seen[res["link_id"]], res.get("verdict")))
+        seen.setdefault(res["link_id"], res.get("verdict"))
+        anchor = res.get("anchor")
+        if not isinstance(anchor, dict):
+            errors.append("/resolutions/%d/anchor: an object {repo, file, line} is required" % i)
+            continue
+        for key in sorted(set(anchor) - ANCHOR_KEYS):
+            errors.append("/resolutions/%d/anchor/%s: unknown key" % (i, key))
+        line = _line_of(anchor.get("line"))
+        cited_repo = anchor.get("repo")
+        ok = any(a["file"] == anchor.get("file") and a["line"] == line
+                 and (cited_repo is None or (isinstance(cited_repo, str) and _repo_matches(cited_repo, a["repo"])))
+                 for a in (cand.get("caller_sites") or [anchor_of(cand["caller"])])
+                 + (cand.get("callee_sites") or [anchor_of(cand["callee"])]))
+        if not ok:
+            errors.append("/resolutions/%d/anchor: %r is not a site of this link as shown to the model "
+                          "(repo, file and line must all match) -- fabricated citation rejected" % (i, anchor))
     return errors
 
 
-def fold_resolutions(report: Dict, task: Dict, patch: Dict, run_id: str) -> int:
+def _resolution(res: Dict, task: Dict, run_id: str, link: Dict) -> Dict:
+    cited = res["anchor"]
+    out = {"verdict": res["verdict"], "reason": res["reason"], "task_id": task["task_id"],
+           "author_kind": "llm", "run_id": run_id,
+           "anchor": {k: v for k, v in (("repo", cited.get("repo")), ("file", cited["file"]),
+                                        ("line", _line_of(cited["line"]))) if v is not None}}
+    return reanchor(link, out)  # records which end it cites, so it follows that end when it moves
+
+
+def fold_resolutions(report: Dict, task: Dict, patch: Dict, run_id: str, store=None) -> int:
     """Attributes each valid resolution onto its link in `report["links"]` by
-    `link_id`. Never touches `match_kind` (M8.1's closed vocabulary, already
-    shipped and tested) -- adds a `resolution` field alongside it, so an
-    adjudicated heuristic link is still queryable by its original
-    classification plus what the LLM tier decided about it. Returns the
-    count folded.
-    """
-    by_id = {_link_id(link): link for link in report["links"]}
+    `link_id`. Never touches `match_kind` -- adds a `resolution` alongside it. A link that already
+    has a verdict keeps it (a second answer does not overwrite the first). With `store`, each
+    resolution is saved right away, so a later failure in the same run cannot lose it. Returns
+    the count newly folded."""
+    by_id: Dict[str, List[Dict]] = {}
+    for link in report["links"]:
+        by_id.setdefault(_link_id(link), []).append(link)
     n = 0
+    done = set()
     for res in patch["resolutions"]:
-        link = by_id.get(res["link_id"])
-        if link is None:
+        links = by_id.get(res["link_id"])
+        if not links or res["link_id"] in done or any(l.get("resolution") for l in links):
             continue
-        link["resolution"] = {
-            "verdict": res["verdict"], "reason": res["reason"], "anchor": res["anchor"],
-            "task_id": task["task_id"], "author_kind": "llm", "run_id": run_id,
-        }
+        done.add(res["link_id"])
+        resolution = _resolution(res, task, run_id, links[0])
+        for link in links:
+            link["resolution"] = resolution
+        if store is not None:
+            store.save_link_resolution(res["link_id"], resolution)
         n += 1
     return n
+
+
+def unresolved_tasks(report: Dict) -> List[Dict]:
+    """Tasks for the links that have no verdict yet."""
+    return build_tasks(report, unresolved_only=True)
 
 
 def link_task_shape_key(task: Dict) -> str:
@@ -458,10 +540,21 @@ def _classify_link_returned(patch_path, task: Dict):
         patch = read_json(patch_path)
     except (ValueError, OSError) as exc:
         return supervisor_mod.INVALID, "not valid JSON: %s" % exc, None
-    errors = validate_task_patch(patch, task)
+    try:
+        errors = validate_task_patch(patch, task)
+    except Exception as exc:  # noqa: BLE001 -- a malformed patch abandons its own task, nothing else
+        return supervisor_mod.INVALID, "malformed patch: %s: %s" % (type(exc).__name__, exc), None
     if errors:
         return supervisor_mod.INVALID, "; ".join(errors[:6]), None
     return supervisor_mod.VALIDATED, None, patch
+
+
+def reject_patch(patch_path: Path) -> None:
+    """Move a failed patch to `inbox/rejected/`, out of the directory `link collect` reads."""
+    if patch_path.exists():
+        dest = patch_path.parent / "rejected"
+        dest.mkdir(exist_ok=True)
+        patch_path.replace(dest / patch_path.name)
 
 
 def dispatch_link_task(
@@ -476,11 +569,12 @@ def dispatch_link_task(
     this task's lease, the same "not mine to dispatch" convention
     `dispatch_scope` uses."""
     from . import supervisor as supervisor_mod
-    backend.ensure_inbox()
     task_id = task["task_id"]
     prompt_path = prompts_dir / (task_id + ".md")
     write_text(prompt_path, render_task_prompt(task))
-    patch_path = backend._inbox_dir() / (task_id + ".json")
+    # Link patches have their own inbox beside their prompts, never the scope inbox `cdp collect` reads.
+    patch_path = prompts_dir / "inbox" / (task_id + ".json")
+    patch_path.parent.mkdir(parents=True, exist_ok=True)
 
     state = supervisor_mod.PENDING
     last_error: Optional[str] = None
@@ -489,26 +583,30 @@ def dispatch_link_task(
     for attempt in range(1, max_attempts + 1):
         if not backend.acquire_link_lease(run_id, task_id, lease_seconds):
             return None
-        if patch_path.exists():
-            patch_path.unlink()
-        backend.upsert_link_task(
-            run_id, task_id, state=supervisor_mod.DISPATCHED, attempts=attempt,
-            dispatched_at=supervisor_mod._now(), last_error=None,
-        )
-        heartbeat = supervisor_mod._LeaseHeartbeat(
-            lambda: backend.heartbeat_link_lease(run_id, task_id, lease_seconds), heartbeat_seconds
-        ).start()
         try:
-            result = runner.run(prompt_path, patch_path)
+            if patch_path.exists():
+                patch_path.unlink()
+            backend.upsert_link_task(
+                run_id, task_id, state=supervisor_mod.DISPATCHED, attempts=attempt,
+                dispatched_at=supervisor_mod._now(), last_error=None,
+            )
+            heartbeat = supervisor_mod._LeaseHeartbeat(
+                lambda: backend.heartbeat_link_lease(run_id, task_id, lease_seconds), heartbeat_seconds
+            ).start()
+            try:
+                result = runner.run(prompt_path, patch_path)
+            finally:
+                heartbeat.stop()
+            if not result.ok:
+                state, last_error, patch = supervisor_mod.EXPIRED, result.error or "runner reported failure with no message", None
+            else:
+                backend.upsert_link_task(run_id, task_id, state=supervisor_mod.RETURNED, wall_ms=result.wall_ms)
+                state, last_error, patch = _classify_link_returned(patch_path, task)
+            backend.upsert_link_task(run_id, task_id, state=state, last_error=last_error, wall_ms=result.wall_ms)
         finally:
-            heartbeat.stop()
-        if not result.ok:
-            state, last_error, patch = supervisor_mod.EXPIRED, result.error or "runner reported failure with no message", None
-        else:
-            backend.upsert_link_task(run_id, task_id, state=supervisor_mod.RETURNED, wall_ms=result.wall_ms)
-            state, last_error, patch = _classify_link_returned(patch_path, task)
-        backend.upsert_link_task(run_id, task_id, state=state, last_error=last_error, wall_ms=result.wall_ms)
-        backend.release_link_lease(run_id, task_id)
+            backend.release_link_lease(run_id, task_id)  # whatever happened, the next run may take it
+        if state != supervisor_mod.VALIDATED:
+            reject_patch(patch_path)  # never left where a later `link collect` could take it
         if state not in supervisor_mod.RETRY_STATES:
             break
     if state in supervisor_mod.RETRY_STATES:
@@ -636,27 +734,15 @@ def summarise(report: Dict) -> List[str]:
         % (t["snapshots"], t["modules"], t["links"], t["exact"], t["heuristic"], t["unmatched"])
     ]
     for link in report["links"]:
-        lines.append(
-            "  %-6s [%s] %s %s:%d -> [%s] %s %s:%d [%s%s]"
-            % (
-                link["protocol"],
-                link["caller"]["module"],
-                link["caller"]["target"],
-                link["caller"]["anchor"]["file"],
-                link["caller"]["anchor"]["line"],
-                link["callee"]["module"],
-                link["callee"]["target"],
-                link["callee"]["anchor"]["file"],
-                link["callee"]["anchor"]["line"],
-                link["match_kind"],
-                ", self" if link["self_link"] else "",
-            )
-        )
+        caller, callee = link["caller"], link["callee"]
+        lines.append("  %-6s caller [%s:%s] %s %s -> callee [%s:%s] %s %s [%s]"
+                     % (link["protocol"], _short(caller["repo"]), caller["module"], caller["target"], _where(caller),
+                        _short(callee["repo"]), callee["module"], callee["target"], _where(callee), _tags(link)))
     if report["unmatched"]:
         lines.append("unmatched %d outbound call(s) with no registered callee:" % len(report["unmatched"]))
         for u in report["unmatched"]:
             o = u["outbound"]
-            lines.append("  %-6s %s %s:%d" % (u["protocol"], o["target"], o["anchor"]["file"], o["anchor"]["line"]))
+            lines.append("  %-6s [%s] %s %s" % (u["protocol"], _short(o["repo"]), o["target"], _where(o)))
     return lines
 
 

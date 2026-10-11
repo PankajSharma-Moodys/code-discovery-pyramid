@@ -18,13 +18,16 @@ def q_paths(
 ) -> Dict:
     budget = budget or Budget()
     paths = store.dataflow["paths"]
-    if frm:
-        paths = [p for p in paths if _matches(p["source"], frm) or _matches(p["trigger"], frm)]
-    if to:
-        paths = [p for p in paths if _matches(p["sink"], to)]
+    # `--from`/`--to` match any node on a path, not only its two ends (H2): the
+    # paths *through* a node answer "what does X reach / what reaches X". With
+    # both, `--from` must come at or before `--to`. A `Class#member` term also
+    # matches the class, because dataflow nodes are classes, not members.
+    if frm or to:
+        paths = [p for p in paths if _through(p, frm, to)]
     return _finish(
         {
             "query": "paths",
+            "match": "any node on the path (source, hops, sink)" if frm or to else "all",
             "count": len(paths),
             "paths": [
                 {
@@ -48,6 +51,34 @@ def q_paths(
         store,
         budget,
     )
+
+
+def _nodes(path: Dict) -> List[str]:
+    """A path's nodes in order: trigger, source, each hop's `to`, the sink."""
+    out = [path["trigger"], path["source"]]
+    out += [h["to"] for h in path["hops"]]
+    out.append(path["sink"])
+    return out
+
+
+def _node_hit(node: str, needle: str) -> bool:
+    if _matches(node, needle):
+        return True
+    owner = needle.partition("#")[0]
+    return owner != needle and bool(owner) and _matches(node, owner)
+
+
+def _through(path: Dict, frm: Optional[str], to: Optional[str]) -> bool:
+    nodes = _nodes(path)
+    first = 0
+    if frm:
+        hits = [i for i, n in enumerate(nodes) if _node_hit(n, frm)]
+        if not hits:
+            return False
+        first = hits[0]
+    if to:
+        return any(_node_hit(n, to) for n in nodes[first:])
+    return True
 
 
 #: What `trace` promises and, more importantly, what it does not.
@@ -312,8 +343,13 @@ def _trace_files(
                                target.rsplit(".", 1)[-1]),
             cite(edge["anchor"]), edge.get("confidence", "medium"))
         for site in store.xref["symbols"].get(target, {}).get("sites", []):
-            add(site["file"], site["module"], "defines %s" % target,
-                cite(site["anchor"]), "high")
+            why = "defines %s" % target
+            if edge["channel"] == "event":
+                # The subscriber is reached through the event type it handles, not by a call.
+                why = "%s --event--> %s (subscribes to an event %s posts)" % (
+                    edge["source"].rsplit(".", 1)[-1], target.rsplit(".", 1)[-1],
+                    edge["source"].rsplit(".", 1)[-1])
+            add(site["file"], site["module"], why, cite(site["anchor"]), "high")
 
     for caller in callers:
         add(caller["file"], caller["module"],

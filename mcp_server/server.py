@@ -13,6 +13,9 @@ import json
 import sys
 from typing import Any, Dict, Optional
 
+from cdp.schema import Validator
+from cdp.util import ArgError
+
 from . import tools as tools_mod
 from .schemas import TOOL_SCHEMAS
 
@@ -20,19 +23,38 @@ from .schemas import TOOL_SCHEMAS
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
 
-def _call(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+class InvalidParams(ValueError):
+    """The request names no such tool, or its arguments break the tool's input schema:
+    a JSON-RPC -32602 error, not a tool failure."""
+
+
+_VALIDATORS = {name: Validator(schema["inputSchema"]) for name, schema in TOOL_SCHEMAS.items()}
+
+
+def _call(name: str, arguments: Any) -> Dict[str, Any]:
     if name not in tools_mod.TOOLS:
-        raise ValueError("unknown tool %r -- one of %s" % (name, sorted(tools_mod.TOOLS)))
+        raise InvalidParams("unknown tool %r -- one of %s" % (name, sorted(tools_mod.TOOLS)))
+    errors = _VALIDATORS[name].validate(arguments)
+    if errors:
+        raise InvalidParams("invalid arguments for %s: %s" % (name, "; ".join(errors)))
     return tools_mod.TOOLS[name](**arguments)
+
+
+def _error(request_id: Any, code: int, message: str) -> Dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
 
 def handle(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """One JSON-RPC message in, the response out (None for notifications)."""
     request_id = message.get("id")
     method = message.get("method")
-    params = message.get("params") or {}
+    params = message.get("params")
+    if params is None:
+        params = {}
     if request_id is None:
         return None  # notifications (initialized, cancelled, ...) get no reply
+    if not isinstance(params, dict):
+        return _error(request_id, -32602, "params must be an object")
 
     def ok(result: Dict[str, Any]) -> Dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
@@ -53,16 +75,17 @@ def handle(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             for name, schema in TOOL_SCHEMAS.items()
         ]})
     if method == "tools/call":
-        # Tool failures are results with isError, not protocol errors, so the
-        # model sees the message and can correct its call.
+        # A malformed call is a protocol error (-32602); a tool that runs and
+        # fails is a result with isError, so the model sees the message.
         try:
-            result = _call(str(params.get("name")), params.get("arguments") or {})
+            result = _call(str(params.get("name")), params.get("arguments", {}))
             return ok({"content": [{"type": "text", "text": json.dumps(result, sort_keys=True)}]})
+        except (InvalidParams, ArgError) as exc:
+            return _error(request_id, -32602, str(exc))
         except Exception as exc:  # noqa: BLE001 -- any failure is reported to the model
             return ok({"content": [{"type": "text", "text": "%s: %s" % (type(exc).__name__, exc)}],
                        "isError": True})
-    return {"jsonrpc": "2.0", "id": request_id,
-            "error": {"code": -32601, "message": "method not found: %s" % method}}
+    return _error(request_id, -32601, "method not found: %s" % method)
 
 
 def main() -> None:
@@ -73,9 +96,15 @@ def main() -> None:
             continue
         try:
             message = json.loads(line)
-        except ValueError:
-            continue
-        response = handle(message) if isinstance(message, dict) else None
+        except ValueError as exc:
+            response = _error(None, -32700, "parse error: %s" % exc)
+        else:
+            try:
+                response = (handle(message) if isinstance(message, dict)
+                            else _error(None, -32600, "invalid request: expected a JSON object"))
+            except Exception as exc:  # noqa: BLE001 -- one bad message must not end the session
+                response = _error(message.get("id") if isinstance(message, dict) else None,
+                                  -32603, "internal error: %s" % exc)
         if response is not None:
             sys.stdout.write(json.dumps(response) + "\n")
             sys.stdout.flush()

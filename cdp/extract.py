@@ -22,12 +22,11 @@ from typing import Dict, List, Optional, Tuple
 
 from .lang import extract_file
 from .lang.base import FileFacts
-from .util import read_lines
+from .util import MAX_PARSE_BYTES, read_lines
 
-# Files above this size are censused but not parsed. A 4 MB generated source
-# file is not a design document, and reading it would blow the budget it was
+# Files above `MAX_PARSE_BYTES` (util.py) are censused but not parsed. A 4 MB generated
+# source file is not a design document, and reading it would blow the budget it was
 # excluded from git to protect.
-MAX_PARSE_BYTES = 2_000_000
 
 # Below this many parseable files, a process pool's own startup cost (each
 # worker forks/spawns an interpreter) is not worth paying -- every existing

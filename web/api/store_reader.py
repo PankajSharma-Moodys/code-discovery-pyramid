@@ -60,13 +60,20 @@ class StoreLocked(CdpError):
     (§7.0's residual/accepted cases)."""
 
 
+class StateDirRejected(CdpError):
+    """A request named a store other than this machine's one `CDP_HOME` store."""
+
+
 def resolve_state_dir(repo: Path, state_dir: Optional[str] = None) -> Path:
-    """The machine home: an explicit `state_dir` (an alias for `CDP_HOME`), else
-    `CDP_HOME`, else `~/.cdp`. `repo` no longer selects a directory -- it selects
-    rows of the one store (`repo_identity`)."""
-    if state_dir:
-        return Path(state_dir).expanduser().resolve()
-    return registry_mod.cdp_home()
+    """The machine home (`CDP_HOME`, else `~/.cdp`). `state_dir` is accepted only
+    as an echo of that same directory (the frontend sends back what `/api/repos`
+    reported); any other value is rejected, so a request can never point the
+    server at an arbitrary store on disk. `repo` selects rows of the one store."""
+    home = registry_mod.cdp_home()
+    if state_dir and Path(state_dir).expanduser().resolve() != Path(home).resolve():
+        raise StateDirRejected(
+            "state_dir must be omitted or equal this server's CDP_HOME store")
+    return home
 
 
 class ReadOnlyConnection:
@@ -99,7 +106,38 @@ class ReadOnlyConnection:
             self._local.conn = conn
         return conn
 
-    def latest_pinned_snapshot(self, repo_id: Optional[str] = None) -> int:
+    def snapshots(self, repo_id: str) -> list:
+        """`repo_id`'s manifest-pinned snapshots, as `snapshot.choose_snapshot` reads them."""
+        try:
+            rows = self._conn().execute(
+                "SELECT s.id, s.repo_id, s.commit_sha, s.ephemeral, s.pinned FROM snapshot_meta s "
+                "JOIN snapshot_artifact a ON a.snapshot_id = s.id AND a.name = 'manifest' "
+                "WHERE s.repo_id = ? ORDER BY s.id", (repo_id,)).fetchall()
+        except sqlite3.OperationalError as exc:
+            raise StoreLocked(
+                "%s is locked (%s) -- a `cdp compact` may be running" % (self.db_path, exc)
+            ) from exc
+        return [{"id": r[0], "repo_id": r[1], "commit_sha": r[2], "ephemeral": bool(r[3]),
+                 "pinned": bool(r[4])} for r in rows]
+
+    def current_snapshot(self, repo, repo_id: str) -> "tuple[int, Any]":
+        """`(snapshot id, Choice)` by the one shared rule (`snapshot.choose_snapshot`):
+        HEAD's own, else the nearest clean ancestor, else "scan needed"."""
+        from cdp import snapshot as snapshot_mod
+
+        choice = snapshot_mod.choose_snapshot(Path(repo).expanduser().resolve(), repo_id, self.snapshots(repo_id))
+        if choice.scan_needed:
+            raise StoreUnavailable("scan needed for %s in %s: %s" % (repo_id, self.db_path, choice.reason))
+        return choice.row["id"], choice
+
+    def latest_pinned_snapshot(self, repo_id: Optional[str] = None, repo=None) -> int:
+        """With `repo`, the snapshot the shared rule picks for that tree (see `current_snapshot`);
+        without it, the latest pinned one of `repo_id` (any repo if none is named)."""
+        if repo is not None and repo_id:
+            return self.current_snapshot(repo, repo_id)[0]
+        return self._latest_pinned(repo_id)
+
+    def _latest_pinned(self, repo_id: Optional[str] = None) -> int:
         """The latest snapshot (by `touch_seq`) of `repo_id` -- of any repo if
         none is named -- that has a `manifest` artifact row. `manifest` is written last in both the scan and
         refresh write paths (`cdp/cli.py:746`, `:1379`), so its presence is
@@ -176,11 +214,22 @@ class ReadOnlyConnection:
             rows = self._conn().execute(
                 "SELECT payload FROM link_edge ORDER BY id"
             ).fetchall()
+            try:
+                resolutions = {r[0]: json.loads(r[1]) for r in self._conn().execute(
+                    "SELECT link_id, payload FROM link_resolution").fetchall()}
+            except sqlite3.OperationalError:  # a store from before verdicts had their own table
+                resolutions = {}
         except sqlite3.OperationalError as exc:
             raise StoreLocked(
                 "%s is locked (%s) -- a `cdp compact` may be running" % (self.db_path, exc)
             ) from exc
-        return [json.loads(r[0]) for r in rows]
+        from cdp.linkid import link_id, reanchor
+
+        out = [json.loads(r[0]) for r in rows]
+        for entry in out:
+            if entry["kind"] == "link" and link_id(entry["data"]) in resolutions:
+                entry["data"]["resolution"] = reanchor(entry["data"], resolutions[link_id(entry["data"])])
+        return out
 
     def snapshot_id_for_sha(self, repo_id: str, commit_sha: str) -> Optional[int]:
         """`snapshot_meta` is keyed `(repo_id, commit_sha)`

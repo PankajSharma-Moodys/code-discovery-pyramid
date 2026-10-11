@@ -216,7 +216,7 @@
 
     "symbol_kind": {
       "enum": ["class", "interface", "enum", "record", "annotation",
-               "method", "field", "constant", "table", "route", "config_key", "topic"]
+               "method", "function", "field", "constant", "table", "route", "config_key", "topic"]
     },
 
     "visibility": { "enum": ["public", "protected", "package", "private", "internal"] },

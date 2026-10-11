@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-from .._common import Spec, locked, paths_from_args
+from .._common import Spec, locked, open_link_store, paths_from_args
 from ... import link as link_mod
 from ...link import snapshots_from_dirs
-from ...session import open_store
-from ...store import SqliteStore
 from ...util import CdpError
-from pathlib import Path
 
 
 SPEC = Spec(
     group='link',
-    usage='link scan <state_dir>... [--db]',
-    what='Matches channel edges within/across scanned state directories (read-only).',
+    usage='link scan <state_dir>... [--db [PATH]]',
+    what='Matches channel edges within/across scanned state directories (read-only unless `--db`).',
     next='next: `link query --service <name>`. tip (ambiguous matches found): `link prompts --out <dir>`.',
 )
 
@@ -31,13 +28,12 @@ def register(lk_sub) -> None:
                            "cross-module links; several snapshots additionally match "
                            "across repos (5.5: a link is between snapshots, not repos)")
     lks.add_argument("--json", action="store_true")
-    lks.add_argument("--db", default=None,
-                      help="also persist this scan's links/unmatched calls into the "
-                           "link.* namespace of the store resolved the same way every "
-                           "other command's does (the machine store, `CDP_HOME`) -- replaces "
-                           "prior contents, since link "
-                           "data is fully derived (R3). Pass an explicit path to persist "
-                           "into a store other than the one this invocation resolves to")
+    lks.add_argument("--db", nargs="?", const="", default=None, metavar="PATH",
+                      help="persist this scan's links/unmatched calls (replacing prior ones; "
+                           "verdicts on them are kept) so `link query`/`prompts`/`run` can use "
+                           "them. Bare `--db` persists into the machine store (`CDP_HOME`); "
+                           "`--db PATH` into that existing index.db. Without it the scan "
+                           "writes nothing")
     lks.set_defaults(func=cmd_link_scan)
 
 
@@ -52,13 +48,11 @@ def cmd_link_scan(args) -> int:
     identity 5.5 requires).
     """
     paths = paths_from_args(args)
-    db_store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    persist = args.db is not None
+    if args.db == "":
+        args.db = None  # bare --db: the machine store
+    db_store = open_link_store(args, paths, "scan", writable=persist)
     try:
-        if not db_store.supports_link_edges():
-            raise CdpError(
-                "%s cannot back `cdp link scan` -- needs the sqlite backend "
-                "(set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(db_store).__name__
-            )
         if args.state_dirs:
             snapshots = snapshots_from_dirs(args.state_dirs)
         else:
@@ -66,16 +60,18 @@ def cmd_link_scan(args) -> int:
             if not snapshots:
                 raise CdpError("no scanned repos in %s -- run `cdp scan` in a repo first" % paths.state)
         report = link_mod.scan_links(snapshots)
-        db_store.write_link_edges(report)
+        if persist:
+            db_store.write_link_edges(report)  # replaces the links; verdicts on them are kept
     finally:
         db_store.close()
     if args.json:
         print(__import__("json").dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print("\n".join(link_mod.summarise(report)))
-        print("next      cdp link query --service <name>")
+        print("next      cdp link scan --db to save these, then cdp link query --service <name>"
+              if not persist else "next      cdp link query --service <name>")
         heuristic = report.get("totals", {}).get("heuristic", 0)
-        if heuristic:
+        if heuristic and persist:
             print("tip       cdp link prompts --out <dir> to resolve the %d ambiguous match(es)"
                   % heuristic)
     return 0

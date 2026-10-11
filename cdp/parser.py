@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 
 from .commands import register_all
+from .guide import apply_flag_help
 from .util import CDP_VERSION
 
 
@@ -33,4 +34,5 @@ def build_parser() -> argparse.ArgumentParser:
         return sub.add_parser(name, parents=[common], help=help_text)
 
     register_all(add)
+    apply_flag_help(p)
     return p

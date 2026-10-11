@@ -12,7 +12,7 @@ from pathlib import Path
 
 SPEC = Spec(
     group='setup',
-    usage='help [<command> \\| workflows] [--json]',
+    usage='help [<command> \\| <kind> \\| recipes \\| reference] [--json]',
     what='When to use what, in what order, and what comes next — derived from the live parser, never hand-maintained.',
     next='—',
 )
@@ -21,7 +21,7 @@ SPEC = Spec(
 def register(add) -> None:
     h = add("help", "when to use what, in what order, and what comes next")
     h.add_argument("topic", nargs="?",
-                   help="'workflows' for the named recipes, or a command name")
+                   help="a command, a query kind, 'recipes', or 'reference' (default: the overview)")
     h.add_argument("--json", action="store_true",
                    help="emit the machine-readable command surface "
                         "(schema/help-1.0.0.json)")

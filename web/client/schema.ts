@@ -208,27 +208,13 @@ export interface paths {
         };
         /**
          * Get Repos
-         * @description Every state dir this machine's `cdp` registry knows about, with
-         *     per-repo freshness (current git HEAD vs. the pinned snapshot's
-         *     `as_of` commit). A registry entry whose state dir vanished, whose
-         *     `index.db` is missing/locked, or whose git call fails gets its own
-         *     `error` row instead of 500ing the whole list (mirrors `get_status`'s
-         *     `StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped
-         *     to one row here instead of the whole response).
-         *
-         *     The registry only maps a repo's *git-remote identity* to a state dir
-         *     (`cdp.store.registry.register`, called from `cmd_scan`) -- a repo
-         *     scanned before that identity existed in the registry (e.g. this repo,
-         *     whose origin was never `register`ed under its current remote) has no
-         *     entry at all, even though `/api/status` resolves its state dir fine via
-         *     the same `resolve_state_dir` fallback chain every other endpoint uses.
-         *     Without this, `repos.repos[0]` (the frontend's single-repo assumption,
-         *     `RepoHealthStrip.tsx`) would silently show whichever *other* repo
-         *     happens to sort first in the registry. So: resolve the caller's actual
-         *     `repo`/`state_dir` the normal way, and put that entry first -- matching
-         *     an existing registry row by resolved state dir if one names the same
-         *     directory, else synthesizing one so the current repo is never invisible
-         *     or shadowed by an unrelated stale entry.
+         * @description Every repo in this machine's one store (`cdp.catalog.list_repos`), with
+         *     per-repo freshness (current git HEAD vs. the latest pinned snapshot's
+         *     `as_of` commit). The caller's own repo is listed first -- even when it has
+         *     not been scanned yet, so the frontend's `repos[0]` is always the repo it
+         *     asked about -- then the rest by identity. A repo whose snapshot is missing,
+         *     locked or whose git call fails gets its own `error` row instead of 500ing
+         *     the whole list.
          */
         get: operations["get_repos_api_repos_get"];
         put?: never;
@@ -1209,6 +1195,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1254,6 +1241,7 @@ export interface operations {
                 exclude_role?: string[] | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1292,6 +1280,7 @@ export interface operations {
                 limit?: number;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1330,6 +1319,7 @@ export interface operations {
                 "max-hops"?: number | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1365,6 +1355,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1444,6 +1435,7 @@ export interface operations {
                 focus?: string | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1481,6 +1473,7 @@ export interface operations {
                 scope?: string | null;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1514,6 +1507,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1549,6 +1543,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1582,6 +1577,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1617,6 +1613,7 @@ export interface operations {
                 service: string;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1650,6 +1647,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1717,6 +1715,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1752,6 +1751,7 @@ export interface operations {
                 new: string;
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
             };
             header?: never;
@@ -1785,6 +1785,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
                 /** @description defaults to the latest snapshot's manifest run_id */
                 run_id?: string | null;
@@ -1820,6 +1821,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
                 /** @description wave-all | stale-only | scope:<node> | wave:<n> */
                 target?: string;
@@ -1857,6 +1859,7 @@ export interface operations {
             query?: {
                 /** @description repo path to resolve state for */
                 repo?: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
                 /** @description cdp refresh --mode */
                 mode?: string;
@@ -2013,6 +2016,7 @@ export interface operations {
             query: {
                 /** @description already-scanned repository to probe */
                 target: string;
+                /** @description Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400. */
                 state_dir?: string | null;
                 /** @description cdp doctor --runner-cmd */
                 runner_cmd: string;

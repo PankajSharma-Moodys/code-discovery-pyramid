@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .._common import Spec, locked, paths_from_args
+from ...util import non_negative_int, positive_int
 from ... import dataflow as dataflow_mod, extract as extract_mod, partition as partition_mod, pipeline as pipeline_mod, schedule as schedule_mod
 
 
@@ -16,11 +17,11 @@ SPEC = Spec(
 
 def register(add) -> None:
     s = add("scan", "run every deterministic phase and write queryable state")
-    s.add_argument("--max-leaf-files", type=int, default=partition_mod.DEFAULT_MAX_FILES)
-    s.add_argument("--max-leaf-loc", type=int, default=partition_mod.DEFAULT_MAX_LOC)
-    s.add_argument("--max-concurrent", type=int, default=schedule_mod.DEFAULT_MAX_CONCURRENT)
-    s.add_argument("--max-hops", type=int, default=dataflow_mod.DEFAULT_MAX_HOPS)
-    s.add_argument("--workers", type=int, default=None,
+    s.add_argument("--max-leaf-files", type=positive_int, default=partition_mod.DEFAULT_MAX_FILES)
+    s.add_argument("--max-leaf-loc", type=positive_int, default=partition_mod.DEFAULT_MAX_LOC)
+    s.add_argument("--max-concurrent", type=positive_int, default=schedule_mod.DEFAULT_MAX_CONCURRENT)
+    s.add_argument("--max-hops", type=non_negative_int, default=dataflow_mod.DEFAULT_MAX_HOPS)
+    s.add_argument("--workers", type=positive_int, default=None,
                    help="parallel extraction workers (F9: default auto -- "
                         "sequential under %d parseable files, else cpu_count; "
                         "1 forces sequential)" % extract_mod.PARALLEL_MIN_FILES)

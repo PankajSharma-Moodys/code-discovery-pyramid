@@ -66,9 +66,11 @@ class FileStore(WorkspaceStore):
         out = []
         for path in sorted(directory.glob(PATCH_GLOB)):
             try:
-                out.append(read_json(path))
+                patch = read_json(path)
             except ValueError as exc:
                 raise CdpError("corrupt patch %s: %s" % (path, exc))
+            head = path.name.split("-", 1)[0]
+            out.append(dict(patch, patch_no=int(head)) if head.isdigit() and isinstance(patch, dict) else patch)
         return out
 
     def append_patch(self, patch: Dict, label: str) -> str:

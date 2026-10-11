@@ -8,7 +8,7 @@ from pathlib import Path
 
 from cdp.runner import FileRunner, SubprocessRunner
 
-STDLIB_ALLOWED = {"__future__", "subprocess", "time", "dataclasses", "pathlib", "typing"}
+STDLIB_ALLOWED = {"__future__", "json", "subprocess", "time", "dataclasses", "pathlib", "typing"}
 
 
 class RunnerStdlibOnlyTest(unittest.TestCase):

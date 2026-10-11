@@ -16,14 +16,18 @@ from __future__ import annotations
 import contextlib
 import filecmp
 import io
+import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from helpers import SKILL_ROOT  # noqa: F401  (sets sys.path)
+from helpers import SKILL_ROOT, make_repo  # noqa: F401  (sets sys.path)
 
 from cdp.cli import main
-from cdp.install import DIST_IGNORE, DIST_MEMBERS
+from cdp.install import DIST_IGNORE, DIST_MEMBERS, TARGET_MEMBERS
 
 VENDORED = SKILL_ROOT / ".claude" / "skills" / "cdp"
 
@@ -100,6 +104,74 @@ class VendoredCopyTest(unittest.TestCase):
             )
 
 
+class TargetInstallTest(unittest.TestCase):
+    """An install into *another* repository is the runtime skill only. This repository's own
+    vendored copy keeps `tests/` (`DIST_MEMBERS`, byte-identical above); a target never gets
+    them: their fixtures are Java/SQL/Python/C# sources that doubled every `grep -r` there."""
+
+    BUDGET_BYTES = 1_500_000
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.target = make_repo(Path(self.tmp.name))
+        with contextlib.redirect_stdout(io.StringIO()):
+            main(["install", str(self.target), "--harness"])
+        self.skill = self.target / ".claude" / "skills" / "cdp"
+        self.env = dict(os.environ, CDP_HOME=str(Path(self.tmp.name) / "home"))
+        self.env.pop("PYTHONPATH", None)
+
+    def files(self) -> list:
+        return [p for p in self.skill.rglob("*") if p.is_file()]
+
+    def test_members_are_the_runtime_set(self) -> None:
+        self.assertNotIn("tests", TARGET_MEMBERS)
+        self.assertEqual(set(TARGET_MEMBERS), set(DIST_MEMBERS) - {"tests"})
+        self.assertEqual({p.name for p in self.skill.iterdir()}, set(TARGET_MEMBERS))
+
+    def test_self_distribution_still_carries_the_tests(self) -> None:
+        from cdp.install import copy_distribution
+
+        dest = Path(self.tmp.name) / "selfcopy"
+        copy_distribution(dest)
+        self.assertEqual({p.name for p in dest.iterdir()}, set(DIST_MEMBERS))
+        self.assertTrue((dest / "tests" / "fixtures").is_dir())
+
+    def test_no_tests_or_fixtures_and_under_the_size_budget(self) -> None:
+        rels = [p.relative_to(self.skill).as_posix() for p in self.files()]
+        self.assertEqual([r for r in rels if "tests/" in r or "fixtures" in r or r.startswith("tests")], [])
+        size = sum(p.stat().st_size for p in self.files())
+        self.assertLess(size, self.BUDGET_BYTES, "install copied %d bytes into the target" % size)
+
+    def test_installed_copy_runs_scan_query_help_and_mcp(self) -> None:
+        run = [sys.executable, str(self.skill / "run.py")]
+
+        def cdp(*argv: str) -> subprocess.CompletedProcess:
+            return subprocess.run(run + list(argv), capture_output=True, text=True, env=self.env,
+                                  cwd=str(self.target))
+
+        scan = cdp("scan", "--repo", str(self.target), "--quiet")
+        self.assertEqual(scan.returncode, 0, scan.stderr)
+        stats = cdp("query", "stats", "--repo", str(self.target))
+        self.assertEqual(stats.returncode, 0, stats.stderr)
+        self.assertIn("symbols", stats.stdout)
+        self.assertEqual(cdp("help").returncode, 0)
+        selftest = cdp("selftest")  # repo-only: says so instead of running nothing
+        self.assertNotEqual(selftest.returncode, 0)
+        self.assertIn("no tests bundled", selftest.stderr)
+        mcp = subprocess.run(
+            [sys.executable, "-m", "mcp_server.server"], capture_output=True, text=True, cwd=str(self.target),
+            env=dict(self.env, PYTHONPATH=str(self.skill)), timeout=60,
+            input=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                              "params": {"protocolVersion": "2025-06-18"}}) + "\n")
+        self.assertEqual(json.loads(mcp.stdout.splitlines()[0])["result"]["serverInfo"]["name"], "cdp")
+
+    def test_installed_hook_runs(self) -> None:
+        proc = subprocess.run([sys.executable, str(self.skill / "cdp" / "hook.py"), "--explain"],
+                              capture_output=True, text=True, env=self.env, cwd=str(self.target))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+
 class AgentsMdInstallTest(unittest.TestCase):
     """Tier-0 (RESEARCH_GRAPHIFY.md §7.9): a root AGENTS.md for hook-less
     assistants — Cursor, Codex, Copilot, Aider — none of which read
@@ -114,7 +186,7 @@ class AgentsMdInstallTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
             target.mkdir()
-            main(["install", str(target)])
+            main(["install", str(target), "--agents-md"])
             agents_md = target / "AGENTS.md"
             self.assertTrue(agents_md.is_dir() is False and agents_md.exists())
             text = agents_md.read_text(encoding="utf-8")
@@ -122,12 +194,19 @@ class AgentsMdInstallTest(unittest.TestCase):
             self.assertIn("query stats", text)
             self.assertIn("query symbol X", text)
 
+    def test_install_does_not_write_agents_md_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target"
+            target.mkdir()
+            main(["install", str(target)])
+            self.assertFalse((target / "AGENTS.md").exists())
+
     def test_install_never_overwrites_an_existing_agents_md(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
             target.mkdir()
             (target / "AGENTS.md").write_text("operator's own file\n", encoding="utf-8")
-            main(["install", str(target)])
+            main(["install", str(target), "--agents-md"])
             self.assertEqual(
                 (target / "AGENTS.md").read_text(encoding="utf-8"),
                 "operator's own file\n",

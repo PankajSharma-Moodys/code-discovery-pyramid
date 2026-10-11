@@ -74,6 +74,34 @@ class ParallelRunTest(unittest.TestCase):
         self.assertEqual(states, {"folded"})
         self.assertIn("parallel", out)
 
+    def test_one_store_hammered_from_many_threads_does_not_crash(self):
+        """F1: threads sharing one sqlite connection died inside libsqlite3 (a signal,
+        not an exception), so the hammer runs in a child process."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        repo = make_repo(Path(tmp.name))
+        state = Path(tmp.name) / "state"
+        subprocess.run([sys.executable, str(RUN_PY), "scan", "--repo", str(repo),
+                        "--state-dir", str(state), "--quiet"], check=True, capture_output=True)
+        code = (
+            "import sys, threading\n"
+            "from pathlib import Path\n"
+            "sys.path.insert(0, %r)\n"
+            "from cdp.store.sqlite_backend import SqliteStore\n"
+            "s = SqliteStore(Path(%r))\n"
+            "errs = []\n"
+            "def work():\n"
+            "    try:\n"
+            "        for _ in range(300):\n"
+            "            s.read_artifact('inventory'); s.read_artifact('extract')\n"
+            "    except BaseException as e: errs.append(e)\n"
+            "ts = [threading.Thread(target=work) for _ in range(8)]\n"
+            "[t.start() for t in ts]; [t.join() for t in ts]\n"
+            "sys.exit(1 if errs else 0)\n" % (str(SKILL_ROOT), str(state / "index.db")))
+        for _ in range(3):
+            proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr[-500:])
+
 
 if __name__ == "__main__":
     unittest.main()

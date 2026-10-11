@@ -6,7 +6,7 @@ from .._common import Spec, locked, paths_from_args
 from ... import snapshot as snapshot_mod
 from ...session import git_head_or_raise, open_store
 from ...store import SqliteStore, registry as registry_mod
-from ...util import CdpError
+from ...util import CdpError, resolve_prefix
 from pathlib import Path
 
 
@@ -31,6 +31,11 @@ def register(add) -> None:
     gc.set_defaults(func=cmd_gc)
 
 
+def _short(sha) -> str:
+    base, _, tree = (sha or "?").partition("+dirty:")
+    return base[:12] + ("+dirty:" + tree[:8] if tree else "")
+
+
 @locked(shared=False)
 def cmd_gc(args) -> int:
     """M3.6/0.10: a snapshot is kept iff HEAD, pinned, or cited by a live
@@ -43,7 +48,9 @@ def cmd_gc(args) -> int:
     `.cdp.toml`-configured Postgres backend too, not just the sqlite default.
     """
     paths = paths_from_args(args)
-    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    dry = args.dry_run
+    store = (SqliteStore(Path(args.db).expanduser().resolve(), readonly=dry) if args.db
+             else open_store(paths, readonly=dry))
     if not store.supports_run_tracking():
         raise CdpError(
             "%s has no run/task tracking -- `cdp gc` needs the sqlite or "
@@ -52,27 +59,43 @@ def cmd_gc(args) -> int:
     try:
         repo = paths.repo
         repo_id = registry_mod.repo_identity(repo)
-        for sha in args.pin:
-            store.set_pinned(sha, True, repo_id)
-        for sha in args.unpin:
-            store.set_pinned(sha, False, repo_id)
-        head_sha = args.head_sha or git_head_or_raise(repo)
+        known = [s["commit_sha"] for s in store.list_snapshots() if s["repo_id"] == repo_id]
+        # short shas (what `cdp` prints) name a snapshot when they are unambiguous
+        args.pin = [resolve_prefix(s, known, "--pin") for s in args.pin]
+        args.unpin = [resolve_prefix(s, known, "--unpin") for s in args.unpin]
+        if not dry:
+            for sha in args.pin:
+                store.set_pinned(sha, True, repo_id)
+            for sha in args.unpin:
+                store.set_pinned(sha, False, repo_id)
+        head_sha = resolve_prefix(args.head_sha, known, "--head-sha") if args.head_sha else git_head_or_raise(repo)
         snapshots = [s for s in store.list_snapshots() if s["repo_id"] == repo_id]
+        if dry:  # a dry run reports what the pins would do without writing them
+            for flag, shas in ((True, args.pin), (False, args.unpin)):
+                for sha in shas:
+                    hit = [s for s in snapshots if s["commit_sha"] == sha]
+                    if not hit:
+                        raise CdpError("no snapshot for commit %s in this store" % sha)
+                    for s in hit:
+                        s["pinned"] = flag
         if not any(s["commit_sha"] == head_sha for s in snapshots):
             raise CdpError("no snapshot for HEAD (%s) in this store -- run `cdp scan` against it first"
                             % head_sha[:12])
-        store.begin_snapshot(repo_id, head_sha)
+        store.use_snapshot(repo_id, head_sha)  # selects; writes nothing
         head_claims = store.read_artifact("state", {}).get("claims", [])
         cited = {c.get("anchor_verified_at") for c in head_claims} | {c.get("claim_reviewed_at") for c in head_claims}
         cited.discard(None)
         keep_ids = snapshot_mod.snapshots_to_keep(snapshots, repo_id, head_sha, cited)
         drop = [s for s in snapshots if s["id"] not in keep_ids]
-        print("gc        keeping %d/%d snapshot(s) (head + pinned + cited), dropping %d"
-              % (len(snapshots) - len(drop), len(snapshots), len(drop)))
-        for s in drop:
-            print("          drop %s%s" % ((s["commit_sha"] or "?")[:12], " [dry-run]" if args.dry_run else ""))
-            if not args.dry_run:
-                store.delete_snapshot(s["id"])
+        stale_dirty = [s for s in drop if s["ephemeral"]]
+        old_snaps = [s for s in drop if not s["ephemeral"]]
+        print("gc        keeping %d/%d snapshot(s) (head + pinned + cited), dropping %d (%d uncommitted-changes)"
+              % (len(snapshots) - len(drop), len(snapshots), len(drop), len(stale_dirty)))
+        for label, group in (("snapshot", old_snaps), ("uncommitted-changes snapshot", stale_dirty)):
+            for s in group:
+                print("          drop %s %s%s" % (label, _short(s["commit_sha"]), " [dry-run]" if args.dry_run else ""))
+                if not args.dry_run:
+                    store.delete_snapshot(s["id"])
         if drop and not args.dry_run:
             print("tip       cdp compact to also fold superseded patches into the cold archive")
     finally:

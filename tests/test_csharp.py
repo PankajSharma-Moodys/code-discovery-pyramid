@@ -101,7 +101,9 @@ class RoutesAndEfCoreTest(unittest.TestCase):
         route_edges = [e for e in facts.io_edges if e["channel"] == "http_in"]
         self.assertEqual(len(route_edges), 1)
         self.assertEqual(route_edges[0]["source"], "N.WidgetController#GetJob")
-        self.assertEqual(route_edges[0]["target"], "route:GET v1/[controller]/{jobId}")
+        # the handler's own template; the class's `[Route]` is joined by the resolve phase
+        self.assertEqual(route_edges[0]["target"], "route:GET {jobId}")
+        self.assertEqual(route_edges[0]["route_class"], "N.WidgetController")
         self.assertIsNotNone(route_edges[0]["anchor"])
 
     def test_dbset_produces_a_persist_edge_to_the_entity(self) -> None:
@@ -114,9 +116,69 @@ class RoutesAndEfCoreTest(unittest.TestCase):
         )
         facts = extract(src)
         self.assertIn("ef_dbcontext", facts.signals)
-        persist_edges = [e for e in facts.io_edges if e["channel"] == "persist"]
+        persist_edges = [e for e in facts.io_edges if e["channel"] == "persist" and e["target"].startswith("entity:")]
         self.assertEqual(len(persist_edges), 1)
         self.assertEqual(persist_edges[0]["target"], "entity:Widget")
+
+
+PKG = "Acme.Api."
+CTRL = PKG + "Controllers.AdminController"
+
+
+class CSharpDefectsTest(unittest.TestCase):
+    """B9-B13 on `tests/fixtures/csharprepo`; `scripts/csharp_benchmark.py` measures the same
+    things against Roslyn on a real repository."""
+
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        from pathlib import Path
+        from helpers import Pipeline, make_repo
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.p = Pipeline(make_repo(Path(cls.tmp.name), "csharprepo"))
+        cls.symbols = cls.p.xref["symbols"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_b9_private_internal_protected_methods_are_indexed(self):
+        self.assertEqual(self.symbols[CTRL + "#IsAllowed"]["visibility"], "private")
+        self.assertEqual(self.symbols[CTRL + "#Weight"]["visibility"], "internal")
+        self.assertEqual(self.symbols[CTRL + "#OnRebuilt"]["visibility"], "protected")
+
+    def test_b10_long_primary_constructor_keeps_its_methods(self):
+        self.assertIn(CTRL + "#List", self.symbols)
+        self.assertIn(CTRL + "#<init>", self.symbols)
+        self.assertEqual(self.symbols[PKG + "Controllers.AdminController"]["kind"], "class")
+
+    def test_b10_generic_and_tuple_return_methods_are_indexed(self):
+        self.assertIn(CTRL + "#Pair", self.symbols)
+        self.assertIn(CTRL + "#Rebuild", self.symbols)
+
+    def test_b11_partial_class_route_and_controller_token_are_applied(self):
+        routes = {(r["verb"], r["route"]): r["handler"] for r in self.p.xref["routes"]}
+        # [Route] sits in AdminController.cs, the handler in AdminController.Jobs.cs
+        self.assertEqual(routes[("GET", "/v1/{tenantId}/Admin/jobs/{jobId}")], CTRL + "#GetJob")
+        # a route-level `[HttpGet]` without a template is the class route
+        self.assertEqual(routes[("GET", "/v1/{tenantId}/Admin")], CTRL + "#List")
+        # an absolute template ignores the class route
+        self.assertEqual(routes[("POST", "/internal/rebuild")], CTRL + "#Rebuild")
+
+    def test_b12_ef_core_tables(self):
+        tables = {d["fqn"] for d in self.p.extraction["defines"] if d["kind"] == "table"}
+        self.assertTrue({"table:Widgets", "table:gadget_items", "table:Audits"} <= tables)
+        self.assertNotIn("table:Ghosts", tables)       # ToView(null): not a table
+        self.assertNotIn("table:Gadgets", tables)      # ToTable renamed it
+
+    def test_b13_configuration_reads_and_appsettings_keys(self):
+        from cdp.resolve import config_reads
+        reads = {r["key"] for r in config_reads(self.p.extraction, self.p.xref["constants"])
+                 if r["file"].endswith(".cs")}
+        self.assertEqual(reads, {"Global:WidgetUrl", "Global:Retries", "WIDGET_REGION",
+                                 "ConnectionStrings:Main", "Global"})
+        declared = {d["fqn"] for d in self.p.extraction["defines"] if d["kind"] == "config_key"}
+        self.assertTrue({"config:Global:WidgetUrl", "config:Global:Retries", "config:Serilog:Enrich:1"} <= declared)
 
 
 if __name__ == "__main__":

@@ -30,8 +30,10 @@ from .util import (
     git_head,
     git_ls_files,
     is_binary_path,
+    MAX_PARSE_BYTES,
     is_git_repo,
     read_lines,
+    resolves_inside,
     walk_files,
 )
 
@@ -49,6 +51,7 @@ ROOT_MODULE = "(root)"
 # editing this tuple for one target.
 DEFAULT_EXCLUDES: Tuple[str, ...] = (
     ".claude", ".cursor", ".windsurf", ".vscode", ".idea", ".zed",
+    ".mcp.json",  # written by `install --harness`: MCP wiring, no architecture
 )
 
 
@@ -74,7 +77,16 @@ def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
     excluded_paths = []
     for p in paths:
         (excluded_paths if _is_excluded(p, excludes) else kept).append(p)
-    paths = kept
+    paths = []
+    skipped: List[Dict] = []
+    for p in kept:
+        full = repo / p
+        if full.is_symlink() and not resolves_inside(repo, full):
+            # Never follow a link out of the scanned tree: its target would be indexed
+            # as if it were the repo's own file.
+            skipped.append({"path": p, "reason": "symlink_outside_repo"})
+        else:
+            paths.append(p)
 
     manifests = sorted(p for p in paths if is_manifest(p))
     root_module = _root_module(repo, paths, manifests)
@@ -92,6 +104,8 @@ def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
             size = full.stat().st_size
         except OSError:
             size = 0
+        if not binary and size > MAX_PARSE_BYTES:
+            skipped.append({"path": rel, "reason": "too_large", "bytes": size})
         if not binary and size < 4_000_000:
             loc = len(read_lines(full))
         files.append(
@@ -110,7 +124,7 @@ def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
     on_disk = count_disk_files(repo)
     tracked = len(files)
 
-    return {
+    inventory = {
         "repo": str(repo),
         "repo_name": repo.name,
         "head": git_head(repo) or "unpinned",
@@ -131,6 +145,9 @@ def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
         "modules": modules,
         "files": files,
     }
+    if skipped:  # absent when empty, so inventories of ordinary repos are unchanged
+        inventory["skipped"] = sorted(skipped, key=lambda r: r["path"])
+    return inventory
 
 
 # ----------------------------------------------------------------- modules
@@ -299,6 +316,7 @@ def _module_summaries(
         parent = m.rsplit("/", 1)[0] if "/" in m else root_name
         manifest_by_dir.setdefault(parent, []).append(m)
 
+    tracked = {f["path"] for f in files}
     out = []
     for name in names:
         owned = [f for f in files if f["module"] == name]
@@ -308,7 +326,11 @@ def _module_summaries(
         # `(root)` is a scope, not a module, so it gets no census of its own.
         # A *named* root module is a module and does.
         censused = name != ROOT_MODULE
-        disk = count_disk_files(repo / path) if censused else 0
+        # A module's disk census is its own tree: a nested module's files are that module's
+        # (counting them here made every aggregator parent look generated: B18).
+        nested = [n[len(name) + 1:] if name != root_name else n
+                  for n in names if n != name and (name == root_name or n.startswith(name + "/"))]
+        disk, generated = _disk_census(repo, path, nested, tracked) if censused else (0, 0)
         entry = {
             "name": name,
             "path": path,
@@ -321,12 +343,52 @@ def _module_summaries(
         if censused:
             entry["on_disk"] = disk
             entry["disk_ratio"] = round(disk / len(owned), 2) if owned else 0.0
-            # A module whose tracked count is a rounding error against its disk
-            # count is generated, and §6.7 requires describing it by its
-            # contract rather than reading it.
-            entry["generated_suspect"] = bool(owned) and disk >= 20 * len(owned)
+            # A module is generated when untracked *source* files (not compiled output, not
+            # dependencies, not another module's files) dwarf its tracked sources: §6.7
+            # requires describing it by its contract rather than reading it.
+            authored = sum(1 for f in owned if f["language"] in SOURCE_LANGUAGES)
+            entry["generated_files"] = generated
+            entry["generated_suspect"] = bool(owned) and generated >= GENERATED_MIN_FILES \
+                and generated >= GENERATED_RATIO * max(1, authored)
         out.append(entry)
     return out
+
+
+#: At least this many untracked source files, and this many per tracked source file, before
+#: a module is called generated. A handful of build outputs beside real sources is not it.
+GENERATED_MIN_FILES = 20
+GENERATED_RATIO = 4
+
+#: Languages whose files are program source (a generated module is generated *code*).
+SOURCE_LANGUAGES = frozenset("csharp go java javascript python scala".split())
+
+#: Never counted as generated sources: dependency installs and tool caches.
+_NOT_GENERATED_DIRS = frozenset(
+    ".git node_modules bower_components vendor venv .venv env .tox __pycache__ .pytest_cache "
+    ".mypy_cache .ruff_cache .gradle Pods .terraform deps .dart_tool .cargo .stack-work _build "
+    ".next .nuxt coverage htmlcov site-packages".split())
+
+
+def _disk_census(repo: Path, path: str, nested: List[str], tracked) -> Tuple[int, int]:
+    """(files on disk under the module, untracked source files among them), leaving out
+    the directories of modules nested inside it."""
+    root = repo / path if path else repo
+    skip = {n.strip("/") for n in nested}
+    disk = generated = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel_dir = os.path.relpath(dirpath, root).replace(os.sep, "/")
+        rel_dir = "" if rel_dir == "." else rel_dir
+        dirnames[:] = [d for d in dirnames
+                       if d != ".git" and ((rel_dir + "/" if rel_dir else "") + d) not in skip]
+        dependency = any(seg in _NOT_GENERATED_DIRS for seg in rel_dir.split("/"))
+        for name in filenames:
+            disk += 1
+            if dependency:
+                continue
+            rel = "/".join(x for x in (path, rel_dir, name) if x)
+            if rel not in tracked and get_extractor(rel).language in SOURCE_LANGUAGES:
+                generated += 1
+    return disk, generated
 
 
 def _tally(files: List[Dict], key: str) -> Dict[str, int]:

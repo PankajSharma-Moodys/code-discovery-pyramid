@@ -24,7 +24,10 @@ from __future__ import annotations
 import argparse
 from typing import Dict, List, Optional, Sequence
 
-from .util import CDP_VERSION
+from . import guide as guide_mod
+from .guide_commands import COMMANDS, RECIPES
+from .guide_kinds import FLOW, KINDS
+from .util import CDP_VERSION, CdpError
 
 #: The schema `--json` output satisfies, committed beside this module as
 #: `schema/help.schema.json` and checked by `tests/test_help.py`.
@@ -52,6 +55,8 @@ def describe(parser: argparse.ArgumentParser) -> Dict:
         "commands": commands,
         "workflows": [dict(w) for w in WORKFLOWS],
         "guidance": dict(GUIDANCE),
+        "kinds": [{"name": k, "summary": v["summary"], **guide_mod.kind_sections(k),
+                   "examples": list(v["examples"])} for k, v in KINDS.items()],
     }
 
 
@@ -62,13 +67,21 @@ def _describe_command(
     for choice in action._choices_actions:
         if choice.dest == name:
             summary = choice.help or ""
-    return {
+    out = {
         "name": name,
         "summary": summary,
         "usage": sub.format_usage().strip(),
         "options": [_describe_option(a) for a in sub._actions
-                    if not isinstance(a, argparse._HelpAction)],
+                    if not isinstance(a, (argparse._HelpAction, argparse._SubParsersAction))],
     }
+    guide = COMMANDS.get(name)
+    if guide:
+        out.update(what=guide["what"], how=guide["how"], where=guide["where"],
+                   examples=[e[0] for e in guide["examples"]])
+    nested = [a for a in sub._actions if isinstance(a, argparse._SubParsersAction)]
+    if nested:
+        out["subcommands"] = [_describe_command(n, p, nested[0]) for n, p in sorted(nested[0].choices.items())]
+    return out
 
 
 def _describe_option(action: argparse.Action) -> Dict:
@@ -109,15 +122,7 @@ GUIDANCE: Dict[str, List[str]] = {
         "5. cdp collect         validate + verify + append the patches the agents wrote",
         "6. cdp fold --check    prove state.json is still the fold of its log",
     ],
-    "asking questions": [
-        "query trace <entrypoint>   the reading list for a question. Start here.",
-        "query symbol <name>        definition sites and every use, transposed not guessed",
-        "query table <name>         who owns, writes and reads a table",
-        "query config <key>         where a key is declared and every site that reads it",
-        "query routes [pattern]     the HTTP surface, with constants resolved",
-        "query file <path>          what one file defines and what it touches",
-        "query unknowns             what the index does not know, and why",
-    ],
+    "asking questions": ["%-64s query %s" % (q, k) for q, k in FLOW],
     "reading an answer honestly": [
         "Every answer ends with `elided: N` and `as of <repo>@<sha>, state vN`.",
         "elided: 0    the list is complete.",
@@ -139,76 +144,9 @@ GUIDANCE: Dict[str, List[str]] = {
 }
 
 
-#: Named recipes. `CDP_CLI_SCOPE.md §C` item 1.4 names these four.
-WORKFLOWS: Sequence[Dict] = (
-    {
-        "name": "onboard",
-        "title": "Onboard onto an unfamiliar repository",
-        "when": "First contact. You have a checkout and no idea what it is.",
-        "steps": [
-            "cdp scan --repo <repo>",
-            "cdp query stats",
-            "open <state>/docs/00-overview.md",
-            "cdp query routes",
-            "cdp query unknowns",
-        ],
-        "why": (
-            "`stats` tells you the shape and whether the build calls itself "
-            "something other than its directory. `routes` is the outside edge of "
-            "the system. `unknowns` is the list of things no amount of reading "
-            "will tell you, which is what to ask a human about."
-        ),
-    },
-    {
-        "name": "refresh",
-        "title": "Refresh after a sprint",
-        "when": "The index exists, the branch has moved.",
-        "steps": [
-            "cdp scan --repo <repo>",
-            "cdp query stats",
-            "cdp fold --check",
-        ],
-        "why": (
-            "Re-scanning is cheap and deterministic. Incremental refresh with "
-            "claim decay is Phase 3 (`cdp refresh`); until it lands, a full scan "
-            "at the new commit is the honest option — and `fold --check` proves "
-            "state.json is still the fold of its own log afterwards."
-        ),
-    },
-    {
-        "name": "investigate",
-        "title": "Investigate a bug",
-        "when": "You have a symptom and an entry point, and no map.",
-        "steps": [
-            "cdp query trace <route-or-symbol>",
-            "cdp query symbol <the-thing-in-the-stack-trace>",
-            "cdp query table <the-table-it-writes>",
-            "cdp query coverage",
-        ],
-        "why": (
-            "`trace` collapses a wide grep into a small cited read. `symbol` "
-            "transposes the import table instead of asking a model who calls "
-            "what. `coverage` is the check that stops 'I found nothing' from "
-            "being reported as 'there is nothing'."
-        ),
-    },
-    {
-        "name": "review",
-        "title": "Review a PR",
-        "when": "You need the blast radius of a change.",
-        "steps": [
-            "cdp query file <changed-path>",
-            "cdp query symbol <each-symbol-it-defines>",
-            "cdp query table <each-table-it-touches>",
-            "cdp query trace <the-entry-point-above-it>",
-        ],
-        "why": (
-            "Blast radius is the union of the used-by transpose and the storage "
-            "edges. Both are inversions of verified data, so neither can invent "
-            "a caller — which is the failure mode of asking a model the same "
-            "question."
-        ),
-    },
+#: Named recipes, from the guide (`guide_commands.RECIPES`); steps are runnable `cdp` commands.
+WORKFLOWS: Sequence[Dict] = tuple(
+    dict(r, steps=["cdp " + step[0] for step in r["steps"]]) for r in RECIPES
 )
 
 
@@ -216,15 +154,23 @@ WORKFLOWS: Sequence[Dict] = (
 
 
 def render(surface: Dict, topic: Optional[str] = None) -> str:
-    if topic in ("workflow", "workflows"):
-        return _render_workflows(surface)
+    text = guide_mod.topic(topic)
+    if text is not None:
+        return text
     if topic:
         matches = [c for c in surface["commands"] if c["name"] == topic]
         if not matches:
-            names = ", ".join(c["name"] for c in surface["commands"])
-            return "No help topic %r. Try: workflows, or one of: %s" % (topic, names)
-        return _render_command(matches[0])
+            raise CdpError("no help topic %r; one of: %s" % (
+                topic, ", ".join(guide_mod.help_topics())))
+        return guide_mod.render_command(matches[0])
     return _render_overview(surface)
+
+
+def help_text(topic: Optional[str] = None) -> str:
+    """`cdp help <topic>` and the MCP `cdp_help` tool: one function, so they cannot differ."""
+    from .parser import build_parser
+
+    return render(describe(build_parser()), topic)
 
 
 def _render_overview(surface: Dict) -> str:
@@ -233,41 +179,20 @@ def _render_overview(surface: Dict) -> str:
         lines.append(heading.upper())
         lines.extend("  " + line for line in body)
         lines.append("")
+    lines.append("QUERY KINDS  (cdp help <kind>)")
+    lines.extend(guide_mod.render_kinds_overview())
+    lines.append("")
     lines.append("COMMANDS")
     for command in surface["commands"]:
         lines.append("  %-10s %s" % (command["name"], command["summary"]))
     lines.append("")
     lines.append("RECIPES")
     for workflow in surface["workflows"]:
-        lines.append("  %-10s %s" % (workflow["name"], workflow["title"]))
+        lines.append("  %-13s %s" % (workflow["name"], workflow["title"]))
     lines.append("")
-    lines.append("  cdp help workflows      the recipes, in full")
-    lines.append("  cdp help <command>      one command's flags, from the parser itself")
+    lines.append("  cdp help recipes        the recipes, in full")
+    lines.append("  cdp help <command|kind> What / How / Where, every flag, examples")
+    lines.append("  cdp help reference      the full reference (docs/CDP_REFERENCE.md)")
     lines.append("  cdp help --json         the same surface, machine-readable")
-    return "\n".join(lines)
-
-
-def _render_workflows(surface: Dict) -> str:
-    lines: List[str] = []
-    for workflow in surface["workflows"]:
-        lines.append("%s — %s" % (workflow["name"], workflow["title"]))
-        lines.append("  when: %s" % workflow["when"])
-        for step in workflow["steps"]:
-            lines.append("    $ %s" % step)
-        lines.append("  why:  %s" % workflow["why"])
-        lines.append("")
-    return "\n".join(lines).rstrip()
-
-
-def _render_command(command: Dict) -> str:
-    lines = ["%s — %s" % (command["name"], command["summary"]), "",
-             "  %s" % command["usage"], ""]
-    for option in command["options"]:
-        flags = ", ".join(option["flags"]) or option["name"]
-        suffix = ""
-        if "choices" in option:
-            suffix = "  {%s}" % ",".join(option["choices"])
-        elif "default" in option:
-            suffix = "  (default %s)" % option["default"]
-        lines.append("  %-24s %s%s" % (flags, option["help"], suffix))
+    lines.append("  MCP: cdp_help(topic)    the same text")
     return "\n".join(lines)

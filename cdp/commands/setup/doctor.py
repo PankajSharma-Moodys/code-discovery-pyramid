@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import shlex
 
-from .._common import Spec, locked, paths_from_args
+from .._common import outcome_code, Spec, locked, paths_from_args, require_choice
 from ... import doctor as doctor_mod, query as query_mod, runner as runner_mod
 from ...schema import Validator, schema_path
 from ...session import open_store
-from ...util import SKILL_ROOT, read_json, write_json
+from ...util import SKILL_ROOT, path_within, positive_float, read_json, safe_name, write_json
 from typing import Dict, List
 
 
@@ -30,7 +30,7 @@ def register(add) -> None:
     dr.add_argument("--model", required=True, metavar="LABEL",
                      help="label for this runner in the compatibility table "
                           "(e.g. a model name) -- not passed to the runner itself")
-    dr.add_argument("--timeout", type=float, default=300.0)
+    dr.add_argument("--timeout", type=positive_float, default=300.0)
     dr.add_argument("--node", default=None, help="only this scope")
     dr.set_defaults(func=cmd_doctor)
 
@@ -45,12 +45,15 @@ def cmd_doctor(args) -> int:
     output).  Writes `<state>/doctor/<model>.json` and prints the
     compatibility table across every model report already on disk.
     """
+    safe_name(args.model, "--model")
     paths = paths_from_args(args)
     backend = open_store(paths)
     store = query_mod.Store(backend)
     sched = store._load("schedule")
     run_id = str(store.manifest.get("run_id", "cdp"))
     validator = Validator.load(schema_path(SKILL_ROOT))
+    if args.node:
+        require_choice(args.node, [sc["node"] for sc in store.partition["scopes"]], "scope", "--node")
     runner = runner_mod.SubprocessRunner(shlex.split(args.runner_cmd), timeout_s=args.timeout)
 
     golden_by_module = doctor_mod.GOLDEN_MINIREPO if paths.repo.name == "minirepo" else {}
@@ -83,7 +86,7 @@ def cmd_doctor(args) -> int:
     agg = doctor_mod.aggregate(reports)
     agg["model"] = args.model
     agg["scope_reports"] = reports
-    write_json(out_dir / ("%s.json" % args.model), agg)
+    write_json(path_within(out_dir, "%s.json" % args.model, "--model"), agg)
     print("doctor    %s: schema_valid=%s%% yield_collapse=%s%% recall=%s%% false_unknown=%s%% (n=%d scope(s), %d golden fact(s))"
           % (args.model, doctor_mod._pct(agg["schema_validity_rate"]),
              doctor_mod._pct(agg["yield_collapse_rate"]), doctor_mod._pct(agg["recall"]),
@@ -101,4 +104,9 @@ def cmd_doctor(args) -> int:
               "model has a report here")
 
     backend.close()
-    return 0
+    crashed = sum(1 for r in reports if not r.get("runner_ok"))
+    unusable = sum(1 for r in reports if r.get("runner_ok") and not r.get("schema_valid"))
+    if crashed or unusable:
+        print("doctor    %d of %d scope(s) gave no usable patch (%d runner failure(s), %d invalid or missing)"
+              % (crashed + unusable, len(reports), crashed, unusable))
+    return outcome_code(len(reports) - crashed - unusable, crashed + unusable)

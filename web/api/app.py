@@ -72,7 +72,7 @@ from .models import (
     TrajectoryResponse,
 )
 from .query_store import ReadOnlyWorkspaceStore
-from .store_reader import ReadOnlyConnection, StoreLocked, StoreUnavailable, resolve_state_dir
+from .store_reader import ReadOnlyConnection, StateDirRejected, StoreLocked, StoreUnavailable, resolve_state_dir
 from .trajectory_reader import ReadOnlyTrajectoryConnection, TrajectoryLocked, TrajectoryUnavailable
 
 app = FastAPI(title="cdp web api")
@@ -83,6 +83,18 @@ app = FastAPI(title="cdp web api")
 #: overhead loses on tiny payloads; the multi-MB `/api/graph` L2 responses
 #: this doc measured are exactly what it's for.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+#: The one description every `state_dir` parameter carries in the OpenAPI schema.
+STATE_DIR_DESCRIPTION = (
+    "Echo only: omit it, or send back the machine store directory `/api/repos` reported. "
+    "The server always reads its own CDP_HOME store; any other value is rejected with 400.")
+
+
+@app.exception_handler(StateDirRejected)
+async def _state_dir_rejected(request: Request, exc: StateDirRejected):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 @app.middleware("http")
@@ -112,8 +124,9 @@ def _open_query_store(repo: Path, state_dir: Optional[str]) -> query_mod.Store:
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
+    snapshot_id, choice = conn.current_snapshot(repo, _repo_id(repo))
     adapter = ReadOnlyWorkspaceStore(conn, snapshot_id)
+    adapter.choice = choice
     return query_mod.Store(adapter, use_latest=False)
 
 
@@ -143,6 +156,14 @@ def _bucket_counts_cache_only(conn: ReadOnlyConnection, claims: list, head: str)
                 unknown = True
             elif result:
                 churned = True
+        if freshness_mod.is_count_claim(claim) and not churned and str(reviewed_at) != head:
+            # a count describes its whole scope (C3): read the scope verdict `cdp status` cached
+            for node in claim.get("source_nodes") or ([claim["source_node"]] if claim.get("source_node") else []):
+                hit, result = conn.churn_lookup(freshness_mod.SCOPE_KEY + node, str(reviewed_at), head)
+                if hit and result:
+                    churned = True
+                elif not hit:
+                    unknown = True
         if churned:
             counts[freshness_mod.STALE] += 1
         elif unknown:
@@ -156,7 +177,7 @@ def _build_status(repo: Path, state_dir: Optional[str]) -> dict:
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo), repo=repo)
 
     manifest = conn.read_artifact(snapshot_id, "manifest", default={})
     inventory = conn.read_artifact(snapshot_id, "inventory")
@@ -223,7 +244,7 @@ def _build_status(repo: Path, state_dir: Optional[str]) -> dict:
 @app.get("/api/status", response_model=StatusResponse)
 def get_status(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> StatusResponse:
     try:
         result = _build_status(Path(repo), state_dir)
@@ -249,7 +270,7 @@ def get_query(
         None, description="drop rows whose file role matches (repeatable) -- mirrors `cdp query --exclude-role`"
     ),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> dict:
     """Thin wrapper over `cdp.query.dispatch` -- the query layer is never
     reimplemented (`WEB_RESEARCH.md` §7.0/§7.2.1). Response shape varies by
@@ -283,7 +304,7 @@ def get_search(
     q: str = Query(..., min_length=2, description="search term, matched against symbol fqns and file paths"),
     limit: int = Query(20, ge=1, le=100),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> SearchResponse:
     """`WEB_REDESIGN_RESEARCH.md` §4's server-side search-to-focus, replacing
     the ask-bar's client-side substring filter over a full L0 fetch
@@ -328,7 +349,7 @@ def get_trace(
     to: Optional[str] = Query(None),
     max_hops: Optional[int] = Query(None, alias="max-hops"),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> dict:
     """`WEB_RESEARCH.md` §7.1's literal `/api/trace?from=&to=&max-hops=`
     surface, as a convenience alias over `/api/query` rather than a second
@@ -354,7 +375,7 @@ def get_trace(
 @app.get("/api/sources", response_model=SourcesResponse)
 def get_sources(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> SourcesResponse:
     """`dataflow.sources[]` listing -- there is no `kind=sources` in
     `cdp.query.QUERIES` (`trace`/`paths` consume sources internally via
@@ -879,7 +900,7 @@ def _build_graph(
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo), repo=repo)
 
     base_file_of = {node["id"]: node.get("file") for node in _dataflow_graph(conn, snapshot_id)["nodes"]}
     rungs = _graph_rungs(base_file_of)
@@ -936,7 +957,7 @@ def get_graph(
         None, description="restrict to this node's neighbourhood without changing level/scope (breadcrumb-free descent)"
     ),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> GraphResponse:
     try:
         result = _build_graph(Path(repo), state_dir, level, scope, hide_roles, focus)
@@ -972,7 +993,7 @@ def _build_confidence(repo: Path, state_dir: Optional[str], level: str, scope: O
 
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     conn = ReadOnlyConnection(resolved_state_dir / "index.db")
-    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo), repo=repo)
     xref = conn.read_artifact(snapshot_id, "xref", default={})
     partition = conn.read_artifact(snapshot_id, "partition", default={})
     dataflow = conn.read_artifact(snapshot_id, "dataflow", default={})
@@ -1042,7 +1063,7 @@ def get_confidence(
     level: str = Query(..., description="altitude, same vocabulary as /api/graph"),
     scope: Optional[str] = Query(None, description="same scope filter as /api/graph"),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> ConfidenceResponse:
     try:
         result = _build_confidence(Path(repo), state_dir, level, scope)
@@ -1122,7 +1143,7 @@ def _build_node(repo: Path, state_dir: Optional[str], node_id: str) -> dict:
     resolved_state_dir = resolve_state_dir(repo, state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
-    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
+    snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo), repo=repo)
 
     xref = conn.read_artifact(snapshot_id, "xref", default={})
     partition = conn.read_artifact(snapshot_id, "partition", default={})
@@ -1229,7 +1250,7 @@ def _build_node(repo: Path, state_dir: Optional[str], node_id: str) -> dict:
 def get_node(
     node_id: str,
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> NodeResponse:
     try:
         result = _build_node(Path(repo), state_dir, node_id)
@@ -1247,7 +1268,7 @@ def get_node(
 @app.get("/api/repos", response_model=ReposResponse)
 def get_repos(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> ReposResponse:
     """Every repo in this machine's one store (`cdp.catalog.list_repos`), with
     per-repo freshness (current git HEAD vs. the latest pinned snapshot's
@@ -1273,7 +1294,7 @@ def get_repos(
 @app.get("/api/doctor", response_model=DoctorResponse)
 def get_doctor(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> DoctorResponse:
     """`<state>/doctor/*.json` is a plain filesystem directory
     (`cli.py:1858,1885`), not an `index.db` artifact -- no `ReadOnlyConnection`
@@ -1282,7 +1303,7 @@ def get_doctor(
     from cdp import doctor as doctor_mod
 
     resolved_state_dir = resolve_state_dir(Path(repo), state_dir)
-    doctor_dir = registry_mod.work_dir(resolved_state_dir, _repo_id(repo)) / "doctor"
+    doctor_dir = registry_mod.work_dir_of(resolved_state_dir, Path(repo).expanduser().resolve()) / "doctor"
     if not doctor_dir.is_dir():
         raise HTTPException(
             status_code=404,
@@ -1306,7 +1327,7 @@ def get_doctor(
 def get_link(
     service: str = Query(..., description="repo/service identifier to filter to"),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> LinkQueryResponse:
     """Thin wrapper over the existing pure `link.query_service`
     (`cdp/link.py:217`) -- `link_edge` is a disposable, fully-replaced-on-scan
@@ -1328,7 +1349,7 @@ def get_link(
 @app.get("/api/links", response_model=LinksResponse)
 def get_links(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> LinksResponse:
     """All persisted link edges, unfiltered -- the constellation view's data
     source (`/api/link?service=` is a single-service lookup, not a listing).
@@ -1368,7 +1389,7 @@ def get_trajectory(
 @app.get("/api/snapshots", response_model=SnapshotsResponse)
 def get_snapshots(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> SnapshotsResponse:
     """This repo's scanned-commit history (`snapshot_meta`), oldest first --
     the time scrubber's timeline and the valid `/api/diff` `old`/`new`
@@ -1398,7 +1419,7 @@ def get_diff(
     old_sha: str = Query(..., alias="old"),
     new_sha: str = Query(..., alias="new"),
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
 ) -> DiffResponse:
     """Sha-mode only (`WEB_RESEARCH.md` §7.1's `/api/diff?old=&new=`) --
     dir-mode needs two arbitrary filesystem state directories, out of scope
@@ -1486,14 +1507,14 @@ async def _events_stream(conn: ReadOnlyConnection, run_id: str, request: Request
 async def get_events(
     request: Request,
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
     run_id: Optional[str] = Query(None, description="defaults to the latest snapshot's manifest run_id"),
 ) -> EventSourceResponse:
     resolved_state_dir = resolve_state_dir(Path(repo), state_dir)
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
     try:
-        snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo))
+        snapshot_id = conn.latest_pinned_snapshot(_repo_id(repo), repo=repo)
         if run_id is None:
             manifest = conn.read_artifact(snapshot_id, "manifest", default={})
             run_id = str(manifest.get("run_id", "cdp"))
@@ -1533,7 +1554,7 @@ def _run_extra_args(target: str, resume: bool) -> list:
 @app.post("/api/run", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
 def post_run(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
     target: str = Query("wave-all", description="wave-all | stale-only | scope:<node> | wave:<n>"),
     resume: bool = Query(True, description="pass --resume through so a restarted job can rejoin"),
 ) -> JobResponse:
@@ -1554,7 +1575,7 @@ def post_run(
 @app.post("/api/refresh", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
 def post_refresh(
     repo: str = Query(".", description="repo path to resolve state for"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
     mode: str = Query("strict", description="cdp refresh --mode"),
 ) -> JobResponse:
     resolved_state_dir = str(resolve_state_dir(Path(repo), state_dir))
@@ -1629,7 +1650,7 @@ def get_hookup_mcp_tools() -> McpToolsResponse:
 @app.post("/api/hookup/liveness", response_model=JobResponse, dependencies=[Depends(require_mutation_auth)])
 def post_hookup_liveness(
     target: str = Query(..., description="already-scanned repository to probe"),
-    state_dir: Optional[str] = Query(None, alias="state_dir"),
+    state_dir: Optional[str] = Query(None, alias="state_dir", description=STATE_DIR_DESCRIPTION),
     runner_cmd: str = Query(..., description="cdp doctor --runner-cmd"),
     model: str = Query(..., description="cdp doctor --model label"),
     node: Optional[str] = Query(None, description="scope to probe; defaults to the cheapest one"),
@@ -1645,7 +1666,7 @@ def post_hookup_liveness(
     db_path = resolved_state_dir / "index.db"
     conn = ReadOnlyConnection(db_path)
     try:
-        snapshot_id = conn.latest_pinned_snapshot(_repo_id(target))
+        snapshot_id = conn.latest_pinned_snapshot(_repo_id(target), repo=target)
         partition = conn.read_artifact(snapshot_id, "partition")
     except StoreUnavailable as exc:
         raise HTTPException(status_code=404, detail="%s -- run `cdp scan` first" % exc) from exc

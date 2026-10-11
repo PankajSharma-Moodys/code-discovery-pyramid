@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import freshness as freshness_mod, query as query_mod
+from . import freshness as freshness_mod, query as query_mod, state as state_mod
 from .session import open_store
 from typing import Dict
 
@@ -26,10 +26,19 @@ def status(paths: "Paths") -> Dict:
     result: Dict = {
         "run_id": store.manifest.get("run_id", "?"),
         "head": head,
+        "git_head": store.choice.head if store.choice else None,
+        "behind": store.choice.behind if store.choice else 0,
+        "dirty_files": store.choice.dirty_files if store.choice else [],
+        "snapshot_uncommitted": bool(store.choice and store.choice.row and store.choice.row["ephemeral"]),
+        "changed_files": store.choice.changed_files if store.choice else [],
+        "identity": paths.repo_id,
         "coverage": {
             "fraction": state["coverage"]["fraction"],
             "files_complete": state["coverage"]["files_complete"],
             "files_total": state["coverage"]["files_total"],
+            # None when no scope has an accepted model patch: say "no model review", not "0%"
+            "model_reviewed_fraction": state_mod.model_reviewed_coverage(state["coverage"]),
+            "model_reviewed_scopes": state["coverage"].get("model_reviewed_scopes", 0),
         },
         "freshness": None,
         "waves": [],

@@ -1,10 +1,10 @@
 """Tool descriptions and JSON schemas -- separated from `server.py` so the
 at-rest token cost can be measured with zero `mcp` SDK dependency (7.1's own
-acceptance line: "MCP server at 3 tools with a measured at-rest token cost").
+acceptance line: "MCP server at a few tools with a measured at-rest token cost"; now five).
 
 These are exactly what a real MCP client keeps loaded for the life of a
 session -- the plan's own reference point (`phase_9_plan.md`) is a 13-tool
-server measured at 49.2k tokens permanently resident. Three tools, kept small
+server measured at 49.2k tokens permanently resident. Five tools, kept small
 descriptions, is the answer; this file is what proves the number rather than
 asserting it.
 """
@@ -14,47 +14,17 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
+from cdp import guide
 from cdp.prompts import CHARS_PER_TOKEN_EST
 
 TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
     "cdp_query": {
-        "description": (
-            "Ask a scanned CDP store a typed question about a repository's "
-            "structure -- symbols, files, modules, routes, config, call "
-            "traces, unknowns, conflicts, coverage. `repo` must already be "
-            "scanned (`cdp_scan` first). Cheaper and more reliable than "
-            "grepping the repository yourself. Pick `kind` by question: "
-            "`trace` an entry point's reading list; `paths` (frm, to) how A "
-            "reaches B; `symbol` definition and every use; `table`/`config` "
-            "who reads or writes it; `routes` the HTTP surface. It returns "
-            "cited locations, not logic: Read only the cited lines. Run "
-            "`cdp help` for the full guide."
-        ),
+        "description": guide.mcp_query_description(),
         "inputSchema": {
             "type": "object",
-            "properties": {
-                "repo": {"type": "string", "description": "path to the repository"},
-                "kind": {
-                    "type": "string",
-                    "enum": [
-                        "symbol", "file", "module", "routes", "table", "config",
-                        "paths", "trace", "search", "claims", "unknowns",
-                        "conflicts", "stats", "coverage",
-                    ],
-                    "description": "which question to ask",
-                },
-                "term": {"type": "string", "description": "the symbol/file/module/search text this kind needs"},
-                "budget": {"type": "integer", "description": "row cap across every list in the answer"},
-                "claim_kind": {"type": "string", "description": "`claims` only: filter by claim kind"},
-                "module": {"type": "string", "description": "`claims` only: filter by module"},
-                "subject": {"type": "string", "description": "`claims` only: filter by subject"},
-                "frm": {"type": "string", "description": "`paths` only: source symbol"},
-                "to": {"type": "string", "description": "`paths` only: target symbol"},
-                "max_hops": {"type": "integer", "description": "`trace` only: how far to walk"},
-                "as_of": {"type": "string", "description": "replay claims as of this commit"},
-                "state_dir": {"type": "string", "description": "override the resolved state directory"},
-            },
+            "properties": guide.mcp_properties(),
             "required": ["repo", "kind"],
+            "additionalProperties": False,
         },
     },
     "cdp_scan": {
@@ -68,14 +38,36 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "type": "object",
             "properties": {
                 "repo": {"type": "string", "description": "path to the repository to scan"},
-                "state_dir": {"type": "string", "description": "override the resolved state directory"},
-                "max_leaf_files": {"type": "integer"},
-                "max_leaf_loc": {"type": "integer"},
-                "max_concurrent": {"type": "integer"},
-                "max_hops": {"type": "integer"},
-                "workers": {"type": "integer"},
+                "max_leaf_files": {"type": "integer", "minimum": 1},
+                "max_leaf_loc": {"type": "integer", "minimum": 1},
+                "max_concurrent": {"type": "integer", "minimum": 1},
+                "max_hops": {"type": "integer", "minimum": 0},
+                "workers": {"type": "integer", "minimum": 1},
             },
             "required": ["repo"],
+            "additionalProperties": False,
+        },
+    },
+    "cdp_refresh": {
+        "description": (
+            "Bring a scanned repository's index up to the current commit (no model calls; "
+            "incremental). Use when a `cdp_query`/`cdp_status` answer says `behind` > 0. "
+            "Needs a clean working tree; commit or stash first, or the answer stays as of the "
+            "indexed commit."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"repo": {"type": "string", "description": "path to an already-scanned repository"}},
+            "required": ["repo"],
+            "additionalProperties": False,
+        },
+    },
+    "cdp_help": {
+        "description": guide.MCP_HELP_DESCRIPTION,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"topic": {"type": "string", "description": "a query kind, a command, 'recipes', or empty for the overview"}},
+            "additionalProperties": False,
         },
     },
     "cdp_status": {
@@ -88,9 +80,9 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "type": "object",
             "properties": {
                 "repo": {"type": "string", "description": "path to the repository"},
-                "state_dir": {"type": "string", "description": "override the resolved state directory"},
             },
             "required": ["repo"],
+            "additionalProperties": False,
         },
     },
 }

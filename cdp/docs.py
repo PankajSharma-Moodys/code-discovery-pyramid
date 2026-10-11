@@ -138,9 +138,9 @@ def _overview(inventory: Dict, extraction: Dict, graph: Dict, xref: Dict,
         lines.append("")
         for module in generated:
             lines.append(
-                "- **`%s`** — %d tracked file(s) against %d on disk. Generated at build time; "
-                "described by its build contract rather than read."
-                % (module["name"], module["files"], module.get("on_disk", 0))
+                "- **`%s`** — %d tracked file(s) against %d untracked source file(s) on disk. Generated at "
+                "build time; described by its build contract rather than read."
+                % (module["name"], module["files"], module.get("generated_files", 0))
             )
         lines.append("")
 
@@ -301,9 +301,9 @@ def _module_doc(module: Dict, inventory: Dict, extraction: Dict, graph: Dict,
 
     if module.get("generated_suspect"):
         lines += [
-            "> **Generated module.** %d tracked file(s) against %d on disk. Its sources are "
-            "produced at build time and are invisible to git, so nothing below describes them."
-            % (module["files"], module.get("on_disk", 0)),
+            "> **Generated module.** %d tracked file(s) against %d untracked source file(s) on disk. "
+            "Its sources are produced at build time and are invisible to git, so nothing below "
+            "describes them." % (module["files"], module.get("generated_files", 0)),
             "",
         ]
 
@@ -564,8 +564,8 @@ def _claude_md(inventory: Dict, graph: Dict, xref: Dict, state: Dict, extraction
     if generated:
         lines += ["## Do not read these", ""]
         for module in generated:
-            lines.append("- `%s` — %d tracked / %d on disk. Generated at build time."
-                         % (module["name"], module["files"], module.get("on_disk", 0)))
+            lines.append("- `%s` — %d tracked / %d untracked source file(s) on disk. Generated at build time."
+                         % (module["name"], module["files"], module.get("generated_files", 0)))
         lines.append("")
 
     lines += ["## Module map", "",

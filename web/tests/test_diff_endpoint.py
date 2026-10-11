@@ -29,6 +29,8 @@ class DiffEndpointTest(unittest.TestCase):
         self.repo_dir = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.repo_dir, ignore_errors=True)
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
 
         _git(self.repo_dir, "init", "-q")

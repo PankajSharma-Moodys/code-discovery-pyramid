@@ -45,10 +45,12 @@ import datetime
 import fcntl
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import WorkspaceStore
+from .sqlite_archive import ArchiveMixin, EphemeralMixin
 from ..util import CdpError, read_json, stable_hash
 
 SCHEMA_V1 = """
@@ -220,10 +222,30 @@ CREATE TABLE IF NOT EXISTS churn_cache (
 );
 """
 
+# A model's verdict on a link, kept apart from `link_edge` (which a re-scan replaces) and
+# saved one row at a time, so neither a re-scan nor a concurrent `link run` can lose one.
+SCHEMA_V9 = """
+CREATE TABLE IF NOT EXISTS link_resolution (
+    link_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL
+);
+"""
+
+# Which checkout (worktree) last scanned an uncommitted-changes snapshot: lets a scan
+# drop the dirty snapshots it supersedes without touching another worktree's.
+SCHEMA_V10 = """
+CREATE TABLE IF NOT EXISTS snapshot_checkout (
+    snapshot_id INTEGER NOT NULL,
+    checkout TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    PRIMARY KEY (snapshot_id, checkout)
+);
+"""
+
 #: Forward-only migrations, one script per version. Adding a version is
 #: appending here, never editing an earlier entry.
 MIGRATIONS: Tuple[str, ...] = (
-    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8,
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10,
 )
 
 
@@ -253,7 +275,7 @@ def connect_raw(db_path, *, check_same_thread: bool = True) -> sqlite3.Connectio
     return conn
 
 
-class SqliteStore(WorkspaceStore):
+class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
     def __init__(self, db_path: Path, inbox_root: "Path | None" = None,
                  readonly: bool = False, busy_timeout_ms: int = 60000) -> None:
         """`readonly`: a reader that must never wait on a writer or touch the
@@ -262,22 +284,9 @@ class SqliteStore(WorkspaceStore):
         self.db_path = Path(db_path)
         if not readonly:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        # `check_same_thread=False`: M5.4's lease heartbeat renews from a
-        # background thread while the main thread is blocked inside a
-        # runner's `run()` call -- the two never touch the connection
-        # concurrently (the main thread is parked, not racing it), so this
-        # relaxation is safe here without adding a lock of our own.
-        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-        self._conn.execute("PRAGMA foreign_keys = ON")
-        # M5.4: two supervisors racing the same run's lease row are two
-        # separate connections to this same file; without a busy timeout the
-        # loser's UPDATE raises `database is locked` instead of blocking
-        # briefly and then losing the race cleanly (0 rows affected).
-        self._conn.execute("PRAGMA busy_timeout = %d" % int(busy_timeout_ms))
-        # One file now holds every repo on the machine, and two scans of
-        # different repos write to it at once. WAL lets readers proceed during
-        # a write and makes each writer wait for the other's short transaction
-        # instead of failing.
+        self._busy_timeout_ms = int(busy_timeout_ms)
+        self._local, self._opened, self._opened_lock = threading.local(), [], threading.Lock()
+        self._closed = False
         if not readonly:
             self._conn.execute("PRAGMA journal_mode = WAL")
             self._migrate()
@@ -287,6 +296,26 @@ class SqliteStore(WorkspaceStore):
         self._inbox_root = Path(inbox_root if inbox_root is not None else self.db_path.parent)
         self._snapshot: "int | None" = None
         self._wanted_repo: "str | None" = None
+        self._scan_needed = ""
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        """This thread's connection, opened on first use (a shared one crashes libsqlite3)."""
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            if self._closed:
+                raise sqlite3.ProgrammingError("Cannot operate on a closed database.")
+            conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA busy_timeout = %d" % self._busy_timeout_ms)
+            self._local.conn = conn
+            with self._opened_lock:  # close connections of finished threads (lease heartbeats)
+                for thread, c in self._opened:
+                    if not thread.is_alive():
+                        c.close()
+                self._opened = [(t, c) for t, c in self._opened if t.is_alive()]
+                self._opened.append((threading.current_thread(), conn))
+        return conn
 
     def _inbox_dir(self) -> Path:
         return self._inbox_root / "patches" / "inbox"
@@ -295,27 +324,30 @@ class SqliteStore(WorkspaceStore):
 
     _TOUCH_SEQ = "(SELECT COALESCE(MAX(touch_seq), 0) + 1 FROM snapshot_meta)"
 
-    def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False) -> None:
+    def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False,
+                       checkout: str = "") -> None:
+        """Select or create the snapshot, and in the same transaction drop the dirty
+        snapshots this checkout's scan supersedes (`prune_ephemeral`)."""
         row = self._conn.execute(
             "SELECT id FROM snapshot_meta WHERE repo_id=? AND commit_sha=?",
             (repo_id, commit_sha),
         ).fetchone()
         if row is not None:
-            self._snapshot = row[0]
+            snapshot_id = row[0]
             # The new sequence number is computed inside the statement, so two
             # processes touching snapshots at once cannot draw the same one.
             self._conn.execute(
-                "UPDATE snapshot_meta SET touch_seq=%s WHERE id=?" % self._TOUCH_SEQ, (row[0],)
+                "UPDATE snapshot_meta SET touch_seq=%s WHERE id=?" % self._TOUCH_SEQ, (snapshot_id,)
             )
-            self._conn.commit()
-            return
-        cur = self._conn.execute(
-            "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
-            "VALUES (?, ?, ?, ?, %s)" % self._TOUCH_SEQ,
-            (repo_id, commit_sha, int(ephemeral), _now()),
-        )
+        else:
+            snapshot_id = self._conn.execute(
+                "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
+                "VALUES (?, ?, ?, ?, %s)" % self._TOUCH_SEQ,
+                (repo_id, commit_sha, int(ephemeral), _now()),
+            ).lastrowid
+        self._snapshot = snapshot_id
+        self.prune_ephemeral(repo_id, snapshot_id, ephemeral, checkout)
         self._conn.commit()
-        self._snapshot = cur.lastrowid
 
     def supports_snapshot_history(self) -> bool:
         return True
@@ -375,12 +407,26 @@ class SqliteStore(WorkspaceStore):
     def write_link_edges(self, report: Dict) -> None:
         """Replaces `link_edge`'s contents with one row per link and one per
         unmatched outbound call from `report` (`link.scan_links`'s return
-        value). `link.*` is fully derived from a fresh `link scan` -- there is
-        no history to append to, so each call is a full replace, not an
-        insert (R3: link data is disposable, unlike `snapshot.*`/`claim.*`).
+        value). The links and calls are fully derived from a fresh `link scan`
+        (R3: link data is disposable), but the verdicts on them are not: they
+        live in `link_resolution` under the link's id, which a replace never
+        touches. A resolution embedded in an older row, or in `report`, is moved there.
         """
+        from ..linkid import link_id
+
+        for row in self._conn.execute("SELECT payload FROM link_edge").fetchall():
+            data = json.loads(row[0])
+            if data.get("kind") == "link" and data["data"].get("resolution"):
+                self._conn.execute("INSERT OR IGNORE INTO link_resolution (link_id, payload) VALUES (?, ?)",
+                                   (link_id(data["data"]), json.dumps(data["data"]["resolution"], sort_keys=True)))
         self._conn.execute("DELETE FROM link_edge")
-        entries = [{"kind": "link", "data": l} for l in report["links"]]
+        entries = []
+        for link in report["links"]:
+            link = dict(link)
+            resolution = link.pop("resolution", None)
+            if resolution:
+                self.save_link_resolution(link_id(link), resolution)
+            entries.append({"kind": "link", "data": link})
         entries += [{"kind": "unmatched", "data": u} for u in report["unmatched"]]
         self._conn.executemany(
             "INSERT INTO link_edge (payload) VALUES (?)",
@@ -388,9 +434,25 @@ class SqliteStore(WorkspaceStore):
         )
         self._conn.commit()
 
+    def save_link_resolution(self, link_id: str, resolution: Dict) -> None:
+        """One verdict, saved the moment it is validated (an atomic upsert)."""
+        self._conn.execute("INSERT OR REPLACE INTO link_resolution (link_id, payload) VALUES (?, ?)",
+                           (link_id, json.dumps(resolution, sort_keys=True)))
+        self._conn.commit()
+
     def read_link_edges(self) -> List[Dict]:
-        rows = self._conn.execute("SELECT payload FROM link_edge ORDER BY id").fetchall()
-        return [json.loads(r[0]) for r in rows]
+        """Links and unmatched calls, each link carrying its `resolution` if one was saved."""
+        from ..linkid import link_id, reanchor
+
+        resolutions = {r[0]: json.loads(r[1]) for r in
+                       self._conn.execute("SELECT link_id, payload FROM link_resolution").fetchall()}
+        out = []
+        for row in self._conn.execute("SELECT payload FROM link_edge ORDER BY id").fetchall():
+            entry = json.loads(row[0])
+            if entry["kind"] == "link" and link_id(entry["data"]) in resolutions:
+                entry["data"]["resolution"] = reanchor(entry["data"], resolutions[link_id(entry["data"])])
+            out.append(entry)
+        return out
 
     # ------------------------------------------------------- churn cache
 
@@ -425,156 +487,8 @@ class SqliteStore(WorkspaceStore):
     def delete_snapshot(self, snapshot_id: int) -> None:
         """Drops a snapshot and everything scoped to it. Never called for the
         snapshot `gc`'s own retention rule keeps (`snapshot.snapshots_to_keep`)."""
-        self._conn.execute("DELETE FROM claim_patch WHERE snapshot_id=?", (snapshot_id,))
-        self._conn.execute("DELETE FROM snapshot_artifact WHERE snapshot_id=?", (snapshot_id,))
-        self._conn.execute("DELETE FROM snapshot_report WHERE snapshot_id=?", (snapshot_id,))
-        self._conn.execute("DELETE FROM snapshot_meta WHERE id=?", (snapshot_id,))
+        self._delete_snapshot_rows(snapshot_id)
         self._conn.commit()
-
-    # ------------------------------------------------------ compact (M7.3, 2.4)
-
-    def supports_compaction(self) -> bool:
-        return True
-
-    def compact(self, keep_generations: int = 1, threshold: float = 0.30,
-                dry_run: bool = False) -> Dict[str, Any]:
-        """Move superseded `complete` generations to `claim_patches_archive`.
-        Nothing is deleted -- only relocated (R5). Whole-store, not scoped to
-        the currently-selected snapshot: generations accumulate per
-        `(snapshot_id, node)` across every re-run of a node on one commit, and
-        this is a maintenance pass over the whole file, not a per-query read.
-
-        Only `complete` patches are generations at all (`state.fold`'s own
-        definition, `state.py:144-156`); a `pending`/`invalid` attempt is
-        never archived. `threshold` gates whether this call acts: below it,
-        nothing moves and nothing is reported as moved -- `--keep-generations`
-        is documented as a performance knob precisely so this threshold isn't
-        mistaken for a retention decision either.
-        """
-        rows = self._conn.execute(
-            "SELECT id, snapshot_id, content_hash, payload FROM claim_patch WHERE is_derived=0"
-        ).fetchall()
-        groups: Dict[Tuple[int, str], List[Tuple[int, str, Dict]]] = {}
-        for row_id, snapshot_id, content_hash, payload_text in rows:
-            payload = json.loads(payload_text)
-            if str(payload.get("status", "pending")) != "complete":
-                continue
-            node = str(payload.get("node", "?"))
-            groups.setdefault((snapshot_id, node), []).append((row_id, content_hash, payload))
-
-        total_complete = sum(len(v) for v in groups.values())
-        to_archive: List[Tuple[int, int, Dict]] = []
-        for (snapshot_id, _node), patches in groups.items():
-            # Same precedence as `state.fold`'s `best_complete` selection
-            # (`state.py:154-156`): highest generation wins, ties broken by
-            # `content_hash` -- so the row kept hot here is exactly the row
-            # `state.fold` already treats as this node's live generation.
-            patches.sort(key=lambda t: (int(t[2].get("generation") or 1), t[1]), reverse=True)
-            for row_id, _content_hash, payload in patches[keep_generations:]:
-                to_archive.append((row_id, snapshot_id, payload))
-
-        eligible_ratio = (len(to_archive) / total_complete) if total_complete else 0.0
-        if eligible_ratio < threshold:
-            return {"moved": 0, "kept": total_complete, "eligible_ratio": eligible_ratio,
-                     "threshold_met": False}
-        if dry_run:
-            return {"moved": len(to_archive), "kept": total_complete - len(to_archive),
-                     "eligible_ratio": eligible_ratio, "threshold_met": True}
-
-        partition_cache: Dict[int, Dict[str, Optional[str]]] = {}
-        for row_id, snapshot_id, payload in to_archive:
-            node = str(payload.get("node", "?"))
-            if snapshot_id not in partition_cache:
-                part_row = self._conn.execute(
-                    "SELECT payload FROM snapshot_artifact WHERE snapshot_id=? AND name='partition'",
-                    (snapshot_id,),
-                ).fetchone()
-                part = json.loads(part_row[0]) if part_row else {}
-                partition_cache[snapshot_id] = {
-                    s["node"]: s.get("scope_hash") for s in part.get("scopes", [])
-                }
-            # A patch carries no `scope_hash` of its own (only `node`); the
-            # cold index's key is the scope's content hash from that
-            # snapshot's own partition, falling back to the node name itself
-            # if the partition artifact is missing or stale (never fails the
-            # move over a missing index value).
-            scope_hash = partition_cache[snapshot_id].get(node) or node
-            payload_text = json.dumps(payload, sort_keys=True)
-            self._conn.execute(
-                "INSERT INTO claim_patches_archive (scope_hash, run_id, payload, content_hash) "
-                "VALUES (?, ?, ?, ?)",
-                (scope_hash, payload.get("run_id"), payload_text, stable_hash(payload)),
-            )
-            self._conn.execute("DELETE FROM claim_patch WHERE id=?", (row_id,))
-        self._conn.commit()
-        self._conn.execute("VACUUM")
-        return {"moved": len(to_archive), "kept": total_complete - len(to_archive),
-                 "eligible_ratio": eligible_ratio, "threshold_met": True}
-
-    # ------------------------------------------------------- verify --full (M7.4, 2.5)
-
-    def _archive_scope_hashes(self, partition: Optional[Dict]) -> Optional[set]:
-        if not partition or not partition.get("scopes"):
-            return None
-        hashes = {s.get("scope_hash") for s in partition["scopes"] if s.get("scope_hash")}
-        return hashes or None
-
-    def load_patches_full(self, partition: Optional[Dict] = None) -> List[Dict]:
-        """`load_patches()` plus every archived generation for this snapshot's
-        own scopes (M7.4). This is what makes `verify --full` a real re-fold
-        from the raw log rather than the hot table alone."""
-        hot = self.load_patches()
-        scope_hashes = self._archive_scope_hashes(partition)
-        if scope_hashes is None:
-            rows = self._conn.execute("SELECT payload FROM claim_patches_archive").fetchall()
-        else:
-            placeholders = ", ".join("?" * len(scope_hashes))
-            rows = self._conn.execute(
-                "SELECT payload FROM claim_patches_archive WHERE scope_hash IN (%s)" % placeholders,
-                tuple(scope_hashes),
-            ).fetchall()
-        return hot + [json.loads(r[0]) for r in rows]
-
-    def verify_archive_integrity(self, partition: Optional[Dict] = None) -> List[str]:
-        """Recompute each archived row's content hash and compare to the one
-        recorded when it was archived. A row corrupted after the move fails
-        here, named by scope and run, rather than surfacing only as an
-        unexplained aggregate fold mismatch."""
-        scope_hashes = self._archive_scope_hashes(partition)
-        rows = self._conn.execute(
-            "SELECT rowid, scope_hash, run_id, payload, content_hash FROM claim_patches_archive"
-        ).fetchall()
-        problems = []
-        for rowid, scope_hash, run_id, payload_text, content_hash in rows:
-            if scope_hashes is not None and scope_hash not in scope_hashes:
-                continue
-            if content_hash is None:
-                continue  # archived before SCHEMA_V6; nothing recorded to check against
-            if stable_hash(json.loads(payload_text)) != content_hash:
-                problems.append(
-                    "archive row corrupted: scope_hash=%s run_id=%s (rowid %d) no longer "
-                    "matches its recorded content hash" % (scope_hash, run_id, rowid)
-                )
-        return problems
-
-    def dump_archive(self, partition: Optional[Dict] = None) -> List[Dict]:
-        """M7.5: every archived row, raw -- `scope_hash`/`run_id` plus the
-        payload and the content hash `verify --full` checks it against."""
-        scope_hashes = self._archive_scope_hashes(partition)
-        rows = self._conn.execute(
-            "SELECT scope_hash, run_id, payload, content_hash FROM claim_patches_archive"
-        ).fetchall()
-        out = []
-        for scope_hash, run_id, payload_text, content_hash in rows:
-            if scope_hashes is not None and scope_hash not in scope_hashes:
-                continue
-            out.append({
-                "scope_hash": scope_hash,
-                "run_id": run_id,
-                "payload": json.loads(payload_text),
-                "content_hash": content_hash,
-            })
-        return out
 
     # ---------------------------------------------------- tasks (M4.2 gate 3)
 
@@ -758,16 +672,17 @@ class SqliteStore(WorkspaceStore):
             return None
         return {"run_id": row[0], "partition_hash": row[1], "status": row[2], "lessons_version": row[3]}
 
-    def reclaim_expired(self, run_id: str) -> List[str]:
+    def reclaim_expired(self, run_id: str, force: bool = False) -> List[str]:
         """`dispatched` tasks whose lease has already lapsed -- the supervisor
-        that held them is presumed dead. Moves each to `expired` (a
+        that held them is presumed dead. `force` reclaims every `dispatched` task: the caller
+        holds the exclusive repo lock, so no live supervisor can own one (L6). Moves each to `expired` (a
         `RETRY_STATE`, so the next dispatch re-attempts it) and returns the
         `scope_hash`es reclaimed, for the resume summary line."""
         now = _lease_ts()
         rows = self._conn.execute(
             "SELECT scope_hash FROM snapshot_task WHERE run_id=? AND state=? "
-            "AND (lease_until IS NULL OR lease_until < ?)",
-            (run_id, "dispatched", now),
+            "AND (? OR lease_until IS NULL OR lease_until < ?)",
+            (run_id, "dispatched", int(force), now),
         ).fetchall()
         hashes = [r[0] for r in rows]
         if hashes:
@@ -860,30 +775,10 @@ class SqliteStore(WorkspaceStore):
         ).fetchall()
         return [r[0] for r in rows]
 
-    def use_current_snapshot(self, repo_id: str, head: Optional[str] = None) -> bool:
-        """Point reads at `repo_id`'s snapshot for `head` -- a clean scan of
-        it, or a dirty scan on top of it, whichever was touched last -- else at
-        the repo's most recently touched snapshot (stale, but this repo's).
-
-        Never falls back to another repo's snapshot: with no snapshot for
-        `repo_id` the selection is parked on a row that does not exist, so a
-        read says "run `scan` first" instead of answering from someone else's
-        index. Returns whether a snapshot was found."""
-        row = None
-        if head:
-            row = self._conn.execute(
-                "SELECT id FROM snapshot_meta WHERE repo_id=? AND (commit_sha=? OR commit_sha LIKE ?) "
-                "ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
-                (repo_id, head, head + "+dirty:%"),
-            ).fetchone()
-        if row is None:
-            row = self._conn.execute(
-                "SELECT id FROM snapshot_meta WHERE repo_id=? ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
-                (repo_id,),
-            ).fetchone()
-        self._snapshot = row[0] if row is not None else -1
-        self._wanted_repo = repo_id
-        return row is not None
+    def select_none(self, repo_id: str, reason: str = "", label: str = "") -> None:
+        self._snapshot = -1
+        self._wanted_repo = label or repo_id
+        self._scan_needed = reason
 
     def latest_snapshots(self) -> List[Dict]:
         """One row per repo: its most recently touched snapshot."""
@@ -967,11 +862,20 @@ class SqliteStore(WorkspaceStore):
         if self._snapshot == -1:
             known = self.repo_ids()
             return (
-                "no scan of %s in %s -- run `cdp scan` in that repo%s"
-                % (self._wanted_repo, self.db_path,
-                   "; scanned here: " + ", ".join(known) if known else "")
+                "scan needed for %s in %s: %s%s"
+                % (self._wanted_repo, self.db_path, self._scan_needed or "no scan of this repo",
+                   " (scanned here: " + ", ".join(self._describe_repo(r) for r in known) + ")" if known and "no scan of this repo" in (self._scan_needed or "no scan of this repo") else "")
             )
         return "missing artifact %r in %s — run `scan` first" % (name, self.db_path)
+
+    def _describe_repo(self, repo_id: str) -> str:
+        """A scanned repo as a person recognises it: its path, not a bare UUID."""
+        row = self._conn.execute(
+            "SELECT a.payload FROM snapshot_artifact a JOIN snapshot_meta m ON m.id = a.snapshot_id "
+            "WHERE m.repo_id=? AND a.name='inventory' ORDER BY COALESCE(m.touch_seq, m.id) DESC LIMIT 1",
+            (repo_id,)).fetchone()
+        path = (json.loads(row[0]).get("repo") if row else None) or ""
+        return path or repo_id
 
     def write_artifact(self, name: str, data: Any) -> None:
         self._conn.execute(
@@ -1015,10 +919,10 @@ class SqliteStore(WorkspaceStore):
 
     def load_patches(self) -> List[Dict]:
         rows = self._conn.execute(
-            "SELECT payload FROM claim_patch WHERE snapshot_id=? ORDER BY seq ASC",
+            "SELECT seq, payload FROM claim_patch WHERE snapshot_id=? ORDER BY seq ASC",
             (self._snapshot_id(),),
         ).fetchall()
-        return [json.loads(r[0]) for r in rows]
+        return [dict(json.loads(r[1]), patch_no=r[0]) for r in rows]
 
     def append_patch(self, patch: Dict, label: str) -> str:
         snapshot_id = self._snapshot_id()
@@ -1082,7 +986,12 @@ class SqliteStore(WorkspaceStore):
         (self._inbox_dir() / (node.replace("/", "__") + ".json")).unlink(missing_ok=True)
 
     def close(self) -> None:
-        self._conn.close()
+        with self._opened_lock:
+            self._closed = True
+            for _, conn in self._opened:
+                conn.close()
+            self._opened = []
+        self._local = threading.local()
 
     def supports_run_tracking(self) -> bool:
         return True

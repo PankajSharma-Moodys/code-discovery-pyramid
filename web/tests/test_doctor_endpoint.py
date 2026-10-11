@@ -22,6 +22,8 @@ MINIREPO = REPO_ROOT / "tests" / "fixtures" / "minirepo"
 class DoctorEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
         subprocess.run(
             [sys.executable, "-m", "cdp", "scan", "--repo", str(MINIREPO),
@@ -32,7 +34,7 @@ class DoctorEndpointTest(unittest.TestCase):
     def _doctor_dir(self) -> Path:
         from cdp.store import registry
 
-        return registry.work_dir(self.state_dir, registry.repo_identity(MINIREPO)) / "doctor"
+        return registry.work_dir_of(self.state_dir, MINIREPO) / "doctor"
 
     def _client(self):
         from fastapi.testclient import TestClient

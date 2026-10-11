@@ -126,6 +126,7 @@ _LEAF_RUN_MIGRATION_COLUMNS = (
     ("rows_elided", "INTEGER"), ("tokens_est", "INTEGER"), ("digest_mode", "INTEGER"),
     ("entailed", "INTEGER"), ("consistent", "INTEGER"), ("contradicted", "INTEGER"),
     ("elision_regret", "INTEGER"), ("sigma_claims", "INTEGER"),
+    ("cost_usd", "REAL"), ("tokens_in", "INTEGER"), ("tokens_out", "INTEGER"),
 )
 
 #: R10/R4: a fact row never carries claim content, only routing-shaped
@@ -238,6 +239,7 @@ class TrajectoryStore:
         digest_mode: Optional[bool] = None, entailed: Optional[int] = None,
         consistent: Optional[int] = None, contradicted: Optional[int] = None,
         elision_regret: Optional[bool] = None, sigma_claims: Optional[int] = None,
+        cost_usd: Optional[float] = None, tokens_in: Optional[int] = None, tokens_out: Optional[int] = None,
     ) -> None:
         """M9.2 (6.3): `rows_elided`/`tokens_est`/`digest_mode`/`sigma_claims` are
         the input fingerprint (written from `prompts.build_prompt`'s own stats,
@@ -249,15 +251,16 @@ class TrajectoryStore:
             "scope_shape_dim, template_dim, tier_dim, task_kind_dim, state, attempts, "
             "wall_ms, patch_hash, claims_emitted, unknowns_emitted, created_at, "
             "rows_elided, tokens_est, digest_mode, entailed, consistent, contradicted, "
-            "elision_regret, sigma_claims) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "elision_regret, sigma_claims, cost_usd, tokens_in, tokens_out) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (run_id, node, scope_hash, self.dim_repo(repo_id), self.dim_model(model),
              self.dim_scope_shape(scope_shape_key), self.dim_template(template_version),
              self.dim_tier(tier), self.dim_task_kind(task_kind), state, attempts, wall_ms,
              patch_hash, claims_emitted, unknowns_emitted, _now(),
              rows_elided, tokens_est, None if digest_mode is None else int(digest_mode),
              entailed, consistent, contradicted,
-             None if elision_regret is None else int(elision_regret), sigma_claims),
+             None if elision_regret is None else int(elision_regret), sigma_claims,
+             cost_usd, tokens_in, tokens_out),
         )
         self._conn.commit()
 
@@ -299,7 +302,7 @@ class TrajectoryStore:
         rows = self._conn.execute(
             "SELECT node, state, attempts, wall_ms, claims_emitted, unknowns_emitted, "
             "rows_elided, tokens_est, entailed, consistent, contradicted, elision_regret, "
-            "sigma_claims "
+            "sigma_claims, cost_usd "
             "FROM fact_leaf_run WHERE run_id=? ORDER BY id",
             (run_id,),
         ).fetchall()
@@ -308,7 +311,7 @@ class TrajectoryStore:
              "claims_emitted": r[4], "unknowns_emitted": r[5],
              "rows_elided": r[6], "tokens_est": r[7], "entailed": r[8],
              "consistent": r[9], "contradicted": r[10], "elision_regret": r[11],
-             "sigma_claims": r[12]}
+             "sigma_claims": r[12], "cost_usd": r[13]}
             for r in rows
         ]
 
@@ -349,14 +352,26 @@ class TrajectoryStore:
         ).fetchone()
         return row[0] or 0
 
-    def latest_lesson_version(self) -> Optional[int]:
+    def lesson_versions(self) -> List[int]:
+        """Every cut that exists, promoted or not, oldest first."""
+        return [r[0] for r in self._conn.execute("SELECT version FROM lesson_cut ORDER BY version").fetchall()]
+
+    def latest_lesson_version(self, repo_id: Optional[str] = None) -> Optional[int]:
         """`None` when no cut has ever happened, or none is *promoted* yet
         (6.7's "off for run #1", extended by 6.8: a cut awaiting its holdout
         A/B is not "latest" -- `--lessons vN` can still pin it explicitly)."""
-        row = self._conn.execute(
-            "SELECT MAX(version) FROM lesson_cut WHERE promoted=1"
-        ).fetchone()
-        return row[0]
+        if repo_id is None:
+            row = self._conn.execute("SELECT MAX(version) FROM lesson_cut WHERE promoted=1").fetchone()
+            return row[0]
+        # A cut applies by default only to the repos it was learned on and the holdout repo that
+        # validated it: a lesson cut from one repo must not change another repo's default run (L10).
+        best = None
+        for (version, holdout) in self._conn.execute(
+                "SELECT version, holdout_repo FROM lesson_cut WHERE promoted=1 ORDER BY version DESC").fetchall():
+            if repo_id in (holdout or "").split("\n") or repo_id in self.learned_repos_for_cut(version):
+                best = version
+                break
+        return best
 
     def _next_cut_version(self) -> int:
         row = self._conn.execute("SELECT MAX(version) FROM lesson_cut").fetchone()
@@ -409,9 +424,14 @@ class TrajectoryStore:
         after a real A/B against a repo outside `learned_repos_for_cut`
         passes the promotion bar. Idempotent -- re-running a passing holdout
         just re-records the same verdict."""
+        # every repo that validated the cut keeps it as its default (L10): holdouts accumulate
+        row = self._conn.execute("SELECT holdout_repo FROM lesson_cut WHERE version=?", (version,)).fetchone()
+        repos = [r for r in ((row[0] if row else None) or "").split("\n") if r]
+        if repo_id not in repos:
+            repos.append(repo_id)
         self._conn.execute(
             "UPDATE lesson_cut SET promoted=1, holdout_repo=?, holdout_metric=? WHERE version=?",
-            (repo_id, json.dumps(metric), version),
+            ("\n".join(repos), json.dumps(metric), version),
         )
         self._conn.commit()
 

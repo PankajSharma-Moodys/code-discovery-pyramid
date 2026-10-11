@@ -74,9 +74,15 @@ def build_prompt(
     prompt_fixes: Sequence[Dict] = (),
     max_prompt_tokens: Optional[int] = DEFAULT_MAX_PROMPT_TOKENS,
     inbox_dir: Optional[Path] = None,
+    rereview: Optional[Dict] = None,
 ) -> Tuple[str, Dict]:
+    """`rereview` (C2) = `rereview.Plan.as_prompt()`: the leaf sees only the changed files and the
+    stale claims of the scope; the unchanged files are named as context, never read or re-claimed."""
     node = scope["node"]
     module = scope["module"]
+    full_scope = scope
+    if rereview:
+        scope = _narrow_scope(scope, inventory, rereview["files"])
     scope_files = set(scope["files"])
 
     imported = _imported_symbols(extraction, scope_files)
@@ -99,6 +105,8 @@ def build_prompt(
             ("inherited", _inherited_section(inherited, elided, cur_max_inherited)),
             ("gaps", _gaps_section(xref, scope_files)),
         ]
+        if rereview:
+            named_sections.insert(1, ("rereview", _rereview_section(rereview, full_scope, scope)))
         digest_fingerprint = None
         if digest_mode:
             digest_text, digest_fingerprint = _digest_section(scope, repo_root, char_cap=cur_digest_cap)
@@ -175,6 +183,8 @@ def build_prompt(
         "tokens_est": total_chars // CHARS_PER_TOKEN_EST,
         "fixed_tokens_est": fixed_chars // CHARS_PER_TOKEN_EST,
         "digest_mode": digest_mode,
+        "rereview_files": len(scope["files"]) if rereview else None,
+        "rereview_stale_claims": len(rereview["stale"]) if rereview else None,
         "digest_fingerprint": digest_fingerprint,
         "max_prompt_tokens": max_prompt_tokens,
         "prompt_tightened": tightened or None,
@@ -267,6 +277,34 @@ def _structure(extraction: Dict, scope_files: Set[str]) -> Dict:
 
 
 # --------------------------------------------------------------- sections
+
+
+def _narrow_scope(scope: Dict, inventory: Dict, files: Sequence[str]) -> Dict:
+    by_path = {f["path"]: f for f in inventory["files"]}
+    keep = [f for f in scope["files"] if f in set(files)]
+    return dict(scope, files=keep, file_count=len(keep), loc=sum(by_path.get(f, {}).get("loc", 0) for f in keep))
+
+
+def _rereview_section(plan: Dict, full_scope: Dict, narrowed: Dict) -> str:
+    """What changed since the last review, which claims that made stale, and what NOT to redo."""
+    unchanged = [f for f in full_scope["files"] if f not in set(narrowed["files"])]
+    rows = []
+    for c in plan["stale"]:
+        cites = ", ".join("`%s:%s`" % (a.get("file"), a.get("line")) for a in c.get("evidence") or [])
+        rows.append("- `%s` [%s] %s: %s (cites %s)" % (c.get("id"), c.get("kind"), c.get("subject"),
+                                                       truncate(str(c.get("statement")), 240), cites))
+    ctx = ", ".join("`%s`" % f for f in unchanged[:8]) + (" and %d more" % (len(unchanged) - 8) if len(unchanged) > 8 else "")
+    return (
+        "## Re-review: only what changed\n\n"
+        "%d file(s) changed since the last review (the files under *Your scope*). %d claim(s) cite them and are "
+        "stale; the other %d are still valid and kept by CDP -- do not re-emit them.\n\n"
+        "Stale claims -- for each, re-emit it (same `id`, current anchors) if it still holds, emit the "
+        "corrected claim if its meaning changed, otherwise omit it or add an unknown:\n\n%s\n\n"
+        "Also claim anything new in the changed files. Unchanged files (context only, do not read or "
+        "cite): %s."
+        % (len(narrowed["files"]), len(plan["stale"]), plan.get("carried", 0),
+           "\n".join(rows) or "- (none: new files only)", ctx or "none")
+    )
 
 
 def _header(node: str, module: str, scope: Dict, run_id: str) -> str:

@@ -43,6 +43,11 @@ class Store:
             self.backend.use_latest_snapshot()
         self._cache: Dict[str, Any] = {}
 
+    @property
+    def choice(self):
+        """How the chosen snapshot relates to the tree on disk (`snapshot.Choice`), if known."""
+        return getattr(self.backend, "choice", None)
+
     def close(self) -> None:
         self.backend.close()
 

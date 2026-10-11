@@ -22,6 +22,7 @@ work="$(dirname "$(dirname "$(dirname "$patch")")")"
 
 cmd=(
   claude -p
+  --output-format json
   --agent cdp-leaf
   --model "${CDP_LEAF_MODEL:-sonnet}"
   --permission-mode dontAsk
@@ -38,5 +39,6 @@ if [ "${CDP_LEAF_DRYRUN:-}" = "1" ]; then
   echo
   exit 0
 fi
-"${cmd[@]}" > /dev/null
+# Claude result JSON (cost, duration, tokens) goes beside the patch for cdp run to record.
+"${cmd[@]}" > "${patch%.json}.usage"
 test -s "$patch" || { echo "cdp-leaf wrote no patch at $patch" >&2; exit 1; }

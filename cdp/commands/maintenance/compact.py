@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from .._common import Spec, locked, paths_from_args
-from ...session import open_store
+from ... import query as query_mod
+from ...session import fold_and_write, open_store
 from ...store import SqliteStore
-from ...util import CdpError
+from ...util import CdpError, fraction, positive_int
 from pathlib import Path
 
 
@@ -21,11 +22,12 @@ def register(add) -> None:
     cp = add("compact", "move superseded patch generations to the cold archive")
     cp.add_argument("--db", default=None,
                      help="path to a SqliteStore index.db (default: the resolved store's)")
-    cp.add_argument("--compact-threshold", type=float, default=0.30,
+    cp.add_argument("--compact-threshold", type=fraction, default=0.30,
                      help="minimum fraction of superseded rows required to act (default 0.30)")
-    cp.add_argument("--keep-generations", type=int, default=1,
-                     help="generations kept hot per (snapshot, node) -- a performance knob, "
-                          "not a retention decision: nothing is lost, only archived (default 1)")
+    cp.add_argument("--keep-generations", type=positive_int, default=1,
+                     help="generations of each scope kept hot, at least 1 -- a performance knob, "
+                          "not a retention decision: the live set never moves and nothing is lost, "
+                          "only archived (default 1)")
     cp.add_argument("--dry-run", action="store_true", help="report what would move, move nothing")
     cp.set_defaults(func=cmd_compact)
 
@@ -55,6 +57,10 @@ def cmd_compact(args) -> int:
             print("compact   moved %d superseded patch(es) to the archive, kept %d%s"
                   % (result["moved"], result["kept"], " [dry-run]" if args.dry_run else ""))
             if result["moved"] and not args.dry_run:
+                if not args.db and store.has_artifact("state"):
+                    view = query_mod.Store(store)
+                    fold_and_write(store, view.xref, view.partition, repo=paths.repo)
+                    print("folded    state re-derived from the compacted log (live claims unchanged)")
                 print("tip       cdp export --format archive to inspect the cold archive")
     finally:
         store.close()

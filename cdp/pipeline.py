@@ -5,78 +5,12 @@ from __future__ import annotations
 import datetime
 
 from . import dataflow as dataflow_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, refresh as refresh_mod, resolve as resolve_mod, schedule as schedule_mod, snapshot as snapshot_mod
-from .derive import derive_claims
+from .derived import build_derived_patch, structural_unknowns  # noqa: F401  (re-exported)
 from .extract import run_extract
-from .inventory import ROOT_MODULE as ROOT_MODULE_LABEL
-from .schema import Validator, schema_path, validate_patch
-from .session import Paths, extra_excludes, fold_and_write, new_run_id, next_generation, open_store, render_docs, stamp_claims
-from .util import CDP_VERSION, CdpError, SKILL_ROOT
+from .session import Paths, extra_excludes, fold_and_write, open_store, render_docs
+from .store import registry as registry_mod
+from .util import CDP_VERSION
 from typing import Callable, Dict, List, Optional, Sequence
-
-
-def structural_unknowns(inventory: Dict, xref: Dict, graph: Dict) -> List[Dict]:
-    out: List[Dict] = []
-    root = inventory.get("root_module") or {}
-    if root.get("is_module") and not root.get("named"):
-        out.append(
-            {
-                "question": "What is this module called?",
-                "why_unresolved": (
-                    "The scan root holds a build manifest (%s) and no sub-manifests, so the "
-                    "repository is one module — but the manifest states no name, and the "
-                    "directory name is an artifact of where the repository was cloned rather "
-                    "than the module's identity. It is reported as %s rather than guessed."
-                    % (root.get("manifest") or "unreadable", ROOT_MODULE_LABEL)
-                ),
-            }
-        )
-    for row in graph.get("declared_ambiguous", []):
-        out.append(
-            {
-                "question": "Which module does %s's declared dependency on '%s' point at?"
-                % (row["from"], row["dep"]),
-                "why_unresolved": (
-                    "%d modules share the basename '%s' (%s). A build manifest names a "
-                    "dependency by its short name, and picking one of two equally-supported "
-                    "candidates would assert an edge the repository does not state, so no "
-                    "declared edge is drawn."
-                    % (len(row["candidates"]), row["dep"], ", ".join(row["candidates"]))
-                ),
-            }
-        )
-    if inventory["source"] == "walk":
-        out.append(
-            {
-                "question": "Which files in this repository are generated rather than authored?",
-                "why_unresolved": (
-                    "The target is not a git repository, so the inventory came from a filesystem "
-                    "walk with a heuristic exclude list. Generated and build-output files may be "
-                    "present in the census and described as if they were design."
-                ),
-            }
-        )
-    for module in inventory["modules"]:
-        if module.get("generated_suspect"):
-            out.append(
-                {
-                    "question": "What contract does %s actually publish?" % module["name"],
-                    "why_unresolved": (
-                        "%d of its %d files are untracked and generated at build time, so its "
-                        "public surface cannot be read from the repository."
-                        % (module.get("on_disk", 0) - module["files"], module.get("on_disk", 0))
-                    ),
-                }
-            )
-    for route in xref["unresolved_routes"]:
-        out.append(
-            {
-                "question": "What literal path does %s serve?" % route["route"],
-                "why_unresolved": "Constant(s) %s are not defined anywhere in the repository."
-                % ", ".join(route.get("unresolved_constants", [])),
-                "anchor": route["evidence"][0],
-            }
-        )
-    return out
 
 
 def scan(
@@ -120,7 +54,9 @@ def scan(
 
     state_dir = paths.state
     store = open_store(paths)
-    store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"]))
+    store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"], exclude or ()),
+                         checkout=registry_mod.checkout_key(paths.repo))
+    registry_mod.remember_alias(paths.repo)
     store.write_artifact("inventory", inventory)
     store.write_artifact("extract", extraction)
     store.write_artifact("graph", graph)
@@ -129,26 +65,9 @@ def scan(
     store.write_artifact("xref", xref)
     store.write_artifact("dataflow", flow)
 
-    # The derived claims are appended as patch 0000. They enter state through
-    # the same log every agent patch does, so the fold invariant holds from the
-    # first commit rather than being retrofitted once agents exist.
-    derived = derive_claims(paths.repo, inventory, extraction, graph, xref, part, flow)
-    stamp_claims(derived, inventory["head"])
-    run_id = new_run_id(inventory["head"])
-    patch = {
-        "schema_version": "1.0.0",
-        "node": "root",
-        "run_id": run_id,
-        "author_kind": "python",
-        "status": "complete",
-        "generation": next_generation(store.load_patches(), "root"),
-        "claims": derived,
-        "unknowns": structural_unknowns(inventory, xref, graph),
-    }
-    validator = Validator.load(schema_path(SKILL_ROOT))
-    errors = validate_patch(patch, validator)
-    if errors:
-        raise CdpError("derived claims failed their own schema:\n  " + "\n  ".join(errors[:10]))
+    # The derived claims are patch 0000: regenerated by every scan and refresh, never a generation.
+    patch = build_derived_patch(paths.repo, inventory, extraction, graph, xref, part, flow, store.load_patches())
+    run_id = patch["run_id"]
 
     # M2.3: the log holds `patch` exactly as derived, unverified. Verification
     # runs inside `fold`, against `paths.repo`, so it is re-runnable at a
@@ -181,6 +100,7 @@ def scan(
                 "max_concurrent": max_concurrent,
                 "max_hops": max_hops,
             },
+            **({"excludes": list(exclude)} if exclude else {}),
             "module_level": sched["module_level"],
             "coverage": st["coverage"],
             "counts": inventory["counts"],

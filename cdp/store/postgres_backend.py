@@ -113,7 +113,17 @@ CREATE TABLE IF NOT EXISTS snapshot_task (
 CREATE INDEX IF NOT EXISTS idx_snapshot_task_run_state ON snapshot_task(run_id, state);
 """
 
-MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2)
+# Which checkout (worktree) last scanned an uncommitted-changes snapshot (see `prune_ephemeral`).
+SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS snapshot_checkout (
+    snapshot_id INTEGER NOT NULL,
+    checkout TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    PRIMARY KEY (snapshot_id, checkout)
+);
+"""
+
+MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2, SCHEMA_V3)
 
 
 def _now() -> str:
@@ -164,6 +174,8 @@ class PostgresStore(WorkspaceStore):
                 self._conn.commit()
         self._inbox_root = Path(inbox_root if inbox_root is not None else Path("."))
         self._snapshot: "int | None" = None
+        self._wanted_repo: "str | None" = None
+        self._scan_needed = ""
 
     def _cur(self):
         cur = self._conn.cursor()
@@ -179,7 +191,8 @@ class PostgresStore(WorkspaceStore):
         cur.execute("SELECT COALESCE(MAX(touch_seq), 0) + 1 FROM snapshot_meta")
         return cur.fetchone()[0]
 
-    def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False) -> None:
+    def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False,
+                       checkout: str = "") -> None:
         """Bumps `touch_seq` on every call, including a reuse -- `F12`'s fix
         (`sqlite_backend.py:232-250`), ported literally: `use_latest_snapshot`
         must order by "most recently *selected*", not "most recently
@@ -192,20 +205,60 @@ class PostgresStore(WorkspaceStore):
         )
         row = cur.fetchone()
         if row is not None:
-            self._snapshot = row[0]
+            snapshot_id = row[0]
             cur.execute(
                 "UPDATE snapshot_meta SET touch_seq=%s WHERE id=%s",
-                (self._next_touch_seq(cur), row[0]),
+                (self._next_touch_seq(cur), snapshot_id),
             )
-            self._conn.commit()
-            return
-        cur.execute(
-            "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
-            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (repo_id, commit_sha, ephemeral, _now(), self._next_touch_seq(cur)),
-        )
-        self._snapshot = cur.fetchone()[0]
+        else:
+            cur.execute(
+                "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
+                "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (repo_id, commit_sha, ephemeral, _now(), self._next_touch_seq(cur)),
+            )
+            snapshot_id = cur.fetchone()[0]
+        self._snapshot = snapshot_id
+        self.prune_ephemeral(repo_id, snapshot_id, ephemeral, checkout)
         self._conn.commit()
+
+    def _delete_snapshot_rows(self, snapshot_id: int) -> None:
+        """Everything scoped to one snapshot, uncommitted (the caller owns the transaction)."""
+        cur = self._cur()
+        cur.execute("DELETE FROM snapshot_task WHERE run_id IN "
+                    "(SELECT run_id FROM snapshot_run WHERE snapshot_id=%s)", (snapshot_id,))
+        cur.execute("DELETE FROM snapshot_run WHERE snapshot_id=%s", (snapshot_id,))
+        for table in ("claim_patch", "snapshot_artifact", "snapshot_report", "snapshot_checkout"):
+            cur.execute("DELETE FROM %s WHERE snapshot_id=%%s" % table, (snapshot_id,))
+        cur.execute("DELETE FROM snapshot_meta WHERE id=%s", (snapshot_id,))
+
+    def prune_ephemeral(self, repo_id: str, snapshot_id: int, ephemeral: bool, checkout: str) -> List[int]:
+        """Same rule as `SqliteStore.prune_ephemeral`: a checkout keeps at most its newest dirty
+        snapshot, and none once it stands on a clean one; never a pinned one, nor one another
+        checkout still stands on. Runs inside `begin_snapshot`'s transaction."""
+        if not checkout:
+            return []
+        cur = self._cur()
+        if ephemeral:
+            cur.execute(
+                "INSERT INTO snapshot_checkout (snapshot_id, checkout, seq) VALUES "
+                "(%s, %s, (SELECT COALESCE(MAX(seq), 0) + 1 FROM snapshot_checkout)) "
+                "ON CONFLICT (snapshot_id, checkout) DO UPDATE SET seq = EXCLUDED.seq",
+                (snapshot_id, checkout))
+        cur.execute(
+            "SELECT c.snapshot_id FROM snapshot_checkout c JOIN snapshot_meta m ON m.id = c.snapshot_id "
+            "WHERE c.checkout=%s AND c.snapshot_id != %s AND m.repo_id=%s AND m.ephemeral",
+            (checkout, snapshot_id, repo_id))
+        dropped: List[int] = []
+        for (sid,) in cur.fetchall():
+            cur.execute("DELETE FROM snapshot_checkout WHERE snapshot_id=%s AND checkout=%s", (sid, checkout))
+            cur.execute("SELECT 1 FROM snapshot_checkout WHERE snapshot_id=%s", (sid,))
+            held = cur.fetchone()
+            cur.execute("SELECT pinned FROM snapshot_meta WHERE id=%s", (sid,))
+            pinned = cur.fetchone()
+            if held is None and not (pinned and pinned[0]):
+                self._delete_snapshot_rows(sid)
+                dropped.append(sid)
+        return dropped
 
     def supports_snapshot_history(self) -> bool:
         return True
@@ -257,6 +310,8 @@ class PostgresStore(WorkspaceStore):
         `SqliteStore._snapshot_id`. The explicit `id=1` insert must also push
         the `SERIAL` sequence past 1, or the next real `begin_snapshot` insert
         (which lets the sequence assign the id) would collide with it."""
+        if self._snapshot == -1:
+            raise CdpError(self._missing(""))
         if self._snapshot is not None:
             return self._snapshot
         cur = self._cur()
@@ -287,9 +342,15 @@ class PostgresStore(WorkspaceStore):
         self._conn.commit()
         if row is None:
             if default is None:
-                raise CdpError("missing artifact %r in schema %r -- run `scan` first" % (name, self._schema))
+                raise CdpError(self._missing(name))
             return default
         return row[0]
+
+    def _missing(self, name: str) -> str:
+        if self._snapshot == -1:
+            return "scan needed for %s in schema %r: %s" % (
+                self._wanted_repo, self._schema, self._scan_needed or "no scan of this repo")
+        return "missing artifact %r in schema %r -- run `scan` first" % (name, self._schema)
 
     def write_artifact(self, name: str, data: Any) -> None:
         cur = self._cur()
@@ -340,12 +401,12 @@ class PostgresStore(WorkspaceStore):
     def load_patches(self) -> List[Dict]:
         cur = self._cur()
         cur.execute(
-            "SELECT payload FROM claim_patch WHERE snapshot_id=%s ORDER BY seq ASC",
+            "SELECT seq, payload FROM claim_patch WHERE snapshot_id=%s ORDER BY seq ASC",
             (self._snapshot_id(),),
         )
         rows = cur.fetchall()
         self._conn.commit()
-        return [r[0] for r in rows]
+        return [dict(r[1], patch_no=r[0]) for r in rows]
 
     def append_patch(self, patch: Dict, label: str) -> str:
         snapshot_id = self._snapshot_id()
@@ -443,11 +504,7 @@ class PostgresStore(WorkspaceStore):
             raise CdpError("no snapshot for commit %s in schema %r" % (commit_sha, self._schema))
 
     def delete_snapshot(self, snapshot_id: int) -> None:
-        cur = self._cur()
-        cur.execute("DELETE FROM claim_patch WHERE snapshot_id=%s", (snapshot_id,))
-        cur.execute("DELETE FROM snapshot_artifact WHERE snapshot_id=%s", (snapshot_id,))
-        cur.execute("DELETE FROM snapshot_report WHERE snapshot_id=%s", (snapshot_id,))
-        cur.execute("DELETE FROM snapshot_meta WHERE id=%s", (snapshot_id,))
+        self._delete_snapshot_rows(snapshot_id)
         self._conn.commit()
 
     # --------------------------------------------------------- runs (cdp run)
@@ -583,13 +640,13 @@ class PostgresStore(WorkspaceStore):
         )
         self._conn.commit()
 
-    def reclaim_expired(self, run_id: str) -> List[str]:
+    def reclaim_expired(self, run_id: str, force: bool = False) -> List[str]:
         now = _lease_ts()
         cur = self._cur()
         cur.execute(
             "SELECT scope_hash FROM snapshot_task WHERE run_id=%s AND state=%s "
-            "AND (lease_until IS NULL OR lease_until < %s)",
-            (run_id, "dispatched", now),
+            "AND (%s OR lease_until IS NULL OR lease_until < %s)",
+            (run_id, "dispatched", bool(force), now),
         )
         hashes = [r[0] for r in cur.fetchall()]
         if hashes:
@@ -630,28 +687,10 @@ class PostgresStore(WorkspaceStore):
     def has_selection(self) -> bool:
         return self._snapshot is not None
 
-    def use_current_snapshot(self, repo_id: str, head: "str | None" = None) -> bool:
-        """Same contract as `SqliteStore.use_current_snapshot`: this repo's
-        snapshot for `head` (clean or dirty), else its latest; never another
-        repo's."""
-        cur = self._cur()
-        row = None
-        if head:
-            cur.execute(
-                "SELECT id FROM snapshot_meta WHERE repo_id=%s AND (commit_sha=%s OR commit_sha LIKE %s) "
-                "ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
-                (repo_id, head, head + "+dirty:%"),
-            )
-            row = cur.fetchone()
-        if row is None:
-            cur.execute(
-                "SELECT id FROM snapshot_meta WHERE repo_id=%s ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1",
-                (repo_id,),
-            )
-            row = cur.fetchone()
-        self._conn.commit()
-        self._snapshot = row[0] if row is not None else -1
-        return row is not None
+    def select_none(self, repo_id: str, reason: str = "", label: str = "") -> None:
+        self._snapshot = -1
+        self._wanted_repo = label or repo_id
+        self._scan_needed = reason
 
     def repo_ids(self) -> List[str]:
         cur = self._cur()

@@ -43,6 +43,10 @@ def cmd_collect(args) -> int:
         print("  REJECTED %s (%s)" % (row["file"], row.get("node", "?")))
         for err in row["errors"][:4]:
             print("    %s" % err)
+    for row in r["rejected_claims"][:8]:
+        print("  REJECTED claim %s (%s): %s" % (row["id"], row["node"], row["reasons"][0]))
+    if r["rejected_claims"]:
+        print("claims    %d claim(s) rejected, the rest of their patches kept" % len(r["rejected_claims"]))
     if unknown_rejections:
         print("gates     %d unknown(s) rejected" % len(unknown_rejections))
         for row in unknown_rejections[:8]:

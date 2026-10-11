@@ -53,11 +53,12 @@ Rules
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -117,3 +118,27 @@ class FileRunner:
 
 def _elapsed_ms(start: float) -> int:
     return int((time.monotonic() - start) * 1000)
+
+
+def read_usage(patch_path: Path) -> Dict:
+    """What a runner left beside its patch as `<patch>.usage` (Claude's `--output-format json`
+    result: `total_cost_usd`, `duration_ms`, `usage`), as `{cost_usd, tokens_in, tokens_out}`;
+    {} when there is none or it is unreadable. The file is removed: it is not a patch."""
+    path = Path(patch_path).with_suffix(".usage")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    finally:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    if not isinstance(data, dict):
+        return {}
+    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+    tokens_in = sum(int(usage.get(k) or 0) for k in
+                    ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+    out = {"cost_usd": data.get("total_cost_usd"), "tokens_in": tokens_in or None,
+           "tokens_out": usage.get("output_tokens")}
+    return {k: v for k, v in out.items() if isinstance(v, (int, float))}

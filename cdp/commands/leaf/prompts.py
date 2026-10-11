@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from .._common import Spec, locked, paths_from_args
-from ... import prompts as prompts_mod, query as query_mod, reflect as reflect_mod, tiering as tiering_mod, trajectory as trajectory_mod
+from .._common import Spec, locked, paths_from_args, require_choice, require_lesson_cut
+from ... import prompts as prompts_mod, rereview as rereview_mod, query as query_mod, reflect as reflect_mod, tiering as tiering_mod, trajectory as trajectory_mod
 from ...prompts import build_prompt
 from ...session import check_repo_matches_manifest, open_store
-from ...util import write_text
+from ...util import non_negative_int, positive_int, write_text
 from typing import Dict, List
 
 
@@ -14,13 +14,13 @@ SPEC = Spec(
     group='leaf',
     usage='prompts',
     what='Writes one leaf prompt per scope for the wave loop.',
-    next='next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons vN`/`--no-lessons`.',
+    next='next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons N`/`--no-lessons`.',
 )
 
 
 def register(add) -> None:
     pr = add("prompts", "write one leaf prompt per scope, for the wave loop")
-    pr.add_argument("--wave", type=int, default=None, help="only this wave")
+    pr.add_argument("--wave", type=non_negative_int, default=None, help="only this wave")
     pr.add_argument("--node", default=None, help="only this node")
     pr.add_argument("--measure", action="store_true",
                      help="print a per-section token estimate (M5.6, 4.9) instead of "
@@ -30,7 +30,7 @@ def register(add) -> None:
                           "text inlined in the prompt, not a Read/Grep tool. Behind a flag "
                           "until doctor/benchmark evidence promotes it to default.")
     pr_lessons = pr.add_mutually_exclusive_group()
-    pr_lessons.add_argument("--lessons", type=int, default=None, metavar="N",
+    pr_lessons.add_argument("--lessons", type=positive_int, default=None, metavar="N",
                              help="pin lesson-set cut vN (M9.3, 6.7/6.8); default: the "
                                   "latest *promoted* cut, or none if none is promoted yet")
     pr_lessons.add_argument("--no-lessons", action="store_true",
@@ -41,7 +41,7 @@ def register(add) -> None:
 @locked(shared=False)
 def cmd_prompts(args) -> int:
     paths = paths_from_args(args)
-    backend = open_store(paths)
+    backend = open_store(paths, durable=True)
     store = query_mod.Store(backend)
     if args.digest:
         # M6.3: digest mode reads --repo's file content, unlike the default
@@ -50,6 +50,11 @@ def cmd_prompts(args) -> int:
     sched = store._load("schedule")
     run_id = store.manifest.get("run_id", "cdp")
     prior = list(store.state.get("claims", []))
+
+    if args.node is not None:
+        require_choice(args.node, [sc["node"] for sc in store.partition["scopes"]], "scope", "--node")
+    if args.wave is not None:
+        require_choice(args.wave, set(sched["node_wave"].values()), "wave", "--wave")
 
     out_dir = paths.work / "prompts"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -66,9 +71,10 @@ def cmd_prompts(args) -> int:
         if args.no_lessons:
             lessons_version = None
         elif args.lessons is not None:
+            require_lesson_cut(trajectory, args.lessons)
             lessons_version = args.lessons
         else:
-            lessons_version = trajectory.latest_lesson_version()
+            lessons_version = trajectory.latest_lesson_version(paths.repo_id)
         lesson_hints: Dict = {}
         if lessons_version is not None:
             lesson_hints = reflect_mod.apply_lessons(trajectory.load_lessons(lessons_version))
@@ -77,6 +83,16 @@ def cmd_prompts(args) -> int:
         prompt_kwargs["max_inherited"] = lesson_hints["max_inherited"]
 
     written: List[Dict] = []
+    # C2: a scope a leaf reviewed before, with stale claims or new files, gets a prompt for those only;
+    # `collect` keeps its other claims (the marker below says which).
+    plans = {n: p for n, p in rereview_mod.plans_for(
+        store, paths.repo, [sc["node"] for sc in store.partition["scopes"]
+                            if (not args.node or sc["node"] == args.node)]).items() if not p.empty}
+    marker = {n: p.marker() for n, p in plans.items()}
+    if args.node:  # one scope's prompt must not erase the markers of the others
+        kept = backend.read_report("rereview", {}) or {}
+        marker = dict({n: m for n, m in (kept.get("nodes") or {}).items() if n != args.node}
+                      if kept.get("head") == store.inventory.get("head") else {}, **marker)
     for scope in store.partition["scopes"]:
         node = scope["node"]
         if args.node and node != args.node:
@@ -89,6 +105,7 @@ def cmd_prompts(args) -> int:
             extra_third_party=lesson_hints.get("third_party_patterns", frozenset()),
             prompt_fixes=lesson_hints.get("prompt_fixes", ()),
             inbox_dir=backend._inbox_dir(),
+            rereview=plans[node].as_prompt() if node in plans else None,
             **prompt_kwargs
         )
         path = out_dir / (node.replace("/", "__") + ".md")
@@ -98,6 +115,7 @@ def cmd_prompts(args) -> int:
         written.append(stats)
 
     backend.write_report("prompts", {"prompts": written})
+    backend.write_report("rereview", {"head": store.inventory.get("head"), "nodes": marker})
     tiering_report = {row["node"]: row["tiering"] for row in written if "tiering" in row}
     backend.write_report("tiering", {"tiering": tiering_report})
     if tiering_report:

@@ -1,25 +1,22 @@
-"""C# extractor (F2, `PHASE/FINDINGS.md` / `PHASE/TARGET.md` T1).
+"""C# extractor.
 
-$TARGET_REPO is 48% C# by LOC and none of it produced a claim before this --
-every `.cs` file fell through to `GenericExtractor`. Regexes here are drawn
-from real files sampled in that repository (file-scoped `namespace X.Y.Z;`,
-ASP.NET Core `[Route]`/`[HttpGet]` attributes, EF Core `DbContext`/`DbSet<T>`),
-not written from memory of C# syntax in the abstract.
+Declarations come from a token parser (`csharp_decl`) that reads every access level, generic and
+tuple-returning methods, constructors (primary ones too), properties, fields, enum members and
+types with long primary-constructor lists. Member bodies are walked by `csharp_flow`/`csharp_body`
+for typed references and call sites, and by `csharp_config` for configuration reads.
 
-Deliberately narrower than `java.py`: DI is done there via fluent
-`services.AddScoped<I,T>()` calls rather than attributes, and AutoMapper/
-MediatR aren't attribute-shaped either -- none of those fit this extractor's
-detection style, so they're left as real gaps a leaf turns into `unknowns[]`,
-not silently invented here.
-
-Self-contained: depends only on `cdp/lang/base.py` (the shared seam every
-extractor uses), never on `java.py` or `scala.py`.
+ASP.NET routes are read per declaration, not by line proximity: a handler's own `[HttpGet]`/`[Route]`
+templates are emitted with the *class* they belong to, and the resolve phase joins them with the
+class-level `[Route]` collected from every part of a `partial` class (or from a base class), applying
+the `[controller]` and `[action]` tokens (`cdp/routes_cs.py`). EF Core tables come from `DbSet<T>`
+(table = `[Table]`/`ToTable` of T, else the property name), `[Table]`, `ToTable` and migration
+`CreateTable(name:)`.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .base import (
     ExtractContext,
@@ -28,50 +25,24 @@ from .base import (
     anchor_at,
     channel_for_import,
     count_loc,
-    first_string_literal,
     is_third_party,
-    mask_string_literals,
     mk_define,
     mk_edge,
     mk_use,
-    strip_block_comments,
 )
-
-NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][\w.]*)\s*;")
-USING_RE = re.compile(r"^\s*using\s+(static\s+)?([A-Za-z_][\w.]*)\s*;\s*$")
-USING_ALIAS_RE = re.compile(r"^\s*using\s+([A-Za-z_]\w*)\s*=\s*([A-Za-z_][\w.]*)\s*;\s*$")
-TYPE_RE = re.compile(
-    r"^\s*(?:(public|internal|private|protected)(?:\s+(?:internal|protected))?\s+)?"
-    r"(?:(?:abstract|sealed|static|partial|readonly|unsafe|new)\s+)*"
-    r"(class|interface|enum|struct|record)\s+([A-Za-z_]\w*)"
-)
-METHOD_RE = re.compile(
-    r"^\s*(public)\s+"
-    r"(?:(?:static|virtual|override|abstract|async|sealed|new|partial|unsafe)\s+)*"
-    r"(?:<[^>]*>\s+)?"
-    r"([\w<>\[\],.?\s]+?)\s+([A-Za-z_]\w*)\s*\("
-)
-ATTR_RE = re.compile(r"^\s*\[([A-Za-z_][\w.]*)\s*(\(.*)?\]\s*$")
-DBSET_RE = re.compile(r"\bDbSet\s*<\s*([\w.]+)\s*>")
-DBCONTEXT_RE = re.compile(
-    r"^\s*(?:public\s+)?(?:partial\s+)?class\s+([A-Za-z_]\w*)\s*:\s*[\w.,\s<>]*\bDbContext\b"
-)
-MAIN_RE = re.compile(r"\bstatic\s+(?:async\s+)?(?:void|Task|int)\s+Main\s*\(")
+from .csharp_config import DYNAMIC, config_names, emit_config, key_of
+from .csharp_http import emit_http_clients
+from .csharp_decl import CMember, CType, DeclParser, parse_type
+from .csharp_tokens import CsTokens, string_value
+from .csharp_types import Resolver, norm_type
 
 ROUTE_VERBS = {
-    "HttpGet": "GET", "HttpPost": "POST", "HttpPut": "PUT",
-    "HttpDelete": "DELETE", "HttpPatch": "PATCH", "HttpHead": "HEAD",
-    "HttpOptions": "OPTIONS",
+    "HttpGet": "GET", "HttpPost": "POST", "HttpPut": "PUT", "HttpDelete": "DELETE",
+    "HttpPatch": "PATCH", "HttpHead": "HEAD", "HttpOptions": "OPTIONS",
 }
-
-
-class _Attr:
-    __slots__ = ("name", "args", "index")
-
-    def __init__(self, name: str, args: str, index: int) -> None:
-        self.name = name
-        self.args = args
-        self.index = index
+TYPE_KIND = {"struct": "class", "delegate": "class"}
+BUILTIN_TYPES = frozenset(["string", "int", "long", "bool", "void", "object", "double", "float", "decimal", "byte",
+                           "short", "char", "var", "dynamic", "uint", "ulong", "ushort", "sbyte"])
 
 
 class CSharpExtractor(Extractor):
@@ -79,151 +50,173 @@ class CSharpExtractor(Extractor):
     extensions = (".cs",)
 
     def extract(self, ctx: ExtractContext) -> FileFacts:
-        lines = ctx.lines
-        code = strip_block_comments(lines)
-        facts = FileFacts(path=ctx.path, language=self.language, loc=count_loc(lines))
+        facts = FileFacts(path=ctx.path, language=self.language, loc=count_loc(ctx.lines))
+        tk = CsTokens(ctx.lines)
+        parser = DeclParser(tk)
+        types = parser.parse()
+        ns = _namespace(parser)
+        facts.package = ns or None
 
-        facts.package = _read_namespace(code)
-        ns = facts.package or ""
-        _read_imports(ctx, code, facts)
-        decls = _read_declarations(ctx, code, ns, facts)
-        attrs = _read_attributes(code)
-
-        primary = decls[0]["fqn"] if decls else (ns + "." + _stem(ctx.path) if ns else _stem(ctx.path))
+        imports, usings, aliases = _read_imports(ctx, parser, facts)
+        resolver = Resolver(ns, usings, aliases)
+        resolver.local_types = {t.name: t.fqn for t in types}
+        primary = types[0].fqn if types else ((ns + "." if ns else "") + _stem(ctx.path))
         facts.primary = primary
-
+        for t in types:
+            if t.kind == "delegate":
+                continue
+        _declarations(ctx, facts, tk, types, resolver)
         _emit_import_edges(facts)
-        _emit_attribute_facts(ctx, facts, attrs, decls, primary)
-        _emit_ef_core_edges(ctx, facts, code, decls, primary)
-        _emit_entrypoint(ctx, facts, code, primary)
+        _emit_routes(ctx, facts, types, tk)
+        _emit_ef(ctx, facts, tk, types, primary)
+        _emit_entrypoint(ctx, facts, tk, types, parser, primary)
+        emit_http_clients(ctx, facts, primary)
 
+        from .csharp_flow import emit_flow
+        emit_flow(ctx, facts, tk, parser, types, resolver, [u for u in imports if u["static"]], ns)
         facts.signals = sorted(set(facts.signals))
         return facts
-
-
-# ------------------------------------------------------------------ readers
 
 
 def _stem(path: str) -> str:
     return path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
 
 
-def _read_namespace(code: List[str]) -> Optional[str]:
-    for line in code[:80]:
-        m = NAMESPACE_RE.match(line)
-        if m:
-            return m.group(1)
+def _namespace(parser: DeclParser) -> str:
+    if parser.top_ns:
+        return parser.top_ns
+    return parser.namespaces[0][0] if parser.namespaces else ""
+
+
+def _read_imports(ctx, parser, facts):
+    imports: List[Dict] = []
+    usings: List[str] = []
+    aliases: Dict[str, str] = {}
+    for u in parser.usings:
+        anchor = anchor_at(ctx, u.line)
+        if anchor is None:
+            continue
+        imports.append({"fqn": u.name, "line": u.line + 1, "static": u.static, "anchor": anchor})
+        if u.alias:
+            aliases[u.alias] = u.name
+        elif not u.static:
+            usings.append(u.name)
+        else:
+            usings.append(u.name.rsplit(".", 1)[0] if False else u.name)
+        resolved = "third_party" if is_third_party(u.name) else "external"
+        facts.uses.append(mk_use(u.name, anchor, via_import=True, resolved=resolved))
+    facts.imports = [{k: v for k, v in r.items()} for r in imports]
+    return imports, usings, aliases
+
+
+def _vis(v: str) -> str:
+    return v
+
+
+def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> None:
+    consts: Dict[str, Dict[str, Optional[str]]] = {}
+
+    def typed(row: Dict, text: str, tvars) -> Dict:
+        norm = norm_type(text, lambda n: _resolve(resolver, n), tvars)
+        if norm and norm not in BUILTIN_TYPES and norm != "void":
+            row["ret" if row["kind"] == "method" else "ftype"] = norm
+        return row
+
+    for jt in sorted(types, key=lambda t: (t.line, t.fqn)):
+        anchor = anchor_at(ctx, jt.line)
+        tv = jt.all_tparams()
+        if anchor is not None:
+            row = mk_define(jt.fqn, TYPE_KIND.get(jt.kind, jt.kind), jt.visibility, anchor)
+            if jt.tparams:
+                row["tparams"] = jt.tparams
+            if jt.kind in TYPE_KIND:
+                row["clr"] = jt.kind
+            routes = [_template(text) for n, text in jt.anns if n == "Route"]
+            if routes:
+                row["route"] = routes
+            if jt.extends:
+                guess, state = resolver.resolve(jt.extends[0])
+                row["route_parent"] = [guess] + [w + "." + guess.rsplit(".", 1)[-1] for w in resolver.wildcards]
+            if jt.kind == "class" and "abstract" in jt.mods:
+                row["abstract"] = True
+            facts.defines.append(row)
+        values = consts.setdefault(jt.fqn, {})
+        if jt.pparams is not None:
+            a2 = anchor_at(ctx, jt.line)
+            if a2 is not None:
+                facts.defines.append(mk_define(jt.fqn + "#<init>", "method", "public", a2,
+                                               end_line=jt.line + 1))
+            if jt.kind == "record":
+                for ptype, pname in jt.pparams:
+                    if a2 is not None:
+                        row = mk_define(jt.fqn + "." + pname, "field", "public", a2)
+                        facts.defines.append(typed(row, ptype, tv))
+        for m in jt.members:
+            if m.nodef or m.kind == "op":
+                continue
+            anchor = anchor_at(ctx, m.line)
+            if anchor is None:
+                continue
+            vis = m.visibility
+            if m.kind in ("method", "ctor"):
+                name = "<init>" if m.kind == "ctor" else m.name
+                row = mk_define(jt.fqn + "#" + name, "method", vis, anchor, end_line=m.end_line + 1)
+                if m.kind == "method":
+                    typed(row, m.ret, tv | set(m.tparams))
+                    if m.ext:
+                        row["ext"] = norm_type(m.ext, lambda n: _resolve(resolver, n), tv | set(m.tparams))
+                    if m.tparams:
+                        row["tparams"] = m.tparams
+                facts.defines.append(row)
+            elif m.kind == "enum_const":
+                row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1)
+                row["ftype"] = jt.fqn
+                facts.defines.append(row)
+            elif m.kind == "field":
+                fqn = jt.fqn + "." + m.name
+                const = "const" in m.mods or ("static" in m.mods and "readonly" in m.mods)
+                if const and m.init and not m.prop:
+                    value = _constant_value(tk, m, jt, values)
+                    values[m.name] = value
+                    row = mk_define(fqn, "constant", vis, anchor, value=value)
+                else:
+                    row = mk_define(fqn, "field", vis, anchor)
+                facts.defines.append(typed(row, m.ftype, tv))
+            _type_refs(facts, anchor, m, jt, resolver)
     return None
 
 
-def _read_imports(ctx: ExtractContext, code: List[str], facts: FileFacts) -> None:
-    imports: List[Dict] = []
-    for idx, line in enumerate(code):
-        fqn = None
-        m = USING_RE.match(line)
-        if m:
-            fqn = m.group(2)
-        else:
-            m = USING_ALIAS_RE.match(line)
-            if m:
-                fqn = m.group(2)
-        if fqn is None:
-            continue
-        anchor = anchor_at(ctx, idx)
-        if anchor is None:
-            continue
-        row = {"fqn": fqn, "line": idx + 1, "anchor": anchor}
-        imports.append(row)
-        resolved = "third_party" if is_third_party(fqn) else "external"
-        facts.uses.append(mk_use(fqn, anchor, via_import=True, resolved=resolved))
-    facts.imports = imports
+def _resolve(resolver: Resolver, name: str) -> str:
+    head, dot, rest = name.partition(".")
+    fqn, _ = resolver.resolve(head)
+    return fqn + dot + rest if dot else fqn
 
 
-def _read_declarations(ctx: ExtractContext, code: List[str], ns: str, facts: FileFacts) -> List[Dict]:
-    """Types and public methods, brace-depth nested.
-
-    C#'s dominant style (confirmed against real `$TARGET_REPO` files, e.g.
-    `Controllers/RoleNames.cs`) opens a type's body on the line *after* its
-    header (Allman), not on the same line -- so a declaration is held
-    `pending` until its own opening brace is actually seen, rather than being
-    pushed onto the nesting stack immediately. Pushing immediately (the
-    same-line assumption `java.py`'s K&R-tuned version makes) pops the type
-    right back off before anything inside it is read, silently orphaning its
-    members -- caught by a smoke test against a real snippet before this
-    shipped, not assumed correct.
-    """
-    masked = [mask_string_literals(line) for line in code]
-    decls: List[Dict] = []
-    stack: List[Tuple[str, int]] = []  # (fqn, depth of its enclosing scope)
-    pending: Optional[str] = None
-    pending_since = -1
-    depth = 0
-    # A bodyless `public record Foo(int X, int Y);` never opens a brace, and
-    # its parameter list can wrap across several lines -- bounded the same
-    # way `java.py`'s multi-line annotation-argument join is (30 lines there;
-    # a record's parameter list is shorter, so 15 here).
-    PENDING_MAX_LINES = 15
-
-    for idx, line in enumerate(code):
-        m = TYPE_RE.match(line)
-        if m:
-            pending = None  # the previous pending never opened -- it was bodyless, drop it
-            visibility = m.group(1) or "internal"
-            kind = m.group(2)
-            name = m.group(3)
-            outer = stack[-1][0] if stack else None
-            fqn = (outer + "." + name) if outer else ((ns + "." + name) if ns else name)
-            anchor = anchor_at(ctx, idx)
-            if anchor is not None:
-                decls.append({"fqn": fqn, "kind": kind, "visibility": visibility,
-                              "anchor": anchor, "index": idx, "name": name})
-                facts.defines.append(mk_define(fqn, kind, visibility, anchor))
-            pending = fqn
-            pending_since = idx
-        elif pending is None and stack:
-            mm = METHOD_RE.match(line)
-            if mm:
-                owner = stack[-1][0]
-                fqn = owner + "#" + mm.group(3)
-                anchor = anchor_at(ctx, idx)
-                if anchor is not None:
-                    facts.defines.append(mk_define(fqn, "method", "public", anchor))
-                    decls.append({"fqn": fqn, "kind": "method", "visibility": "public",
-                                  "anchor": anchor, "index": idx, "name": mm.group(3)})
-        elif pending is not None and idx - pending_since > PENDING_MAX_LINES:
-            pending = None  # gave up waiting for a body; assume bodyless
-
-        opens = masked[idx].count("{")
-        closes = masked[idx].count("}")
-        if pending is not None and opens > 0:
-            stack.append((pending, depth))
-            pending = None
-        depth += opens - closes
-        while stack and depth <= stack[-1][1]:
-            stack.pop()
-
-    decls.sort(key=lambda d: d["index"])
-    return decls
+def _type_refs(facts, anchor, m: CMember, jt: CType, resolver) -> None:
+    from .java_flow import type_uses
+    if m.kind == "field":
+        type_uses(facts, m.ftype, anchor, jt.fqn, resolver)
+    elif m.kind in ("method", "ctor"):
+        for ptype, _ in m.params:
+            type_uses(facts, ptype, anchor, m.symbol, resolver)
 
 
-def _read_attributes(code: List[str]) -> List[_Attr]:
-    found: List[_Attr] = []
-    for idx, line in enumerate(code):
-        m = ATTR_RE.match(line)
-        if not m:
-            continue
-        name = m.group(1).rsplit(".", 1)[-1]
-        found.append(_Attr(name, m.group(2) or "", idx))
-    return found
-
-
-# ------------------------------------------------------------------ emitters
+def _constant_value(tk: CsTokens, m: CMember, jt: CType, values: Dict[str, Optional[str]]) -> str:
+    a, b = m.init
+    key = key_of(tk, a, b, {k: v for k, v in values.items() if v is not None}, jt.name)
+    if key != DYNAMIC:
+        return key
+    from .java_decl import join_tokens
+    raw = join_tokens(tk, a, b)
+    for j in range(a, b):
+        if tk.kind[j] == "str":
+            v = string_value(tk.text[j])
+            if v is not None:
+                return v
+    return raw[:200]
 
 
 def _emit_import_edges(facts: FileFacts) -> None:
-    """One io_edge per import that maps onto a channel (§6.2), deduplicated
-    by channel -- the same rule `java.py` applies for the same reason: N
-    imports from one library is one fact about the file, not N."""
     seen = set()
     for row in facts.imports:
         channel = channel_for_import(row["fqn"])
@@ -235,89 +228,179 @@ def _emit_import_edges(facts: FileFacts) -> None:
         facts.io_edges.append(mk_edge(facts.primary, "library:" + root, channel, row["anchor"]))
 
 
-def _owner_for(index: int, decls: List[Dict], primary: str) -> str:
-    for d in decls:
-        if d["index"] >= index and d["index"] - index <= 40:
-            return d["fqn"]
-    return primary
+# ------------------------------------------------------------------ routes
 
 
-def _emit_attribute_facts(
-    ctx: ExtractContext, facts: FileFacts, attrs: List[_Attr], decls: List[Dict], primary: str,
-) -> None:
-    by_name: Dict[str, List[_Attr]] = {}
-    for a in attrs:
-        by_name.setdefault(a.name, []).append(a)
-
-    if by_name.get("ApiController"):
-        facts.signals.append("api_controller")
-
-    class_index = decls[0]["index"] if decls else 0
-    base = ""
-    for a in by_name.get("Route", []):
-        if a.index <= class_index or not decls:
-            literal = first_string_literal(a.args)
-            if literal is not None:
-                base = literal
-
-    emitted = False
-    for a in attrs:
-        verb = ROUTE_VERBS.get(a.name)
-        if verb is None:
+def _template(args: str, own: str = "") -> str:
+    """The route template of an attribute: a literal, a concatenation, or `${Type.CONST}` parts
+    for constants (settled by the resolve phase); "" when computed."""
+    from .csharp_config import _split_args
+    if "(" not in args:
+        return ""
+    tk = CsTokens([args])
+    o = next((i for i in range(tk.n) if tk.text[i] == "("), -1)
+    if o < 0:
+        return ""
+    for a, b in _split_args(tk, o):
+        if tk.at(a + 1) == "=" and tk.text[a] != "template":
             continue
-        anchor = anchor_at(ctx, a.index)
-        if anchor is None:
+        if tk.at(a + 1) == ":" :
+            a += 2
+        elif tk.at(a + 1) == "=":
+            a += 2
+        key = key_of(tk, a, b, {}, own)
+        return "" if key == DYNAMIC else key
+    return ""
+
+
+def _emit_routes(ctx, facts, types: List[CType], tk) -> None:
+    for jt in types:
+        if jt.kind not in ("class", "record") or "abstract" in jt.mods:
             continue
-        sub = first_string_literal(a.args) or ""
-        emitted = True
-        facts.signals.append("http_resource")
-        facts.io_edges.append(
-            mk_edge(_owner_for(a.index, decls, primary),
-                    "route:%s %s" % (verb, _join_route(base, sub)), "http_in", anchor)
-        )
-
-    if base and not emitted:
-        anchor = anchor_at(ctx, by_name["Route"][0].index) if by_name.get("Route") else None
-        if anchor is not None:
-            facts.signals.append("http_resource")
-            facts.io_edges.append(mk_edge(primary, "route:" + base, "http_in", anchor))
-
-
-def _join_route(base: str, sub: str) -> str:
-    if not sub:
-        return base or "/"
-    if not base:
-        return sub
-    return base.rstrip("/") + "/" + sub.lstrip("/")
-
-
-def _emit_ef_core_edges(
-    ctx: ExtractContext, facts: FileFacts, code: List[str], decls: List[Dict], primary: str,
-) -> None:
-    for idx, line in enumerate(code):
-        m = DBCONTEXT_RE.match(line)
-        if m:
-            facts.signals.append("ef_dbcontext")
-            break
-
-    for idx, line in enumerate(code):
-        m = DBSET_RE.search(line)
-        if not m:
-            continue
-        anchor = anchor_at(ctx, idx)
-        if anchor is None:
-            continue
-        owner = _owner_for(idx, decls, primary)
-        entity = m.group(1).rsplit(".", 1)[-1]
-        facts.io_edges.append(mk_edge(owner, "entity:" + entity, "persist", anchor))
-
-
-def _emit_entrypoint(ctx: ExtractContext, facts: FileFacts, code: List[str], primary: str) -> None:
-    for idx, line in enumerate(code):
-        if MAIN_RE.search(line):
-            anchor = anchor_at(ctx, idx)
+        if any(n == "ApiController" for n, _ in jt.anns):
+            facts.signals.append("api_controller")
+        class_has_route = any(n == "Route" for n, _ in jt.anns)
+        emitted = False
+        for m in jt.members:
+            if m.kind != "method" or "static" in m.mods:
+                continue
+            if m.visibility != "public" or any(n == "NonAction" for n, _ in m.anns):
+                continue
+            verbs = [(ROUTE_VERBS[n], _template(text) if "(" in text else None)
+                     for n, text in m.anns if n in ROUTE_VERBS]
+            routes = [_template(text) if "(" in text else "" for n, text in m.anns if n == "Route"]
+            if not verbs and not routes:
+                continue
+            sel: List[Tuple[str, str]] = []
+            if not verbs:
+                sel = [("ANY", r) for r in routes]
+            elif routes and all(t is None or t == "" and False for _, t in verbs):
+                sel = [(v, r) for v, _ in verbs for r in routes]
+            else:
+                sel = [(v, t or "") for v, t in verbs]
+            anchor = anchor_at(ctx, m.line)
             if anchor is None:
                 continue
+            for verb, tpl in sel:
+                emitted = True
+                facts.signals.append("http_resource")
+                edge = mk_edge(m.symbol, "route:%s %s" % (verb, tpl), "http_in", anchor)
+                edge["route_class"] = jt.fqn
+                edge["route_action"] = m.name
+                facts.io_edges.append(edge)
+        if class_has_route and not emitted and not any(
+                n in ("ApiController",) for n, _ in jt.anns) and False:
+            pass
+
+
+# --------------------------------------------------------------------- EF Core
+
+
+def _emit_ef(ctx, facts, tk: CsTokens, types: List[CType], primary: str) -> None:
+    path = ctx.path
+    migration = "/Migrations/" in path or path.endswith((".Designer.cs", "ModelSnapshot.cs"))
+    for jt in types:
+        if any(b.split("<", 1)[0].rsplit(".", 1)[-1] == "DbContext" or b.endswith("DbContext") for b in jt.bases):
+            facts.signals.append("ef_dbcontext")
+    explicit: Dict[str, Tuple[str, int]] = {}
+    no_table: Set[str] = set()
+    sets: List[Tuple[CType, CMember, str]] = []
+    for jt in types:
+        for n, text in jt.anns:
+            if n == "Table":
+                name = _template(text)
+                if name and not name.startswith("${"):
+                    explicit[jt.name] = (name, jt.line)
+        for m in jt.members:
+            if m.kind == "field" and m.prop and m.ftype.split("<", 1)[0].rsplit(".", 1)[-1] == "DbSet" \
+                    and "<" in m.ftype:
+                ent = m.ftype.split("<", 1)[1].rstrip(">").rsplit(".", 1)[-1]
+                sets.append((jt, m, ent))
+    # fluent API: `.Entity<T>(...)` ... `.ToTable("x")` / `.ToView(null)`
+    owner_of = _owner_lines(types)
+    entity: Optional[str] = None
+    for i in range(tk.n):
+        t = tk.text[i]
+        if tk.kind[i] != "id":
+            continue
+        if t == "Entity" and tk.at(i + 1) == "<" and tk.is_id(i + 2):
+            j = i + 2
+            while tk.at(j + 1) == "." and tk.is_id(j + 2):
+                j += 2
+            entity = tk.text[j]
+            if tk.at(j + 1) == ">" and tk.at(j + 2) == "(" and tk.at(tk.close(j + 2) + 1) == ".":
+                pass
+        elif t in ("ToTable", "ToView") and tk.at(i + 1) == "(" and tk.at(i - 1) == ".":
+            c = tk.close(i + 1)
+            if i + 2 < c and tk.kind[i + 2] == "str":
+                name = string_value(tk.text[i + 2])
+                if name and entity and not migration:
+                    explicit[entity] = (name, tk.line[i])
+            elif entity and not migration:
+                no_table.add(entity)
+        elif t == "CreateTable" and tk.at(i + 1) == "(":
+            c = tk.close(i + 1)
+            name = None
+            for j in range(i + 2, c):
+                if tk.text[j] == "name" and tk.at(j + 1) == ":" and tk.kind[j + 2] == "str":
+                    name = string_value(tk.text[j + 2])
+                    break
+            if name is None and i + 2 < c and tk.kind[i + 2] == "str":
+                name = string_value(tk.text[i + 2])
+            if name:
+                _table(ctx, facts, name, tk.line[i], owner_of(tk.line[i], primary), ("schema_own",), define=True)
+    for ent, (name, line) in sorted(explicit.items(), key=lambda kv: kv[1][1]):
+        if not migration:
+            _table(ctx, facts, name, line, owner_of(line, primary), ("schema_own",), define=True)
+    if migration:
+        return
+    for jt, m, ent in sets:
+        facts.signals.append("ef_dbcontext")
+        anchor = anchor_at(ctx, m.line)
+        if anchor is None:
+            continue
+        facts.io_edges.append(mk_edge(jt.fqn, "entity:" + ent, "persist", anchor))
+        if ent in no_table:
+            continue
+        name = explicit[ent][0] if ent in explicit else m.name
+        _table(ctx, facts, name, m.line, jt.fqn, ("schema_own", "persist", "read"), define=ent not in explicit)
+
+
+def _owner_lines(types: List[CType]):
+    spans = sorted(((t.start_line, t.end_line, t.fqn) for t in types), key=lambda s: (s[0], -s[1]))
+
+    def owner(line: int, default: str) -> str:
+        best = default
+        for a, b, fqn in spans:
+            if a <= line <= b:
+                best = fqn
+        return best
+    return owner
+
+
+def _table(ctx, facts, name: str, line: int, owner: str, channels, define: bool) -> None:
+    anchor = anchor_at(ctx, line)
+    if anchor is None:
+        return
+    for ch in channels:
+        if any(e["target"] == "table:" + name and e["channel"] == ch and e["source"] == owner for e in facts.io_edges):
+            continue
+        facts.io_edges.append(mk_edge(owner, "table:" + name, ch, anchor))
+    if define and not any(d["fqn"] == "table:" + name for d in facts.defines):
+        facts.defines.append(mk_define("table:" + name, "table", "public", anchor))
+
+
+def _emit_entrypoint(ctx, facts, tk: CsTokens, types, parser, primary: str) -> None:
+    for jt in types:
+        for m in jt.members:
+            if m.kind == "method" and m.name == "Main" and "static" in m.mods:
+                anchor = anchor_at(ctx, m.line)
+                if anchor is not None:
+                    facts.signals.append("main")
+                    facts.io_edges.append(mk_edge(primary, "process:" + primary, "process_boundary", anchor))
+                return
+    if parser.top_spans:
+        anchor = anchor_at(ctx, tk.line[parser.top_spans[0][0]])
+        if anchor is not None:
             facts.signals.append("main")
             facts.io_edges.append(mk_edge(primary, "process:" + primary, "process_boundary", anchor))
-            break

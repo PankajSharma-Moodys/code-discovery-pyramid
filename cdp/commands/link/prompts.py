@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from .._common import Spec, locked, paths_from_args
+import shlex
+
+from .._common import Spec, locked, open_link_store, outcome_code, paths_from_args
 from ... import link as link_mod, runner as runner_mod
 from ...link import read_link_report
-from ...session import open_store
-from ...store import SqliteStore
 from ...util import CdpError, write_json, write_text
 from pathlib import Path
 
@@ -49,25 +49,20 @@ def cmd_link_prompts(args) -> int:
     link-specific dispatch code.
     """
     paths = paths_from_args(args)
-    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    store = open_link_store(args, paths, "prompts", writable=False)
     try:
-        if not store.supports_link_edges():
-            raise CdpError(
-                "%s cannot back `cdp link prompts` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
-            )
         report = read_link_report(store)
     finally:
         store.close()
 
-    tasks = link_mod.build_tasks(report)
+    tasks = link_mod.unresolved_tasks(report)  # a link that has a verdict is not asked again
     out_dir = Path(args.out).expanduser().resolve()
     (out_dir / "tasks").mkdir(parents=True, exist_ok=True)
     (out_dir / "inbox").mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "tasks.json", tasks)
 
-    runner = runner_mod.SubprocessRunner(args.runner_cmd.split()) if args.runner_cmd else None
-    ran = 0
+    runner = runner_mod.SubprocessRunner(shlex.split(args.runner_cmd)) if args.runner_cmd else None
+    ran = failed = 0
     for task in tasks:
         prompt_path = out_dir / "tasks" / (task["task_id"] + ".md")
         write_text(prompt_path, link_mod.render_task_prompt(task))
@@ -77,9 +72,12 @@ def cmd_link_prompts(args) -> int:
             print("  %-20s %s%s" % (task["task_id"], "ok" if result.ok else "FAILED",
                                      "" if result.ok else ": %s" % result.error))
             ran += 1
+            failed += 0 if result.ok else 1
     print("link prompts  %d ambiguous task(s) -> %s%s"
           % (len(tasks), out_dir, "  (ran %d via --runner-cmd)" % ran if runner else ""))
     if tasks and runner is None:
         print("next      hand each prompt in %s/tasks to a leaf, drop its patch in "
               "%s/inbox, then cdp link collect --in %s" % (out_dir, out_dir, out_dir))
-    return 0
+    if failed:
+        print("link prompts  %d of %d runner call(s) failed" % (failed, ran))
+    return outcome_code(ran - failed, failed)

@@ -7,96 +7,26 @@ deferred (`PHASE/phase_3_plan.md` M3.2). Only per-file extraction
 (`defines`/`uses`/`io_edges`) is incremental, because `extract_file` is already
 pure per file (`extract.py`).
 
-Rename-awareness (`git diff -M`) is threaded through `state.fold` /
-`verify.verify_all` rather than applied by mutating a patch already in the log
-(R5, immutable patches): `classify_changes` below is the one place that reads
-git history, and its output is a same-turn argument to `fold`, never persisted
-back into `patches/`.
+Rename-awareness (`git diff -M`, `cdp/drift.py`) is derived by `state.fold` itself, per claim,
+from the claim's `claim_reviewed_at` and HEAD, so the materialized state stays exactly
+fold(patches, xref); `refresh` never hands `fold` anything the log does not imply (R5).
 """
 
 from __future__ import annotations
 
 import datetime
 
-from . import dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
+from . import rereview as rereview_mod, dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
 from .extract import MAX_PARSE_BYTES, _sorted
 from .lang import extract_file
+from .derived import build_derived_patch
 from .session import Paths, check_repo_matches_manifest, extra_excludes, git_head_or_raise, open_store
-from .util import CdpError, normalise_ws, read_lines, run_git, stable_hash
+from .util import CdpError, read_lines, stable_hash
+from .store import registry as registry_mod
+from .drift import HistoryUnavailable, classify_changes, classify_full, diff_status  # noqa: F401 -- re-exported
 from .verify import STRICT
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
-
-
-class HistoryUnavailable(Exception):
-    """`<prev>` fell out of reachable history (rebase, force-push) or out of a
-    shallow clone's window. Callers must fall back to a full re-extract with
-    every claim's staleness reported as unknown, never as "not stale"."""
-
-
-def diff_status(repo: Path, prev_sha: str, new_sha: str) -> List[Tuple[str, str, Optional[str]]]:
-    """`(status, path, old_path)` triples from `git diff --name-status -M`.
-
-    `status` is `A`, `M`, `D`, or git's own rename-similarity tag (`R100` for a
-    byte-identical move, `R87` for renamed-and-edited). Raises
-    `HistoryUnavailable` when the range cannot be walked at all.
-    """
-    out = run_git(repo, "diff", "--name-status", "-M", prev_sha, new_sha)
-    if out is None:
-        raise HistoryUnavailable("git diff --name-status -M %s %s failed" % (prev_sha, new_sha))
-    rows: List[Tuple[str, str, Optional[str]]] = []
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        parts = line.split("\t")
-        status = parts[0]
-        if status.startswith("R") and len(parts) == 3:
-            rows.append((status, parts[2], parts[1]))
-        else:
-            rows.append((status, parts[1], None))
-    return rows
-
-
-def _normalised_body(lines: List[str]) -> List[str]:
-    return [normalise_ws(l) for l in lines if normalise_ws(l)]
-
-
-def classify_changes(
-    repo: Path, prev_sha: str, new_sha: str
-) -> Tuple[Dict[str, str], Set[str], Set[str], Set[str]]:
-    """`(rename_map, edited_files, added_files, deleted_files)`.
-
-    `rename_map` (old path -> new path) covers every rename, pure or edited,
-    since both need an anchor's recorded `file` rewritten before verification.
-    `edited_files` (new paths) is R9's set: real content edits. A pure rename
-    (`R100`) is excluded outright; a same-path or renamed-and-edited change is
-    excluded too when the pre- and post-image are identical once every line is
-    `normalise_ws`'d and blank lines dropped -- a reformat, not an edit.
-    """
-    rename_map: Dict[str, str] = {}
-    edited: Set[str] = set()
-    added: Set[str] = set()
-    deleted: Set[str] = set()
-
-    for status, path, old_path in diff_status(repo, prev_sha, new_sha):
-        if status == "D":
-            deleted.add(path)
-            continue
-        if status == "A":
-            added.add(path)
-            continue
-        if old_path is not None:
-            rename_map[old_path] = path
-            if status == "R100":
-                continue
-        pre_text = run_git(repo, "show", "%s:%s" % (prev_sha, old_path or path))
-        pre_lines = pre_text.splitlines() if pre_text is not None else None
-        post_lines = read_lines(repo / path)
-        if pre_lines is not None and _normalised_body(pre_lines) == _normalised_body(post_lines):
-            continue
-        edited.add(path)
-
-    return rename_map, edited, added, deleted
 
 
 def scope_hash(repo: Path, scope: Dict) -> str:
@@ -245,11 +175,24 @@ def refresh_repo(
     """
 
     backend = open_store(paths)
+    try:
+        return _refresh(backend, paths, mode, exclude, say)
+    finally:
+        backend.close()
+
+
+def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]) -> int:
+    choice = backend.choice
+    if choice.scan_needed:
+        raise CdpError("scan needed: %s; run `cdp scan`" % choice.reason)
     store = query_mod.Store(backend)
     check_repo_matches_manifest(paths, store.manifest)
-    prior_snapshot_id = backend.snapshot_id()
+    # The snapshot the shared rule chose is the base: HEAD's own (nothing to do) or the
+    # nearest clean ancestor. Never another branch's, never a dirty scan's.
+    base_snapshot_id = backend.snapshot_id()
 
-    if snapshot_mod.is_dirty(paths.repo):
+    stored = list(store.manifest.get("excludes") or [])
+    if snapshot_mod.is_dirty(paths.repo, stored + list(exclude or [])):
         raise CdpError("refresh requires a clean working tree (dirty trees are ephemeral, "
                        "never a refresh target)")
     prev_head = store.inventory.get("head")
@@ -258,19 +201,19 @@ def refresh_repo(
         raise CdpError("no prior scan to refresh from -- run `cdp scan` first")
     if new_head == prev_head:
         say("refresh   HEAD unchanged (%s); nothing to do" % new_head[:12])
-        backend.close()
         return 0
 
     history_ok = True
     try:
-        rename_map, edited, added, deleted = classify_changes(paths.repo, prev_head, new_head)
+        rename_map, edited, added, deleted, reformatted = classify_full(paths.repo, prev_head, new_head)
     except HistoryUnavailable:
         history_ok = False
-        rename_map, edited, added, deleted = {}, set(), set(), set()
+        rename_map, edited, added, deleted, reformatted = {}, set(), set(), set(), set()
 
-    new_inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=extra_excludes(paths.repo, exclude))
+    excludes = list(store.manifest.get("excludes") or []) + list(exclude or [])
+    new_inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=extra_excludes(paths.repo, excludes))
     if history_ok:
-        changed = set(rename_map.values()) | edited | added
+        changed = set(rename_map.values()) | edited | added | reformatted
     else:
         changed = {e["path"] for e in new_inventory["files"]}
     new_extraction = incremental_extract(paths.repo, new_inventory, store.extraction, changed)
@@ -294,15 +237,20 @@ def refresh_repo(
     # anywhere above this line, so reading it after the snapshot switch would
     # silently return the new (not-yet-written) snapshot's empty default.
     before_demoted = len(store.state.get("unknowns", []))
+    ledger = backend.read_artifact(rollback_mod.LEDGER_ARTIFACT, {"events": []})
 
-    backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"]))
+    backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"], excludes),
+                         checkout=registry_mod.checkout_key(paths.repo))
+    registry_mod.remember_alias(paths.repo)
     # M2.4's per-snapshot patch isolation (`test_store_sqlite.py`) means the
-    # snapshot just selected starts with an empty log. Carry the prior
-    # snapshot's log forward verbatim -- refresh re-verifies the *existing*
-    # log (D10), it never appends to it, so an empty one would fold to zero
-    # claims regardless of how many were live a moment ago.
+    # snapshot just selected starts with an empty log. Carry the base
+    # snapshot's log (and its rollback ledger, so rolled-back claims stay out)
+    # forward verbatim -- refresh re-verifies the *existing* log (D10), it never
+    # appends model claims, so an empty one would fold to zero claims.
     if not backend.load_patches():
-        backend.copy_patches_from(prior_snapshot_id)
+        backend.copy_patches_from(base_snapshot_id)
+        if ledger.get("events"):
+            backend.write_artifact(rollback_mod.LEDGER_ARTIFACT, ledger)
     backend.write_artifact("inventory", new_inventory)
     backend.write_artifact("extract", new_extraction)
     backend.write_artifact("graph", new_graph)
@@ -311,18 +259,22 @@ def refresh_repo(
     backend.write_artifact("dataflow", new_flow)
     # A scan writes this too; without it `status` and the schedule-reading
     # commands fail on the refreshed snapshot ("missing artifact 'schedule'").
-    backend.write_artifact("schedule", schedule_mod.build_schedule(
-        new_part, new_graph, budgets.get("max_concurrent", schedule_mod.DEFAULT_MAX_CONCURRENT)))
+    new_sched = schedule_mod.build_schedule(
+        new_part, new_graph, budgets.get("max_concurrent", schedule_mod.DEFAULT_MAX_CONCURRENT))
+    backend.write_artifact("schedule", new_sched)
+    # The scan's own claims are regenerated for the new tree, as a fresh scan would.
+    backend.write_derived_patch(build_derived_patch(
+        paths.repo, new_inventory, new_extraction, new_graph, new_xref, new_part, new_flow,
+        backend.load_patches()))
     folded = state_mod.fold(
         backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=mode,
-        rename_map=rename_map, edited_files=frozenset(edited),
         excluded_run_ids=rollback_mod.load_excluded_run_ids(backend),
         extraction=new_extraction,
     )
     backend.write_artifact("state", folded)
     backend.write_artifact(
         "manifest",
-        dict(store.manifest, head=new_inventory["head"],
+        dict(store.manifest, head=new_inventory["head"], **({"excludes": excludes} if excludes else {}),
              generated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")),
     )
 
@@ -336,14 +288,21 @@ def refresh_repo(
         % (len(changed), new_extraction["totals"]["parsed_files"]))
     say("rename    %d file(s) renamed, %d edited, %d added, %d deleted"
         % (len(rename_map), len(edited), len(added), len(deleted)))
-    say("scopes    %d/%d changed (dispatch needed for %d, %d reuse the prior claim)"
-        % (len(dispatch), len(new_part["scopes"]), len(dispatch),
-           len(new_part["scopes"]) - len(dispatch)))
+    # C2: a changed scope needs a leaf only for its stale claims and new files, and only the
+    # changed files go to it; a changed scope with nothing stale keeps every claim it had.
+    plans = rereview_mod.plans_for(query_mod.Store(backend), paths.repo, sorted(dispatch))
+    needed = sorted(n for n in dispatch if n in plans and not plans[n].empty)
+    unplanned = sorted(n for n in dispatch if n not in plans)
+    say("scopes    %d/%d changed (dispatch needed for %d: %d stale claim(s) in %d changed file(s); "
+        "%d changed scope(s) reuse every claim%s)"
+        % (len(dispatch), len(new_part["scopes"]), len(needed + unplanned),
+           sum(len(plans[n].stale) for n in needed), len({f for n in needed for f in plans[n].files}),
+           len(dispatch) - len(needed) - len(unplanned),
+           ", %d never reviewed by a leaf" % len(unplanned) if unplanned else ""))
     say("verify    %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn "
         "(%d newly demoted), zero model calls"
         % (buckets[freshness_mod.LIVE], buckets[freshness_mod.STALE],
            buckets[freshness_mod.UNREVIEWED], buckets[freshness_mod.UNKNOWN_CHURN],
            after_demoted - before_demoted))
     say("next      cdp query stats")
-    backend.close()
     return 0

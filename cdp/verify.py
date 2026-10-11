@@ -23,10 +23,10 @@ criteria, and why only the second is a real test of whether this works.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from .anchor import verify_anchor
-from .util import read_lines
+from .util import read_lines, resolves_inside
 
 STRICT = "strict"
 LENIENT = "lenient"
@@ -42,7 +42,9 @@ class FileCache:
 
     def lines(self, rel: str) -> List[str]:
         if rel not in self._cache:
-            self._cache[rel] = read_lines(self.repo / rel)
+            path = self.repo / rel
+            # a citation through a link that leaves the repo is not evidence from the repo
+            self._cache[rel] = read_lines(path) if resolves_inside(self.repo, path) else []
         return self._cache[rel]
 
 
@@ -53,6 +55,7 @@ def verify_patch(
     head_sha: Optional[str] = None,
     rename_map: Optional[Dict[str, str]] = None,
     edited_files: Optional[FrozenSet[str]] = None,
+    drift: Optional[Callable[[Optional[str]], Tuple[Dict[str, str], FrozenSet[str]]]] = None,
 ) -> Tuple[Dict, Dict]:
     """Verify one patch in place, returning `(patch, stats)`.
 
@@ -74,8 +77,8 @@ def verify_patch(
     out = dict(patch)
     kept: List[Dict] = []
     unknowns: List[Dict] = list(patch.get("unknowns") or [])
-    rename_map = rename_map or {}
-    edited_files = edited_files or frozenset()
+    fixed_rename = rename_map or {}
+    fixed_edited = edited_files or frozenset()
     stats = {
         "claims_in": 0,
         "claims_kept": 0,
@@ -95,6 +98,9 @@ def verify_patch(
         good: List[Dict] = []
         failures: List[Tuple[Dict, str]] = []
         touches_edited = False
+        rename_map, edited_files = fixed_rename, fixed_edited
+        if drift is not None:  # per claim: what changed since the commit this claim was reviewed at
+            rename_map, edited_files = drift(claim.get("claim_reviewed_at"))
         for anchor in claim.get("evidence") or []:
             stats["anchors_checked"] += 1
             raw_file = str(anchor.get("file"))
@@ -168,6 +174,7 @@ def verify_all(
     head_sha: Optional[str] = None,
     rename_map: Optional[Dict[str, str]] = None,
     edited_files: Optional[FrozenSet[str]] = None,
+    drift: Optional[Callable[[Optional[str]], Tuple[Dict[str, str], FrozenSet[str]]]] = None,
 ) -> Tuple[List[Dict], Dict]:
     cache = FileCache(repo)
     verified: List[Dict] = []
@@ -184,7 +191,9 @@ def verify_all(
         "by_node": {},
     }
     for patch in patches:
-        out, stats = verify_patch(patch, cache, mode, head_sha, rename_map, edited_files)
+        # A patch accepted under `--mode lenient` carries that flag, so a later strict fold
+        # keeps what the lenient run kept instead of silently dropping it.
+        out, stats = verify_patch(patch, cache, patch.get("verify_mode") or mode, head_sha, rename_map, edited_files, drift)
         verified.append(out)
         for key in ("claims_in", "claims_kept", "claims_demoted", "anchors_checked",
                     "anchors_ok", "anchors_relocated", "would_survive_lenient"):

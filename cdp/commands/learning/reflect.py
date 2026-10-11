@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import shlex
 
-from .._common import Spec, locked, paths_from_args
+from .._common import Spec, locked, outcome_code, paths_from_args
 from ... import query as query_mod, reflect as reflect_mod, runner as runner_mod, trajectory as trajectory_mod
+from ...util import positive_float, positive_int
 from ...session import open_store
 
 
@@ -13,7 +14,7 @@ SPEC = Spec(
     group='learning',
     usage='reflect',
     what="One real model call per outlier scope from a run's trajectory corpus; keeps only well-formed promotions.",
-    next='next (promotions accepted): `lessons cut`, then `holdout --lessons vN <held-out-repo>` before trusting it.',
+    next='next (promotions accepted): `lessons cut`, then `holdout --lessons N --repo <held-out-repo>` before trusting it.',
 )
 
 
@@ -25,9 +26,9 @@ def register(add) -> None:
     rf.add_argument("--runner-cmd", required=True, metavar="CMD",
                      help="shell command for SubprocessRunner, given prompt and output "
                           "paths as its last two arguments")
-    rf.add_argument("--limit", type=int, default=reflect_mod.DEFAULT_LIMIT,
+    rf.add_argument("--limit", type=positive_int, default=reflect_mod.DEFAULT_LIMIT,
                      help="max outlier scopes to reflect on (default %d)" % reflect_mod.DEFAULT_LIMIT)
-    rf.add_argument("--timeout", type=float, default=300.0)
+    rf.add_argument("--timeout", type=positive_float, default=300.0)
     rf.set_defaults(func=cmd_reflect)
 
 
@@ -66,5 +67,5 @@ def cmd_reflect(args) -> int:
             for a in accepted:
                 trajectory.record_promotion(run_id=run_id, node=a["node"], promotion=a["promotion"])
         print("next      cdp lessons cut to freeze %d pending promotion(s), then "
-              "cdp holdout --lessons vN <held-out-repo> to A/B before trusting it" % len(accepted))
-    return 0
+              "cdp holdout --lessons N --repo <held-out-repo> to A/B before trusting it" % len(accepted))
+    return outcome_code(len(accepted), len(discarded))

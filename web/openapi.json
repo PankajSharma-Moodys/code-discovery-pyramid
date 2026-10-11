@@ -35,8 +35,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -254,8 +256,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -339,8 +343,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -464,8 +470,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -525,8 +533,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -735,8 +745,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -822,8 +834,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -889,8 +903,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -920,7 +936,7 @@
     "/api/repos": {
       "get": {
         "summary": "Get Repos",
-        "description": "Every state dir this machine's `cdp` registry knows about, with\nper-repo freshness (current git HEAD vs. the pinned snapshot's\n`as_of` commit). A registry entry whose state dir vanished, whose\n`index.db` is missing/locked, or whose git call fails gets its own\n`error` row instead of 500ing the whole list (mirrors `get_status`'s\n`StoreUnavailable`/`StoreLocked` -> per-request handling, just scoped\nto one row here instead of the whole response).\n\nThe registry only maps a repo's *git-remote identity* to a state dir\n(`cdp.store.registry.register`, called from `cmd_scan`) -- a repo\nscanned before that identity existed in the registry (e.g. this repo,\nwhose origin was never `register`ed under its current remote) has no\nentry at all, even though `/api/status` resolves its state dir fine via\nthe same `resolve_state_dir` fallback chain every other endpoint uses.\nWithout this, `repos.repos[0]` (the frontend's single-repo assumption,\n`RepoHealthStrip.tsx`) would silently show whichever *other* repo\nhappens to sort first in the registry. So: resolve the caller's actual\n`repo`/`state_dir` the normal way, and put that entry first -- matching\nan existing registry row by resolved state dir if one names the same\ndirectory, else synthesizing one so the current repo is never invisible\nor shadowed by an unrelated stale entry.",
+        "description": "Every repo in this machine's one store (`cdp.catalog.list_repos`), with\nper-repo freshness (current git HEAD vs. the latest pinned snapshot's\n`as_of` commit). The caller's own repo is listed first -- even when it has\nnot been scanned yet, so the frontend's `repos[0]` is always the repo it\nasked about -- then the rest by identity. A repo whose snapshot is missing,\nlocked or whose git call fails gets its own `error` row instead of 500ing\nthe whole list.",
         "operationId": "get_repos_api_repos_get",
         "parameters": [
           {
@@ -948,8 +964,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -1007,8 +1025,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -1077,8 +1097,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -1136,8 +1158,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -1256,8 +1280,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -1333,8 +1359,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           }
         ],
         "responses": {
@@ -1391,8 +1419,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           },
           {
             "name": "run_id",
@@ -1466,8 +1496,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           },
           {
             "name": "target",
@@ -1548,8 +1580,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           },
           {
             "name": "mode",
@@ -1797,8 +1831,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400.",
               "title": "State Dir"
-            }
+            },
+            "description": "Echo only: omit it, or send back the machine store directory `/api/repos` reported. The server always reads its own CDP_HOME store; any other value is rejected with 400."
           },
           {
             "name": "runner_cmd",

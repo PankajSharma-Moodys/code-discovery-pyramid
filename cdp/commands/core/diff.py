@@ -7,14 +7,14 @@ from ... import diffs as diffs_mod, query as query_mod
 from ...diffs import current_snapshot_sha, open_diff_side
 from ...session import open_store
 from ...store import registry as registry_mod
-from ...util import CdpError
+from ...util import CdpError, resolve_prefix
 from pathlib import Path
 
 
 SPEC = Spec(
     group='core',
-    usage='diff <old_state> <new_state>` (or `--old-sha`/`--new-sha`',
-    what='Typed structural deltas between two scanned snapshots.',
+    usage='diff <old_state> <new_state> | diff --old-sha A --new-sha B',
+    what='Typed structural deltas between two scanned snapshots (an omitted side defaults to the current snapshot; git changes not yet re-scanned do not appear).',
     next='tip: `query symbol`/`query table <name>` for full context on a changed item.',
 )
 
@@ -36,6 +36,10 @@ def register(add) -> None:
     df.set_defaults(func=cmd_diff)
 
 
+def _files(store) -> dict:
+    return {f["path"]: f for f in store.inventory["files"]}
+
+
 @locked(shared=True)
 def cmd_diff(args) -> int:
     dir_mode = args.old_state is not None or args.new_state is not None
@@ -51,6 +55,7 @@ def cmd_diff(args) -> int:
         try:
             old_graph, old_xref, old_state = old.graph, old.xref, old.state
             new_graph, new_xref, new_state = new.graph, new.xref, new.state
+            old_files, new_files = _files(old), _files(new)
         finally:
             old.close()
             new.close()
@@ -69,20 +74,26 @@ def cmd_diff(args) -> int:
                     % type(backend).__name__
                 )
             repo_id = registry_mod.repo_identity(paths.repo)
-            old_sha = args.old_sha or current_snapshot_sha(backend, repo_id)
-            new_sha = args.new_sha or current_snapshot_sha(backend, repo_id)
+            known = [s["commit_sha"] for s in backend.list_snapshots() if s["repo_id"] == repo_id]
+            old_sha = (resolve_prefix(args.old_sha, known, "--old-sha") if args.old_sha
+                       else current_snapshot_sha(backend, repo_id, paths.repo))
+            new_sha = (resolve_prefix(args.new_sha, known, "--new-sha") if args.new_sha
+                       else current_snapshot_sha(backend, repo_id, paths.repo))
 
             backend.use_snapshot(repo_id, old_sha)
             old_store = query_mod.Store(backend, use_latest=False)
             old_graph, old_xref, old_state = old_store.graph, old_store.xref, old_store.state
+            old_files = _files(old_store)
 
             backend.use_snapshot(repo_id, new_sha)
             new_store = query_mod.Store(backend, use_latest=False)
             new_graph, new_xref, new_state = new_store.graph, new_store.xref, new_store.state
+            new_files = _files(new_store)
         finally:
             backend.close()
 
-    result = diffs_mod.diff_snapshots(old_graph, old_xref, old_state, new_graph, new_xref, new_state)
+    result = diffs_mod.diff_snapshots(old_graph, old_xref, old_state, new_graph, new_xref, new_state,
+                                     old_files, new_files)
     if args.json:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:

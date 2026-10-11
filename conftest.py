@@ -10,3 +10,11 @@ import tempfile
 
 _HOME = tempfile.TemporaryDirectory(prefix="cdp-test-home-")
 os.environ["CDP_HOME"] = _HOME.name
+
+# Test modules import the shared scaffolding as `from helpers import ...`.
+import sys
+from pathlib import Path
+
+_TESTS = str(Path(__file__).resolve().parent / "tests")
+if _TESTS not in sys.path:
+    sys.path.insert(0, _TESTS)

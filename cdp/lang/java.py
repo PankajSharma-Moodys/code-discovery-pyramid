@@ -24,7 +24,10 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Tuple
 
+from .java_decl import DeclParser, JMember, JType
 from .java_flow import emit_flow, use_row
+from .java_tokens import Tokens
+from .java_types import norm_type, resolve_name
 from .base import (
     ExtractContext,
     Extractor,
@@ -111,19 +114,33 @@ class JavaExtractor(Extractor):
         pkg = facts.package or ""
         _note_package_path_divergence(ctx, facts, pkg)
         imports, simple_to_fqn, wildcards = _read_imports(ctx, code, facts)
-        decls = _read_declarations(ctx, code, pkg, facts)
+        tk = Tokens(lines)
+        parser = DeclParser(tk, pkg)
+        parser.parse()
+        types = parser.types
+        resolver = _Resolver(pkg, simple_to_fqn, wildcards)
+        resolver.local_types = {t.name: t.fqn for t in types}
+        decls = _declarations(ctx, facts, tk, types, resolver, imports)
         annotations = _read_annotations(code)
 
         primary = decls[0]["fqn"] if decls else (pkg + "." + _stem(ctx.path) if pkg else _stem(ctx.path))
         facts.primary = primary
 
-        resolver = _Resolver(pkg, simple_to_fqn, wildcards)
         _emit_import_edges(ctx, facts, imports, primary)
         _emit_annotation_facts(ctx, facts, annotations, decls, primary, resolver, code)
         _emit_repository_edges(ctx, facts, code, decls, primary, resolver)
         _emit_mapper_edges(ctx, facts, code, annotations, decls, primary, resolver)
         _emit_entrypoints(ctx, facts, code, primary)
-        emit_flow(ctx, facts, code, [_mask_literals(line) for line in code], pkg, resolver, primary)
+        statics: Dict[str, str] = {}
+        static_wild: List[str] = []
+        for r in imports:
+            if r["static"]:
+                if r["fqn"].endswith(".*"):
+                    static_wild.append(r["fqn"][:-2])
+                else:
+                    owner, _, member = r["fqn"].rpartition(".")
+                    statics.setdefault(member, owner)
+        emit_flow(ctx, facts, code, tk, types, resolver, statics, static_wild)
 
         facts.signals = sorted(set(facts.signals))
         return facts
@@ -199,93 +216,128 @@ def _read_imports(
     return imports, simple_to_fqn, wildcards
 
 
-def _read_declarations(
-    ctx: ExtractContext, code: List[str], pkg: str, facts: FileFacts
-) -> List[Dict]:
-    """Type, constant and public-method declarations, with brace-depth nesting.
+def _visibility(mods) -> str:
+    for v in ("public", "protected", "private"):
+        if v in mods:
+            return v
+    return "package"
 
-    Braces inside string and character literals are masked out first; a single
-    `"{"` in a message format string would otherwise shift every subsequent
-    declaration into a phantom nested type.
+
+def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List[JType],
+                  resolver: "_Resolver", imports: List[Dict]) -> List[Dict]:
+    """Define rows for every type, method, constructor and field at any access
+    level, and the `decls` list the annotation readers attach to.
+
+    `decls` entries carry `index` (0-based line of the name). A field's `owner_fqn`
+    is its class: an annotation above a field belongs to the class, not to the
+    next method down.
     """
-    masked = [_mask_literals(line) for line in code]
     decls: List[Dict] = []
-    stack: List[Tuple[str, int]] = []  # (type fqn, brace depth at declaration)
-    depth = 0
+    retrofit = any(i["fqn"].startswith("retrofit2.http") for i in imports)
+    consts: Dict[str, Dict[str, Optional[str]]] = {}
 
-    for idx, line in enumerate(code):
-        while stack and depth < stack[-1][1]:
-            stack.pop()
+    def typed(row: Dict, text: str, tvars) -> Dict:
+        norm = norm_type(text, lambda n: resolve_name(resolver, n), tvars)
+        if norm and norm not in JAVA_BUILTINS and norm not in ("void", "int", "long", "double", "float",
+                                                                 "boolean", "byte", "short", "char"):
+            row["ret" if row["kind"] == "method" else "ftype"] = norm
+        return row
 
-        m = TYPE_RE.match(line)
-        if m:
-            visibility = m.group(1) or "package"
-            kind = {"@interface": "annotation"}.get(m.group(2), m.group(2))
-            name = m.group(3)
-            outer = stack[-1][0] if stack else None
-            fqn = (outer + "." + name) if outer else ((pkg + "." + name) if pkg else name)
-            anchor = anchor_at(ctx, idx)
-            if anchor is not None:
-                row = {"fqn": fqn, "kind": kind, "visibility": visibility,
-                       "anchor": anchor, "index": idx, "name": name}
-                decls.append(row)
-                facts.defines.append(mk_define(fqn, kind, visibility, anchor))
-            stack.append((fqn, depth + 1))
-        else:
-            owner = stack[-1][0] if stack else None
-            if owner:
-                cm = CONST_RE.match(line)
-                if cm:
-                    visibility = cm.group(1) or "package"
-                    name, raw = cm.group(2), cm.group(3).strip()
-                    anchor = anchor_at(ctx, idx)
-                    if anchor is not None:
-                        literal = first_string_literal(raw)
-                        value = literal if literal is not None else raw
-                        facts.defines.append(
-                            mk_define(owner + "." + name, "constant", visibility, anchor, value=value)
-                        )
-                        decls.append({"fqn": owner + "." + name, "kind": "constant",
-                                      "visibility": visibility, "anchor": anchor,
-                                      "index": idx, "name": name})
-                elif METHOD_RE.match(line):
-                    mm = METHOD_RE.match(line)
-                    assert mm is not None
-                    if mm.group(3) != mm.group(3).upper():
-                        anchor = anchor_at(ctx, idx)
-                        if anchor is not None:
-                            fqn = owner + "#" + mm.group(3)
-                            visibility = mm.group(1)
-                            end_line = _member_end(masked, idx) + 1
-                            facts.defines.append(mk_define(fqn, "method", visibility, anchor,
-                                                           end_line=end_line))
-                            decls.append({"fqn": fqn, "kind": "method", "visibility": visibility,
-                                          "anchor": anchor, "index": idx, "name": mm.group(3)})
-
-        depth += masked[idx].count("{") - masked[idx].count("}")
-
+    for jt in sorted(types, key=lambda t: (t.line, t.fqn)):
+        anchor = anchor_at(ctx, jt.line)
+        no_routes = retrofit or any(n == "FeignClient" for n, _ in jt.anns)
+        if anchor is not None:
+            row = mk_define(jt.fqn, jt.kind, _visibility(jt.mods), anchor)
+            if jt.tparams:
+                row["tparams"] = jt.tparams
+            facts.defines.append(row)
+            decls.append({"fqn": jt.fqn, "kind": jt.kind, "visibility": _visibility(jt.mods),
+                          "anchor": anchor, "index": jt.line, "name": jt.name})
+        tv = jt.all_tparams()
+        values = consts.setdefault(jt.fqn, {})
+        for m in jt.members:
+            if m.kind == "init":
+                continue
+            anchor = anchor_at(ctx, m.line)
+            if anchor is None:
+                continue
+            vis = m.visibility
+            if m.kind in ("method", "ctor"):
+                name = "<init>" if m.kind == "ctor" else m.name
+                fqn = jt.fqn + "#" + name
+                row = mk_define(fqn, "method", vis, anchor, end_line=m.end_line + 1)
+                if m.kind == "method":
+                    typed(row, m.ret, tv | set(m.tparams))
+                facts.defines.append(row)
+                decls.append({"fqn": fqn, "kind": "method", "visibility": vis, "anchor": anchor,
+                              "index": m.line, "name": name, "no_routes": no_routes})
+            elif m.kind == "enum_const":
+                row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1)
+                row["ftype"] = jt.fqn
+                facts.defines.append(row)
+            elif m.kind == "field":
+                fqn = jt.fqn + "." + m.name
+                static_final = "static" in m.mods and "final" in m.mods
+                if static_final and m.init:
+                    value = _constant_value(tk, m, jt, values)
+                    values[m.name] = value
+                    row = mk_define(fqn, "constant", vis, anchor, value=value)
+                    decls.append({"fqn": fqn, "kind": "constant", "visibility": vis, "anchor": anchor,
+                                  "index": m.line, "name": m.name, "no_routes": no_routes})
+                else:
+                    row = mk_define(fqn, "field", vis, anchor)
+                    decls.append({"fqn": fqn, "kind": "field", "visibility": vis, "anchor": anchor,
+                                  "index": m.line, "name": m.name, "owner_fqn": jt.fqn,
+                                  "no_routes": no_routes})
+                typed(row, m.ftype, tv)
+                facts.defines.append(row)
     decls.sort(key=lambda d: d["index"])
     return decls
 
 
-def _member_end(masked: List[str], idx: int, limit: int = 4000) -> int:
-    """Index of the line where the member declared at `idx` ends: its closing
-    brace, or the `;` of an abstract/interface declaration. Reads the masked
-    lines, so braces in string literals do not count."""
-    depth = 0
-    opened = False
-    for j in range(idx, min(len(masked), idx + limit)):
-        for ch in masked[j]:
-            if ch == "{":
-                depth += 1
-                opened = True
-            elif ch == "}":
-                depth -= 1
-                if opened and depth <= 0:
-                    return j
-            elif ch == ";" and not opened:
-                return j
-    return idx
+def _constant_value(tk: Tokens, m: JMember, jt: JType, values: Dict[str, Optional[str]]) -> str:
+    """A `static final` initialiser as text. A concatenation of string literals
+    and constant names becomes one string, with another class's constant kept
+    symbolic (`${Owner.NAME}`) for the resolve phase; anything else keeps the old
+    reading: the first string literal, or the raw expression."""
+    a, b = m.init
+    parts: List[str] = []
+    j = a
+    ok = b > a
+    while ok and j < b:
+        k, t = tk.kind[j], tk.text[j]
+        if k == "str" and not t.startswith('"""'):
+            parts.append(first_string_literal(t) or "")
+            j += 1
+        elif k == "id" and t not in ("new", "this", "super") and tk.at(j + 1) != "(":
+            names = [t]
+            while tk.at(j + 1) == "." and tk.is_id(j + 2) and tk.at(j + 3) != "(":
+                names.append(tk.text[j + 2])
+                j += 2
+            known = values.get(names[0]) if len(names) == 1 else None
+            parts.append(known if known is not None else "${%s}" % ".".join(
+                [jt.name] + names if len(names) == 1 else names[-2:]))
+            j += 1
+        else:
+            ok = False
+            break
+        if j < b:
+            if tk.at(j) != "+":
+                ok = False
+                break
+            j += 1
+            if j >= b:
+                ok = False
+    if ok and parts:
+        return "".join(parts)
+    raw = join_tokens_raw(tk, a, b)
+    literal = first_string_literal(raw)
+    return literal if literal is not None else raw
+
+
+def join_tokens_raw(tk: Tokens, a: int, b: int) -> str:
+    from .java_decl import join_tokens
+    return join_tokens(tk, a, b)
 
 
 def _mask_literals(line: str) -> str:
@@ -338,6 +390,7 @@ class _Resolver:
         self.pkg = pkg
         self.simple_to_fqn = simple_to_fqn
         self.wildcards = wildcards
+        self.local_types: Dict[str, str] = {}
 
     def resolve(self, name: str) -> Tuple[str, str]:
         """Returns (fqn, resolved-state).
@@ -358,7 +411,21 @@ class _Resolver:
         if not name or name in JAVA_BUILTINS:
             return name, "third_party"
         if "." in name:
+            # `Head.rest`: a type head (imported, nested here, or of this package) is
+            # followed by its member types; a lowercase head is a package path and
+            # the name is already fully qualified. Never matched by last segment.
+            head, _, rest = name.partition(".")
+            if head in JAVA_BUILTINS:
+                return name, "third_party"
+            fq = self.local_types.get(head) or self.simple_to_fqn.get(head)
+            if fq:
+                full = fq + "." + rest
+                return full, ("third_party" if is_third_party(full) else "external")
+            if head[:1].isupper() and self.pkg:
+                return self.pkg + "." + name, "local"
             return name, ("third_party" if is_third_party(name) else "external")
+        if name in self.local_types:
+            return self.local_types[name], "external"
         hit = self.simple_to_fqn.get(name)
         if hit:
             return hit, ("third_party" if is_third_party(hit) else "external")
@@ -397,7 +464,7 @@ def _owner_for(index: int, decls: List[Dict], primary: str) -> str:
     """The declaration an annotation applies to: the next one below it."""
     for d in decls:
         if d["index"] >= index and d["index"] - index <= 40:
-            return d["fqn"]
+            return d.get("owner_fqn", d["fqn"])
     return primary
 
 
@@ -528,8 +595,9 @@ def _emit_http_routes(
                 base_anchor = anchor_at(ctx, ann.index)
 
     emitted = False
+    unrouted = {d["index"] for d in decls if d.get("no_routes")}
     for owner in sorted(blocks):
-        if owner == class_index:
+        if owner == class_index or owner in unrouted:
             continue
         group = sorted(blocks[owner], key=lambda a: a.index)
         sub = ""

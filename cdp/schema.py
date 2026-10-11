@@ -185,7 +185,10 @@ def validate_patch(patch: Dict, validator: Validator) -> List[str]:
     express: §5.5 requires a `subject` on every claim (already required), and
     §4.3 forbids publishing a claim while `pending_resolution` is true."""
     errors = validator.validate(patch)
-    for i, claim in enumerate(patch.get("claims") or []):
+    if not isinstance(patch, dict):
+        return errors or ["/: a patch must be a JSON object, got %s" % type(patch).__name__]
+    claims = patch.get("claims")
+    for i, claim in enumerate(claims if isinstance(claims, list) else []):
         if not isinstance(claim, dict):
             continue
         if claim.get("confidence") == "contested":

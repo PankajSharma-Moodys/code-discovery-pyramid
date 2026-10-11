@@ -55,7 +55,7 @@ def derive_claims(
     claims += _data_models(extraction, xref, node_of)
     claims += _schema_ownership(extraction, node_of)
     claims += _side_effects(extraction, node_of)
-    claims += _config(extraction, node_of)
+    claims += _config(extraction, xref, node_of)
     claims += _dependencies(graph, node_of)
     claims += _generated(repo, inventory, node_of)
     claims += _boundaries(dataflow or {}, node_of)
@@ -445,14 +445,14 @@ def _side_effects(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
     return out
 
 
-def _config(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
+def _config(extraction: Dict, xref: Dict, node_of: Dict[str, str]) -> List[Dict]:
+    from .resolve import config_reads
+
     out: List[Dict] = []
     grouped: Dict[str, List[Dict]] = {}
-    for edge in extraction["io_edges"]:
-        if edge["channel"] == "config_read" and edge["target"].startswith("config:"):
-            if edge["source"].startswith("config-file:"):
-                continue  # the file declaring the key, not a read of it
-            grouped.setdefault(edge["target"], []).append(edge)
+    for read in config_reads(extraction, xref.get("constants", {}), xref.get("config_wrapped", ())):
+        if read["key"] != "(dynamic)":  # a computed key names nothing to claim about
+            grouped.setdefault("config:" + read["key"], []).append(read)
 
     for target in sorted(grouped):
         edges = sorted(grouped[target], key=lambda e: (e["file"], e["anchor"]["line"]))
@@ -567,10 +567,10 @@ def _generated(repo, inventory: Dict, node_of: Dict[str, str]) -> List[Dict]:
                 node_of,
                 "dependency",
                 module["name"],
-                "%s holds %d git-tracked file(s) against %d on disk. Its contents are generated "
-                "at build time, so they are invisible to a git-based inventory and are described "
-                "by the build contract rather than read."
-                % (module["name"], module["files"], module.get("on_disk", 0)),
+                "%s holds %d git-tracked file(s) and %d untracked source file(s) on disk. Those are "
+                "generated at build time, so they are invisible to a git-based inventory and are "
+                "described by the build contract rather than read."
+                % (module["name"], module["files"], module.get("generated_files", 0)),
                 [anchor] if anchor else [],
                 channel="codegen",
                 id_parts=("dependency", "generated", module["name"]),

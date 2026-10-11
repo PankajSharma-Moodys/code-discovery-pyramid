@@ -12,8 +12,8 @@ from ...verify import STRICT
 
 SPEC = Spec(
     group='maintenance',
-    usage='rollback --to-run R \\| --to-snapshot S',
-    what="Excludes a run's patches from the fold without deleting them (append-only ledger).",
+    usage='rollback --to-run R \\| --to-snapshot S \\| --undo',
+    what="Excludes patches already in the log from the fold without deleting them (append-only ledger); patches accepted later are live. `--undo` reverses the latest.",
     next='next: `query stats` to confirm the exclusion took effect. tip: `--reason "..."` to record why.',
 )
 
@@ -21,6 +21,8 @@ SPEC = Spec(
 def register(add) -> None:
     rb = add("rollback", "exclude a run's patches from the fold, without deleting them")
     rb_target = rb.add_mutually_exclusive_group(required=True)
+    rb_target.add_argument("--undo", action="store_true",
+                            help="undo the latest rollback still in force: its patches are live again")
     rb_target.add_argument("--to-run", metavar="RUN_OR_COMMIT",
                             help="exclude just this run's patches")
     rb_target.add_argument("--to-snapshot", metavar="COMMIT",
@@ -46,14 +48,27 @@ def cmd_rollback(args) -> int:
     store = query_mod.Store(backend)
     patches = backend.load_patches()
 
+    if args.undo:
+        event = rollback_mod.undo_last_rollback(backend, args.reason or "")
+        folded = state_mod.fold(
+            patches, store.xref, store.partition, repo=paths.repo, mode=args.mode,
+            excluded_run_ids=rollback_mod.load_excluded_run_ids(backend), extraction=store.extraction)
+        backend.write_artifact("state", folded)
+        print("rollback  undone: %s is live again" % event["target_run_id"])
+        print("folded    %d claim(s), %d unknown(s), coverage %.1f%%"
+              % (len(folded["claims"]), len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
+        backend.close()
+        return 0
+
     if args.to_run:
-        target = rollback_mod.resolve_run_id(args.to_run)
+        target = rollback_mod.resolve_run_id(args.to_run, patches)
         kept, new_excluded = rollback_mod.patches_excluding_run(patches, target)
         if not new_excluded:
             raise CdpError("no patch in the log is stamped with run %s -- nothing to roll back" % target)
         kind = "to_run"
+        patch_range = rollback_mod.patch_numbers(patches, new_excluded)
     else:
-        target = rollback_mod.resolve_run_id(args.to_snapshot)
+        target = rollback_mod.resolve_run_id(args.to_snapshot, patches)
         kept, new_excluded, found = rollback_mod.patches_up_to_run(patches, target)
         if not found:
             raise CdpError("run %s never appended a patch -- nothing to roll back to" % target)
@@ -62,17 +77,17 @@ def cmd_rollback(args) -> int:
             backend.close()
             return 0
         kind = "to_snapshot"
+        last = max(i for i, p in enumerate(patches) if str(p.get("run_id")) == target)
+        patch_range = (patches[last]["patch_no"] + 1, max(p["patch_no"] for p in patches))
 
-    prior_excluded = rollback_mod.load_excluded_run_ids(backend)
-    all_excluded = prior_excluded | new_excluded
+    reason = args.reason or ("rollback --%s %s" % (kind.replace("_", "-"), target))
+    rollback_mod.record_rollback(backend, kind, target, new_excluded, reason, patch_range)
     folded = state_mod.fold(
         patches, store.xref, store.partition, repo=paths.repo, mode=args.mode,
-        excluded_run_ids=all_excluded,
+        excluded_run_ids=rollback_mod.load_excluded_run_ids(backend),
         extraction=store.extraction,
     )
     backend.write_artifact("state", folded)
-    reason = args.reason or ("rollback --%s %s" % (kind.replace("_", "-"), target))
-    rollback_mod.record_rollback(backend, kind, target, new_excluded, reason)
 
     repo_id = registry_mod.repo_identity(paths.repo)
     with trajectory_mod.TrajectoryStore() as trajectory:

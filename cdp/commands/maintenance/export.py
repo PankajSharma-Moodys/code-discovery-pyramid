@@ -32,9 +32,11 @@ def register(add) -> None:
 def cmd_export(args) -> int:
     """M7.5 (0.19): four fixed output shapes -- `cdp/export.py` has the full
     account of each."""
+    dest = Path(args.out).expanduser().resolve()
+    if dest.exists() and not dest.is_dir():
+        raise CdpError("--out %s exists and is not a directory" % args.out)
     paths = paths_from_args(args)
     store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
-    dest = Path(args.out).expanduser().resolve()
     try:
         if args.format == "json":
             written = export_mod.export_json(store, dest)

@@ -31,6 +31,8 @@ KNOWN_PROMPT_SECTIONS = ("header", "files", "structure", "inherited", "gaps", "d
 #: Knobs `prompts.py` actually exposes today -- a `budget_change` must name
 #: one of these, not an invented parameter.
 KNOWN_BUDGET_PARAMS = ("max_inherited",)
+#: `max_inherited` defaults to 200: a promotion may move it a decade either way, not to -999999.
+BUDGET_BOUNDS = (1, 2000)
 
 #: Outlier thresholds (6.6: "a handful per run"). Corpus-derived judgment
 #: calls, recorded as open in `PHASE/FINDINGS.md` rather than asserted as
@@ -59,7 +61,10 @@ def apply_lessons(lessons: Sequence[Dict]) -> Dict:
         if kind == "import_channel_hint":
             third_party_patterns.append(payload["pattern"])
         elif kind == "budget_change" and payload.get("parameter") == "max_inherited":
-            max_inherited = payload["new_value"]
+            value = payload.get("new_value")
+            # a row stored before the bound existed (or edited by hand) must not reach a prompt
+            if isinstance(value, int) and not isinstance(value, bool) and BUDGET_BOUNDS[0] <= value <= BUDGET_BOUNDS[1]:
+                max_inherited = value
         elif kind == "prompt_fix":
             prompt_fixes.append({"section": payload["section"], "instruction": payload["instruction"]})
     return {
@@ -130,6 +135,8 @@ def validate_promotion(obj) -> Optional[str]:
             return "import_channel_hint needs a non-empty 'pattern'"
         if not isinstance(channel, str) or not channel.strip():
             return "import_channel_hint needs a non-empty 'channel'"
+        if len(pattern.strip(" *.?/")) < 4 or not any(c in pattern for c in "./"):
+            return "import_channel_hint 'pattern' %r is too broad: it must name a package root" % pattern
     elif kind == "prompt_fix":
         allowed = {"promotion", "section", "instruction"}
         section, instruction = obj.get("section"), obj.get("instruction")
@@ -146,6 +153,8 @@ def validate_promotion(obj) -> Optional[str]:
             return "budget_change 'parameter' must be one of %s, got %r" % (KNOWN_BUDGET_PARAMS, parameter)
         if not isinstance(new_value, int) or isinstance(new_value, bool):
             return "budget_change needs an integer 'new_value'"
+        if not BUDGET_BOUNDS[0] <= new_value <= BUDGET_BOUNDS[1]:
+            return "budget_change 'new_value' %d is outside the sane range %d..%d" % ((new_value,) + BUDGET_BOUNDS)
     extra = set(obj.keys()) - allowed
     if extra:
         return "unexpected field(s) %s on a %s promotion -- R10 closed vocabulary" % (sorted(extra), kind)

@@ -32,16 +32,71 @@ from __future__ import annotations
 
 from typing import Dict, FrozenSet, List, Sequence, Set, Tuple
 
-from .util import stable_hash
+from .util import CdpError, resolve_prefix, stable_hash
 
 LEDGER_ARTIFACT = "rollback"
 
 
-def resolve_run_id(value: str) -> str:
-    """Accept either a `cdp-<sha12>` run id or a bare commit sha."""
+def resolve_run_id(value: str, patches=None) -> str:
+    """Accept a `cdp-<sha12>` run id, a commit sha, or (given the patch log) any unique
+    short prefix of one -- the sha `cdp` prints. An ambiguous prefix raises."""
+    if patches is not None and value:
+        known = {str(p.get("run_id")) for p in patches if p.get("run_id")}
+        bare = value[4:] if value.startswith("cdp-") else value
+        for probe in (value, "cdp-" + bare[:12]):
+            if probe in known:
+                return probe
+        hits = sorted(r[4:] for r in known if r.startswith("cdp-" + bare))
+        if hits and len(bare) >= 4:
+            return "cdp-" + resolve_prefix(bare, hits, "run/commit")
     if value.startswith("cdp-"):
         return value
     return "cdp-" + (value[:12] if value else stable_hash(value)[:12])
+
+
+class Exclusions:
+    """What a fold leaves out: `(run_ids, lo, hi)` entries. A patch is out when its run is
+    named and its patch number falls in the range, so a patch accepted *after* a rollback
+    is live even though it carries the same run id (a run id is a commit; it recurs).
+    A patch with no number, or a legacy entry with no range, matches on the run alone."""
+
+    def __init__(self, entries=()) -> None:
+        self.entries = [(frozenset(r), lo, hi) for r, lo, hi in entries]
+        self.run_ids = frozenset().union(*[e[0] for e in self.entries]) if self.entries else frozenset()
+
+    def __bool__(self) -> bool:
+        return bool(self.entries)
+
+    def __contains__(self, run_id: str) -> bool:
+        return run_id in self.run_ids
+
+    def __eq__(self, other) -> bool:
+        return self.run_ids == (other.run_ids if isinstance(other, Exclusions) else other)
+
+    __hash__ = None
+
+    def matches(self, patch: Dict) -> bool:
+        if patch.get("author_kind") == "python":
+            return False  # the scan's own facts are regenerated, never rolled back
+        run, no = str(patch.get("run_id")), patch.get("patch_no")
+        return any(run in runs and (no is None or lo is None or lo <= no <= hi)
+                   for runs, lo, hi in self.entries)
+
+
+def as_exclusions(value) -> Exclusions:
+    if isinstance(value, Exclusions):
+        return value
+    return Exclusions([(value, None, None)] if value else [])
+
+
+def is_excluded(patch: Dict, exclusions) -> bool:
+    return as_exclusions(exclusions).matches(patch)
+
+
+def patch_numbers(patches: Sequence[Dict], run_ids: Set[str]) -> Tuple[int, int]:
+    nos = [p["patch_no"] for p in patches if str(p.get("run_id")) in run_ids
+           and p.get("patch_no") is not None and p.get("author_kind") != "python"]
+    return (min(nos), max(nos)) if nos else (0, 0)
 
 
 def patches_excluding_run(patches: Sequence[Dict], run_id: str) -> Tuple[List[Dict], Set[str]]:
@@ -76,16 +131,23 @@ def patches_up_to_run(patches: Sequence[Dict], run_id: str) -> Tuple[List[Dict],
     return kept, excluded, True
 
 
-def load_excluded_run_ids(store) -> FrozenSet[str]:
-    """Union of every rollback event's exclusions ever recorded."""
+def _live_indexes(ledger: Dict) -> List[int]:
+    """Indexes of the events not undone by a later `undo`."""
+    events = list(ledger.get("events", []))
+    undone = {e["undoes"] for e in events if e.get("kind") == "undo"}
+    return [i for i, e in enumerate(events) if e.get("kind") != "undo" and i not in undone]
+
+
+def load_excluded_run_ids(store) -> Exclusions:
+    """Every rollback event not undone (the name is historical: it returns `Exclusions`)."""
     ledger = store.read_artifact(LEDGER_ARTIFACT, {"events": []})
-    out: Set[str] = set()
-    for event in ledger.get("events", []):
-        out.update(event.get("excluded_run_ids", []))
-    return frozenset(out)
+    events = ledger.get("events", [])
+    return Exclusions([(events[i].get("excluded_run_ids", []), *(events[i].get("patch_range") or (None, None)))
+                       for i in _live_indexes(ledger)])
 
 
-def record_rollback(store, kind: str, target_run_id: str, excluded_run_ids: Set[str], reason: str) -> Dict:
+def record_rollback(store, kind: str, target_run_id: str, excluded_run_ids: Set[str], reason: str,
+                    patch_range=None) -> Dict:
     """Append one rollback event. Never rewrites or removes a prior event (R5's
     same append-only discipline applied to this ledger, not just `patches/`)."""
     ledger = store.read_artifact(LEDGER_ARTIFACT, {"events": []})
@@ -95,6 +157,22 @@ def record_rollback(store, kind: str, target_run_id: str, excluded_run_ids: Set[
         "excluded_run_ids": sorted(excluded_run_ids),
         "reason": reason,
     }
+    if patch_range:
+        event["patch_range"] = list(patch_range)
     ledger = {"events": list(ledger.get("events", [])) + [event]}
     store.write_artifact(LEDGER_ARTIFACT, ledger)
+    return event
+
+
+def undo_last_rollback(store, reason: str = "") -> Dict:
+    """Append an `undo` of the latest rollback still in force; its patches are live again."""
+    ledger = store.read_artifact(LEDGER_ARTIFACT, {"events": []})
+    live = _live_indexes(ledger)
+    if not live:
+        raise CdpError("no rollback in force to undo")
+    index = live[-1]
+    target = ledger["events"][index]
+    event = {"kind": "undo", "undoes": index, "target_run_id": target.get("target_run_id"),
+             "excluded_run_ids": [], "reason": reason or "undo rollback %s" % target.get("target_run_id")}
+    store.write_artifact(LEDGER_ARTIFACT, {"events": list(ledger["events"]) + [event]})
     return event

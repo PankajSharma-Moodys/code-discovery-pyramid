@@ -194,6 +194,45 @@ class RunTaskLeaseMixin:
         self.assertEqual(store.read_artifact("inventory"), {"head": "commit-2"})
         self.assertEqual(len(store.load_patches()), 1)
 
+    def test_a_scan_drops_the_dirty_snapshots_its_checkout_superseded(self):
+        store = self.make_store()
+        for i in range(4):
+            store.begin_snapshot("repo-a", "c1+dirty:%d" % i, True, checkout="wt1")
+            store.write_artifact("inventory", {"i": i})
+        self.assertEqual([r["commit_sha"] for r in store.list_snapshots()], ["c1+dirty:3"])
+        store.begin_snapshot("repo-a", "c1+dirty:other", True, checkout="wt2")
+        store.begin_snapshot("repo-a", "c2", False, checkout="wt1")
+        self.assertEqual(sorted(r["commit_sha"] for r in store.list_snapshots()), ["c1+dirty:other", "c2"])
+
+    def test_pinned_and_shared_dirty_snapshots_survive_pruning(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "c1+dirty:a", True, checkout="wt1")
+        store.begin_snapshot("repo-a", "c1+dirty:a", True, checkout="wt2")  # same tree, two checkouts
+        store.begin_snapshot("repo-a", "c1+dirty:b", True, checkout="wt1")
+        self.assertEqual(sorted(r["commit_sha"] for r in store.list_snapshots()), ["c1+dirty:a", "c1+dirty:b"])
+        store.set_pinned("c1+dirty:b", True)
+        store.begin_snapshot("repo-a", "c1+dirty:c", True, checkout="wt1")
+        self.assertEqual(len(store.list_snapshots()), 3)
+
+    def test_delete_snapshot_also_removes_its_runs_and_tasks(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "c1+dirty:a", True)
+        store.begin_run("r1")
+        [row] = store.list_snapshots()
+        store.delete_snapshot(row["id"])
+        self.assertEqual(store.list_snapshots(), [])
+        self.assertIsNone(store.get_run("r1"))
+
+    def test_select_none_parks_reads_on_scan_needed_and_a_later_use_snapshot_recovers(self):
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        store.write_artifact("inventory", {"head": "commit-1"})
+        store.select_none("repo-a", "no clean ancestor; run `cdp scan`", label="/work/repo-a")
+        with self.assertRaisesRegex(CdpError, "scan needed for /work/repo-a"):
+            store.read_artifact("inventory")
+        store.use_snapshot("repo-a", "commit-1")
+        self.assertEqual(store.read_artifact("inventory"), {"head": "commit-1"})
+
     def test_get_run_returns_none_then_the_row_once_begun(self):
         store = self.make_store()
         store.begin_snapshot("repo-a", "commit-1")
@@ -238,6 +277,28 @@ class RunTaskLeaseMixin:
         store.begin_run("r1", "hash-a")
         wins = [store.acquire_lease("r1", "scope1", 30) for _ in range(5)]
         self.assertEqual(sum(wins), 1)
+
+    def test_link_and_archive_capabilities_are_all_or_a_clear_refusal(self):
+        """sqlite carries `link_resolution` and the cold archive; a backend that does not
+        must say so with a `CdpError` (never an AttributeError or a silent no-op)."""
+        store = self.make_store()
+        store.begin_snapshot("repo-a", "commit-1")
+        if store.supports_link_edges():
+            store.save_link_resolution("lid", {"verdict": "match"})
+            store.write_link_edges({"links": [], "unmatched": []})
+            self.assertEqual(store.read_link_edges(), [])
+        else:
+            with self.assertRaises(CdpError):
+                store.save_link_resolution("lid", {"verdict": "match"})
+            with self.assertRaises(CdpError):
+                store.write_link_edges({"links": [], "unmatched": []})
+        if store.supports_compaction():
+            with self.assertRaises(CdpError):
+                store.compact(keep_generations=0)  # the live generation is never archived
+            self.assertFalse(store.compact(dry_run=True)["threshold_met"])
+        else:
+            with self.assertRaises(CdpError):
+                store.compact()
 
     def test_supports_run_tracking_is_true(self):
         self.assertTrue(self.make_store().supports_run_tracking())

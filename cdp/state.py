@@ -30,10 +30,13 @@ answer a question about a different vocabulary.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, FrozenSet, Iterable, List, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, FrozenSet, Iterable, List, Optional, Sequence, Set
 
+from . import generations, rollback as rollback_mod
+from .drift import drift_provider
 from .entail import entail_claims, summarize as summarize_entailment
 from .gates import build_extraction_index, cluster_unknowns, discharge_unknowns, grandfather_needs
+from . import factcheck
 from .merge import merge_claims
 from .util import git_head, stable_hash
 from .verify import STRICT, verify_all
@@ -69,8 +72,9 @@ def fold(
     That is what makes re-verification against a *different* commit (Phase 3's
     `refresh`) a fold argument instead of a rewrite.
 
-    `rename_map`/`edited_files` are Phase 3's rename-awareness (`cdp/refresh.py`
-    M3.3): threaded straight through to `verify_all` so a `git mv` never mass-
+    Rename-awareness (Phase 3): unless `rename_map`/`edited_files` are given explicitly, `fold`
+    derives them itself per claim (`cdp/drift.py`: `claim_reviewed_at`..HEAD), so `verify` always
+    reproduces what `refresh` wrote. Either way they are threaded straight through to `verify_all` so a `git mv` never mass-
     demotes a corpus (`verify.py:43-46`'s landmine) and R9's review-invalidation
     rule is applied without ever mutating a patch already in the log (R5).
     `head_sha` for the two freshness dates (0.8) is read from `repo` itself,
@@ -97,69 +101,61 @@ def fold(
     (`cdp/entail.py`), used only to assign each claim a `verdict` -- never to
     add, drop or reword a claim.
     """
-    if excluded_run_ids:
-        patches = [p for p in patches if str(p.get("run_id")) not in excluded_run_ids]
-    raw_patches = list(patches)
+    exclusions = rollback_mod.as_exclusions(excluded_run_ids)
+    patches = [p for p in patches if not exclusions.matches(p)]
+    raw_patches = [{k: v for k, v in p.items() if k != "patch_no"} for p in patches]
     verification = None
     verified_patches = raw_patches
     if repo is not None:
         head_sha = git_head(Path(repo))
+        # Rename/edit awareness is derived here, per claim, from the claim's own review commit and
+        # HEAD -- so a later `verify`/`fold` reproduces what `refresh` folded. Explicit arguments
+        # (tests, replays) override it.
+        derived = drift_provider(Path(repo), head_sha) if rename_map is None and edited_files is None else None
         verified_patches, verification = verify_all(
-            Path(repo), raw_patches, mode, head_sha, rename_map, edited_files
+            Path(repo), raw_patches, mode, head_sha, rename_map, edited_files, derived
         )
 
     claims: List[Dict] = []
     unknowns: List[Dict] = []
     node_status: Dict[str, str] = {}
     node_errors: Dict[str, str] = {}
+    error_rank: Dict[str, tuple] = {}
 
     for patch in verified_patches:
+        if generations.is_derived(patch):
+            continue  # the scan's own patch reviews nothing: it must not mark `root` complete (K3)
         node = str(patch.get("node", "?"))
         status = str(patch.get("status", "pending"))
         # A node's status is the BEST of its attempts, not the last one in the
         # log. §3.5 retries a failed node in a following wave, so a node
         # routinely has an `invalid` attempt and a `complete` one — and "last
         # wins" makes the answer depend on which order the log is read in.
-        #
-        # That is the order-dependence §5.5 forbids, and it is not a hypothetical:
-        # it is deterministic-but-arbitrary across runs, so the determinism
-        # harness would score it 1.0 while the pipeline silently discarded a
-        # successful retry whenever the log happened to be read the other way.
         # Precedence over the status enum is order-independent by construction.
         if STATUS_RANK.get(status, 0) > STATUS_RANK.get(node_status.get(node, "pending"), 0):
             node_status[node] = status
         else:
             node_status.setdefault(node, status)
         if patch.get("error"):
-            node_errors[node] = str(patch["error"])
+            # The most recent attempt's error (by patch number), not the last one read: the
+            # reason shown must not depend on the order the log is read in.
+            rank = (patch.get("patch_no") if isinstance(patch.get("patch_no"), int) else -1, str(patch["error"]))
+            if node not in error_rank or rank > error_rank[node]:
+                error_rank[node] = rank
+                node_errors[node] = str(patch["error"])
 
-    # A node re-run yields one generation, not an accumulation of every attempt
-    # ever appended (M3.4, ARCHITECTURE.md's sharp-edges table: "both patches are
-    # `complete`; neither supersedes"). Among a node's `complete` patches, only
-    # the highest `generation` contributes claims. `generation` is data stamped
-    # onto the patch at append time (`cli.py` `cmd_collect`/`cmd_scan`), not a
-    # position in this list, so this selection is order-independent by
-    # construction the same way `node_status` above is: permuting `patches`
-    # cannot change which patch owns the max generation for a node.
-    best_complete: Dict[str, Dict] = {}
+    # Which claims are live is `generations`' rule: the scan's derived claims always; the latest
+    # accepted generation of each scope; every answer, replaced only by a newer one for the same
+    # subject and kind. A failed or abandoned attempt removes nothing.
     for patch in verified_patches:
-        if str(patch.get("status", "pending")) != "complete":
-            continue
-        node = str(patch.get("node", "?"))
-        gen = int(patch.get("generation") or 1)
-        current = best_complete.get(node)
-        if current is None:
-            best_complete[node] = patch
-            continue
-        cur_gen = int(current.get("generation") or 1)
-        if gen > cur_gen or (gen == cur_gen and stable_hash(patch) > stable_hash(current)):
-            best_complete[node] = patch
-
-    for node, patch in best_complete.items():
+        if generations.is_derived(patch) and generations.is_complete(patch):
+            for claim in patch.get("claims") or []:
+                claims.append(dict(claim, source_node=claim.get("source_node") or str(patch.get("node", "?"))))
+    for node, patch in sorted(generations.live_leaf_patches(verified_patches).items()):
         for claim in patch.get("claims") or []:
-            row = dict(claim)
-            row.setdefault("source_node", node)
-            claims.append(row)
+            claims.append(dict(claim, source_node=claim.get("source_node") or node))
+    for patch, claim in generations.live_answer_claims(verified_patches).values():
+        claims.append(dict(claim, source_node=claim.get("source_node") or str(patch.get("node", "?"))))
 
     # R12: unknowns are sticky. Unlike claims, they accumulate across *every*
     # `complete` patch for a node, not just the highest generation -- a later
@@ -176,13 +172,12 @@ def fold(
             unknowns.append(row)
 
     superseded = {n for n, s in node_status.items() if s != "complete"}
-    claims = [c for c in claims if c.get("source_node") not in superseded]
 
-    merged = merge_claims(claims, xref.get("symbols", {}))
+    merged = merge_claims(claims, xref.get("symbols", {}), factcheck.Facts(extraction) if extraction else None)
     merged_claims = entail_claims(merged["claims"], extraction)
     contradictions = [c for c in merged_claims if c.get("verdict") == "contradicted"]
     entailment = summarize_entailment(merged_claims)
-    coverage = _coverage(node_status, partition)
+    coverage = _coverage(set(generations.live_leaf_patches(verified_patches)), partition)
 
     # Failure propagates as a stated gap, never as silence (§3.5).
     for node in sorted(superseded):
@@ -216,7 +211,7 @@ def fold(
         "verification": verification,
         "entailment": entailment,
         "contradictions": contradictions,
-        "rollback": {"excluded_run_ids": sorted(excluded_run_ids)} if excluded_run_ids else None,
+        "rollback": {"excluded_run_ids": sorted(exclusions.run_ids)} if exclusions else None,
         "provenance": {
             "patch_count": len(raw_patches),
             "fold_hash": fold_hash(raw_patches, xref, partition, extraction),
@@ -235,7 +230,10 @@ def fold_hash(
     it too) so every pre-existing 3-argument call site keeps hashing exactly
     what it always did.
     """
-    parts = sorted(stable_hash(p) for p in patches)
+    # Superseded patches are left out: `compact` moves exactly those to the archive, and moving
+    # them must not change the hash of what the log says.
+    out = set(generations.superseded_indexes(patches))
+    parts = sorted(stable_hash(p) for i, p in enumerate(patches) if i not in out)
     parts.append(stable_hash(xref.get("symbols", {})))
     parts.append(stable_hash([s["node"] for s in (partition or {}).get("scopes", [])]))
     if extraction is not None:
@@ -243,22 +241,26 @@ def fold_hash(
     return stable_hash(parts)
 
 
-def _coverage(node_status: Dict[str, str], partition: Optional[Dict]) -> Dict:
-    """Tracked files in `complete` scopes over tracked files in the inventory.
+def _coverage(reviewed_nodes: Set[str], partition: Optional[Dict]) -> Dict:
+    """Tracked files in scopes a model has reviewed (an accepted leaf patch) over tracked files in
+    the inventory. The scan's own derived claims review nothing, so a bare scan is 0%.
 
     The figure to watch. A 94%-coverage run that says so is useful; the same run
     presented as complete is worse than no run at all, because a map that does
     not mark its own holes will be trusted across them.
     """
     if not partition:
-        return {"files_complete": 0, "files_total": 0, "fraction": 0.0, "incomplete_nodes": []}
+        return {"files_complete": 0, "files_total": 0, "fraction": 0.0, "incomplete_nodes": [],
+                "model_reviewed_scopes": 0}
     total = 0
     complete = 0
+    reviewed = 0
     incomplete: List[str] = []
     for scope in partition["scopes"]:
         total += scope["file_count"]
-        if node_status.get(scope["node"]) == "complete":
+        if scope["node"] in reviewed_nodes:
             complete += scope["file_count"]
+            reviewed += 1
         else:
             incomplete.append(scope["node"])
     return {
@@ -266,7 +268,17 @@ def _coverage(node_status: Dict[str, str], partition: Optional[Dict]) -> Dict:
         "files_total": total,
         "fraction": round(complete / total, 4) if total else 0.0,
         "incomplete_nodes": sorted(incomplete),
+        "model_reviewed_scopes": reviewed,
     }
+
+
+def model_reviewed_coverage(coverage: Optional[Dict]) -> Optional[float]:
+    """The share of tracked files a model has reviewed, or None when no model has reviewed any
+    scope (a fresh scan: say "no model review", never "0%"). `coverage` is a state's
+    `coverage` dict, or `status`'s `coverage` block."""
+    if not coverage or not coverage.get("model_reviewed_scopes"):
+        return None
+    return float(coverage.get("fraction") or 0.0)
 
 
 def _dedupe_unknowns(unknowns: Sequence[Dict]) -> List[Dict]:
@@ -289,7 +301,7 @@ def check_fold(
     xref: Dict,
     partition: Optional[Dict] = None,
     repo: Optional[Path] = None,
-    mode: str = STRICT,
+    mode: Optional[str] = None,
     full: bool = False,
 ) -> List[str]:
     """Recompute the fold and compare it to the materialised `state` artifact.
@@ -302,6 +314,9 @@ def check_fold(
     if not store.has_artifact("state"):
         return ["state does not exist; nothing has been folded yet"]
     on_disk = store.read_artifact("state")
+    # The verification mode is an input of the fold, recorded in its output: a state folded
+    # under `--mode lenient` is checked under lenient.
+    mode = mode or (on_disk.get("verification") or {}).get("mode") or STRICT
     # M3.7: a prior `rollback` excluded some run_ids from the materialised
     # state without deleting their patches (R5) -- recomputing from the raw
     # log without the same exclusion would flag every rolled-back claim's

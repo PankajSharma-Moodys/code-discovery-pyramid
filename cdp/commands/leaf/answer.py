@@ -13,7 +13,7 @@ from ...verify import STRICT
 
 SPEC = Spec(
     group='leaf',
-    usage='answer --scope S --subject X --claim "..." --anchor FILE:LINE',
+    usage='answer <scope> --subject X --kind K --claim "..." --anchor FILE:LINE',
     what='Records a human claim against an unknown — same validate/verify/entail/fold pipeline as a leaf patch, `author_kind=human`.',
     next="next: `query unknowns` to see what's still open.",
 )

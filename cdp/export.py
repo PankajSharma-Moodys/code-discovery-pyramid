@@ -10,13 +10,16 @@ general-purpose transform:
 - **archive**: raw `claim_patches_archive` rows -- needs a backend that has
   one (M7.3).
 - **anonymized**: claims/unknowns/conflicts with every path, subject and
-  statement replaced by a stable per-corpus hash token.
+  statement replaced by a keyed token (random salt per export); ids, SHAs and
+  evidence are dropped.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -72,15 +75,25 @@ def export_archive(store: WorkspaceStore, dest: Path, partition: Dict = None) ->
     return len(rows)
 
 
-def _token(prefix: str, value: str) -> str:
-    return "%s_%s" % (prefix, hashlib.sha1(value.encode("utf-8")).hexdigest()[:12])
+def _token(salt: bytes, prefix: str, value: str) -> str:
+    """Keyed, so a token cannot be reversed by hashing guesses (`sha1("p.Svc#a")` used to
+    match); the key is random per export and never written anywhere."""
+    mac = hmac.new(salt, ("%s:%s" % (prefix, value)).encode("utf-8"), hashlib.sha256)
+    return "%s_%s" % (prefix, mac.hexdigest()[:16])
 
 
-def _anon(cache: Dict[str, str], prefix: str, value: str) -> str:
-    key = "%s:%s" % (prefix, value)
-    if key not in cache:
-        cache[key] = _token(prefix, value)
-    return cache[key]
+class _Tokens:
+    """Stable within one export (the same subject gets the same token), unrelated across exports."""
+
+    def __init__(self) -> None:
+        self.salt = os.urandom(32)
+        self.seen: Dict[str, str] = {}
+
+    def __call__(self, prefix: str, value: str) -> str:
+        key = "%s:%s" % (prefix, value)
+        if key not in self.seen:
+            self.seen[key] = _token(self.salt, prefix, value)
+        return self.seen[key]
 
 
 # Every free-text field CDP's claim/unknown/conflict shapes actually use for
@@ -95,36 +108,43 @@ _NODE_FIELDS = ("source_node", "demoted_from")
 _NODE_LIST_FIELDS = ("nodes", "contested_with", "source_nodes")
 
 
-def _scrub_record(record: Dict, cache: Dict[str, str]) -> Dict:
-    """Replace every path/subject/free-text field with a stable per-corpus
-    token. `evidence` is dropped entirely -- it quotes the source file
-    verbatim, which is exactly the leak the test checks for."""
-    out = dict(record)
+# Closed vocabularies: kept verbatim. Everything else (ids, commit SHAs, run ids, authors,
+# evidence, resolutions) is dropped, so a field added later defaults to dropped, not leaked.
+_KEEP_FIELDS = frozenset([
+    "kind", "channel", "confidence", "verdict", "visibility", "side_effect_type", "status",
+    "needs", "demoted_reason", "escalated", "pending_resolution", "author_kind",
+])
+
+
+def _scrub_record(record: Dict, tokens: "_Tokens") -> Dict:
+    """Keep the closed-vocabulary fields; replace every path/subject/free-text field with a
+    per-export keyed token; drop the rest (`evidence` quotes source verbatim, `id` and the
+    `*_at` fields carry claim ids and commit SHAs)."""
+    out = {k: v for k, v in record.items() if k in _KEEP_FIELDS}
     for key in _TEXT_FIELDS:
-        if out.get(key):
-            out[key] = _anon(cache, "text", out[key])
+        if record.get(key):
+            out[key] = tokens("text", record[key])
     for key in _TEXT_LIST_FIELDS:
-        if out.get(key):
-            out[key] = [_anon(cache, "text", v) for v in out[key]]
+        if record.get(key):
+            out[key] = [tokens("text", v) for v in record[key]]
     for key in _NODE_FIELDS:
-        if out.get(key):
-            out[key] = _anon(cache, "node", out[key])
+        if record.get(key):
+            out[key] = tokens("node", record[key])
     for key in _NODE_LIST_FIELDS:
-        if out.get(key):
-            out[key] = [_anon(cache, "node", v) for v in out[key]]
-    anchor = out.get("anchor")
+        if record.get(key):
+            out[key] = [tokens("node", v) for v in record[key]]
+    anchor = record.get("anchor")
     if isinstance(anchor, dict) and anchor.get("file"):
-        out["anchor"] = {"file": _anon(cache, "file", anchor["file"]), "line": anchor.get("line")}
-    out.pop("evidence", None)
+        out["anchor"] = {"file": tokens("file", anchor["file"]), "line": anchor.get("line")}
     return out
 
 
 def export_anonymized(store: WorkspaceStore, dest: Path) -> Dict[str, int]:
     dest.mkdir(parents=True, exist_ok=True)
     state = store.read_artifact("state", {})
-    cache: Dict[str, str] = {}
+    tokens = _Tokens()
     scrubbed = {
-        section: [_scrub_record(r, cache) for r in state.get(section, [])]
+        section: [_scrub_record(r, tokens) for r in state.get(section, [])]
         for section in ("claims", "unknowns", "conflicts")
     }
     (dest / "corpus.json").write_text(

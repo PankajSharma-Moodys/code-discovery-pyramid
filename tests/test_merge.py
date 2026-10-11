@@ -94,6 +94,15 @@ class TestDetection(unittest.TestCase):
         self.assertEqual(len(result["claims"]), 2)
 
 
+class TestUnstatedVsStated(unittest.TestCase):
+    def test_a_tie_between_an_unstated_and_a_stated_enum_is_contested_not_a_crash(self):
+        a = claim("n1", "shared.table", channel="persist")
+        b = claim("n2", "shared.table")
+        out = merge_claims([a, b], SYMBOLS)
+        self.assertEqual(out["stats"]["conflicts"], 1)
+        self.assertEqual(out["claims"][0]["confidence"], "contested")
+
+
 class TestResolution(unittest.TestCase):
     def test_the_module_that_defines_the_subject_wins(self):
         result = merge_claims(

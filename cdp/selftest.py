@@ -8,7 +8,7 @@ import sys
 from . import golden as golden_mod, query as query_mod
 from .session import Paths, open_store
 from .store import ARTIFACTS, REPORTS
-from .util import CdpError, SKILL_ROOT
+from .util import CdpError, SKILL_ROOT, path_within, safe_name
 from contextlib import contextmanager as contextlib_contextmanager
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
@@ -381,10 +381,13 @@ def run_golden(repo: Path, bless: bool = False, name: Optional[str] = None) -> T
     slug — is different every time, and a baseline keyed on it would be written
     once and never read again.
     """
+    if name is not None:
+        safe_name(name, "golden name", extra="@")
     with pristine_checkout(repo) as (target, pinned):
         artifacts, head = collect_artifacts(target)
         captured = golden_mod.capture(artifacts, target, head)
-    golden_dir = GOLDEN_ROOT / (name or golden_mod.slug(repo.name, head))
+    golden_dir = path_within(GOLDEN_ROOT, safe_name(name or golden_mod.slug(repo.name, head),
+                                                    "golden name", extra="@"), "golden name")
     note = "" if pinned else (
         "\nnote  %s is not a git repository; the baseline was captured from the "
         "working tree and will churn with untracked files." % repo

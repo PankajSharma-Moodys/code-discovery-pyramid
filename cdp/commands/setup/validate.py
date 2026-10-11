@@ -5,7 +5,8 @@ from __future__ import annotations
 from .._common import Spec
 
 from ...schema import Validator, schema_path, validate_patch
-from ...util import SKILL_ROOT, read_json
+from ...util import SKILL_ROOT, CdpError
+import json
 from pathlib import Path
 
 
@@ -24,8 +25,15 @@ def register(add) -> None:
 
 
 def cmd_validate(args) -> int:
+    path = Path(args.path)
+    if not path.is_file():
+        raise CdpError("%s: %s" % (args.path, "is a directory, not a patch file" if path.is_dir() else "no such file"))
+    try:
+        patch = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CdpError("%s is not valid JSON: %s" % (args.path, exc))
     validator = Validator.load(schema_path(SKILL_ROOT))
-    errors = validate_patch(read_json(Path(args.path)), validator)
+    errors = validate_patch(patch, validator)
     if errors:
         for err in errors:
             print("FAIL  %s" % err)

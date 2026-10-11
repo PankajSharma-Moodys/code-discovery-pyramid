@@ -3,15 +3,20 @@
 **One store per machine.** Everything CDP keeps lives under `CDP_HOME`
 (default `~/.cdp`): `index.db` holds every repo, snapshot and link; `work/<repo>/`
 holds the files an agent session hands over (inbox, prompts, rendered docs).
-Nothing is written into the folder being scanned. `CDP_HOME` is the one
-override, for CI and tests; `--state-dir` is an alias for it.
+No file is written into the working tree of the folder being scanned (`git status`
+stays clean): the one thing written under the repo is `.git/cdp-identity`, a UUID
+inside `.git/` that git does not track and that stays. A `CDP_HOME` inside the
+repo is refused. `CDP_HOME` is the one override, for CI and tests; `--state-dir`
+is an alias for it.
 
 **Repo identity is never the filesystem path** — a path is exactly what two
 clones of the same repo do not share. Order:
 
     declared id (`.cdp-id` in the scanned folder, a one-line opt-in file)
-    -> normalised origin remote (`git remote get-url origin`)
-    -> a UUID persisted at `<repo>/.git/cdp-identity`
+    -> what this history was first known as: `CDP_HOME/identity-aliases.json` (`root:<oldest root
+       commit>` -> identity: a remote-less copy that lost its marker finds the old identity), and
+       `<common git dir>/cdp-identity`:
+       its normalised origin remote, else a UUID (so `git remote add` later changes nothing)
     -> (not a git repo) a hash of the resolved path
 
 A folder below the git root is a different repo from its parent: its identity
@@ -26,6 +31,7 @@ that points here.
 
 from __future__ import annotations
 
+import json
 import tomllib
 import uuid
 from pathlib import Path
@@ -49,6 +55,19 @@ def cdp_home() -> Path:
     point it elsewhere after import."""
     override = os.environ.get(HOME_ENV)
     return Path(override).expanduser().resolve() if override else Path.home() / ".cdp"
+
+
+def check_home_outside_repo(home: Path, repo: Path) -> None:
+    """A store inside the scanned repo would show up in `git status` (and get indexed)."""
+    top, _ = git_root(repo)
+    root = (top or Path(repo)).resolve()
+    home = Path(home).resolve()
+    if home == root or root in home.parents:
+        raise CdpError(
+            "CDP_HOME (%s) is inside the repository being scanned (%s): its files would appear "
+            "in `git status`. Point CDP_HOME (or --state-dir) outside the repo."
+            % (home, root)
+        )
 
 
 def _normalise_remote(url: str) -> str:
@@ -80,20 +99,92 @@ def _origin_remote(repo: Path) -> Optional[str]:
     return _normalise_remote(url) if url else None
 
 
-def _persisted_uuid(repo: Path) -> str:
-    """A UUID kept in the repo's *common* git dir, so every linked worktree of
-    one repo shares it (`.git` is a file, not a directory, in a worktree)."""
+def _identity_marker(repo: Path) -> Tuple[Path, bool]:
+    """`(marker file, whether its directory exists)`: kept in the repo's *common* git dir, so
+    every linked worktree of one repo shares it (`.git` is a file, not a directory, in a worktree)."""
     common = (run_git(repo, "rev-parse", "--git-common-dir") or "").strip()
     git_dir = (repo / common).resolve() if common else repo / ".git"
-    marker = git_dir / "cdp-identity"
+    return git_dir / "cdp-identity", git_dir.is_dir()
+
+
+def _root_identity(root: Path) -> str:
+    """Declared id, else what this git repo was first known as: its normalised origin remote,
+    or a fresh UUID. The first answer is written to the common git dir and kept, so adding or
+    changing `origin` later does not orphan the snapshots already stored under the old identity."""
+    declared = _declared_id(root)
+    if declared:
+        return declared
+    marker, writable = _identity_marker(root)
     if marker.is_file():
         existing = marker.read_text(encoding="utf-8").strip()
         if existing:
             return existing
-    generated = str(uuid.uuid4())
-    if git_dir.is_dir():
-        marker.write_text(generated + "\n", encoding="utf-8")
-    return generated
+    alias = _root_commit_alias(root)
+    identity = _origin_remote(root) or _alias_lookup(alias) or str(uuid.uuid4())
+    if writable:
+        marker.write_text(identity + "\n", encoding="utf-8")
+    _alias_remember(alias, identity)
+    return identity
+
+
+def _root_commit_alias(root: Path) -> Optional[str]:
+    """`root:<oldest root commit>`: what a copy of this history shares even when it has lost
+    `.git/cdp-identity`. Used only when there is no origin remote to name the repo (an origin is
+    a stronger statement of who the repo is than a shared first commit, which forks also have). A shallow clone's boundary
+    commit is a different one, so it simply finds no alias."""
+    out = run_git(root, "rev-list", "--max-parents=0", "HEAD")
+    roots = sorted(out.split()) if out else []
+    return "root:" + roots[0] if roots else None
+
+
+def remember_alias(repo: Path) -> None:
+    """Called by a scan once the machine home exists: records `root:<sha>` -> this repo's identity."""
+    top, _ = git_root(Path(repo))
+    if top is not None:
+        _alias_remember(_root_commit_alias(top), _root_identity(top))
+
+
+def _alias_file() -> Path:
+    return cdp_home() / "identity-aliases.json"
+
+
+def _alias_lookup(alias: Optional[str]) -> Optional[str]:
+    """The identity first recorded for this root commit in this machine's store, if any."""
+    if not alias:
+        return None
+    try:
+        return json.loads(_alias_file().read_text(encoding="utf-8")).get(alias)
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _alias_remember(alias: Optional[str], identity: str) -> None:
+    """First writer wins; only once the machine home exists (a bare `query` creates nothing)."""
+    path = _alias_file()
+    if not alias or not path.parent.is_dir() or _alias_lookup(alias):
+        return
+    try:
+        known = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, ValueError):
+        known = {}
+    known.setdefault(alias, identity)
+    tmp = path.with_name(".identity-aliases.%d.tmp" % os.getpid())
+    tmp.write_text(json.dumps(known, sort_keys=True, indent=1), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _common_dir(repo: Path) -> Optional[Path]:
+    common = (run_git(repo, "rev-parse", "--git-common-dir") or "").strip()
+    return (repo / common).resolve() if common else None
+
+
+def same_repository(a: Path, b: Path) -> bool:
+    """Whether two folders are checkouts (worktrees) of one git repository, at the same
+    place below its root: they share a common git dir."""
+    common_a, common_b = _common_dir(Path(a)), _common_dir(Path(b))
+    if common_a is None or common_b is None:
+        return Path(a).resolve() == Path(b).resolve()
+    return common_a == common_b and git_root(Path(a))[1] == git_root(Path(b))[1]
 
 
 def git_root(repo: Path) -> Tuple[Optional[Path], str]:
@@ -103,10 +194,6 @@ def git_root(repo: Path) -> Tuple[Optional[Path], str]:
         return None, ""
     prefix = (run_git(repo, "rev-parse", "--show-prefix") or "").strip().strip("/")
     return Path(top.strip()), prefix
-
-
-def _root_identity(root: Path) -> str:
-    return _declared_id(root) or _origin_remote(root) or _persisted_uuid(root)
 
 
 def repo_identity(repo: Path) -> str:
@@ -147,9 +234,20 @@ def repo_slug(repo_id: str) -> str:
     return "%s-%s" % (safe, hashlib.sha256(repo_id.encode()).hexdigest()[:8])
 
 
-def work_dir(home: Path, repo_id: str) -> Path:
-    """Where one repo's inbox, prompts and rendered docs live."""
-    return Path(home) / "work" / repo_slug(repo_id)
+def checkout_key(repo: Path) -> str:
+    """Names one checkout of a repo: its git toplevel (a worktree and a local
+    clone each have their own); "" outside git, where the identity is the path."""
+    top, _ = git_root(repo)
+    return hashlib.sha256(str(top.resolve()).encode()).hexdigest()[:8] if top else ""
+
+
+def work_dir_of(home: Path, repo: Path) -> Path:
+    return work_dir(home, repo_identity(repo), checkout_key(repo))
+
+
+def work_dir(home: Path, repo_id: str, checkout: str = "") -> Path:
+    """Where one checkout's inbox, prompts and rendered docs live."""
+    return Path(home) / "work" / (repo_slug(repo_id) + ("-" + checkout if checkout else ""))
 
 
 # ----------------------------------------------------------- machine config

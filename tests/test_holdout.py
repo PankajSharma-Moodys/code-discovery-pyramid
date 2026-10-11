@@ -94,7 +94,8 @@ class HoldoutEndToEndTest(unittest.TestCase):
                  "--runner-cmd", "%s %s" % (sys.executable, script)],
                 env,
             )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+            # the stub's patches are not valid, so every scope fails: rc 1 (L9), but the cut is pinned
+            self.assertEqual(run_result.returncode, 1, run_result.stderr)
             self.assertIn("lessons   pinned v1", run_result.stdout)
 
     def test_holdout_refuses_a_repo_in_the_cuts_own_learning_corpus(self):

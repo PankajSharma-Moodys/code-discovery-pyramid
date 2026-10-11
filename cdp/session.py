@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import shlex
 
-from . import docs as docs_mod, rollback as rollback_mod, runner as runner_mod, state as state_mod
+from . import docs as docs_mod, rollback as rollback_mod, runner as runner_mod, snapshot as snapshot_mod, state as state_mod
 from .store import FileStore, SqliteStore, WorkspaceStore, registry as registry_mod
 from .util import CdpError, run_git, stable_hash
 from .verify import STRICT
@@ -14,14 +14,15 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 
 class Paths:
-    """`state` is the machine home (`CDP_HOME`); `work` is this repo's own
-    hand-over directory under it."""
+    """`state` is the machine home (`CDP_HOME`); `work` is this checkout's own
+    hand-over directory under it (per worktree: two checkouts of one repo never
+    share an inbox or prompts)."""
 
     def __init__(self, repo: Path, state: Path) -> None:
         self.repo = repo
         self.state = state
         self.repo_id = registry_mod.repo_identity(repo)
-        self.work = registry_mod.work_dir(state, self.repo_id)
+        self.work = registry_mod.work_dir(state, self.repo_id, registry_mod.checkout_key(repo))
 
 
 def paths_for(repo, state_dir=None) -> "Paths":
@@ -34,6 +35,7 @@ def paths_for(repo, state_dir=None) -> "Paths":
                        "Use CDP_HOME (default ~/.cdp) to move it.")
     home = Path(state_dir).expanduser().resolve() if state_dir else registry_mod.cdp_home()
     registry_mod.check_team_config(repo)
+    registry_mod.check_home_outside_repo(home, repo)
     return Paths(repo=repo, state=home)
 
 
@@ -50,27 +52,72 @@ def resolve_backend(home: Path) -> Tuple[str, Optional[Dict[str, str]]]:
     return kind, pg
 
 
-def open_store(paths: "Paths") -> WorkspaceStore:
+def open_store(paths: "Paths", readonly: bool = False, durable: bool = False) -> WorkspaceStore:
     """No backend is hardcoded here: `CDP_HOME/config.toml` picks the
     `WorkspaceStore` (`resolve_backend`), defaulting to `SqliteStore` at
-    `<home>/index.db`. The store is then pointed at *this repo's* snapshot for
-    HEAD (else its latest), so a read never answers from another repo.
-    Commands that scan or refresh move the selection themselves afterwards."""
+    `<home>/index.db`. The store is then pointed at the snapshot
+    `snapshot.choose_snapshot` picks for this tree (HEAD, else its nearest clean
+    ancestor, else nothing: "scan needed"), so a read never answers from another
+    repo or branch; `backend.choice` says how it differs from the tree.
+    Commands that scan or refresh move the selection themselves afterwards.
+    `readonly` (sqlite only): no schema migration, no journal-mode change."""
     kind, pg = resolve_backend(paths.state)
     if kind == "file":
         return FileStore(paths.state)
     if kind == "postgres":
         from .store.postgres_backend import PostgresStore
 
-        return PostgresStore(pg["dsn"], pg.get("schema") or "cdp", inbox_root=paths.work)
-    backend = SqliteStore(paths.state / "index.db", inbox_root=paths.work)
-    backend.use_current_snapshot(paths.repo_id, run_git_head(paths.repo))
+        backend = PostgresStore(pg["dsn"], pg.get("schema") or "cdp", inbox_root=paths.work)
+    else:
+        backend = SqliteStore(paths.state / "index.db", inbox_root=paths.work, readonly=readonly)
+    choice = snapshot_mod.select(backend, paths.repo, paths.repo_id, durable)
+    if durable and (choice.scan_needed or choice.behind):
+        backend.close()
+        raise CdpError(
+            "scan needed: %s; run `cdp scan`" % choice.reason if choice.scan_needed else
+            "the index is %d commit(s) behind HEAD %s (it describes %s): run `cdp refresh` first"
+            % (choice.behind, (choice.head or "?")[:12], (choice.commit or "?")[:12]))
     return backend
 
 
-def run_git_head(repo: Path) -> Optional[str]:
-    out = run_git(repo, "rev-parse", "HEAD")
-    return out.strip() if out and out.strip() else None
+run_git_head = snapshot_mod.run_git_head
+
+
+def route_path(paths: "Paths", term: Optional[str]) -> Tuple["Paths", Optional[str], Optional[str]]:
+    """`(paths, term, note)` for a question about the file `term` (relative to
+    `paths.repo`, or absolute): the most specific *scanned* identity containing
+    it answers -- a scanned subfolder beats the repo root, the root answers for a
+    subfolder never scanned on its own. `note` says so when that is not `paths`."""
+    if not term:
+        return paths, term, None
+    target = Path(term) if Path(term).is_absolute() else paths.repo / term
+    try:
+        target = target.resolve()
+    except OSError:
+        return paths, term, None
+    if not target.exists():
+        return paths, term, None
+    start = target if target.is_dir() else target.parent
+    db = paths.state / "index.db"
+    if not db.is_file():
+        return paths, term, None
+    backend = SqliteStore(db, readonly=True, busy_timeout_ms=1500)
+    try:
+        scanned = set(backend.repo_ids())
+    finally:
+        backend.close()
+    for folder, identity in registry_mod.candidate_identities(start):
+        if identity not in scanned:
+            continue
+        if folder.resolve() == paths.repo:
+            if Path(term).is_absolute():  # the same repo: the index keys files repo-relative
+                rel = target.relative_to(paths.repo).as_posix() if target != paths.repo else "."
+                return paths, rel, None
+            break
+        routed = Paths(folder.resolve(), paths.state)
+        rel = target.relative_to(folder.resolve()).as_posix() if target != folder.resolve() else "."
+        return routed, rel, "answered from %s (scan of %s), not %s" % (identity, folder, paths.repo_id)
+    return paths, term, None
 
 
 def check_repo_matches_manifest(paths: "Paths", manifest: Dict) -> None:
@@ -83,6 +130,12 @@ def check_repo_matches_manifest(paths: "Paths", manifest: Dict) -> None:
     already-recorded values, nothing new to serialize."""
     recorded = manifest.get("repo")
     if not recorded or str(paths.repo) == recorded:
+        return
+    previous = Path(recorded)
+    # Another worktree of the same repository is fine: it shares the git common dir, and the
+    # snapshot was already chosen by ancestry. A copy or clone has its own object store and
+    # may hold other files, so it is not (a gone checkout cannot be compared, and is let through).
+    if not previous.exists() or registry_mod.same_repository(previous, paths.repo):
         return
     raise CdpError(
         "--repo %s does not match the repo this state was scanned from "
@@ -114,11 +167,12 @@ def stamp_claims(claims: List[Dict], head: str) -> None:
 
 
 def next_generation(existing_patches: Sequence[Dict], node: str) -> int:
-    """1-based attempt count for `node` (M3.4). Stamped once at append time,
-    onto data the patch carries forever, so `state.fold`'s per-node
-    supersession reads a fact rather than a log position -- order-independent
-    by construction, the same way `node_status` already is."""
-    prior = [int(p.get("generation") or 1) for p in existing_patches if str(p.get("node")) == node]
+    """1-based generation for `node` (M3.4): one more than its latest accepted patch. Stamped
+    once at append time, onto data the patch carries forever, so `state.fold`'s per-node
+    supersession reads a fact rather than a log position. Failed, invalid and derived
+    patches are not generations."""
+    prior = [int(p.get("generation") or 1) for p in existing_patches
+             if str(p.get("node")) == node and p.get("status") == "complete" and p.get("author_kind") != "python"]
     return (max(prior) + 1) if prior else 1
 
 
@@ -193,8 +247,9 @@ def apply_as_of(store: "query_mod.Store", commit: str) -> None:
     paying for. The claims returned are exactly what the log asserted as of
     that run, unverified against any tree.
     """
-    run_id = rollback_mod.resolve_run_id(commit)
-    kept, _excluded, found = rollback_mod.patches_up_to_run(store.backend.load_patches(), run_id)
+    patches = store.backend.load_patches()
+    run_id = rollback_mod.resolve_run_id(commit, patches)
+    kept, _excluded, found = rollback_mod.patches_up_to_run(patches, run_id)
     if not found:
         raise CdpError(
             "commit %s never appears in this store's patch log -- `--as-of` "

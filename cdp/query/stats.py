@@ -58,15 +58,20 @@ def q_coverage(store: Store) -> Dict:
     """Never budgeted (`UNBUDGETED`). See `q_stats`."""
     state = store.state
     coverage = state.get("coverage", {})
+    skipped = store.inventory.get("skipped", [])
     return _finish({
         "query": "coverage",
+        **({"skipped": skipped} if skipped else {}),
         "coverage": coverage,
         "nodes": state.get("nodes", {}),
         "node_errors": state.get("node_errors", {}),
         "warning": (
             None
             if coverage.get("fraction", 0) >= 0.999
-            else "This run covers %.1f%% of tracked files. Treat every absent fact as unexamined, "
+            else "No model has reviewed any scope: this is the structural scan only. Treat every "
+            "absent fact as unexamined, not as absent from the codebase."
+            if not coverage.get("model_reviewed_scopes")
+            else "Model review covers %.1f%% of tracked files. Treat every absent fact as unexamined, "
             "not as absent from the codebase." % (100 * coverage.get("fraction", 0))
         ),
     }, store, None)

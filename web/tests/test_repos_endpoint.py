@@ -28,6 +28,8 @@ def scan(repo: Path, home: Path) -> None:
 class ReposEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.home = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.home)
         self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
         scan(MINIREPO, self.home)
         scan(SOLOREPO, self.home)

@@ -94,8 +94,9 @@ def _file_lock(state_dir: Path, name: str, shared: bool, timeout_s: float) -> It
                 if time.monotonic() >= deadline:
                     raise CdpError(
                         "another cdp process is already %s this repo in the store (%s) -- waited "
-                        "%.0fs. If that process crashed instead of exiting cleanly, "
-                        "delete %s and retry."
+                        "%.0fs. The lock is released when its process exits (a crash cannot leave one "
+                        "behind), so that process is still running: wait for it, or stop it. "
+                        "Do not delete %s while it runs."
                         % ("writing to" if not shared else "using", state_dir, timeout_s, lock_path)
                     )
                 time.sleep(_POLL_S)

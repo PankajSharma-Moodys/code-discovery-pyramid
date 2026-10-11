@@ -154,6 +154,37 @@ class ExportAnonymizedTest(unittest.TestCase):
             self.assertNotIn(node, corpus_text)
             store.close()
 
+    def test_tokens_are_keyed_and_ids_and_shas_are_dropped(self) -> None:
+        """I6: tokens were sha1(value)[:12] (reversible by guessing) and ids/SHAs were exported."""
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            state = Path(tmp) / "state"
+            main(["scan", "--repo", str(repo), "--state-dir", str(state), "--quiet"])
+            store = SqliteStore(state / "index.db")
+            claims = store.read_artifact("state")["claims"]
+            head = store.read_artifact("inventory")["head"]
+            texts = {c["subject"] for c in claims} | {c["statement"] for c in claims} | {
+                a["file"] for c in claims for a in c["evidence"]}
+            texts |= {n for c in claims for n in c.get("source_nodes", [])}
+            first, second = Path(tmp) / "a", Path(tmp) / "b"
+            export_anonymized(store, first)
+            export_anonymized(store, second)
+            text = (first / "corpus.json").read_text()
+            for value in texts:
+                for prefix in ("", "text:", "node:", "file:"):
+                    raw = (prefix + value).encode()
+                    for h in (hashlib.sha1(raw).hexdigest(), hashlib.sha256(raw).hexdigest()):
+                        self.assertNotIn(h[:12], text, value)
+                        self.assertNotIn(h[:16], text, value)
+                    self.assertNotIn(value, text)
+            for claim in claims:
+                self.assertNotIn(claim["id"], text)
+            self.assertNotIn(head, text)
+            self.assertNotIn(head[:12], text)
+            self.assertNotEqual(text, (second / "corpus.json").read_text())  # fresh salt per export
+            store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,15 +30,47 @@ def _as_of(store: Store) -> Dict:
     # `xref`/`graph` (and so `inventory.head` above) are still the current
     # structural view -- naming that explicitly rather than letting `commit`
     # imply the whole answer is historical when only the claims are.
+    choice = getattr(store, "choice", None)
+    if choice is not None:
+        result.update(choice.as_dict())
     as_of_run_id = getattr(store, "as_of_run_id", None)
     if as_of_run_id:
         result["patch_log_as_of"] = as_of_run_id
     return result
 
 
+def flag_changed(result: Any, changed: Sequence[str]) -> List[str]:
+    """Mark every citation of a file that changed since the answering snapshot
+    (`changed_since: true`) and return the changed files the answer cites."""
+    wanted, cited = set(changed), set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            at = node.get("file") if isinstance(node.get("line"), int) else None
+            at = at or (str(node["at"]).rsplit(":", 1)[0] if isinstance(node.get("at"), str) else None)
+            if isinstance(at, str) and at in wanted:
+                node["changed_since"] = True
+                cited.add(at)
+            for key, value in list(node.items()):
+                if key != "as_of":
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                if isinstance(item, str) and ":" in item and item.rsplit(":", 1)[0] in wanted:
+                    cited.add(item.rsplit(":", 1)[0])
+                else:
+                    walk(item)
+
+    walk(result)
+    return sorted(cited)
+
+
 def _finish(result: Dict, store: Store, budget: Optional[Budget]) -> Dict:
     """Attach the two fields every response must carry."""
     result["as_of"] = _as_of(store)
+    choice = getattr(store, "choice", None)
+    if choice is not None and choice.changed_files:
+        result["as_of"]["changed_since"] = flag_changed(result, choice.changed_files)
     if budget is None:
         result["elided"] = 0
         result["budget"] = None

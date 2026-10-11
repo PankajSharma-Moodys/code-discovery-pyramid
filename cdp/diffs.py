@@ -11,7 +11,7 @@ dirs, or one worktree scanned twice).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 from . import query as query_mod
 from .store import FileStore, WorkspaceStore
@@ -31,9 +31,51 @@ def _claim_location(claim: Dict) -> Tuple[Any, Any]:
     return evidence[0].get("file"), evidence[0].get("line")
 
 
+def _file_changes(old_files: Dict[str, Dict], new_files: Dict[str, Dict],
+                  old_xref: Dict, new_xref: Dict) -> Dict:
+    """Files added, removed and changed between two snapshots.
+
+    The index keeps no content hash, so `changed` is a file whose size or line
+    count differs, or whose definitions' extents differ -- an edit that keeps
+    the size and moves no definition is not seen (stated in the summary)."""
+    def shape(xref: Dict) -> Dict[str, Set[Tuple]]:
+        out: Dict[str, Set[Tuple]] = {}
+        for fqn, e in xref.get("symbols", {}).items():
+            for s in e.get("sites", []):
+                end = s.get("end_line")
+                out.setdefault(s["file"], set()).add(
+                    (fqn, (end - s["anchor"]["line"]) if end else None, e.get("value")))
+        return out
+
+    old_shape, new_shape = shape(old_xref), shape(new_xref)
+    both = set(old_files) & set(new_files)
+    changed = sorted(
+        p for p in both
+        if (old_files[p].get("bytes"), old_files[p].get("loc")) != (new_files[p].get("bytes"), new_files[p].get("loc"))
+        or old_shape.get(p, set()) != new_shape.get(p, set())
+    )
+    return {"added": sorted(set(new_files) - set(old_files)),
+            "removed": sorted(set(old_files) - set(new_files)), "changed": changed}
+
+
+def _symbol_changes(old_xref: Dict, new_xref: Dict) -> Dict:
+    """Symbols added and removed, and ones whose extent length, value or visibility changed
+    (a symbol that only moved down a file is not a change)."""
+    old, new = old_xref.get("symbols", {}), new_xref.get("symbols", {})
+
+    def sig(e: Dict) -> Tuple:
+        return (e.get("visibility"), e.get("value"),
+                tuple(sorted((s["file"], (s["end_line"] - s["anchor"]["line"]) if s.get("end_line") else None)
+                             for s in e.get("sites", []))))
+
+    return {"added": sorted(set(new) - set(old)), "removed": sorted(set(old) - set(new)),
+            "changed": sorted(k for k in set(old) & set(new) if sig(old[k]) != sig(new[k]))}
+
+
 def diff_snapshots(
     old_graph: Dict, old_xref: Dict, old_state: Dict,
     new_graph: Dict, new_xref: Dict, new_state: Dict,
+    old_files: Optional[Dict[str, Dict]] = None, new_files: Optional[Dict[str, Dict]] = None,
 ) -> Dict:
     modules_old, modules_new = set(old_graph["modules"]), set(new_graph["modules"])
 
@@ -67,7 +109,12 @@ def diff_snapshots(
     if regressed:
         findings.append("coverage regressed: %.1f%% -> %.1f%%" % (100 * cov_old, 100 * cov_new))
 
+    files = _file_changes(old_files, new_files, old_xref, new_xref) \
+        if old_files is not None and new_files is not None else None
+    symbols = _symbol_changes(old_xref, new_xref)
     return {
+        "files": files,
+        "symbols": symbols,
         "modules": {"added": sorted(modules_new - modules_old), "removed": sorted(modules_old - modules_new)},
         "declared_edges": {
             "added": sorted(declared_new - declared_old), "removed": sorted(declared_old - declared_new),
@@ -89,6 +136,9 @@ def diff_snapshots(
     }
 
 
+_SHOW = 10
+
+
 def summarise(diff: Dict) -> List[str]:
     lines = [
         "diff      %d module(s) added, %d removed"
@@ -103,6 +153,21 @@ def summarise(diff: Dict) -> List[str]:
         "          %d claim(s) added, %d removed, %d anchor(s) moved"
         % (len(diff["claims"]["added"]), len(diff["claims"]["removed"]), len(diff["claims"]["anchor_moved"])),
     ]
+    files, syms = diff.get("files"), diff["symbols"]
+    if files is not None:
+        lines.append("          %d file(s) changed, %d added, %d removed (size/extent based: an "
+                     "edit that keeps both is not seen)"
+                     % (len(files["changed"]), len(files["added"]), len(files["removed"])))
+        for tag, key in (("~", "changed"), ("+", "added"), ("-", "removed")):
+            lines += ["            %s %s" % (tag, f) for f in files[key][:_SHOW]]
+            if len(files[key]) > _SHOW:
+                lines.append("            ... %d more %s file(s) (--json lists all)" % (len(files[key]) - _SHOW, key))
+    lines.append("          %d symbol(s) added, %d removed, %d changed (extent length, value or visibility)"
+                 % (len(syms["added"]), len(syms["removed"]), len(syms["changed"])))
+    for tag, key in (("+", "added"), ("-", "removed"), ("~", "changed")):
+        lines += ["            %s %s" % (tag, f) for f in syms[key][:_SHOW]]
+        if len(syms[key]) > _SHOW:
+            lines.append("            ... %d more %s symbol(s) (--json lists all)" % (len(syms[key]) - _SHOW, key))
     for finding in diff["findings"]:
         lines.append("finding   %s" % finding)
     return lines
@@ -127,10 +192,13 @@ def open_diff_side(state_dir: Path) -> "query_mod.Store":
     )
 
 
-def current_snapshot_sha(backend: WorkspaceStore, repo_id: str) -> str:
-    backend.use_latest_snapshot()
-    sid = backend.snapshot_id()
-    row = next((r for r in backend.list_snapshots() if r["id"] == sid), None)
-    if row is None:
-        raise CdpError("no scanned snapshot for %s -- run `cdp scan` first" % repo_id)
-    return row["commit_sha"]
+def current_snapshot_sha(backend: WorkspaceStore, repo_id: str, repo: Path) -> str:
+    """The commit of the snapshot that answers for `repo` right now (the shared
+    `snapshot.choose_snapshot` rule), never another repo's or branch's."""
+    from .snapshot import choose_snapshot, stored_excludes
+
+    snapshots = backend.list_snapshots()
+    choice = choose_snapshot(repo, repo_id, snapshots, stored=stored_excludes(backend, repo_id, snapshots))
+    if choice.row is None:
+        raise CdpError("no scanned snapshot for %s (%s) -- run `cdp scan` first" % (repo_id, choice.reason))
+    return choice.row["commit_sha"]

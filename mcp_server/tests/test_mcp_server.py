@@ -7,6 +7,7 @@ half of `server.py` (`handle`) is plain JSON-RPC, no SDK needed.
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
@@ -41,8 +42,8 @@ class AtRestTokenCostTest(unittest.TestCase):
 
     def test_three_tools_cost_far_less_than_the_49_2k_reference_point(self) -> None:
         measured = estimate_at_rest_tokens()
-        self.assertEqual(measured["tool_count"], 3)
-        self.assertEqual(set(measured["per_tool"]), {"cdp_query", "cdp_scan", "cdp_status"})
+        self.assertEqual(measured["tool_count"], 5)
+        self.assertEqual(set(measured["per_tool"]), {"cdp_query", "cdp_scan", "cdp_refresh", "cdp_status", "cdp_help"})
         self.assertLess(measured["tokens_est"], 2000)
 
     def test_growing_the_tool_count_is_the_stress_test_named_in_the_plan(self) -> None:
@@ -76,25 +77,30 @@ class CallDispatchTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         tmp_path = Path(cls.tmp.name)
         cls.repo = make_repo(tmp_path / "repo")
-        cls.state_dir = tmp_path / "state"
+        cls._old_home = os.environ.get("CDP_HOME")
+        os.environ["CDP_HOME"] = str(tmp_path / "home")
 
     @classmethod
     def tearDownClass(cls) -> None:
+        if cls._old_home is None:
+            os.environ.pop("CDP_HOME", None)
+        else:
+            os.environ["CDP_HOME"] = cls._old_home
         cls.tmp.cleanup()
 
     def test_call_scan_then_query_by_name(self) -> None:
-        scan_result = server_mod._call(
-            "cdp_scan", {"repo": str(self.repo), "state_dir": str(self.state_dir)}
-        )
+        scan_result = server_mod._call("cdp_scan", {"repo": str(self.repo)})
         self.assertEqual(scan_result["query"], "stats")
-        status = server_mod._call(
-            "cdp_status", {"repo": str(self.repo), "state_dir": str(self.state_dir)}
-        )
+        status = server_mod._call("cdp_status", {"repo": str(self.repo)})
         self.assertIn("run_id", status)
 
     def test_call_rejects_an_unknown_tool_name(self) -> None:
         with self.assertRaises(ValueError):
             server_mod._call("not_a_real_tool", {})
+
+    def test_state_dir_is_rejected(self) -> None:
+        with self.assertRaises(server_mod.InvalidParams):
+            server_mod._call("cdp_scan", {"repo": str(self.repo), "state_dir": "/tmp/anywhere"})
 
     def test_protocol_handshake_list_and_call(self) -> None:
         init = server_mod.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -105,7 +111,7 @@ class CallDispatchTest(unittest.TestCase):
         self.assertEqual([t["name"] for t in listed["result"]["tools"]], list(TOOL_SCHEMAS))
         bad = server_mod.handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
                                  "params": {"name": "nope", "arguments": {}}})
-        self.assertTrue(bad["result"]["isError"])
+        self.assertEqual(bad["error"]["code"], -32602)
         unknown = server_mod.handle({"jsonrpc": "2.0", "id": 4, "method": "x/y"})
         self.assertEqual(unknown["error"]["code"], -32601)
 

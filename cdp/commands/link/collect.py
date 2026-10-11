@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 
-from .._common import Spec, locked, paths_from_args
+from .._common import Spec, locked, open_link_store, outcome_code, paths_from_args
 from ... import link as link_mod
 from ...link import read_link_report
-from ...session import open_store
-from ...store import SqliteStore
 from ...util import CdpError, read_json
 from pathlib import Path
 
@@ -49,13 +47,8 @@ def cmd_link_collect(args) -> int:
     tasks = {t["task_id"]: t for t in read_json(in_dir / "tasks.json")}
 
     paths = paths_from_args(args)
-    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    store = open_link_store(args, paths, "collect", writable=True)
     try:
-        if not store.supports_link_edges():
-            raise CdpError(
-                "%s cannot back `cdp link collect` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
-            )
         report = read_link_report(store)
         run_id = "cdp-link"
         accepted = 0
@@ -67,6 +60,9 @@ def cmd_link_collect(args) -> int:
             except ValueError as exc:
                 rejected.append((patch_path.name, ["not valid JSON: %s" % exc]))
                 continue
+            if not isinstance(patch, dict):
+                rejected.append((patch_path.name, ["a patch is a JSON object, got %s" % type(patch).__name__]))
+                continue
             task = tasks.get(patch.get("task_id"))
             if task is None:
                 rejected.append((patch_path.name, ["/task_id: %r is not a known task" % patch.get("task_id")]))
@@ -76,8 +72,7 @@ def cmd_link_collect(args) -> int:
                 rejected.append((patch_path.name, errors))
                 continue
             accepted += 1
-            folded += link_mod.fold_resolutions(report, task, patch, run_id)
-        store.write_link_edges(report)
+            folded += link_mod.fold_resolutions(report, task, patch, run_id, store=store)
     finally:
         store.close()
 
@@ -87,4 +82,4 @@ def cmd_link_collect(args) -> int:
         print("  REJECTED %s: %s" % (name, "; ".join(errors[:4])))
     if folded:
         print("next      cdp link query --service <name>")
-    return 0
+    return outcome_code(accepted, len(rejected))

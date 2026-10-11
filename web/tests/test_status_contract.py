@@ -20,6 +20,8 @@ MINIREPO = REPO_ROOT / "tests" / "fixtures" / "minirepo"
 class StatusContractTest(unittest.TestCase):
     def setUp(self) -> None:
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
         subprocess.run(
             [sys.executable, "-m", "cdp", "scan", "--repo", str(MINIREPO),
@@ -37,6 +39,21 @@ class StatusContractTest(unittest.TestCase):
         )
         payload = json.loads(proc.stdout)
         StatusResponse(**payload)  # raises on schema mismatch
+
+    def test_foreign_state_dir_is_rejected(self) -> None:
+        """A request cannot point the server at another store (J7 follow-up)."""
+        from fastapi.testclient import TestClient
+
+        from web.api.app import app
+
+        other = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, other, ignore_errors=True)
+        client = TestClient(app)
+        for path in ("/api/status", "/api/repos"):
+            resp = client.get(path, params={"repo": str(MINIREPO), "state_dir": other})
+            self.assertEqual(resp.status_code, 400, path)
+        ok = client.get("/api/status", params={"repo": str(MINIREPO), "state_dir": str(self.state_dir)})
+        self.assertEqual(ok.status_code, 200)
 
     def test_api_status_validates_against_model_and_matches_cli(self) -> None:
         from fastapi.testclient import TestClient
@@ -70,6 +87,8 @@ class StatusContractTest(unittest.TestCase):
         from web.api.app import app
 
         empty_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, empty_dir)
         self.addCleanup(shutil.rmtree, empty_dir, ignore_errors=True)
         client = TestClient(app)
         resp = client.get("/api/status", params={

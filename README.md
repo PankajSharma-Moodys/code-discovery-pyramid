@@ -34,34 +34,34 @@ table below is that same guidance, gathered in one place.
 | `scan --repo <path>` | Every deterministic phase (extract, graph, partition, dataflow, verify, docs) — no model calls, writes the one machine store (`CDP_HOME`, default `~/.cdp`; never the repo). Start here, always. | next: `query stats`, `query trace <entrypoint>`, or `prompts`. Flags: `--workers N`, `--exclude DIR`, `--no-docs`, `--quiet`. |
 | `query <kind> [term]` | Ask the index a question (`stats coverage symbol file module routes table config paths search claims unknowns conflicts trace`). Never budgeted for `stats`/`coverage` — check those before saying "there is no X". | tip (when rows were elided): `--budget <bigger N>`. Flags: `--json`, `--kind`, `--as-of <sha>`. |
 | `docs [--out DIR]` | Renders `00-overview.md`, `modules/<module>.md`, `dataflow.md`, `unknowns.md`, `CLAUDE.md`. | next: open `<out>/00-overview.md`, or `query stats`. |
-| `status` | Waves, per-node statuses, coverage, freshness, and the current run's task table. | tip (stale/unreviewed scopes exist): `run --stale-only`. next (incomplete tasks): `run --resume --run-id <id>`. |
-| `diff <old_state> <new_state>` (or `--old-sha`/`--new-sha`` | Typed structural deltas between two scanned snapshots. | tip: `query symbol`/`query table <name>` for full context on a changed item. |
+| `status` | Waves, per-node statuses, coverage, freshness, and the current run's task table. | tip (stale/unreviewed scopes exist): `run --stale-only`. next (incomplete tasks): `run --resume`. |
+| `diff <old_state> <new_state> | diff --old-sha A --new-sha B` | Typed structural deltas between two scanned snapshots (an omitted side defaults to the current snapshot; git changes not yet re-scanned do not appear). | tip: `query symbol`/`query table <name>` for full context on a changed item. |
 
 ### Leaf agents
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
-| `prompts` | Writes one leaf prompt per scope for the wave loop. | next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons vN`/`--no-lessons`. |
+| `prompts` | Writes one leaf prompt per scope for the wave loop. | next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons N`/`--no-lessons`. |
 | `collect` | Validates, verifies and appends leaf patches sitting in the inbox. | next: `fold --check`. |
 | `fold [--check]` | Recomputes `state.json` from `patches/` + `xref.json`. `--check` verifies the invariant instead of writing. | next (no `--check`): `query stats`. On `--check` failure: `rollback` the offending run, or `fold` again. |
 | `refresh` | Re-verifies every live claim against HEAD, zero model calls, incremental extraction. | next: `query stats`. Flags: `--quiet`. No-ops cleanly when HEAD is unchanged. |
-| `run --wave N \| --wave-all \| --stale-only \| --scope X` | Dispatch → collect → adjudicate → fold, wave by wave, supervised (leases, retries, resume). | next: `query stats`, or `fold --check`. tip (on partial failure): `run --resume --run-id <id>`. Flags: `--runner-cmd`, `--parallel N` (scopes of a wave at once), `--max-attempts`, `--resume`, `--lessons vN`/`--no-lessons`. |
+| `run --wave N \| --wave-all \| --stale-only \| --scope X` | Dispatch → collect → adjudicate → fold, wave by wave, supervised (leases, retries, resume). | next: `query stats`, or `fold --check`. tip (on partial failure): `run --resume`. Flags: `--runner-cmd`, `--parallel N` (scopes of a wave at once), `--max-attempts`, `--resume`, `--lessons N`/`--no-lessons`. |
 | `verify [--full]` | Recomputes the fold from the log and diffs it against `state.json`; `--full` also proves the archive. | On `FAIL`: `rollback --to-run <run>`, then `fold`. On `ok` without `--full`: tip — `verify --full` (needs `compact` first). |
-| `answer --scope S --subject X --claim "..." --anchor FILE:LINE` | Records a human claim against an unknown — same validate/verify/entail/fold pipeline as a leaf patch, `author_kind=human`. | next: `query unknowns` to see what's still open. |
+| `answer <scope> --subject X --kind K --claim "..." --anchor FILE:LINE` | Records a human claim against an unknown — same validate/verify/entail/fold pipeline as a leaf patch, `author_kind=human`. | next: `query unknowns` to see what's still open. |
 
 ### Learning
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
-| `reflect` | One real model call per outlier scope from a run's trajectory corpus; keeps only well-formed promotions. | next (promotions accepted): `lessons cut`, then `holdout --lessons vN <held-out-repo>` before trusting it. |
-| `lessons cut \| unpromote \| show` | Cut and inspect numbered, pinned lesson-sets (`cdp run --lessons vN` pins one; default is always the latest cut, never the live corpus). | `cut` → next: `run --lessons vN`, or `holdout` to A/B first. `unpromote` → next: default `run` resolution now uses the new fallback (`--no-lessons` to opt out). `show` → tip: `lessons cut` / `lessons unpromote --version N`. |
-| `holdout --lessons vN <repo>` | A/B a lesson-set cut against a repo outside its own learning corpus; promotes to latest only if it doesn't regress. | On promote: next — `run --lessons vN` (or omit `--lessons`; it's now the latest cut). |
+| `reflect` | One real model call per outlier scope from a run's trajectory corpus; keeps only well-formed promotions. | next (promotions accepted): `lessons cut`, then `holdout --lessons N --repo <held-out-repo>` before trusting it. |
+| `lessons cut \| unpromote \| show` | Cut and inspect numbered, pinned lesson-sets (`cdp run --lessons N` pins one; default is always the latest cut, never the live corpus). | `cut` → next: `run --lessons N`, or `holdout` to A/B first. `unpromote` → next: default `run` resolution now uses the new fallback (`--no-lessons` to opt out). `show` → tip: `lessons cut` / `lessons unpromote --version N`. |
+| `holdout --lessons N --repo <holdout-repo>` | A/B a lesson-set cut against a repo outside its own learning corpus; promotes to latest only if it doesn't regress. | On promote: next — `run --lessons N` (or omit `--lessons`; it's now the latest cut). |
 
 ### Cross-repo link
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
-| `link scan <state_dir>... [--db]` | Matches channel edges within/across scanned state directories (read-only). | next: `link query --service <name>`. tip (ambiguous matches found): `link prompts --out <dir>`. |
+| `link scan <state_dir>... [--db [PATH]]` | Matches channel edges within/across scanned state directories (read-only unless `--db`). | next: `link query --service <name>`. tip (ambiguous matches found): `link prompts --out <dir>`. |
 | `link prompts --db --out DIR` | Writes one prompt per ambiguous (heuristic) caller target. | next (no `--runner-cmd`): hand each prompt to a leaf, drop its patch in `<out>/inbox`, then `link collect --in <out>`. |
 | `link collect --db --in DIR` | Validates → verifies → entails → folds every patch from a prior `link prompts --out`. | next: `link query --service <name>`. |
 | `link run --db` | Dispatches every ambiguous task through the same lease/retry machine `run` uses for scopes. | next: `link query --service <name>`. Flags: `--runner-cmd`, `--max-attempts`. |
@@ -75,7 +75,7 @@ table below is that same guidance, gathered in one place.
 | `gc [--pin SHA] [--unpin SHA] [--dry-run]` | Drops snapshots not kept by the retention rule (HEAD, pinned, or cited by a live claim). | tip (something dropped): `compact` to also fold superseded patches into the cold archive. |
 | `compact [--keep-generations N] [--compact-threshold F]` | Moves superseded `complete` patch generations to the cold archive. | tip (something moved): `export --format archive` to inspect it. |
 | `export --format {json,patches,archive,anonymized} --out DIR` | Canonical JSON / reviewable patches / archive dump / anonymised corpus. | tip (`json` format): `--format patches` for a reviewable dump, `--format archive` to include the cold archive. |
-| `rollback --to-run R \| --to-snapshot S` | Excludes a run's patches from the fold without deleting them (append-only ledger). | next: `query stats` to confirm the exclusion took effect. tip: `--reason "..."` to record why. |
+| `rollback --to-run R \| --to-snapshot S \| --undo` | Excludes patches already in the log from the fold without deleting them (append-only ledger); patches accepted later are live. `--undo` reverses the latest. | next: `query stats` to confirm the exclusion took effect. tip: `--reason "..."` to record why. |
 
 ### Setup & self-check
 
@@ -83,10 +83,10 @@ table below is that same guidance, gathered in one place.
 |---|---|---|
 | `doctor --runner-cmd <cmd>` | Cross-model conformance harness: schema validity, anchor survival, entailment, recall, false-unknown rate against a golden set. Writes `<state>/doctor/<model>.json`. | next (only one model report so far): `doctor --model <other>` to build the compatibility table. |
 | `validate <patch.json>` | Validates a patch file against the schema. | — |
-| `githook install \| uninstall` | Installs/uninstalls git `post-commit`/`post-checkout` hooks that auto-run `cdp refresh`. | — |
-| `install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook] [--harness] [--remove-harness]` | Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent). | next: `scan --repo <target>` (printed for you). tip: `--hook` to auto-refresh on every commit, `--framework {langgraph,adk}` for non-Claude-Code leaves. |
+| `githook install \| uninstall` | Installs/uninstalls git `post-commit`, `post-checkout`, `post-merge` and `post-rewrite` hooks that auto-run `cdp refresh` (commit, branch switch, pull, rebase; one install serves every worktree). | — |
+| `install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook] [--harness] [--strict] [--agents-md] [--remove-harness]` | Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent). Writes nothing else unless asked: `--harness` adds the Claude Code hooks + MCP server, `--agents-md` adds AGENTS.md. | next: `scan --repo <target>` (printed for you). tip: `--harness` adds the Claude Code hooks (a nudge, never a block; `--strict` to deny) + MCP server (`githook install` is what auto-refreshes on commit, pull and rebase); `--framework {langgraph,adk}` for non-Claude-Code leaves. |
 | `selftest [--determinism <repo>] [--golden] [--min-tests N]` | Runs the bundled test suite (or the reproducibility/golden gates). | — |
-| `help [<command> \| workflows] [--json]` | When to use what, in what order, and what comes next — derived from the live parser, never hand-maintained. | — |
+| `help [<command> \| <kind> \| recipes \| reference] [--json]` | When to use what, in what order, and what comes next — derived from the live parser, never hand-maintained. | — |
 
 <!-- END COMMANDS -->
 

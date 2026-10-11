@@ -8,6 +8,15 @@ from ..util import truncate
 from .common import _claim_lines, _more, cite
 
 
+def _match_note(result: Dict) -> str:
+    """How the term matched, so a substring hit is never read as an exact one (H4)."""
+    mode = result.get("match")
+    if mode in (None, "all"):
+        return ""
+    what = {"routes": "route path or verb"}.get(result.get("query"), "name")
+    return "  [%s match on %s%s]" % (mode, what, "; `--exact` for the whole name" if mode == "substring" else "")
+
+
 def render(result: Dict) -> str:
     """Text rendering of a result that has *already* been budgeted.
 
@@ -22,10 +31,14 @@ def render(result: Dict) -> str:
 
     if kind == "symbol":
         if not result["found"]:
-            lines.append("No symbol matching %r. Try `search %s`."
-                         % (result["name"], result["name"]))
+            lines.append("No symbol matching %r (%s match). Try `search %s`."
+                         % (result["name"], result.get("match", "substring"), result["name"]))
+        elif result.get("match") == "substring":
+            lines.append("(substring match on %r; exact last names first)" % result["name"])
         for entry in result["found"]:
             lines.append("%s  [%s %s]" % (entry["fqn"], entry["visibility"], entry["kind"]))
+            if entry.get("via"):
+                lines.append("  note: %s" % entry["via"])
             if entry.get("value") is not None:
                 lines.append("  value: %r" % entry["value"])
             lines.append("  defined in %s at %s" % (", ".join(entry["modules"]), ", ".join(entry["defined_at"])))
@@ -43,7 +56,9 @@ def render(result: Dict) -> str:
 
     elif kind == "file":
         if not result["found"]:
-            lines.append("No file matching %r." % result["path"])
+            lines.append("No file matching %r (%s match)." % (result["path"], result.get("match", "substring")))
+        elif result.get("match") == "substring":
+            lines.append("(substring match on the path %r; `--exact` for the whole path)" % result["path"])
         for entry in result["found"]:
             lines.append("%s" % entry["path"])
             lines.append(
@@ -100,7 +115,7 @@ def render(result: Dict) -> str:
             lines.append("")
 
     elif kind == "routes":
-        lines.append("%d route(s)" % result["count"])
+        lines.append("%d route(s)%s" % (result["count"], _match_note(result)))
         lines.extend(_more("  ", result["count"], result["routes"]))
         for r in result["routes"]:
             note = ""
@@ -112,7 +127,7 @@ def render(result: Dict) -> str:
             lines.append("          %s%s" % (" ".join(r["evidence"]), note))
 
     elif kind == "table":
-        lines.append("%d table(s)" % result["count"])
+        lines.append("%d table(s)%s" % (result["count"], _match_note(result)))
         lines.extend(_more("  ", result["count"], result["tables"]))
         for t in result["tables"]:
             lines.append("  %s" % t["table"])
@@ -129,19 +144,26 @@ def render(result: Dict) -> str:
                 lines.extend(_more("    ", t["evidence_count"], t["evidence"]))
 
     elif kind == "config":
-        lines.append("%d config key(s)" % result["count"])
-        lines.extend(_more("  ", result["count"], result["keys"]))
+        lines.append("%d config key(s)%s" % (result["count"], _match_note(result)))
+        if result.get("keys_elided"):
+            lines.append("  showing %d key(s), most-read first; %d key(s) and %d site(s) elided by the budget "
+                         "(pass a term, or --budget <bigger N>)%s"
+                         % (len(result["keys"]), result["keys_elided"], result["sites_elided"],
+                            ": " + ", ".join(result["elided_keys"][:5]) + (", ..." if result["keys_elided"] > 5 else "")
+                            if result.get("elided_keys") else ""))
         for c in result["keys"]:
             lines.append("  %s%s" % (c["key"], "  = %r" % c["values"][0] if c["values"] else ""))
             if c["declared"]:
                 lines.append("    declared: %s" % " ".join(c["declared"]))
                 lines.extend(_more("    ", c["declared_count"], c["declared"]))
             for r in c["read"]:
-                lines.append("    read by %-50s %s" % (truncate(r["by"], 50), r["at"]))
+                lines.append("    read by %-50s %s%s" % (truncate(r["by"], 50), r["at"],
+                             "  (key from %s)" % r["via_constant"] if r.get("via_constant") else ""))
             lines.extend(_more("    ", c["read_count"], c["read"]))
 
     elif kind == "paths":
-        lines.append("%d traced path(s)" % result["count"])
+        lines.append("%d traced path(s)%s" % (
+            result["count"], "  [match: %s]" % result["match"] if result.get("match") not in (None, "all") else ""))
         lines.extend(_more("  ", result["count"], result["paths"]))
         for p in result["paths"]:
             lines.append("  %s   [%s]" % (p["trigger"], p["confidence"]))
@@ -186,6 +208,10 @@ def render(result: Dict) -> str:
             lines.append("symbols:")
             lines += ["  " + s for s in result["symbols"]]
             lines.extend(_more("  ", counts["symbols"], result["symbols"]))
+        if result["constants"]:
+            lines.append("constants (matched by value):")
+            lines += ["  " + c for c in result["constants"]]
+            lines.extend(_more("  ", counts["constants"], result["constants"]))
         if result["files"]:
             lines.append("files:")
             lines += ["  " + f for f in result["files"]]
@@ -201,7 +227,8 @@ def render(result: Dict) -> str:
                 lines.append("  %s" % u["question"])
             lines.extend(_more("  ", counts["unknowns"], result["unknowns"]))
         if not lines:
-            lines.append("Nothing matched %r." % result["text"])
+            lines.append("Nothing matched %r. Searched: %s. Not searched: %s."
+                         % (result["text"], result["searched"], result["not_searched"]))
 
     elif kind == "claims":
         lines.append("%d claim(s)" % result["count"])
@@ -283,6 +310,9 @@ def render(result: Dict) -> str:
             lines.append(result["warning"])
         for node in cov.get("incomplete_nodes", []):
             lines.append("  incomplete: %s (%s)" % (node, result["nodes"].get(node, "not run")))
+        for row in result.get("skipped", []):
+            lines.append("  skipped:    %s (%s%s)" % (row["path"], row["reason"].replace("_", " "),
+                         ", %d bytes" % row["bytes"] if "bytes" in row else ""))
 
     else:
         lines.append(str(result))
@@ -310,7 +340,21 @@ def _footer(result: Dict) -> str:
     )
     parts.append(
         "as of %s@%s, state v%s"
-        % (as_of.get("repo", "?"), str(as_of.get("commit", "unpinned"))[:12],
+        % (as_of.get("repo", "?"),
+           str(as_of.get("commit", "unpinned"))[:12] + ("+uncommitted" if as_of.get("snapshot_uncommitted") else ""),
            as_of.get("state_version", 0))
     )
+    if as_of.get("routed"):
+        parts.append(as_of["routed"])
+    if as_of.get("behind"):
+        parts.append("STALE: %d commit(s) behind HEAD %s" % (as_of["behind"], str(as_of.get("head"))[:12]))
+    if as_of.get("dirty_files"):
+        more = " (+%d)" % (len(as_of["dirty_files"]) - 5) if len(as_of["dirty_files"]) > 5 else ""
+        if as_of.get("snapshot_uncommitted"):
+            parts.append("index INCLUDES uncommitted changes (based on commit %s): %s"
+                         % (str(as_of.get("commit"))[:12], ", ".join(as_of["dirty_files"][:5]) + more))
+        else:
+            parts.append("UNCOMMITTED changes not in this index: %s" % ", ".join(as_of["dirty_files"][:5]) + more)
+    if as_of.get("changed_since"):
+        parts.append("cited files changed since: %s" % ", ".join(as_of["changed_since"][:5]))
     return "\n" + "\n".join(parts)

@@ -21,7 +21,7 @@ from helpers import SKILL_ROOT, have_git, make_repo  # noqa: F401  (sets sys.pat
 
 from unittest import mock
 
-from cdp import hook as hook_mod
+from cdp import hook as hook_mod, snapshot as snapshot_mod
 from cdp.cli import main
 from cdp.store import SqliteStore, registry
 
@@ -41,7 +41,7 @@ class _OwnHome:
         doctor what a scan wrote."""
         repo = repo or self.repo
         backend = SqliteStore(self.home / "index.db")
-        backend.use_current_snapshot(registry.repo_identity(repo), hook_mod.git_head(repo))
+        snapshot_mod.select(backend, repo, registry.repo_identity(repo))
         return backend
 
 
@@ -354,20 +354,20 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             groups = settings["hooks"]["PreToolUse"]
             self.assertEqual(len(groups), 1)
-            self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob")
+            self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob|Bash")
             self.assertEqual(len(groups[0]["hooks"]), 1, "duplicated on re-install")
 
     def test_reinstall_replaces_an_older_wider_matcher(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "target"
             (target / ".claude").mkdir(parents=True)
-            old = {"hooks": {"PreToolUse": [{"matcher": "Read|Grep|Glob|Bash", "hooks": [
+            old = {"hooks": {"PreToolUse": [{"matcher": "Read|Grep", "hooks": [
                 {"type": "command", "args": [], "command":
                  "python3 %s" % (target.resolve() / ".claude/skills/cdp/cdp/hook.py")}]}]}}
             (target / ".claude" / "settings.json").write_text(json.dumps(old))
             main(["install", str(target), "--hook"])
             groups = json.loads((target / ".claude" / "settings.json").read_text())["hooks"]["PreToolUse"]
-            self.assertEqual([g["matcher"] for g in groups], ["Read|Grep|Glob"])
+            self.assertEqual([g["matcher"] for g in groups], ["Read|Grep|Glob|Bash"])
             self.assertEqual(len(groups[0]["hooks"]), 1)
             self.assertNotIn("args", groups[0]["hooks"][0])
 
@@ -380,7 +380,7 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
             self.assertEqual(len(handlers), 1)
-            self.assertTrue(handlers[0]["command"].endswith("hook.py --strict"))
+            self.assertTrue(handlers[0]["command"].endswith('hook.py" --strict'))
             self.assertNotIn("args", handlers[0])
 
             # Re-installing without --strict updates the existing entry in
@@ -390,7 +390,7 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
             self.assertEqual(len(handlers), 1)
-            self.assertTrue(handlers[0]["command"].endswith("hook.py"))
+            self.assertTrue(handlers[0]["command"].endswith('hook.py"'))
 
     def test_install_states_no_scan_yet_without_requiring_in_repo(self) -> None:
         # M2.6: the hook is no longer `--in-repo` only (`store.registry`
@@ -519,8 +519,10 @@ class GateTest(_OwnHome, unittest.TestCase):
             self.assertIsNone(self.bash(command, session=command), command)
 
     def test_find_by_name_is_answered_with_the_path(self) -> None:
-        result = self.bash("find . -name 'ReservationService*.java' -not -path '*/build/*'")
+        result = self.bash("find . -name 'ReservationService*.java'")
         self.assertIn("ReservationService.java", result["message"])
+        # an exclusion narrows the search the index answers whole: it runs as written
+        self.assertIsNone(self.bash("find . -name 'ReservationService*.java' -not -path '*/build/*'", "x"))
 
     def test_grep_tool_without_a_path_is_covered(self) -> None:
         result = hook_mod.gate_decide(self.ev("Grep", "g", pattern="createReservationCredentials"))
@@ -548,15 +550,28 @@ class GateTest(_OwnHome, unittest.TestCase):
         shutil.rmtree(self.home)
         self.assertIsNone(self.bash("grep -rn processPendingReservations .", session="z"))
 
-    def test_harness_installs_the_gate_not_the_nudge(self) -> None:
+    def test_harness_installs_the_nudge_by_default_and_the_gate_with_strict(self) -> None:
         target = Path(self.tmp.name) / "target"
         target.mkdir()
         main(["install", str(target), "--harness"])
         settings = json.loads((target / ".claude" / "settings.json").read_text())
         pre = settings["hooks"]["PreToolUse"]
         self.assertEqual(len(pre), 1)
-        self.assertTrue(pre[0]["hooks"][0]["command"].endswith("hook.py --gate"))
-        self.assertIn("mcp__cdp__", pre[0]["matcher"])
+        command = pre[0]["hooks"][0]["command"]
+        self.assertTrue(command.endswith('hook.py"'), command)   # nudge: no --gate / --strict
+        self.assertNotIn("$HOME", command)
+        self.assertIn("$CLAUDE_PROJECT_DIR", command)
+        self.assertFalse((target / "AGENTS.md").exists())
+        main(["install", str(target), "--harness", "--strict"])
+        settings = json.loads((target / ".claude" / "settings.json").read_text())
+        pre = settings["hooks"]["PreToolUse"]
+        self.assertEqual(len(pre), 1)
+        self.assertTrue(pre[0]["hooks"][0]["command"].endswith('hook.py" --gate'))
+        self.assertIn("mcp__.*cdp_query", pre[0]["matcher"])
+        main(["install", str(target), "--harness"])       # back to the nudge: no stale gate
+        settings = json.loads((target / ".claude" / "settings.json").read_text())
+        self.assertEqual([h["command"].endswith('hook.py"') for g in settings["hooks"]["PreToolUse"]
+                          for h in g["hooks"]], [True])
 
 
 class ShellSearchParsingTest(unittest.TestCase):

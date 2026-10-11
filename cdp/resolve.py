@@ -31,7 +31,11 @@ import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .graph import build_symbol_index, owners_of
+from .cfgwrap import wrapped_reads
+from .cstypes import CsTypeIndex
+from .pytypes import PyIndex
 from .lang.base import is_third_party
+from .routes_cs import expand_routes
 
 SYMBOLIC_RE = re.compile(r"\$\{([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\}")
 
@@ -43,7 +47,10 @@ def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
 
     symbols, collisions = _symbol_table(extraction, role_of)
     constants = _constant_table(extraction)
-    uses, counts = _resolve_uses(extraction, module_set, symbol_owner, namespace_owner, symbols)
+    paths = [f["path"] for f in inventory["files"]]
+    cfg_calls: List[Tuple[str, Dict]] = []
+    uses, counts = _resolve_uses(extraction, module_set, symbol_owner, namespace_owner, symbols, paths,
+                                 cfg_calls)
     used_by = _transpose(uses)
     routes, route_gaps = _resolve_routes(extraction, constants)
     coupling = _coupling(graph)
@@ -55,6 +62,7 @@ def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
         "constants": constants,
         "uses": uses,
         "used_by": used_by,
+        "config_wrapped": wrapped_reads(symbols, cfg_calls),
         "routes": routes,
         "unresolved_routes": route_gaps,
         "coupling": coupling,
@@ -85,9 +93,21 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
         entry["sites"].append(site)
         if row.get("value") is not None:
             entry["value"] = row["value"]
+        if row.get("cfgp"):     # parameters naming a config key: a wrapper (cfgwrap.py)
+            entry["cfgp"] = sorted(set(entry.get("cfgp", ())) | set(row["cfgp"]))
+        for key in ("ret", "ftype", "tparams"):
+            # Overloads and duplicate declarations that disagree on a type
+            # settle nothing: the walk must not pick one.
+            if key not in entry:
+                entry[key] = row.get(key)
+            elif entry[key] != row.get(key):
+                entry[key] = None
 
     collisions = []
     for fqn, entry in table.items():
+        for key in ("ret", "ftype", "tparams"):
+            if entry.get(key) is None:
+                entry.pop(key, None)
         entry["modules"].sort()
         entry["sites"].sort(key=lambda s: (s["file"], s["anchor"]["line"]))
         if len(entry["sites"]) > 1:
@@ -154,15 +174,29 @@ def _resolve_uses(
     symbol_owner: Dict[str, List[str]],
     namespace_owner: Dict[str, List[str]],
     symbols: Dict[str, Dict],
+    paths: Sequence[str] = (),
+    cfg_calls: Optional[List[Tuple[str, Dict]]] = None,
 ) -> Tuple[List[Dict], Dict[str, int]]:
     counts = {"local": 0, "matched": 0, "third_party": 0, "ambiguous": 0, "unresolved": 0}
     out: List[Dict] = []
+    types = PyIndex(extraction, symbols, paths)
+    cstypes = CsTypeIndex(extraction, symbols) if any(f.endswith(".cs") for f in extraction["files"]) else None
 
-    for row in extraction["uses"]:
+    # Python call/reference rows are expressions; each becomes one row per target.
+    for row in types.expand(extraction["uses"]):
         fqn = row["fqn"]
         module = row["module"]
         entry = symbols.get(fqn)
-        if row.get("kind"):
+        if row.get("pyres"):
+            pass  # `PyIndex.expand` already settled the target
+        elif row.get("kind") == "call":
+            # Inherited methods resolve to their declaring class; chained
+            # receivers are walked through declared return and field types.
+            fqn = (cstypes if cstypes and row["file"].endswith(".cs") else types).call_target(row)
+            if fqn is None:
+                continue
+            entry = symbols.get(fqn) or symbols.get(fqn.split("#", 1)[0])
+        elif row.get("kind"):
             # Member-level rows (typed references, calls, bindings) name a type
             # the extractor could only guess at -- same package or a wildcard
             # import. Only a candidate that is a real symbol counts, and it is
@@ -232,6 +266,8 @@ def _resolve_uses(
         if candidates:
             record["candidates"] = candidates
         out.append(record)
+        if cfg_calls is not None and row.get("ka") and kind == "call":
+            cfg_calls.append((fqn, row))
 
     out.sort(key=lambda r: (r["fqn"], r["from_file"], r["anchor"]["line"]))
     return out, counts
@@ -267,6 +303,57 @@ def _transpose(uses: Sequence[Dict]) -> Dict[str, List[Dict]]:
 # ------------------------------------------------------------------ routes
 
 
+def expand_placeholders(text: str, constants: Dict[str, Dict], _seen: Tuple[str, ...] = (),
+                        module: Optional[str] = None) -> Tuple[str, List[Dict], List[str]]:
+    """Substitute every `${Owner.NAME}` in `text` with the constant's value, and
+    recursively inside that value (`BASE = "${Api.ROOT}/v1"`). Returns the text,
+    the anchors of the constants used, and the references that stayed unresolved
+    (unknown, ambiguous, or a cycle)."""
+    anchors: List[Dict] = []
+    missing: List[str] = []
+
+    def sub(m):
+        ref = m.group(1)
+        entry = constants.get(ref)
+        if entry and not entry.get("unambiguous") and module:
+            # the same `Owner.NAME` declared with different values in several modules: the use
+            # site's own module decides, when it declares exactly one value
+            own = [c for c in entry["candidates"] if c["module"] == module]
+            if own and len({c["value"] for c in own}) == 1:
+                entry = {"unambiguous": True, "value": own[0]["value"], "candidates": own}
+        if not entry or not entry.get("unambiguous") or ref in _seen:
+            missing.append(ref)
+            return m.group(0)
+        inner, inner_anchors, inner_missing = expand_placeholders(str(entry["value"]), constants, _seen + (ref,), module)
+        anchors.append(entry["candidates"][0]["anchor"])
+        anchors.extend(inner_anchors)
+        missing.extend(inner_missing)
+        return inner
+
+    return SYMBOLIC_RE.sub(sub, text), anchors, missing
+
+
+ENV_DEFAULT_RE = re.compile(r"^\$\{[A-Za-z_]\w*(?::-|-)([^}]*)\}$")
+CONTEXT_PATH_KEY = "config:server.applicationContextPath"
+
+
+def _context_paths(extraction: Dict, constants: Dict[str, Dict]) -> Dict[str, Tuple[str, Dict]]:
+    """module -> (Dropwizard `server.applicationContextPath`, its anchor), only where the
+    module's own config states one unambiguously. A `${ENV:-/x}` value contributes its default."""
+    found: Dict[str, Dict[str, Dict]] = {}
+    for row in extraction["defines"]:
+        if row["kind"] != "config_key" or row["fqn"] != CONTEXT_PATH_KEY or not row.get("value"):
+            continue
+        value = str(row["value"]).strip().strip("\"'")
+        env = ENV_DEFAULT_RE.match(value)
+        value = env.group(1) if env else value
+        value, _, missing = expand_placeholders(value, constants)
+        if missing or not value.startswith("/"):
+            continue
+        found.setdefault(row["module"], {}).setdefault(value, row["anchor"])
+    return {m: next(iter(v.items())) for m, v in found.items() if len(v) == 1}
+
+
 def _resolve_routes(extraction: Dict, constants: Dict[str, Dict]) -> Tuple[List[Dict], List[Dict]]:
     """Substitute `${Owner.CONST}` fragments and attach the definition anchor.
 
@@ -276,11 +363,15 @@ def _resolve_routes(extraction: Dict, constants: Dict[str, Dict]) -> Tuple[List[
     reported as an explicit gap — which now genuinely means "the constant was
     not found anywhere in the repository" rather than "the partitioner drew a
     line in an awkward place."
+
+    A Dropwizard module's `server.applicationContextPath` is part of the URL every
+    JAX-RS route in that module is served at, so it prefixes the route (`context_path`).
     """
     routes: List[Dict] = []
     gaps: List[Dict] = []
+    contexts = _context_paths(extraction, constants)
 
-    for edge in extraction["io_edges"]:
+    for edge in expand_routes(extraction):
         if edge["channel"] != "http_in" or not edge["target"].startswith("route:"):
             continue
         raw = edge["target"][len("route:") :]
@@ -289,16 +380,8 @@ def _resolve_routes(extraction: Dict, constants: Dict[str, Dict]) -> Tuple[List[
             verb, path = "ANY", raw
 
         anchors = [edge["anchor"]]
-        resolved_path = path
-        missing: List[str] = []
-        for ref in SYMBOLIC_RE.findall(path):
-            entry = constants.get(ref)
-            if entry and entry.get("unambiguous"):
-                resolved_path = resolved_path.replace("${%s}" % ref, str(entry["value"]))
-                anchors.append(entry["candidates"][0]["anchor"])
-            else:
-                missing.append(ref)
-
+        resolved_path, used, missing = expand_placeholders(path, constants, module=edge["module"])
+        anchors.extend(used)
         record = {
             "verb": verb,
             "route": resolved_path,
@@ -308,6 +391,12 @@ def _resolve_routes(extraction: Dict, constants: Dict[str, Dict]) -> Tuple[List[
             "file": edge["file"],
             "evidence": anchors,
         }
+        ctx = contexts.get(edge["module"]) if edge["file"].endswith(".java") else None
+        if ctx and not missing:
+            prefix, anchor = ctx
+            record["route"] = prefix.rstrip("/") + ("/" + resolved_path.lstrip("/") if resolved_path.strip("/") else "")
+            record["context_path"] = prefix
+            anchors.append(anchor)
         if missing:
             record["unresolved_constants"] = sorted(set(missing))
             gaps.append(record)
@@ -317,6 +406,42 @@ def _resolve_routes(extraction: Dict, constants: Dict[str, Dict]) -> Tuple[List[
     routes.sort(key=lambda r: (r["route"], r["verb"], r["file"]))
     gaps.sort(key=lambda r: (r["route"], r["verb"], r["file"]))
     return routes, gaps
+
+
+# ------------------------------------------------------------------ config
+
+
+def config_reads(extraction: Dict, constants: Dict[str, Dict], wrapped: Sequence[Dict] = ()) -> List[Dict]:
+    """Every read of a config key or environment variable, one row per site:
+    `{key, by, file, module, anchor, symbolic?, dynamic?}`.
+
+    A key written as a constant of another file (`config:${Env.HOME_KEY}`) is
+    resolved through the constant table, recursively; one that cannot be
+    resolved is reported under `config:(dynamic)` with `symbolic` kept, so the
+    read is counted and cited, never dropped. Declarations (`config-file:`
+    sources) are not reads."""
+    out: List[Dict] = []
+    for edge in [*extraction["io_edges"], *wrapped]:
+        if edge["channel"] != "config_read" or not edge["target"].startswith("config:"):
+            continue
+        if edge["source"].startswith("config-file:"):
+            continue
+        key = edge["target"][len("config:") :]
+        row = {"key": key, "by": edge["source"], "file": edge["file"], "module": edge["module"],
+               "anchor": edge["anchor"]}
+        for tag in ("provider", "wrapper"):
+            if edge.get(tag):
+                row[tag] = edge[tag]
+        if "${" in key:
+            value, used, missing = expand_placeholders(key, constants, module=edge["module"])
+            row["symbolic"] = key
+            if missing:
+                row["key"] = "(dynamic)"
+            else:
+                row["key"] = value
+                row["via"] = used[:1]
+        out.append(row)
+    return out
 
 
 # ------------------------------------------------------------- derived views

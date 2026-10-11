@@ -16,6 +16,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from .base import ExtractContext, Extractor, FileFacts
+from .appsettings import AppSettingsExtractor
 from .build import MANIFEST_NAMES, BuildExtractor
 from .csharp import CSharpExtractor
 from .data import ConfigExtractor, DockerExtractor, GenericExtractor, SqlExtractor
@@ -37,6 +38,7 @@ EXTRACTORS: Tuple[Extractor, ...] = (
     SqlExtractor(),
     ConfigExtractor(),
 )
+_APPSETTINGS = AppSettingsExtractor()
 _FALLBACK = GenericExtractor()
 
 _BY_NAME: Dict[str, Extractor] = {}
@@ -66,6 +68,8 @@ _CI_PATTERN = re.compile(r"(^|/)(\.github|\.gitlab|\.circleci|\.azure|ci|\.build
 
 def get_extractor(path: str) -> Extractor:
     name = path.rsplit("/", 1)[-1]
+    if _APPSETTINGS.matches(path):
+        return _APPSETTINGS
     if name in _BY_NAME:
         return _BY_NAME[name]
     if "." in name:

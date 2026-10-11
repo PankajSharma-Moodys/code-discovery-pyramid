@@ -93,8 +93,10 @@ class OneStoreTest(unittest.TestCase):
         for repo, expect in ((caller, "BillingClient"), (callee, "ChargeResource")):
             out = cdp(["query", "search", expect], repo, self.home).stdout
             self.assertIn(expect, out)
-        other = cdp(["query", "search", "ChargeResource"], caller, self.home).stdout
-        self.assertNotIn("com.acme.billing.ChargeResource", other)
+        # Not in the caller's index: reported as not found (rc 1), never as the other repo's symbol.
+        proc = cdp(["query", "search", "ChargeResource"], caller, self.home, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertNotIn("com.acme.billing.ChargeResource", proc.stdout.split("not found")[0])
 
     def test_a_backend_key_in_a_repos_cdp_toml_is_rejected(self):
         repo = make_repo(self.root / "r")
@@ -122,7 +124,7 @@ class OneStoreTest(unittest.TestCase):
         repo = make_repo(self.root / "r")
         cdp(["scan", "--repo", repo, "--quiet"], self.elsewhere, self.home)
         cdp(["prompts", "--repo", repo], self.elsewhere, self.home)
-        work = registry.work_dir(self.home, registry.repo_identity(repo))
+        work = registry.work_dir_of(self.home, Path(repo))
         self.assertTrue(list((work / "prompts").glob("*.md")))
         self.assertTrue((work / "docs").is_dir())
 
@@ -133,7 +135,7 @@ class OneStoreTest(unittest.TestCase):
         proc = cdp(["query", "stats"], unscanned, self.home, check=False)
         self.assertEqual(proc.returncode, 2)
         self.assertIn("no scan of", proc.stderr)
-        self.assertIn(registry.repo_identity(scanned), proc.stderr)
+        self.assertIn(str(Path(scanned).resolve()), proc.stderr)  # named by path, not by a bare UUID
 
 
 if __name__ == "__main__":

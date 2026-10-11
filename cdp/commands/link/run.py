@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from .._common import Spec, locked, paths_from_args
+import shlex
+
+from .._common import Spec, locked, open_link_store, paths_from_args
 from ... import link as link_mod, supervisor as supervisor_mod, trajectory as trajectory_mod
 from ...link import read_link_report
-from ...session import build_runner, open_store
-from ...store import SqliteStore
-from ...util import CdpError
+from ...session import build_runner
+from ...util import CdpError, positive_float, positive_int
 from pathlib import Path
 from typing import Dict
 
@@ -36,8 +37,8 @@ def register(lk_sub) -> None:
                        help="run each task's prompt through this command via "
                             "runner.SubprocessRunner; without it, waits for a human/"
                             "external process to drop the patch file (FileRunner)")
-    lkr2.add_argument("--timeout", type=float, default=300.0)
-    lkr2.add_argument("--max-attempts", type=int, default=supervisor_mod.MAX_ATTEMPTS)
+    lkr2.add_argument("--timeout", type=positive_float, default=300.0)
+    lkr2.add_argument("--max-attempts", type=positive_int, default=supervisor_mod.MAX_ATTEMPTS)
     lkr2.set_defaults(func=cmd_link_run)
 
 
@@ -54,20 +55,15 @@ def cmd_link_run(args) -> int:
     records one `fact_leaf_run` row per task with `task_kind="link"`.
     """
     paths = paths_from_args(args)
-    store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    store = open_link_store(args, paths, "run", writable=True)
     try:
-        if not store.supports_link_edges():
-            raise CdpError(
-                "%s cannot back `cdp link run` -- needs the sqlite backend "
-                "(pass --db, or set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(store).__name__
-            )
         report = read_link_report(store)
-        tasks = link_mod.build_tasks(report)
+        tasks = link_mod.unresolved_tasks(report)
         run_id = args.run_id or "cdp-link"
         prompts_dir = Path(args.out).expanduser().resolve() if args.out else (paths.work / "link-tasks")
         prompts_dir.mkdir(parents=True, exist_ok=True)
         runner = build_runner(args.runner_cmd, args.timeout)
-        model = args.runner_cmd.split()[0] if args.runner_cmd else "human"
+        model = shlex.split(args.runner_cmd)[0] if args.runner_cmd else "human"
         folded = 0
         counts: Dict[str, int] = {}
         with trajectory_mod.TrajectoryStore() as trajectory:
@@ -79,7 +75,8 @@ def cmd_link_run(args) -> int:
                     continue
                 counts[row["state"]] = counts.get(row["state"], 0) + 1
                 if row["state"] == supervisor_mod.VALIDATED:
-                    folded += link_mod.fold_resolutions(report, task, row["patch"], run_id)
+                    # saved per resolution, as soon as validated: nothing a later task does can lose it
+                    folded += link_mod.fold_resolutions(report, task, row["patch"], run_id, store=store)
                 repo_id = task["candidates"][0]["caller"]["repo"]
                 trajectory.record_leaf_run(
                     run_id=run_id, node=task["task_id"], scope_hash=task["task_id"], repo_id=repo_id,
@@ -87,11 +84,15 @@ def cmd_link_run(args) -> int:
                     template_version=None, tier=None, task_kind="link",
                     state=row["state"], attempts=row["attempts"],
                 )
-        store.write_link_edges(report)
     finally:
         store.close()
     print("link run  %d task(s)  %s  %d resolution(s) folded"
           % (len(tasks), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "nothing to dispatch", folded))
     if folded:
         print("next      cdp link query --service <name>")
+    failed = sum(n for state, n in counts.items() if state != supervisor_mod.VALIDATED)
+    if failed:
+        print("link run  %d of %d task(s) did not complete (their lease is released): re-run `cdp link run` "
+              "to retry just those" % (failed, sum(counts.values())))
+        return 1 if failed == sum(counts.values()) else 3
     return 0

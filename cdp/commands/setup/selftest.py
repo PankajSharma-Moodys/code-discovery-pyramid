@@ -7,7 +7,7 @@ from .._common import Spec
 import sys
 
 from ...selftest import MIN_TESTS, VOLATILE_FILE, check_determinism, run_golden, tests_ran
-from ...util import CdpError, SKILL_ROOT
+from ...util import CdpError, SKILL_ROOT, non_negative_int
 from pathlib import Path
 
 
@@ -21,7 +21,7 @@ SPEC = Spec(
 
 def register(add) -> None:
     stest = add("selftest", "run the bundled tests")
-    stest.add_argument("--min-tests", type=int, default=MIN_TESTS,
+    stest.add_argument("--min-tests", type=non_negative_int, default=MIN_TESTS,
                        help="fail if fewer than this many tests ran (default: %d)" % MIN_TESTS)
     stest.add_argument("--determinism", metavar="REPO",
                        help="instead of the suite, run the reproducibility gate "
@@ -53,6 +53,10 @@ def cmd_selftest(args) -> int:
     import subprocess
 
     target = getattr(args, "determinism", None)
+    if target and (getattr(args, "golden", None) or getattr(args, "bless", False) or getattr(args, "golden_name", None)):
+        raise CdpError("--determinism and --golden are separate runs; pass one")
+    if (target or getattr(args, "golden", None)) and args.min_tests != MIN_TESTS:
+        raise CdpError("--min-tests applies to the bundled suite; it does not apply to --determinism/--golden")
     if target:
         repo = Path(target).expanduser().resolve()
         if not repo.is_dir():
@@ -70,6 +74,8 @@ def cmd_selftest(args) -> int:
               % (repo, VOLATILE_FILE))
         return 0
 
+    if getattr(args, "golden_name", None) and not getattr(args, "golden", None):
+        raise CdpError("--golden-name is only meaningful with --golden")
     golden_target = getattr(args, "golden", None)
     if golden_target:
         repo = Path(golden_target).expanduser().resolve()
@@ -85,7 +91,9 @@ def cmd_selftest(args) -> int:
 
     tests = SKILL_ROOT / "tests"
     if not tests.is_dir():
-        raise CdpError("no tests bundled with this skill at %s" % tests)
+        raise CdpError("no tests bundled with this skill at %s: `install` into a target repo does not copy "
+                       "tests/ (they are development material of the CDP repository). Run `selftest` from a "
+                       "CDP checkout; `selftest --determinism <repo>` works anywhere." % tests)
     proc = subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "-s", ".", "-t", ".", "-v"],
         cwd=str(tests),

@@ -103,7 +103,10 @@ def _cut(
         return
 
     if here:
-        out.append(_scope(node + "/(files)", module, here, oversized=False))
+        # The limit applies to the loose files of a directory too: 64 of them are as
+        # over budget as 64 files in a leaf directory, and are flagged the same way.
+        out.append(_scope(node + "/(files)", module, here,
+                          oversized=len(here) > max_files or sum(f["loc"] for f in here) > max_loc))
     for name in sorted(groups):
         _cut(node + "/" + name, module, prefix + name + "/", groups[name], max_files, max_loc, out)
 

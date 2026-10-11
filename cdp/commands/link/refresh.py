@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 
-from .._common import Spec, locked, paths_from_args
+from .._common import Spec, locked, open_link_store, paths_from_args
 from ... import link as link_mod
 from ...link import read_link_report, snapshots_from_dirs
-from ...session import open_store
-from ...store import SqliteStore
 from ...util import CdpError
 from pathlib import Path
 
@@ -46,13 +44,8 @@ def cmd_link_refresh(args) -> int:
     report (5.5).
     """
     paths = paths_from_args(args)
-    db_store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
+    db_store = open_link_store(args, paths, "refresh", writable=True)
     try:
-        if not db_store.supports_link_edges():
-            raise CdpError(
-                "%s cannot back `cdp link refresh` -- needs the sqlite backend "
-                "(set `backend = \"sqlite\"` in CDP_HOME/config.toml)" % type(db_store).__name__
-            )
         snapshots = (snapshots_from_dirs(args.state_dirs) if args.state_dirs
                      else link_mod.snapshots_from_store(db_store))
         old_report = read_link_report(db_store)

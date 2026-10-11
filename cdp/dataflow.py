@@ -32,7 +32,7 @@ SINK_CHANNELS = frozenset(
     ["persist", "http_out", "ssh_exec", "event_publish", "metric_emit", "schema_own"]
 )
 TRAVERSABLE = frozenset(["call", "map", "persist", "read", "http_out", "ssh_exec",
-                         "event_publish", "metric_emit", "config_read"])
+                         "event_publish", "metric_emit", "config_read", "event"])
 
 # A `library:` target records that a file imports something whose package prefix
 # maps onto a channel. That is a real, citable dependency-surface fact and it
@@ -83,8 +83,17 @@ def build_dataflow(
 def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
     edges: List[Dict] = []
     seen: Set[Tuple[str, str, str]] = set()
+    # An `http_in` edge names its route as written (`${ApiConstants.X}/{id}`); the
+    # resolved route (constants substituted, context path prefixed) is the label a
+    # reader can use, so every route edge is relabelled from the xref (B15).
+    labels = {(r["file"], r["handler"], r["evidence"][0]["line"]): "route:%s %s" % (r["verb"], r["route"])
+              for r in xref.get("routes", []) if r.get("evidence")}
 
     for row in extraction["io_edges"]:
+        if row["channel"] == "http_in" and row["target"].startswith("route:"):
+            label = labels.get((row["file"], row["source"], row["anchor"]["line"]))
+            if label:
+                row = dict(row, target=label)
         key = (row["source"], row["target"], row["channel"])
         if key in seen:
             continue
@@ -99,6 +108,15 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
                 "confidence": "high",
             }
         )
+
+    for row in xref.get("config_wrapped", ()):      # reads through a wrapper method (cfgwrap.py)
+        from .resolve import expand_placeholders
+        target, _, missing = expand_placeholders(row["target"], xref.get("constants", {}))
+        key = (row["source"], target, row["channel"])
+        if row["source"] and not missing and key not in seen:
+            seen.add(key)
+            edges.append({"source": row["source"], "target": target, "channel": row["channel"],
+                          "module": row["module"], "anchor": row["anchor"], "confidence": "high"})
 
     # Call edges from the resolved import table: the file's primary symbol can
     # reach the symbol it imports.
@@ -126,6 +144,7 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
         )
 
     _member_edges(xref, edges, seen)
+    _event_edges(edges, seen)
     edges.sort(key=lambda e: (e["source"], e["channel"], e["target"], e["anchor"]["file"]))
     return edges
 
@@ -222,6 +241,34 @@ def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]
             add(_edge(r["fqn"], target, impl, "medium"))
         for over in overrides(owner, method):
             add(_edge(r["fqn"], over["target"], over, "medium"))
+
+
+def _event_edges(edges: List[Dict], seen: Set[Tuple[str, str, str]]) -> None:
+    """Join each publisher of an event type to every subscriber of it (`event` edges).
+
+    `post(new X())` and `@Subscribe void on(X e)` never name each other, so no call or
+    import joins them; the shared event type does. The edge is added between the two
+    members (for `paths`) and between their classes (for `trace`, which walks classes).
+    It is cited at the publishing site."""
+    pubs: Dict[str, List[Dict]] = {}
+    subs: Dict[str, List[Dict]] = {}
+    for e in edges:
+        if e["target"].startswith("event:"):
+            if e["channel"] == "event_publish":
+                pubs.setdefault(e["target"], []).append(e)
+            elif e["channel"] == "event_subscribe":
+                subs.setdefault(e["target"], []).append(e)
+    for target in sorted(pubs):
+        for pub in pubs[target]:
+            for sub in subs.get(target, ()):
+                for src, dst in ((pub["source"], sub["source"]),
+                                 (pub["source"].split("#", 1)[0], sub["source"].split("#", 1)[0])):
+                    key = (src, dst, "event")
+                    if src == dst or key in seen:
+                        continue
+                    seen.add(key)
+                    edges.append({"source": src, "target": dst, "channel": "event", "module": pub["module"],
+                                  "anchor": pub["anchor"], "confidence": "high"})
 
 
 def _sources(edges: Sequence[Dict]) -> List[Dict]:

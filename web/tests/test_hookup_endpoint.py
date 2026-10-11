@@ -40,6 +40,8 @@ with open(patch_path, "w", encoding="utf-8") as fh:
 class HookupEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
         subprocess.run(
             [sys.executable, "-m", "cdp", "scan", "--repo", str(MINIREPO),
@@ -172,6 +174,8 @@ class HookupEndpointTest(unittest.TestCase):
 
     def test_liveness_unscanned_target_404s(self) -> None:
         unscanned_state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, unscanned_state_dir)
         self.addCleanup(shutil.rmtree, unscanned_state_dir, ignore_errors=True)
         resp = self._client().post(
             "/api/hookup/liveness",

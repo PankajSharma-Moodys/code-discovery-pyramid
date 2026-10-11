@@ -20,6 +20,8 @@ MINIREPO = REPO_ROOT / "tests" / "fixtures" / "minirepo"
 class QueryEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.state_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, self.state_dir)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
         subprocess.run(
             [sys.executable, "-m", "cdp", "scan", "--repo", str(MINIREPO),
@@ -79,6 +81,8 @@ class QueryEndpointTest(unittest.TestCase):
 
     def test_never_scanned_state_dir_is_404(self) -> None:
         empty_dir = Path(tempfile.mkdtemp())
+        from web.tests import use_home
+        use_home(self, empty_dir)
         self.addCleanup(shutil.rmtree, empty_dir, ignore_errors=True)
         resp = self._client().get("/api/query", params={
             "repo": str(MINIREPO), "state_dir": str(empty_dir), "kind": "stats",
