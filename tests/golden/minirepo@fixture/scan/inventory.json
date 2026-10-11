@@ -23,6 +23,7 @@
       ".claude",
       ".cursor",
       ".idea",
+      ".mcp.json",
       ".vscode",
       ".windsurf",
       ".zed"
@@ -179,6 +180,7 @@
       },
       "disk_ratio": 1.0,
       "files": 6,
+      "generated_files": 0,
       "generated_suspect": false,
       "loc": 67,
       "manifests": [
@@ -199,6 +201,7 @@
       },
       "disk_ratio": 1.0,
       "files": 4,
+      "generated_files": 0,
       "generated_suspect": false,
       "loc": 49,
       "manifests": [

@@ -97,6 +97,14 @@ def measure(repo: Path, truth: list, show: int) -> dict:
     cs = lambda f: f.endswith(".cs")  # noqa: E731
     defines = [d for d in p.extraction["defines"] if cs(d["anchor"]["file"])]
 
+    from cdp.anchor import build_anchor
+    lines_of: dict = {}
+
+    def citable(f: str, line: int) -> bool:
+        if f not in lines_of:
+            lines_of[f] = (repo / f).read_text(errors="replace").splitlines()
+        return build_anchor(f, lines_of[f], line - 1) is not None
+
     # ---- types
     t_types = {r["fqn"] for r in truth if r["t"] == "type"}
     i_types = {d["fqn"] for d in defines if d["kind"] in CLASS_KINDS}
@@ -104,7 +112,7 @@ def measure(repo: Path, truth: list, show: int) -> dict:
     out["types_missed_sample"] = sorted(t_types - i_types)[:show]
 
     # ---- methods
-    t_rows = {(r["owner"], r["name"]): r for r in truth if r["t"] == "method"}
+    t_rows = {(r["owner"], r["name"]): r for r in truth if r["t"] == "method" and citable(r["file"], r["line"])}
     t_methods = set(t_rows)
     i_methods = {tuple(d["fqn"].split("#", 1)) for d in defines if d["kind"] == "method" and "#" in d["fqn"]}
     hit = t_methods & i_methods
@@ -122,7 +130,8 @@ def measure(repo: Path, truth: list, show: int) -> dict:
     out["methods_extra_sample"] = ["%s#%s" % k for k in sorted(i_methods - t_methods)[:show]]
 
     # ---- fields
-    t_fields = {(r["owner"], r["name"]) for r in truth if r["t"] == "field"}
+    # a declaration whose line has no anchor (over 400 characters, say) cannot be cited, so it is not indexed
+    t_fields = {(r["owner"], r["name"]) for r in truth if r["t"] == "field" and citable(r["file"], r["line"])}
     i_fields = {tuple(d["fqn"].rsplit(".", 1)) for d in defines
                 if d["kind"] in ("constant", "field", "property", "event")}
     fhit = t_fields & i_fields
@@ -130,14 +139,6 @@ def measure(repo: Path, truth: list, show: int) -> dict:
     out["fields_missed_sample"] = ["%s.%s" % k for k in sorted(t_fields - i_fields)[:show]]
 
     # ---- call sites
-    from cdp.anchor import build_anchor
-    lines_of: dict = {}
-
-    def citable(f: str, line: int) -> bool:
-        if f not in lines_of:
-            lines_of[f] = (repo / f).read_text(errors="replace").splitlines()
-        return build_anchor(f, lines_of[f], line - 1) is not None
-
     t_calls, t_members = {}, {}
     uncitable = 0
     for r in truth:
@@ -189,8 +190,8 @@ def measure(repo: Path, truth: list, show: int) -> dict:
                 bad_rows.append("%s:%d %s (no such call)" % (f, line, fqn))
                 continue
             resolved = [t for t in targets if t]
-            if not resolved:
-                continue            # Roslyn could not bind it (NuGet types in the way): not scored
+            if not resolved or "" in targets:
+                continue            # Roslyn could not bind a call of that name nearby (NuGet types): not scored
             if fqn in resolved:
                 ok += 1
             else:

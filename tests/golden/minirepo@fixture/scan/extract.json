@@ -44,6 +44,19 @@
     },
     {
       "anchor": {
+        "anchor": "public Widget(String id) {",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 10
+      },
+      "end_line": 12,
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget#<init>",
+      "kind": "method",
+      "module": "core",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
         "anchor": "public boolean equals(Object other) {",
         "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
         "line": 19
@@ -79,7 +92,20 @@
       "fqn": "com.example.mini.core.Widget#stub",
       "kind": "method",
       "module": "core",
+      "ret": "com.example.mini.core.Widget",
       "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "private final String id;",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 8
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget.id",
+      "kind": "field",
+      "module": "core",
+      "visibility": "private"
     },
     {
       "anchor": {
@@ -105,6 +131,30 @@
       "kind": "method",
       "module": "core",
       "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "private String displayName;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 15
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "com.example.mini.core.WidgetEntity.displayName",
+      "kind": "field",
+      "module": "core",
+      "visibility": "private"
+    },
+    {
+      "anchor": {
+        "anchor": "@Id private Long id;",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+        "line": 12
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+      "fqn": "com.example.mini.core.WidgetEntity.id",
+      "kind": "field",
+      "module": "core",
+      "visibility": "private"
     },
     {
       "anchor": {
@@ -195,6 +245,19 @@
     },
     {
       "anchor": {
+        "anchor": "public WidgetResource(WidgetRepository repository) {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 15
+      },
+      "end_line": 17,
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.web.WidgetResource#<init>",
+      "kind": "method",
+      "module": "web",
+      "visibility": "public"
+    },
+    {
+      "anchor": {
         "anchor": "public Widget get(@PathParam(\"id\") String id) {",
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 26
@@ -204,6 +267,7 @@
       "fqn": "com.example.mini.web.WidgetResource#get",
       "kind": "method",
       "module": "web",
+      "ret": "com.example.mini.core.Widget",
       "visibility": "public"
     },
     {
@@ -217,7 +281,21 @@
       "fqn": "com.example.mini.web.WidgetResource#list",
       "kind": "method",
       "module": "web",
+      "ret": "List<com.example.mini.core.Widget>",
       "visibility": "public"
+    },
+    {
+      "anchor": {
+        "anchor": "private final WidgetRepository repository;",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 13
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.web.WidgetResource.repository",
+      "ftype": "com.example.mini.core.WidgetRepository",
+      "kind": "field",
+      "module": "web",
+      "visibility": "private"
     },
     {
       "anchor": {
@@ -291,7 +369,7 @@
       "signals": []
     },
     "core/src/main/java/COM/Example/mini/core/Widget.java": {
-      "defines": 3,
+      "defines": 5,
       "imports": 1,
       "io_edges": 0,
       "language": "java",
@@ -301,7 +379,7 @@
       "signals": []
     },
     "core/src/main/java/COM/Example/mini/core/WidgetEntity.java": {
-      "defines": 3,
+      "defines": 5,
       "imports": 4,
       "io_edges": 2,
       "language": "java",
@@ -390,7 +468,7 @@
       ]
     },
     "web/src/main/java/com/example/mini/web/WidgetResource.java": {
-      "defines": 3,
+      "defines": 5,
       "imports": 6,
       "io_edges": 3,
       "language": "java",
@@ -719,26 +797,58 @@
     ]
   },
   "totals": {
-    "defines": 20,
+    "defines": 26,
     "imports": 13,
     "io_edges": 13,
     "parsed_files": 13,
-    "uses": 18
+    "uses": 27
   },
   "uses": [
     {
       "anchor": {
-        "anchor": "return List.of();",
-        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
-        "line": 21
+        "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 20
       },
-      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
-      "fqn": "List#of",
-      "from_symbol": "com.example.mini.web.WidgetResource#list",
-      "kind": "call",
-      "module": "web",
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget",
+      "from_symbol": "com.example.mini.core.Widget#equals",
+      "kind": "type",
+      "module": "core",
       "resolved": "external",
-      "scope_package": "com.example.mini.web",
+      "scope_package": "com.example.mini.core",
+      "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 20
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget",
+      "from_symbol": "com.example.mini.core.Widget#equals",
+      "kind": "type",
+      "module": "core",
+      "resolved": "external",
+      "scope_package": "com.example.mini.core",
+      "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "public static Widget stub() {",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 6
+      },
+      "file": "core/src/test/java/com/example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget",
+      "from_symbol": "com.example.mini.core.Widget#stub",
+      "kind": "type",
+      "module": "core",
+      "resolved": "external",
+      "scope_package": "com.example.mini.core",
       "speculative": false,
       "via_import": false
     },
@@ -754,6 +864,72 @@
       "resolved": "external",
       "scope_package": "com.example.mini.web",
       "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "public List<Widget> list() {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 20
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.Widget",
+      "from_symbol": "com.example.mini.web.WidgetResource#list",
+      "kind": "type",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "public Widget get(@PathParam(\"id\") String id) {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 26
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.Widget",
+      "from_symbol": "com.example.mini.web.WidgetResource#get",
+      "kind": "type",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "return new Widget();",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 7
+      },
+      "file": "core/src/test/java/com/example/mini/core/Widget.java",
+      "fqn": "com.example.mini.core.Widget#<init>",
+      "from_symbol": "com.example.mini.core.Widget#stub",
+      "how": "new",
+      "kind": "call",
+      "module": "core",
+      "resolved": "external",
+      "scope_package": "com.example.mini.core",
+      "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "return new Widget(id);",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 27
+      },
+      "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "fqn": "com.example.mini.core.Widget#<init>",
+      "from_symbol": "com.example.mini.web.WidgetResource#get",
+      "how": "new",
+      "kind": "call",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": false,
+      "via_import": false
     },
     {
       "anchor": {
@@ -814,6 +990,42 @@
       "resolved": "external",
       "scope_package": "com.example.mini.web",
       "speculative": false,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "System.out.println(\"mini-svc web starting\");",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 6
+      },
+      "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+      "fqn": "com.example.mini.web.System",
+      "from_symbol": "com.example.mini.web.WebApplication#main",
+      "kind": "type",
+      "module": "web",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": true,
+      "via_import": false
+    },
+    {
+      "anchor": {
+        "anchor": "System.out.println(\"mini-svc web starting\");",
+        "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+        "line": 6
+      },
+      "chain": [
+        "f:out"
+      ],
+      "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
+      "fqn": "com.example.mini.web.System#println",
+      "from_symbol": "com.example.mini.web.WebApplication#main",
+      "kind": "call",
+      "module": "web",
+      "recv": "com.example.mini.web.System",
+      "resolved": "external",
+      "scope_package": "com.example.mini.web",
+      "speculative": true,
       "via_import": false
     },
     {
@@ -901,9 +1113,9 @@
         "line": 20
       },
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
-      "fqn": "java.util.Objects#equals",
+      "fqn": "java.util.Objects",
       "from_symbol": "com.example.mini.core.Widget#equals",
-      "kind": "call",
+      "kind": "type",
       "module": "core",
       "resolved": "external",
       "scope_package": "com.example.mini.core",
@@ -961,6 +1173,22 @@
       "resolved": "third_party",
       "scope_package": "com.example.mini.core",
       "via_import": true
+    },
+    {
+      "anchor": {
+        "anchor": "public interface WidgetRepository extends JpaRepository<WidgetEntity, Long> {}",
+        "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+        "line": 7
+      },
+      "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
+      "fqn": "org.springframework.data.jpa.repository.JpaRepository",
+      "from_symbol": "com.example.mini.core.WidgetRepository",
+      "kind": "extends",
+      "module": "core",
+      "resolved": "external",
+      "scope_package": "com.example.mini.core",
+      "speculative": false,
+      "via_import": false
     },
     {
       "anchor": {

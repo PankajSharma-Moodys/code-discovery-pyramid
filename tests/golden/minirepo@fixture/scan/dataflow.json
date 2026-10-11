@@ -2,6 +2,18 @@
   "edges": [
     {
       "anchor": {
+        "anchor": "return new Widget();",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 7
+      },
+      "channel": "call",
+      "confidence": "high",
+      "module": "core",
+      "source": "com.example.mini.core.Widget#stub",
+      "target": "com.example.mini.core.Widget#<init>"
+    },
+    {
+      "anchor": {
         "anchor": "import jakarta.persistence.Column;",
         "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
         "line": 3
@@ -122,6 +134,18 @@
     },
     {
       "anchor": {
+        "anchor": "return new Widget(id);",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 27
+      },
+      "channel": "call",
+      "confidence": "high",
+      "module": "web",
+      "source": "com.example.mini.web.WidgetResource#get",
+      "target": "com.example.mini.core.Widget#<init>"
+    },
+    {
+      "anchor": {
         "anchor": "@GET @Path(\"/{id}\")",
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 24
@@ -130,7 +154,7 @@
       "confidence": "high",
       "module": "web",
       "source": "com.example.mini.web.WidgetResource#get",
-      "target": "route:GET ${ApiPaths.WIDGETS}/{id}"
+      "target": "route:GET /v1/widgets/{id}"
     },
     {
       "anchor": {
@@ -142,7 +166,7 @@
       "confidence": "high",
       "module": "web",
       "source": "com.example.mini.web.WidgetResource#list",
-      "target": "route:GET ${ApiPaths.WIDGETS}"
+      "target": "route:GET /v1/widgets"
     },
     {
       "anchor": {
@@ -218,7 +242,7 @@
       "channel": "http_in",
       "module": "web",
       "node": "com.example.mini.web.WidgetResource#list",
-      "trigger": "route:GET ${ApiPaths.WIDGETS}"
+      "trigger": "route:GET /v1/widgets"
     },
     {
       "anchor": {
@@ -229,7 +253,7 @@
       "channel": "http_in",
       "module": "web",
       "node": "com.example.mini.web.WidgetResource#get",
-      "trigger": "route:GET ${ApiPaths.WIDGETS}/{id}"
+      "trigger": "route:GET /v1/widgets/{id}"
     },
     {
       "anchor": {
@@ -255,8 +279,8 @@
     }
   ],
   "totals": {
-    "edges": 16,
-    "nodes": 20,
+    "edges": 18,
+    "nodes": 22,
     "paths": 0,
     "sources": 5
   }

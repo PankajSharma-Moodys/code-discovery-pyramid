@@ -2,7 +2,7 @@
 
 Reconstructed by CDP at commit `<HEAD>`. Every claim below carries a `file:line` citation that a Python verifier confirmed against the file.
 
-> **Coverage: 23.1%** — 3 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/core`, `root/web`.
+> **Coverage: 0.0%** — 0 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root`, `root/core`, `root/web`.
 
 ## Census
 
@@ -12,7 +12,7 @@ Reconstructed by CDP at commit `<HEAD>`. Every claim below carries a `file:line`
 | Files on disk | 14 (**1.1x**) |
 | Inventory source | `git` |
 | Modules | 2 |
-| Symbols declared | 18 |
+| Symbols declared | 24 |
 | HTTP routes | 2 |
 
 ## Naming

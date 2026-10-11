@@ -251,3 +251,31 @@ BCL_MEMBERS = frozenset((
     "IsType IsAssignableFrom InRange Single Collection Setup Returns ReturnsAsync Verify Callback "
     "VerifyAll Throws ThrowsAsync It IsAny Is Mock Object"
 ).split())
+
+
+ELEMENT_COLLECTIONS = frozenset(["List", "IList", "ICollection", "IEnumerable", "IReadOnlyList", "IReadOnlyCollection",
+                                 "HashSet", "ISet", "Queue", "Stack", "LinkedList", "Collection", "ObservableCollection",
+                                 "ImmutableList", "ImmutableArray", "ConcurrentBag", "SortedSet", "ReadOnlyCollection"])
+
+
+def strip_path_args(text: str) -> str:
+    """`Transform<A>.Comparison` -> `Transform.Comparison`: the arguments of an outer type never
+    name the nested one."""
+    out: List[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(text):
+        if ch == "<":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == ">" and depth:
+            depth -= 1
+            if depth == 0:
+                if text[i + 1:i + 2] == ".":
+                    continue
+                out.append(text[start:i + 1])
+            continue
+        if depth == 0:
+            out.append(ch)
+    return "".join(out)

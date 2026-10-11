@@ -61,6 +61,7 @@
       ]
     }
   ],
+  "config_wrapped": [],
   "constants": {
     "ApiPaths.HEALTH": {
       "candidates": [
@@ -120,8 +121,8 @@
   "head": "<HEAD>",
   "resolution": {
     "ambiguous": 0,
-    "local": 1,
-    "matched": 4,
+    "local": 5,
+    "matched": 7,
     "third_party": 11,
     "unresolved": 0
   },
@@ -220,6 +221,27 @@
       ],
       "visibility": "public"
     },
+    "com.example.mini.core.Widget#<init>": {
+      "fqn": "com.example.mini.core.Widget#<init>",
+      "kind": "method",
+      "modules": [
+        "core"
+      ],
+      "sites": [
+        {
+          "anchor": {
+            "anchor": "public Widget(String id) {",
+            "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+            "line": 10
+          },
+          "end_line": 12,
+          "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+          "module": "core",
+          "role": "source"
+        }
+      ],
+      "visibility": "public"
+    },
     "com.example.mini.core.Widget#equals": {
       "fqn": "com.example.mini.core.Widget#equals",
       "kind": "method",
@@ -268,6 +290,7 @@
       "modules": [
         "core"
       ],
+      "ret": "com.example.mini.core.Widget",
       "sites": [
         {
           "anchor": {
@@ -282,6 +305,26 @@
         }
       ],
       "visibility": "public"
+    },
+    "com.example.mini.core.Widget.id": {
+      "fqn": "com.example.mini.core.Widget.id",
+      "kind": "field",
+      "modules": [
+        "core"
+      ],
+      "sites": [
+        {
+          "anchor": {
+            "anchor": "private final String id;",
+            "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+            "line": 8
+          },
+          "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+          "module": "core",
+          "role": "source"
+        }
+      ],
+      "visibility": "private"
     },
     "com.example.mini.core.WidgetEntity": {
       "fqn": "com.example.mini.core.WidgetEntity",
@@ -323,6 +366,46 @@
         }
       ],
       "visibility": "public"
+    },
+    "com.example.mini.core.WidgetEntity.displayName": {
+      "fqn": "com.example.mini.core.WidgetEntity.displayName",
+      "kind": "field",
+      "modules": [
+        "core"
+      ],
+      "sites": [
+        {
+          "anchor": {
+            "anchor": "private String displayName;",
+            "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+            "line": 15
+          },
+          "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+          "module": "core",
+          "role": "source"
+        }
+      ],
+      "visibility": "private"
+    },
+    "com.example.mini.core.WidgetEntity.id": {
+      "fqn": "com.example.mini.core.WidgetEntity.id",
+      "kind": "field",
+      "modules": [
+        "core"
+      ],
+      "sites": [
+        {
+          "anchor": {
+            "anchor": "@Id private Long id;",
+            "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+            "line": 12
+          },
+          "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
+          "module": "core",
+          "role": "source"
+        }
+      ],
+      "visibility": "private"
     },
     "com.example.mini.core.WidgetRepository": {
       "fqn": "com.example.mini.core.WidgetRepository",
@@ -467,12 +550,34 @@
       ],
       "visibility": "public"
     },
+    "com.example.mini.web.WidgetResource#<init>": {
+      "fqn": "com.example.mini.web.WidgetResource#<init>",
+      "kind": "method",
+      "modules": [
+        "web"
+      ],
+      "sites": [
+        {
+          "anchor": {
+            "anchor": "public WidgetResource(WidgetRepository repository) {",
+            "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+            "line": 15
+          },
+          "end_line": 17,
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "module": "web",
+          "role": "source"
+        }
+      ],
+      "visibility": "public"
+    },
     "com.example.mini.web.WidgetResource#get": {
       "fqn": "com.example.mini.web.WidgetResource#get",
       "kind": "method",
       "modules": [
         "web"
       ],
+      "ret": "com.example.mini.core.Widget",
       "sites": [
         {
           "anchor": {
@@ -494,6 +599,7 @@
       "modules": [
         "web"
       ],
+      "ret": "List<com.example.mini.core.Widget>",
       "sites": [
         {
           "anchor": {
@@ -508,6 +614,27 @@
         }
       ],
       "visibility": "public"
+    },
+    "com.example.mini.web.WidgetResource.repository": {
+      "fqn": "com.example.mini.web.WidgetResource.repository",
+      "ftype": "com.example.mini.core.WidgetRepository",
+      "kind": "field",
+      "modules": [
+        "web"
+      ],
+      "sites": [
+        {
+          "anchor": {
+            "anchor": "private final WidgetRepository repository;",
+            "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+            "line": 13
+          },
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "module": "web",
+          "role": "source"
+        }
+      ],
+      "visibility": "private"
     },
     "process:root": {
       "fqn": "process:root",
@@ -590,9 +717,74 @@
     "com.example.mini.core.Widget": [
       {
         "anchor": {
+          "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+          "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+          "line": 20
+        },
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "module": "core"
+      },
+      {
+        "anchor": {
+          "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+          "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+          "line": 20
+        },
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "module": "core"
+      },
+      {
+        "anchor": {
+          "anchor": "public static Widget stub() {",
+          "file": "core/src/test/java/com/example/mini/core/Widget.java",
+          "line": 6
+        },
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "module": "core"
+      },
+      {
+        "anchor": {
           "anchor": "import com.example.mini.core.Widget;",
           "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
           "line": 3
+        },
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "module": "web"
+      },
+      {
+        "anchor": {
+          "anchor": "public List<Widget> list() {",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 20
+        },
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "module": "web"
+      },
+      {
+        "anchor": {
+          "anchor": "public Widget get(@PathParam(\"id\") String id) {",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 26
+        },
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "module": "web"
+      }
+    ],
+    "com.example.mini.core.Widget#<init>": [
+      {
+        "anchor": {
+          "anchor": "return new Widget();",
+          "file": "core/src/test/java/com/example/mini/core/Widget.java",
+          "line": 7
+        },
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "module": "core"
+      },
+      {
+        "anchor": {
+          "anchor": "return new Widget(id);",
+          "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+          "line": 27
         },
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "module": "web"
@@ -642,6 +834,54 @@
   "uses": [
     {
       "anchor": {
+        "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 20
+      },
+      "fqn": "com.example.mini.core.Widget",
+      "from_file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "from_module": "core",
+      "from_symbol": "com.example.mini.core.Widget#equals",
+      "kind": "type",
+      "resolved": "local",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "return other instanceof Widget && Objects.equals(id, ((Widget) other).id);",
+        "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+        "line": 20
+      },
+      "fqn": "com.example.mini.core.Widget",
+      "from_file": "core/src/main/java/COM/Example/mini/core/Widget.java",
+      "from_module": "core",
+      "from_symbol": "com.example.mini.core.Widget#equals",
+      "kind": "type",
+      "resolved": "local",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "public static Widget stub() {",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 6
+      },
+      "fqn": "com.example.mini.core.Widget",
+      "from_file": "core/src/test/java/com/example/mini/core/Widget.java",
+      "from_module": "core",
+      "from_symbol": "com.example.mini.core.Widget#stub",
+      "kind": "type",
+      "resolved": "local",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
         "anchor": "import com.example.mini.core.Widget;",
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 3
@@ -649,6 +889,70 @@
       "fqn": "com.example.mini.core.Widget",
       "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "from_module": "web",
+      "resolved": "matched",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "public List<Widget> list() {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 20
+      },
+      "fqn": "com.example.mini.core.Widget",
+      "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "from_module": "web",
+      "from_symbol": "com.example.mini.web.WidgetResource#list",
+      "kind": "type",
+      "resolved": "matched",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "public Widget get(@PathParam(\"id\") String id) {",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 26
+      },
+      "fqn": "com.example.mini.core.Widget",
+      "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "from_module": "web",
+      "from_symbol": "com.example.mini.web.WidgetResource#get",
+      "kind": "type",
+      "resolved": "matched",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "return new Widget();",
+        "file": "core/src/test/java/com/example/mini/core/Widget.java",
+        "line": 7
+      },
+      "fqn": "com.example.mini.core.Widget#<init>",
+      "from_file": "core/src/test/java/com/example/mini/core/Widget.java",
+      "from_module": "core",
+      "from_symbol": "com.example.mini.core.Widget#stub",
+      "kind": "call",
+      "resolved": "local",
+      "to_modules": [
+        "core"
+      ]
+    },
+    {
+      "anchor": {
+        "anchor": "return new Widget(id);",
+        "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+        "line": 27
+      },
+      "fqn": "com.example.mini.core.Widget#<init>",
+      "from_file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
+      "from_module": "web",
+      "from_symbol": "com.example.mini.web.WidgetResource#get",
+      "kind": "call",
       "resolved": "matched",
       "to_modules": [
         "core"

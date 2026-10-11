@@ -12,12 +12,17 @@ from typing import Optional
 
 from .java_tokens import Tokens
 
+# an interpolation hole may hold strings (`{string.Join(",", xs)}`) and one level of braces
+_HOLE = r"""\{(?:[^{}"']|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\{[^{}]*\})*\}"""
+_INTERP = (r'\$"(?:\\.|\{\{|' + _HOLE + r'|[^"\\{\n])*"'
+           r'|[$@]{2}"(?:""|\{\{|' + _HOLE + r'|[^"{])*"')
+
 TOKEN_RE = re.compile(
     r"(?P<pp>(?<![^\n])[ \t]*\#[^\n]*)"
     r"|(?P<ws>[ \t\r\f]+|\n)"
     r"|(?P<lc>//[^\n]*)"
     r"|(?P<bc>/\*.*?\*/)"
-    r'|(?P<str>[$@]*"""(?:.|\n)*?"""|[$]?@[$]?"(?:[^"]|"")*"|\$"(?:\\.|[^"\\\n])*"|"(?:\\.|[^"\\\n])*")'
+    r'|(?P<str>[$@]*"""(?:.|\n)*?"""|' + _INTERP + r'|[$]?@[$]?"(?:[^"]|"")*"|\$"(?:\\.|[^"\\\n])*"|"(?:\\.|[^"\\\n])*")'
     r"|(?P<chr>'(?:\\.|[^'\\\n])*')"
     r"|(?P<id>@?[^\W\d]\w*)"
     r"|(?P<num>\d[\w.]*)"

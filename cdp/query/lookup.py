@@ -18,6 +18,15 @@ def _type_index(store: Store):
     return idx
 
 
+def _cs_index(store: Store):
+    idx = getattr(store, "_cs_index", None)
+    if idx is None:
+        from ..cstypes import CsTypeIndex
+        idx = CsTypeIndex(store.extraction, store.xref["symbols"])
+        store._cs_index = idx
+    return idx
+
+
 def _member_keys(store: Store, name: str) -> Dict[str, str]:
     """`Class#method` -> {symbol key: how it was reached}. The method is looked
     up on the class and, failing that, up its superclass/interface chain, then
@@ -33,7 +42,8 @@ def _member_keys(store: Store, name: str) -> Dict[str, str]:
     for owner in sorted(owners):
         simple = owner.rsplit(".", 1)[-1]
         wanted = "<init>" if member in (simple, "<init>") else member
-        decl = types.declaring(owner, wanted)
+        is_cs = symbols[owner]["sites"][0]["file"].endswith(".cs")
+        decl = (_cs_index(store) if is_cs else types).declaring(owner, wanted)
         if decl:
             declaring = decl.split("#", 1)[0]
             found[decl] = "" if declaring == owner else \

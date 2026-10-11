@@ -42,8 +42,9 @@ Use `cdp query table <name>` for who owns the schema, who writes, and who reads.
 
 Changing these has the widest blast radius.
 
+- `com.example.mini.core.Widget` — 6 references
 - `com.example.mini.core.WidgetRepository` — 3 references
-- `com.example.mini.core.Widget` — 1 references
+- `com.example.mini.core.Widget#<init>` — 2 references
 - `com.example.mini.core.WidgetEntity` — 1 references
 
 ## Querying this instead of grepping
@@ -60,5 +61,5 @@ cdp query unknowns                # what is NOT known
 
 ## Coverage
 
-> **Coverage: 23.1%** — 3 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/core`, `root/web`.
+> **Coverage: 0.0%** — 0 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root`, `root/core`, `root/web`.
 

@@ -40,6 +40,7 @@ class CsTypeIndex(TypeIndex):
         # on the class a chain continues from
         self.exts: Dict[str, List[Tuple[str, List[str]]]] = {}
         self.rets: Dict[str, set] = {}
+        self.pmax: Dict[str, int] = {}          # most parameters any overload of `Owner#name` takes
         ext_of: Dict[str, List[str]] = {}
         for row in extraction["defines"]:
             if row["kind"] != "method" or not row["file"].endswith(".cs"):
@@ -49,6 +50,7 @@ class CsTypeIndex(TypeIndex):
                 if row["ext"] not in ext_of[row["fqn"]]:
                     ext_of[row["fqn"]].append(row["ext"])
             self.rets.setdefault(row["fqn"], set()).add(row.get("ret") or "")
+            self.pmax[row["fqn"]] = max(self.pmax.get(row["fqn"], 0), row.get("pmax", 99))
         for fqn, types in ext_of.items():
             self.exts.setdefault(fqn.rsplit("#", 1)[1], []).append((fqn, types))
 
@@ -82,6 +84,8 @@ class CsTypeIndex(TypeIndex):
             return None
         name, _, targs = step[2:].partition("<")
         decl = self.declaring(base, name)
+        if not decl and name not in OBJECT_METHODS:
+            decl = self._ext_target(name, type_str, base, None)       # an extension method of the repository
         entry = self.symbols.get(decl) if decl else None
         ret = entry.get("ret") if entry else None
         if entry and not ret:
@@ -122,7 +126,7 @@ class CsTypeIndex(TypeIndex):
 
     # -------------------------------------------------------------- calls
 
-    def _ext_target(self, name: str, recv: str, cls: Optional[str], file: str) -> Optional[str]:
+    def _ext_target(self, name: str, recv: str, cls: Optional[str], file: Optional[str]) -> Optional[str]:
         found = set()
         rs = _simple(recv)
         chain = set(self.hierarchy(cls)) if cls else set()
@@ -133,11 +137,19 @@ class CsTypeIndex(TypeIndex):
                 if eb.startswith("~") or es in ("Object", "object"):
                     ok = True
                 elif cls:
-                    ok = (self.class_for(eb, (), file) or self.class_for(eb, (), self._file_of(fqn))) in chain
+                    ok = (self.class_for(eb, (), file or self._file_of(fqn))
+                          or self.class_for(eb, (), self._file_of(fqn))) in chain
                 else:
                     ok = es == rs or (es in ("IEnumerable", "IQueryable") and rs in SEQUENCES)
                 if ok:
                     found.add(fqn)
+        if not found and not cls:
+            # a receiver nothing declares (`User` of a NuGet base class) and exactly one extension
+            # method of that name, over a type the repository does not declare
+            only = [fqn for fqn, types in self.exts.get(name, ())
+                    if not any(self.class_for(split_type(et)[0], (), self._file_of(fqn)) for et in types)]
+            if len(only) == 1 and len(self.exts.get(name, ())) == 1:
+                return only[0]
         return found.pop() if len(found) == 1 else None
 
     def _file_of(self, fqn: str) -> str:
@@ -168,10 +180,13 @@ class CsTypeIndex(TypeIndex):
             if name == "<init>":
                 return cls + "#<init>" if cls + "#<init>" in self.symbols else cls
             decl = self.declaring(cls, name)
-            if decl:
+            argc = row.get("argc")
+            if decl and (argc is None or argc <= self.pmax.get(decl, 99) or name not in self.exts):
                 return decl
             if name not in OBJECT_METHODS:
                 hit = self._ext_target(name, t, cls, file)
                 if hit:
                     return hit
+            if decl:
+                return decl
         return None

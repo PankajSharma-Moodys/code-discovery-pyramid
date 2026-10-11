@@ -2,7 +2,7 @@
 
 Every question this run could not answer, with the anchor that raised it. This is the list to take to the incumbent team before they leave. A gap here is *output*, not failure: the alternative is a document that asserts a plausible answer, and a reader who cannot tell the difference.
 
-> **Coverage: 23.1%** — 3 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/core`, `root/web`.
+> **Coverage: 0.0%** — 0 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root`, `root/core`, `root/web`.
 
 _No unknowns recorded. If no leaf agent has run yet, that means nothing was asked, not that nothing is unknown._
 

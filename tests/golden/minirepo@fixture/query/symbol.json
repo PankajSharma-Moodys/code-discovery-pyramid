@@ -1,8 +1,14 @@
 {
   "as_of": {
+    "behind": 0,
+    "changed_files": [],
     "commit": "<HEAD>",
-    "fold_hash": "9ff3cd5b6034cc81d39d323ea574e7be9d17e90e79960acf789b01e838d3a863",
+    "dirty_files": [],
+    "fold_hash": "3535329161a906cecd9253d229fb8f867a35a2518a17fed850ceeed3977538d4",
+    "head": "<HEAD>",
+    "identity": "<REPO_ID>",
     "repo": "tree",
+    "snapshot_uncommitted": false,
     "state_version": 1
   },
   "budget": 200,
@@ -87,9 +93,11 @@
       "used_by": [],
       "used_by_count": 0,
       "value": "mini-svc",
+      "via": null,
       "visibility": "public"
     }
   ],
+  "match": "exact",
   "name": "build:rootProject.name",
   "query": "symbol"
 }

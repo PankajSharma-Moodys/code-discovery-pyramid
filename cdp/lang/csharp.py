@@ -163,6 +163,7 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 row = mk_define(jt.fqn + "#" + name, "method", vis, anchor, end_line=m.end_line + 1)
                 if m.kind == "method":
                     typed(row, m.ret, tv | set(m.tparams))
+                    row["pmax"] = 99 if m.params and m.params[-1][0].endswith("[]") else len(m.params)
                     if m.ext:
                         row["ext"] = norm_type(m.ext, lambda n: _resolve(resolver, n), tv | set(m.tparams))
                     if m.tparams:

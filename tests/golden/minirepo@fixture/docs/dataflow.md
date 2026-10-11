@@ -2,7 +2,7 @@
 
 How data travels through this application — the question the module dependency graph cannot answer. The topology below was walked by deterministic Python over typed channel edges; every hop carries the anchor of the edge it came from, so a hop with no evidence has nowhere to hide.
 
-> **Coverage: 23.1%** — 3 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root/core`, `root/web`.
+> **Coverage: 0.0%** — 0 of 13 tracked files are in scopes that completed. Everything absent from this document may be absent because it was never examined. Incomplete scopes: `root`, `root/core`, `root/web`.
 
 ## What is not traced
 

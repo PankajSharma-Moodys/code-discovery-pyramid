@@ -239,6 +239,7 @@
     ],
     "generation": 1,
     "node": "root",
+    "patch_no": 0,
     "run_id": "cdp-<HEAD>",
     "schema_version": "1.0.0",
     "status": "complete",

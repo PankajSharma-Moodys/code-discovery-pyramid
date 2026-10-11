@@ -288,6 +288,8 @@ static class Truth
                     var sym = info.Symbol;
                     if (sym is IMethodSymbol gm && (gm.MethodKind == MethodKind.Ordinary))
                         Call(model, name, name.Identifier, sym, "ref", file);
+                    else if (sym == null && name.Parent is ArgumentSyntax)
+                        Row("xcall", "file", file, "line", Line(name.Identifier), "caller", Caller(name, model), "name", name.Identifier.Text, "target", "", "how", "ref");
                     else if (sym is IPropertySymbol || sym is IFieldSymbol || sym is IEventSymbol)
                     {
                         if (sym is IFieldSymbol fs && fs.ContainingType.TypeKind == TypeKind.Enum) { Call(model, name, name.Identifier, sym, "member", file); break; }
