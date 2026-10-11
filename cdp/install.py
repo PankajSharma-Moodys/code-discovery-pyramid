@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 
 from . import hook as hook_mod
+from .slim import slim_python
 from .store import registry as registry_mod
 from .util import CdpError, SKILL_ROOT, read_json
 from pathlib import Path
@@ -146,6 +147,9 @@ def copy_distribution(dest: Path, members: Tuple[str, ...] = DIST_MEMBERS) -> No
             shutil.copytree(src, dest / member, ignore=DIST_IGNORE if "tests" in members else TARGET_IGNORE)
         else:
             shutil.copy2(src, dest / member)
+    if "tests" not in members:  # a target copy is runtime-only: slim it (cdp/slim.py)
+        for path in sorted(dest.rglob("*.py")):
+            path.write_text(slim_python(path.read_text(encoding="utf-8")), encoding="utf-8")
 
 
 def register_leaf_agent(target: Path, framework: str,
@@ -325,7 +329,7 @@ def install_mcp(target: Path, dest: Optional[Path] = None) -> List[str]:
         "env": {"PYTHONPATH": root},
     }
     _write_settings(mcp_path, config)
-    return ["mcp       server `cdp` (cdp_query, cdp_refresh, cdp_scan, cdp_status, cdp_help) -> %s" % mcp_path]
+    return ["mcp       server `cdp` (cdp_query, cdp_refresh, cdp_scan, cdp_status, cdp_help, cdp_link) -> %s" % mcp_path]
 
 
 def _settings_empty(settings: Dict) -> bool:

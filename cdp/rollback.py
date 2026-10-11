@@ -32,14 +32,18 @@ from __future__ import annotations
 
 from typing import Dict, FrozenSet, List, Sequence, Set, Tuple
 
-from .util import CdpError, resolve_prefix, stable_hash
+from .util import CdpError, resolve_prefix
 
 LEDGER_ARTIFACT = "rollback"
 
 
 def resolve_run_id(value: str, patches=None) -> str:
     """Accept a `cdp-<sha12>` run id, a commit sha, or (given the patch log) any unique
-    short prefix of one -- the sha `cdp` prints. An ambiguous prefix raises."""
+    short prefix of one -- the sha `cdp` prints. An ambiguous prefix raises; an empty value
+    names nothing and raises (it must never become "the latest" or an invented run id)."""
+    if not isinstance(value, str) or not value.strip():
+        raise CdpError("a run or commit is required: the value is empty")
+    value = value.strip()
     if patches is not None and value:
         known = {str(p.get("run_id")) for p in patches if p.get("run_id")}
         bare = value[4:] if value.startswith("cdp-") else value
@@ -51,7 +55,7 @@ def resolve_run_id(value: str, patches=None) -> str:
             return "cdp-" + resolve_prefix(bare, hits, "run/commit")
     if value.startswith("cdp-"):
         return value
-    return "cdp-" + (value[:12] if value else stable_hash(value)[:12])
+    return "cdp-" + value[:12]
 
 
 class Exclusions:

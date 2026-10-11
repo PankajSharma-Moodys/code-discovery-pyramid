@@ -13,6 +13,28 @@ from .util import CDP_VERSION
 from typing import Callable, Dict, List, Optional, Sequence
 
 
+def _say_stranded_claims(store, paths: Paths, say) -> None:
+    """The banner for model claims a scan could not carry: they sit in a snapshot that is no ancestor
+    of this tree (another branch, a worktree, or a directory with no git history)."""
+    here = store.snapshot_id()
+    hashes = store.model_patch_hashes()
+    rows = store.list_snapshots()
+    others = [s for s in rows if s["repo_id"] == paths.repo_id and s["id"] != here and not s["ephemeral"]
+              and hashes.get(s["id"])]
+    if not others:
+        return
+    mine = next(s for s in rows if s["id"] == here)
+    try:
+        for snap in others[-3:]:
+            store.use_snapshot(snap["repo_id"], snap["commit_sha"])
+            n = sum(len(p.get("claims") or []) for p in store.load_patches()
+                    if p.get("author_kind") != "python" and p.get("status") == "complete")
+            say("note      %d model claim(s) exist in snapshot %s (not an ancestor of this tree, so not carried; "
+                "`cdp gc` keeps it)" % (n, snap["commit_sha"][:12]))
+    finally:
+        store.use_snapshot(mine["repo_id"], mine["commit_sha"])
+
+
 def scan(
     paths: Paths,
     *,
@@ -54,9 +76,18 @@ def scan(
 
     state_dir = paths.state
     store = open_store(paths)
+    base = refresh_mod.carry_source(store)  # read before begin_snapshot moves the selection
     store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"], exclude or ()),
-                         checkout=registry_mod.checkout_key(paths.repo))
+                         checkout=registry_mod.snapshot_checkout_key(paths.repo))
     registry_mod.remember_alias(paths.repo)
+    # A scan of a new commit or a dirty tree builds on the snapshot the shared rule chose (HEAD's
+    # own, else the nearest clean ancestor), exactly as `refresh` does: its model claims are carried
+    # and re-verified against this tree by the fold below, instead of vanishing behind an empty log.
+    carried = refresh_mod.carry_leaf_log(store, base, model_only=True)
+    if carried:
+        say("carry     %d model patch(es) from the scanned ancestor, re-verified against this tree" % base.model_patches)
+    else:
+        _say_stranded_claims(store, paths, say)
     store.write_artifact("inventory", inventory)
     store.write_artifact("extract", extraction)
     store.write_artifact("graph", graph)

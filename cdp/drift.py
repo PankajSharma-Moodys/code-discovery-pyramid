@@ -9,8 +9,9 @@ re-extract.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
+from .inventory import _is_excluded
 from .util import normalise_ws, read_lines, run_git
 
 
@@ -50,7 +51,7 @@ def _normalised_body(lines: List[str]) -> List[str]:
 
 
 def classify_full(
-    repo: Path, prev_sha: str, new_sha: str
+    repo: Path, prev_sha: str, new_sha: str, excludes: Sequence[str] = ()
 ) -> Tuple[Dict[str, str], Set[str], Set[str], Set[str], Set[str]]:
     """`(rename_map, edited_files, added_files, deleted_files, reformatted_files)`.
 
@@ -62,6 +63,10 @@ def classify_full(
     `normalise_ws`'d and blank lines dropped -- a reformat, not an edit. Those go to
     `reformatted_files`: they do not invalidate a review, but every line number in them
     may have moved, so they are re-extracted all the same.
+
+    A path with a segment in `excludes` (`snapshot.exclusion_patterns`: the same list the
+    inventory drops) is in none of the sets: the index never reads it, so it is neither
+    "added" nor "edited" (`install --harness` once showed `161 added` for its own files).
     """
     rename_map: Dict[str, str] = {}
     edited: Set[str] = set()
@@ -70,6 +75,8 @@ def classify_full(
     reformatted: Set[str] = set()
 
     for status, path, old_path in diff_status(repo, prev_sha, new_sha):
+        if excludes and _is_excluded(path, tuple(excludes)):
+            continue
         if status == "D":
             deleted.add(path)
             continue

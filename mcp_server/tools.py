@@ -1,6 +1,6 @@
-"""The five tools themselves, with no dependency on the `mcp` SDK.
+"""The six tools themselves, with no dependency on the `mcp` SDK.
 
-Phase 9 (7.1): `cdp_query` (typed `kind`), `cdp_scan`, `cdp_refresh`, `cdp_status`, `cdp_help`. Kept
+Phase 9 (7.1): `cdp_query` (typed `kind`), `cdp_scan`, `cdp_refresh`, `cdp_status`, `cdp_help`, `cdp_link`. Kept
 importable and testable with zero optional dependencies installed -- `server.py`
 is the thin layer that hands these functions to the real MCP `Server`; nothing
 here imports `mcp`.
@@ -22,15 +22,17 @@ from cdp import freshness as freshness_mod
 from cdp import partition as partition_mod
 from cdp import query as query_mod
 from cdp import schedule as schedule_mod
+from cdp.store import registry as registry_mod
 from cdp import lock as lock_mod
 from cdp import refresh as refresh_mod
-from cdp.util import ArgError, check_limit
+from cdp import linkview as linkview_mod
+from cdp.util import ArgError, check_enum, check_limit, check_str
 
 
 def _paths(repo: str):
     """The store is always the machine one (`CDP_HOME`): a tool call cannot point it
     elsewhere, so a model cannot create stores at paths of its choosing."""
-    return session_mod.paths_for(repo)
+    return session_mod.paths_for(check_str(repo, "repo", 4096))  # "" would mean the server's cwd
 
 
 def _store(repo: str) -> "query_mod.Store":
@@ -188,6 +190,20 @@ def cdp_status(repo: str) -> Dict[str, Any]:
         store.close()
 
 
+def cdp_link(action: str, service: Optional[str] = None) -> Dict[str, Any]:
+    """Cross-repo links across every repo scanned into the machine store: the same matching as
+    `cdp link scan` (`cdp/linkview.py`). `scan`/`query` only read; `scan_save` also persists the
+    links (the CLI's `link scan --db`). The store is the machine one -- a call cannot point elsewhere."""
+    check_enum(action, "action", linkview_mod.ACTIONS)
+    if service is not None:
+        check_str(service, "service")
+    home = registry_mod.cdp_home()
+    kind, pg = session_mod.resolve_backend(home)
+    scope = SimpleNamespace(state=home, repo_id="links")
+    with lock_mod.repo_lock(scope, kind, pg, shared=action != "scan_save", scope="links"):
+        return linkview_mod.run(home, action, service)
+
+
 def cdp_help(topic: Optional[str] = None) -> Dict[str, Any]:
     """The same text as `cdp help <topic>` (one function, `helpdoc.help_text`)."""
     from cdp import helpdoc
@@ -201,4 +217,5 @@ TOOLS = {
     "cdp_scan": cdp_scan,
     "cdp_status": cdp_status,
     "cdp_help": cdp_help,
+    "cdp_link": cdp_link,
 }

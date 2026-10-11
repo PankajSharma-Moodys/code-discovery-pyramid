@@ -24,7 +24,7 @@ behind the same `WorkspaceStore` interface; the backend conformance suite in
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..util import CdpError
 
@@ -275,6 +275,19 @@ class WorkspaceStore(ABC):
 
     def list_snapshots(self) -> List[Dict]:
         return []
+
+    def checkout_heads(self) -> Dict[int, List[str]]:
+        """`snapshot id -> checkouts (worktrees) whose latest scan/refresh was of it`; `gc` keeps these."""
+        return {}
+
+    def model_patch_hashes(self) -> Dict[int, Set[str]]:
+        """`snapshot id -> content hashes of its accepted model/human patches`; `gc` keeps what carries them."""
+        return {}
+
+    def restore_archived(self) -> int:
+        """Move the selected snapshot's archived generations back into its log (a rollback needs
+        them visible to the fold). No archive on this backend: nothing to restore."""
+        return 0
 
     def get_run(self, run_id: str) -> Optional[Dict]:
         return None

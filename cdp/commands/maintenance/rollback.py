@@ -6,7 +6,7 @@ from .._common import Spec, locked, paths_from_args
 from ... import query as query_mod, rollback as rollback_mod, state as state_mod, trajectory as trajectory_mod
 from ...session import open_store
 from ...store import registry as registry_mod
-from ...util import CdpError
+from ...util import CdpError, nonempty_arg
 from ...verify import STRICT
 
 
@@ -23,9 +23,9 @@ def register(add) -> None:
     rb_target = rb.add_mutually_exclusive_group(required=True)
     rb_target.add_argument("--undo", action="store_true",
                             help="undo the latest rollback still in force: its patches are live again")
-    rb_target.add_argument("--to-run", metavar="RUN_OR_COMMIT",
+    rb_target.add_argument("--to-run", metavar="RUN_OR_COMMIT", type=nonempty_arg,
                             help="exclude just this run's patches")
-    rb_target.add_argument("--to-snapshot", metavar="COMMIT",
+    rb_target.add_argument("--to-snapshot", metavar="COMMIT", type=nonempty_arg,
                             help="exclude this run and every run appended after it")
     rb.add_argument("--reason", default=None, help="why (recorded in the rollback ledger)")
     rb.add_argument("--mode", choices=["strict", "lenient"], default=STRICT)
@@ -46,6 +46,12 @@ def cmd_rollback(args) -> int:
     paths = paths_from_args(args)
     backend = open_store(paths)
     store = query_mod.Store(backend)
+    if not args.undo:
+        # A generation `compact` archived is invisible to the fold; excluding a newer run can make
+        # it the live one, so it comes back into the log first.
+        restored = backend.restore_archived()
+        if restored:
+            print("restored  %d archived patch generation(s) to the log (a rollback needs them visible)" % restored)
     patches = backend.load_patches()
 
     if args.undo:

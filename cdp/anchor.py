@@ -21,6 +21,7 @@ pass that only changed indentation.
 from __future__ import annotations
 
 import bisect
+import heapq
 from collections import OrderedDict
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -38,7 +39,8 @@ AMBIGUOUS = "ambiguous_anchor"
 TOO_COMMON = "anchor_too_common"
 
 
-def find_matches(lines: Sequence[str], anchor: str, max_span: int = MAX_SPAN) -> List[int]:
+def find_matches(lines: Sequence[str], anchor: str, max_span: int = MAX_SPAN,
+                 limit: Optional[int] = None) -> List[int]:
     """Every 1-based line at which `anchor` *begins*, matched across up to
     `max_span` consecutive lines with interior whitespace normalised.
 
@@ -60,6 +62,11 @@ def find_matches(lines: Sequence[str], anchor: str, max_span: int = MAX_SPAN) ->
     the search in C is the same computation with the redundancy removed. It is
     160x faster on the same input and returns identical results — which the
     golden baseline, not this docstring, is what actually proves.
+
+    `limit` stops after that many hits (callers that only need to know "more than 3" pass 4):
+    without it, thousands of identical lines make every anchor enumerate every other one, which
+    is quadratic. Big files also search through a sampled q-gram index instead of rescanning
+    the blob per anchor (see `_positions`); the hits are the same.
     """
     needle = normalise_ws(anchor)
     if not needle:
@@ -69,11 +76,7 @@ def find_matches(lines: Sequence[str], anchor: str, max_span: int = MAX_SPAN) ->
         return []
 
     hits: List[int] = []
-    position = 0
-    while True:
-        found = blob.find(needle, position)
-        if found < 0:
-            break
+    for found in _positions(lines, blob, needle):
         start = bisect.bisect_right(offsets, found) - 1
         end = bisect.bisect_right(offsets, found + len(needle) - 1) - 1
         # The span is measured in *source* lines, not in non-blank ones: the
@@ -82,8 +85,56 @@ def find_matches(lines: Sequence[str], anchor: str, max_span: int = MAX_SPAN) ->
         if numbers[end] - numbers[start] < max_span:
             if not hits or hits[-1] != numbers[start]:
                 hits.append(numbers[start])
-        position = found + 1
+                if limit is not None and len(hits) >= limit:
+                    break
     return hits
+
+
+#: Files whose normalised text is longer than this answer anchor searches through a q-gram
+#: index; below it a plain `str.find` per anchor is cheaper than building one.
+INDEX_MIN_BLOB = 1 << 18
+_GRAM = 8       # indexed gram length
+_STRIDE = 5     # an index entry every _STRIDE characters: complete for needles >= _GRAM + _STRIDE - 1
+_GRAM_CACHE: "OrderedDict[int, Tuple[Sequence[str], Dict[str, List[int]]]]" = OrderedDict()
+
+
+def _grams(lines: Sequence[str], blob: str) -> Dict[str, List[int]]:
+    key = id(lines)
+    cached = _GRAM_CACHE.get(key)
+    if cached is not None and cached[0] is lines:
+        _GRAM_CACHE.move_to_end(key)
+        return cached[1]
+    table: Dict[str, List[int]] = {}
+    for p in range(0, len(blob) - _GRAM + 1, _STRIDE):
+        table.setdefault(blob[p:p + _GRAM], []).append(p)
+    _GRAM_CACHE[key] = (lines, table)
+    while len(_GRAM_CACHE) > 2:
+        _GRAM_CACHE.popitem(last=False)
+    return table
+
+
+def _positions(lines: Sequence[str], blob: str, needle: str):
+    """Every offset of `needle` in `blob`, ascending, one at a time."""
+    if len(blob) < INDEX_MIN_BLOB or len(needle) < _GRAM + _STRIDE - 1:
+        position = 0
+        while True:
+            found = blob.find(needle, position)
+            if found < 0:
+                return
+            yield found
+            position = found + 1
+    table = _grams(lines, blob)
+    # a needle at q contains exactly one sampled gram start p with q <= p < q + _STRIDE
+    streams = []
+    for o in range(_STRIDE):
+        plist = table.get(needle[o:o + _GRAM])
+        if plist:
+            streams.append(map((-o).__add__, plist))
+    last = -1
+    for q in heapq.merge(*streams):
+        if q != last and q >= 0 and blob.startswith(needle, q):
+            yield q
+        last = q
 
 
 #: Bounded memo of the last few files' normalised forms.
@@ -138,7 +189,7 @@ def _qualifies(lines: Sequence[str], text: str, line_no: int) -> bool:
     """§5.4: at most 3 matches in the file, exactly one within +/-5 lines."""
     if len(text) < MIN_ANCHOR_LEN or len(text) > MAX_ANCHOR_LEN:
         return False
-    hits = find_matches(lines, text)
+    hits = find_matches(lines, text, limit=MAX_MATCHES_IN_FILE + 1)
     if not (1 <= len(hits) <= MAX_MATCHES_IN_FILE):
         return False
     near = [h for h in hits if abs(h - line_no) <= LINE_WINDOW]
@@ -216,7 +267,7 @@ def verify_anchor(lines: Sequence[str], anchor: Dict[str, object]) -> Tuple[bool
     if len(normalise_ws(text)) < MIN_ANCHOR_LEN:
         return False, cited, NOT_FOUND
 
-    hits = find_matches(lines, text)
+    hits = find_matches(lines, text, limit=MAX_MATCHES_IN_FILE + 1)
     if not hits:
         return False, cited, NOT_FOUND
     if len(hits) > MAX_MATCHES_IN_FILE:

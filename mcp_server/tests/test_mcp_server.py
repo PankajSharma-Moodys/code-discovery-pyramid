@@ -42,8 +42,8 @@ class AtRestTokenCostTest(unittest.TestCase):
 
     def test_three_tools_cost_far_less_than_the_49_2k_reference_point(self) -> None:
         measured = estimate_at_rest_tokens()
-        self.assertEqual(measured["tool_count"], 5)
-        self.assertEqual(set(measured["per_tool"]), {"cdp_query", "cdp_scan", "cdp_refresh", "cdp_status", "cdp_help"})
+        self.assertEqual(measured["tool_count"], 6)
+        self.assertEqual(set(measured["per_tool"]), {"cdp_query", "cdp_scan", "cdp_refresh", "cdp_status", "cdp_help", "cdp_link"})
         self.assertLess(measured["tokens_est"], 2000)
 
     def test_growing_the_tool_count_is_the_stress_test_named_in_the_plan(self) -> None:

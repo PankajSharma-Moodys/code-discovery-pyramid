@@ -651,7 +651,10 @@ def session_start(event: Dict) -> Optional[str]:
     if isinstance(cov, (int, float)) and cov > 0 and reviewed:
         depth = "model-reviewed coverage %d%%" % round(cov * 100)
     else:
-        depth = "deterministic index (%s live claims, no model review)" % fresh.get("live", "?")
+        from .util import NO_REVIEW_NOTE
+
+        depth = ("deterministic index (%s live claims), 0.0%% %s"
+                 % (fresh.get("live", "?"), NO_REVIEW_NOTE))
     dirty = status.get("dirty_files") or []
     caveat = ((" The index includes uncommitted changes in %d file(s)." if status.get("snapshot_uncommitted")
                else " Uncommitted changes in %d file(s) are not in the index.") % len(dirty)) if dirty else ""

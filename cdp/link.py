@@ -218,17 +218,56 @@ def _short(repo: str) -> str:
     return repo.rsplit("#", 1)[-1].rstrip("/").rsplit("/", 1)[-1]
 
 
-def resolve_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()) -> str:
-    """A repo is named by its identity (`github.com/acme/orders`, or
+def resolve_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = (),
+                    names: Optional[Dict[str, Dict]] = None) -> str:
+    """A repo is named by its identity (a UUID, `github.com/acme/orders`, or
     `github.com/acme/mono#svc/api` for a folder of one). Nobody types that, so
-    a unique trailing name -- `orders`, `api` -- resolves to it; an exact match
-    always wins, and an ambiguous short name is left alone (it then matches
-    nothing, which `link query` reports rather than guessing)."""
-    known = known_services(edges, extra)
+    `service` may also be the repo's directory name, its checkout path, a unique
+    trailing name, or a unique prefix of the identity (`names`: `repo_names()`).
+    An exact identity always wins; an ambiguous name resolves to nothing (`link
+    query` then reports it rather than guessing)."""
+    return _match_service(known_services(edges, extra), service, names)[0] or service
+
+
+def _match_service(known: set, service: str, names: Optional[Dict[str, Dict]]) -> Tuple[Optional[str], List[str]]:
+    """`(identity, [])` for the one repo `service` names, `(None, hits)` otherwise."""
     if service in known:
-        return service
-    short = [r for r in known if _short(r) == service]
-    return short[0] if len(short) == 1 else service
+        return service, []
+    names = names or {}
+    want = service.rstrip("/")
+    as_path = str(Path(want).expanduser().resolve()) if ("/" in want or want.startswith("~")) else None
+    tiers = (
+        [r for r in known if names.get(r, {}).get("name") == want],
+        [r for r in known if as_path and names.get(r, {}).get("path")
+         and str(Path(names[r]["path"]).resolve()) == as_path],
+        [r for r in known if _short(r) == want],
+        [r for r in known if len(want) >= 3 and r.startswith(want)],
+    )
+    for hits in tiers:
+        if len(hits) == 1:
+            return hits[0], []
+        if hits:
+            return None, sorted(hits)
+    return None, []
+
+
+def repo_label(repo: str, names: Optional[Dict[str, Dict]] = None) -> str:
+    """What to show for a repo identity: its directory name when known, else the
+    identity's trailing part."""
+    return (names or {}).get(repo, {}).get("name") or _short(repo)
+
+
+def repo_names(backend) -> Dict[str, Dict]:
+    """`{repo identity: {"name": directory name, "path": checkout path}}` for every
+    repo in the store (from each repo's latest inventory)."""
+    out: Dict[str, Dict] = {}
+    for row in backend.latest_snapshots():
+        backend.use_snapshot(row["repo_id"], row["commit_sha"])
+        inv = backend.read_artifact("inventory", {}) or {}
+        path = inv.get("repo")
+        out[row["repo_id"]] = {"name": inv.get("repo_name") or (Path(path).name if path else None),
+                               "path": path}
+    return out
 
 
 def snapshots_from_store(backend) -> List[Dict]:
@@ -263,15 +302,25 @@ def snapshots_from_store(backend) -> List[Dict]:
     return out
 
 
-def require_known_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()) -> None:
-    """A service no scanned repo goes by is an error (exit non-zero), not an empty answer."""
+def require_known_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = (),
+                          names: Optional[Dict[str, Dict]] = None) -> None:
+    """A service no scanned repo goes by is an error (exit non-zero), not an empty answer;
+    the message lists the names a service may be given as."""
     known = known_services(edges, extra)
-    if resolve_service(edges, service, extra) not in known:
-        raise CdpError("unknown service %r: no scanned repo has that name (known: %s)"
-                       % (service, ", ".join(sorted(_short(r) for r in known)) or "none"))
+    found, hits = _match_service(known, service, names)
+    if found:
+        return
+    label = lambda r: repo_label(r, names)
+    if hits:
+        raise CdpError("service %r is ambiguous: it could be %s -- give a longer prefix or the full identity"
+                       % (service, ", ".join("%s (%s)" % (label(r), r) for r in hits)))
+    raise CdpError("unknown service %r: no scanned repo has that name (known: %s)"
+                   % (service, ", ".join(sorted("%s (%s)" % (label(r), r) if label(r) != r else r for r in known))
+                      or "none"))
 
 
-def query_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()) -> Dict:
+def query_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = (),
+                  names: Optional[Dict[str, Dict]] = None) -> Dict:
     """M8.2 (5.6): `edges` is `SqliteStore.read_link_edges()`'s return value --
     persisted rows from the last `link scan --db`, each `{"kind": "link"|
     "unmatched", "data": <link or unmatched dict from scan_links>}`.
@@ -282,7 +331,7 @@ def query_service(edges: Sequence[Dict], service: str, extra: Sequence[str] = ()
     `service` itself makes -- rendered as a deliverable (5.6), not folded into
     "no results".
     """
-    service = resolve_service(edges, service, extra)
+    service = resolve_service(edges, service, extra, names)
     links = [e["data"] for e in edges if e["kind"] == "link"
              and (e["data"]["caller"]["repo"] == service or e["data"]["callee"]["repo"] == service)]
     unmatched = [e["data"] for e in edges if e["kind"] == "unmatched"
@@ -300,21 +349,22 @@ def _tags(link: Dict) -> str:
                        ", %s" % res["verdict"] if res else "")
 
 
-def summarise_query(result: Dict) -> List[str]:
+def summarise_query(result: Dict, names: Optional[Dict[str, Dict]] = None) -> List[str]:
     """Each link as `caller -> callee`, both ends named; `calls`/`called by` says which end the
     queried service is."""
     service = result["service"]
     lines = ["link query %s: %d link(s), %d unmatched outbound call(s)"
-             % (service, len(result["links"]), len(result["unmatched"]))]
+             % (repo_label(service, names), len(result["links"]), len(result["unmatched"]))]
     for link in result["links"]:
         caller, callee = link["caller"], link["callee"]
         direction = "calls" if caller["repo"] == service else "called by"
         lines.append("  %-6s %s: [%s] %s %s -> [%s] %s %s [%s]"
-                     % (link["protocol"], direction, _short(caller["repo"]), caller["target"], _where(caller),
-                        _short(callee["repo"]), callee["target"], _where(callee), _tags(link)))
+                     % (link["protocol"], direction, repo_label(caller["repo"], names), caller["target"],
+                        _where(caller), repo_label(callee["repo"], names), callee["target"], _where(callee),
+                        _tags(link)))
     if result["unmatched"]:
         lines.append("unmatched %d outbound call(s) from %s with no registered callee:"
-                      % (len(result["unmatched"]), service))
+                      % (len(result["unmatched"]), repo_label(service, names)))
         for u in result["unmatched"]:
             o = u["outbound"]
             lines.append("  %-6s %s %s" % (u["protocol"], o["target"], _where(o)))
@@ -727,7 +777,7 @@ def summarise_refresh(report: Dict) -> List[str]:
     return lines
 
 
-def summarise(report: Dict) -> List[str]:
+def summarise(report: Dict, names: Optional[Dict[str, Dict]] = None) -> List[str]:
     t = report["totals"]
     lines = [
         "link      %d snapshot(s), %d module(s), %d link(s) (%d exact, %d heuristic), %d unmatched"
@@ -736,13 +786,14 @@ def summarise(report: Dict) -> List[str]:
     for link in report["links"]:
         caller, callee = link["caller"], link["callee"]
         lines.append("  %-6s caller [%s:%s] %s %s -> callee [%s:%s] %s %s [%s]"
-                     % (link["protocol"], _short(caller["repo"]), caller["module"], caller["target"], _where(caller),
-                        _short(callee["repo"]), callee["module"], callee["target"], _where(callee), _tags(link)))
+                     % (link["protocol"], repo_label(caller["repo"], names), caller["module"], caller["target"],
+                        _where(caller), repo_label(callee["repo"], names), callee["module"], callee["target"],
+                        _where(callee), _tags(link)))
     if report["unmatched"]:
         lines.append("unmatched %d outbound call(s) with no registered callee:" % len(report["unmatched"]))
         for u in report["unmatched"]:
             o = u["outbound"]
-            lines.append("  %-6s [%s] %s %s" % (u["protocol"], _short(o["repo"]), o["target"], _where(o)))
+            lines.append("  %-6s [%s] %s %s" % (u["protocol"], repo_label(o["repo"], names), o["target"], _where(o)))
     return lines
 
 

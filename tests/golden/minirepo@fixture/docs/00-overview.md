@@ -9,7 +9,7 @@ Reconstructed by CDP at commit `<HEAD>`. Every claim below carries a `file:line`
 | | |
 |---|---|
 | Tracked files | 13 |
-| Files on disk | 14 (**1.1x**) |
+| Files on disk | 13 (**1.0x**) |
 | Inventory source | `git` |
 | Modules | 2 |
 | Symbols declared | 24 |

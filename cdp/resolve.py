@@ -49,8 +49,8 @@ def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
     constants = _constant_table(extraction)
     paths = [f["path"] for f in inventory["files"]]
     cfg_calls: List[Tuple[str, Dict]] = []
-    uses, counts = _resolve_uses(extraction, module_set, symbol_owner, namespace_owner, symbols, paths,
-                                 cfg_calls)
+    uses, counts = _resolve_by_language(extraction, module_set, symbol_owner, namespace_owner, symbols,
+                                        paths, cfg_calls, role_of)
     used_by = _transpose(uses)
     routes, route_gaps = _resolve_routes(extraction, constants)
     coupling = _coupling(graph)
@@ -166,6 +166,47 @@ def _constant_table(extraction: Dict) -> Dict[str, Dict]:
 
 
 # ------------------------------------------------------------------- uses
+
+
+def _lang_of(path: str) -> str:
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path.rsplit("/", 1)[-1] else ""
+    return "python" if ext in ("py", "pyi") else ext
+
+
+def _resolve_by_language(extraction, module_set, symbol_owner, namespace_owner, symbols, paths,
+                         cfg_calls, role_of):
+    """`_resolve_uses`, with each language resolving only against its own declarations when a
+    fully-qualified name is declared in more than one language (C# `Acme.Svc` and Java `Acme.Svc`
+    are different types; the merged `symbols` table would let a call land on the other's members).
+    Without such a collision this is exactly one `_resolve_uses` pass."""
+    langs: Dict[str, Set[str]] = {}
+    for row in extraction["defines"]:
+        langs.setdefault(row["fqn"], set()).add(_lang_of(row["file"]))
+    if not any(len(v) > 1 for v in langs.values()):
+        return _resolve_uses(extraction, module_set, symbol_owner, namespace_owner, symbols, paths, cfg_calls)
+    groups = sorted({l for v in langs.values() for l in v} | {_lang_of(r["file"]) for r in extraction["uses"]})
+    out: List[Dict] = []
+    counts: Dict[str, int] = {"local": 0, "matched": 0, "third_party": 0, "ambiguous": 0, "unresolved": 0}
+    for lang in groups:
+        part = dict(extraction)
+        for key in ("defines", "uses", "imports"):
+            part[key] = [r for r in extraction.get(key, []) if _lang_of(r["file"]) == lang]
+        if not part["uses"]:
+            continue
+        lsyms, _ = _symbol_table(part, role_of)
+        lown, lns = build_symbol_index(part)
+        rows, c = _resolve_uses(part, module_set, lown, lns, lsyms, paths, cfg_calls)
+        # an undeclared member that only another language declares is that language's, not a
+        # fallback onto this one's class
+        dropped = [r for r in rows if "#" in r["fqn"] and r["fqn"] not in lsyms and r["fqn"] in symbols]
+        for r in dropped:
+            c[r["resolved"]] = c.get(r["resolved"], 0) - 1
+        rows = [r for r in rows if not ("#" in r["fqn"] and r["fqn"] not in lsyms and r["fqn"] in symbols)]
+        out.extend(rows)
+        for k, v in c.items():
+            counts[k] = counts.get(k, 0) + v
+    out.sort(key=lambda r: (r["fqn"], r["from_file"], r["anchor"]["line"]))
+    return out, counts
 
 
 def _resolve_uses(

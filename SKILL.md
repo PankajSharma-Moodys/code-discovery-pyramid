@@ -15,9 +15,11 @@ sessions prompt once.
 ## Tools
 - `cdp_query` -- the 14 kinds below. `cdp_status` -- fresh? covered? `cdp_scan` -- build the index (no model calls).
   `cdp_refresh` -- bring it up to HEAD when `behind` > 0 (clean working tree; no model calls).
+  `cdp_link(action="query", service="<repo name>")` -- cross-repo: who calls that service and what it calls
+  that no scanned repo serves (every repo scanned on this machine; `action="scan"` lists all links).
 - `cdp_help(topic)` -- flags, defaults, examples and next steps for any kind or command; `topic="recipes"` for
   worked sequences. Call it instead of guessing a parameter; it is not dumped here.
-- Not an MCP tool, CLI only: `docs`, `diff`, `link ...` (cross-repo), `answer`, `run`.
+- Not an MCP tool, CLI only: `docs`, `diff`, `link prompts|run|refresh` (AI resolution of heuristic links), `answer`, `run`.
 
 ## Which kind for which question
 | The question | `kind` |

@@ -241,6 +241,14 @@ def checkout_key(repo: Path) -> str:
     return hashlib.sha256(str(top.resolve()).encode()).hexdigest()[:8] if top else ""
 
 
+def snapshot_checkout_key(repo: Path) -> str:
+    """The checkout a snapshot is recorded against (what lets a scan drop the snapshots it
+    supersedes): `checkout_key`, or for a directory outside git a key of its path, so a plain
+    directory's old scans are pruned like a worktree's dirty ones."""
+    key = checkout_key(repo)
+    return key or "p" + hashlib.sha256(str(Path(repo).resolve()).encode()).hexdigest()[:7]
+
+
 def work_dir_of(home: Path, repo: Path) -> Path:
     return work_dir(home, repo_identity(repo), checkout_key(repo))
 

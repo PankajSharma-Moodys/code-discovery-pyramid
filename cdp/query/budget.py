@@ -63,6 +63,17 @@ class Budget:
         keep = sorted(sorted(range(len(rows)), key=lambda i: _rank(rows[i], i))[:room])
         return [rows[i] for i in keep]
 
+    def take_head(self, rows: Sequence[Any]) -> List[Any]:
+        """Like `take`, but keeps the first rows in the order given: for lists already ordered
+        by relevance (a trace's nearest hops first), where `take`'s evidence ranking would cut
+        by name instead."""
+        rows = list(rows)
+        room = max(0, self.limit - self.spent)
+        kept = rows[:room]
+        self.spent += len(kept)
+        self.elided += len(rows) - len(kept)
+        return kept
+
     def note(self) -> Optional[str]:
         """The stated reason, when the allowance admitted nothing at all.
 

@@ -72,6 +72,20 @@ GOLDEN_MINIREPO: Dict[str, List[Dict[str, str]]] = {
 }
 
 
+def golden_for(xref: Dict, modules: Sequence[str]) -> Dict[str, List[Dict[str, str]]]:
+    """The golden facts that apply to this repo, keyed off what it *contains*, not what its
+    directory is called: a module's facts apply when every subject they name is a symbol the
+    repo defines (`core.Widget`, `WidgetResource`, ...) and the module itself exists. Any
+    other repo gets `{}` (no golden set: recall is n/a, not 0)."""
+    symbols = [str(k).lower() for k in (xref.get("symbols") or {})]
+    out: Dict[str, List[Dict[str, str]]] = {}
+    for module, facts in GOLDEN_MINIREPO.items():
+        if module in modules and all(any(f["subject_contains"].lower() in sym for sym in symbols)
+                                     for f in facts):
+            out[module] = facts
+    return out
+
+
 def _extract_json(raw: str) -> Optional[Dict]:
     """A CLI-driven model may wrap the patch in prose or a code fence despite
     being told not to. Take the outermost `{...}` span; anything else is a
@@ -205,17 +219,18 @@ def compatibility_table(models: Dict[str, Dict]) -> str:
     lines = ["model            schema_valid  yield_collapse  recall  false_unknown"]
     for name, agg in sorted(models.items()):
         lines.append(
-            "%-16s %11s%%  %13s%%  %5s%%  %11s%%"
+            "%-16s %12s  %14s  %6s  %13s"
             % (
                 name,
-                _pct(agg.get("schema_validity_rate")),
-                _pct(agg.get("yield_collapse_rate")),
-                _pct(agg.get("recall")),
-                _pct(agg.get("false_unknown_rate")),
+                pct_text(agg.get("schema_validity_rate")),
+                pct_text(agg.get("yield_collapse_rate")),
+                pct_text(agg.get("recall")),
+                pct_text(agg.get("false_unknown_rate")),
             )
         )
     return "\n".join(lines)
 
 
-def _pct(x: Optional[float]) -> str:
-    return "?" if x is None else str(round(x * 100))
+def pct_text(x: Optional[float]) -> str:
+    """`83%`, or `n/a` when there is nothing to score (no golden set)."""
+    return "n/a" if x is None else "%s%%" % round(x * 100)

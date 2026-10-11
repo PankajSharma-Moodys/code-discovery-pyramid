@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import WorkspaceStore
-from .sqlite_archive import ArchiveMixin, EphemeralMixin
+from .sqlite_archive import SCHEMA_V11, ArchiveMixin, EphemeralMixin, migrate_archive_snapshot_id
 from ..util import CdpError, read_json, stable_hash
 
 SCHEMA_V1 = """
@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS snapshot_checkout (
 #: appending here, never editing an earlier entry.
 MIGRATIONS: Tuple[str, ...] = (
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10,
+    SCHEMA_V11,
 )
 
 
@@ -740,6 +741,8 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
             if version <= current:
                 continue
             self._conn.executescript(script)
+            if script is SCHEMA_V11:
+                migrate_archive_snapshot_id(self._conn)
             self._conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
         self._conn.commit()
 
@@ -838,7 +841,7 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         ).fetchall()
         for seq, label, content_hash, payload, is_derived in rows:
             self._conn.execute(
-                "INSERT INTO claim_patch "
+                "INSERT OR IGNORE INTO claim_patch "
                 "(snapshot_id, seq, label, content_hash, payload, is_derived, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (dest, seq, label, content_hash, payload, is_derived, _now()),

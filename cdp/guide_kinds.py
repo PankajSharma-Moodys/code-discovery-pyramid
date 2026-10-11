@@ -54,12 +54,17 @@ KINDS: Dict[str, Dict] = {
                 "EventBus event it posts), each with the edge that put it there.",
         "not": "Not logic: no parameters or branches. DI/reflection wiring leaves no edge, so a "
                "short trail is not proof of 'calls nothing'. Edges tagged `medium` come from "
-               "imports (can reach, not does).",
+               "imports or interface/override fan-out (can reach, not does). A class term (`TenantController`) is not one "
+               "entry point: each public member is walked and the list is capped at 40 files (round-robin, nearest "
+               "first; the cap and the unlisted count are stated, and `--budget` does not lift it) - trace a "
+               "member or a route for a whole chain.",
         "read": "`resolved_as` says what the term matched (route, source or symbol); `files` are "
                 "the reading list in walk order; `hops_exhausted` true means raise --max-hops; "
-                "`elided: 0` means the list is complete.",
-        "term": "REQUIRED. A route path (`/orders`), a dataflow source, or a symbol "
-                "(`OrderResource#place`); substring, first match wins in that order.",
+                "`elided: 0` means the list is complete. A route path shared by several verbs is traced "
+                "for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`).",
+        "term": "REQUIRED. A route path (`/orders`; all its verbs) or `VERB /path` (`POST /orders`; one), a dataflow source, "
+                "a class (`OrderResource`: its public members) or a member (`OrderResource#place`); "
+                "substring, first match wins in that order.",
         "uses": ("term",) + _B + ("max_hops",),
         "required": ("term",),
         "examples": ["query trace <route>", "query trace <method> --max-hops 4 --exclude-role test"],
@@ -86,8 +91,9 @@ KINDS: Dict[str, Dict] = {
                "`x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, "
                "`getattr`, dispatch through a list of modules and decorator-built wrappers are not found.",
         "read": "`defined_range` is `file:start-end` (read exactly that); `used_by_count` is the "
-                "true total even when the list is budgeted; `collision` true means several "
-                "definitions share the name.",
+                "true total even when the list is budgeted (several matches split the budget evenly, "
+                "and a cut one gives `see_all`, the exact command for every use); `collision` true means "
+                "several definitions share the name.",
         "term": "REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; "
                 "case-insensitive substring (exact last-name matches first) unless `exact`; "
                 "`Class#method` is always exact.",
@@ -135,8 +141,9 @@ KINDS: Dict[str, Dict] = {
                "are listed, not guessed.",
         "read": "`declared_via` shows the constant expression; `unresolved_constants` non-empty "
                 "means the path is partial.",
-        "term": "OPTIONAL. Substring of the route path or verb, not the handler (`/orders`, `POST`); `exact` "
-                "matches the whole path or verb; omit for all.",
+        "term": "OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method "
+                "(`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` "
+                "matches the whole name; omit for all.",
         "uses": ("term",) + _B + ("exact",),
         "required": (),
         "examples": ["query routes", "query routes <route>"],
@@ -149,8 +156,10 @@ KINDS: Dict[str, Dict] = {
                 "citation. The union is 'what breaks if I change this table'.",
         "not": "Only tables seen in migrations or persistence/read code; not raw SQL in "
                "strings the extractor cannot parse.",
-        "read": "`migrations` = schema owner; `written_by`/`read_by` are source symbols; "
-                "`evidence` is the cited sites.",
+        "read": "`migrations` = schema owner; `writers`/`readers` group the sites by who touches the table "
+                "(SQL scripts are one group: site and file counts, a few `file:line`); `entity_users` are "
+                "the uses of the entity class outside the DbContext and migrations (reads and writes not told "
+                "apart); `evidence` is the cited sites.",
         "term": "OPTIONAL. Substring of the table name (`order` also matches `orders`) unless `exact`; omit for all.",
         "uses": ("term",) + _B + ("exact",),
         "required": (),

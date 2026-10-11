@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 from helpers import SKILL_ROOT, have_git
+from cdp.util import CdpError
 
 RUN_PY = SKILL_ROOT / "run.py"
 
@@ -288,7 +289,7 @@ class Cdp:
         if check and proc.returncode != 0:
             raise AssertionError("cdp %s -> rc %s\n%s%s" % (" ".join(args), proc.returncode, proc.stdout, proc.stderr))
         if self.autocheck and proc.returncode == 0 and args and args[0] in MUTATING:
-            problems = check_fold_green(self)
+            problems = check_fold_green(self, full=args[0] in ("compact", "rollback", "gc"))
             if problems:
                 raise AssertionError("after `cdp %s`: %s" % (" ".join(args[:2]), "; ".join(problems)))
         return proc
@@ -315,7 +316,10 @@ class Cdp:
         try:
             if not backend.has_selection():
                 return None
-            sid = backend.snapshot_id()
+            try:
+                sid = backend.snapshot_id()
+            except CdpError:  # "scan needed": nothing answers
+                return None
             return next((s for s in backend.list_snapshots() if s["id"] == sid), None)
         finally:
             backend.close()
@@ -331,7 +335,7 @@ class Cdp:
             backend.close()
 
     def inject_model_patch(self, node: str, claims: List[Dict], unknowns: Optional[List[Dict]] = None,
-                           generation: Optional[int] = None) -> None:
+                           generation: Optional[int] = None, run_id: Optional[str] = None) -> None:
         """Append a leaf-style patch to the live snapshot's log and re-fold, the way
         `collect` does, without a model or an inbox. Claims need real anchors."""
         from cdp import state as state_mod
@@ -343,7 +347,7 @@ class Cdp:
             patches = backend.load_patches()
             patch = {
                 "schema_version": "1.0.0", "node": node, "author_kind": "llm", "status": "complete",
-                "run_id": store.manifest.get("run_id", "cdp-test"),
+                "run_id": run_id or store.manifest.get("run_id", "cdp-test"),
                 "generation": generation or next_generation(patches, node),
                 "claims": claims, "unknowns": unknowns or [],
             }
@@ -425,14 +429,17 @@ def check_refresh_equals_scan(cdp: Cdp, tmp=None) -> List[str]:
 
 
 def model_claims(backend) -> List[Dict]:
-    """Every claim a model or a human wrote and the log still holds (not rolled back)."""
+    """Every claim a model or a human wrote that the log still holds and the fold still reads:
+    not rolled back, and not in a generation a later one superseded (a rewrite is not a loss)."""
+    from cdp import generations
     from cdp import rollback as rollback_mod
     excluded = rollback_mod.load_excluded_run_ids(backend)
+    patches = [p for p in backend.load_patches() if p.get("author_kind") != "python" and not excluded.matches(p)]
+    live = {id(p) for p in generations.live_leaf_patches(patches).values()}
+    live |= {id(p) for p, _ in generations.live_answer_claims(patches).values()}
     rows: List[Dict] = []
-    for patch in backend.load_patches():
-        if patch.get("author_kind") == "python" or str(patch.get("run_id")) in excluded:
-            continue
-        if patch.get("status") == "complete":
+    for patch in patches:
+        if id(patch) in live and patch.get("status") == "complete":
             rows += patch.get("claims") or []
     return rows
 
@@ -515,12 +522,13 @@ def check_answering_snapshot(cdp: Cdp) -> List[str]:
     return [] if ok else ["answers come from %s, which is not HEAD (%s) or an ancestor of it" % (sha[:12], head[:12])]
 
 
-def check_fold_green(cdp: Cdp) -> List[str]:
+def check_fold_green(cdp: Cdp, full: bool = False) -> List[str]:
     """(d) The materialized state is exactly fold(patches)+xref: `verify` and `fold --check` both
     pass (run after any refresh/scan/collect/answer/rollback/compact/lenient run). Skips a repo
     that has no index yet."""
     problems: List[str] = []
-    for cmd in (("verify",), ("fold", "--check")):
+    # `full` (after compact/rollback/gc): the re-fold from the cold archive as well must agree
+    for cmd in (("verify",), ("fold", "--check")) + ((("verify", "--full"),) if full else ()):
         saved, cdp.autocheck = cdp.autocheck, False
         try:
             proc = cdp.run(*cmd, check=False)

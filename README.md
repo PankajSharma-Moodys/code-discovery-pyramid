@@ -61,7 +61,7 @@ table below is that same guidance, gathered in one place.
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
-| `link scan <state_dir>... [--db [PATH]]` | Matches channel edges within/across scanned state directories (read-only unless `--db`). | next: `link query --service <name>`. tip (ambiguous matches found): `link prompts --out <dir>`. |
+| `link scan <state_dir>... [--db [PATH]]` | Matches channel edges across every scanned repo (does not modify the index unless `--db`; the only files it touches are the one empty lock `locks/links-*.lock`, reused, and SQLite's `index.db-shm`). | next: `link query --service <name>`. tip (ambiguous matches found): `link prompts --out <dir>`. |
 | `link prompts --db --out DIR` | Writes one prompt per ambiguous (heuristic) caller target. | next (no `--runner-cmd`): hand each prompt to a leaf, drop its patch in `<out>/inbox`, then `link collect --in <out>`. |
 | `link collect --db --in DIR` | Validates → verifies → entails → folds every patch from a prior `link prompts --out`. | next: `link query --service <name>`. |
 | `link run --db` | Dispatches every ambiguous task through the same lease/retry machine `run` uses for scopes. | next: `link query --service <name>`. Flags: `--runner-cmd`, `--max-attempts`. |
@@ -72,7 +72,7 @@ table below is that same guidance, gathered in one place.
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
-| `gc [--pin SHA] [--unpin SHA] [--dry-run]` | Drops snapshots not kept by the retention rule (HEAD, pinned, or cited by a live claim). | tip (something dropped): `compact` to also fold superseded patches into the cold archive. |
+| `gc [--pin SHA] [--unpin SHA] [--dry-run] [--drop-unreviewed]` | Drops snapshots not kept by the retention rule (HEAD, pinned, cited by a live claim, the one each other worktree last scanned, or holding model claims nothing else carries). | tip (something dropped): `compact` to also fold superseded patches into the cold archive. |
 | `compact [--keep-generations N] [--compact-threshold F]` | Moves superseded `complete` patch generations to the cold archive. | tip (something moved): `export --format archive` to inspect it. |
 | `export --format {json,patches,archive,anonymized} --out DIR` | Canonical JSON / reviewable patches / archive dump / anonymised corpus. | tip (`json` format): `--format patches` for a reviewable dump, `--format archive` to include the cold archive. |
 | `rollback --to-run R \| --to-snapshot S \| --undo` | Excludes patches already in the log from the fold without deleting them (append-only ledger); patches accepted later are live. `--undo` reverses the latest. | next: `query stats` to confirm the exclusion took effect. tip: `--reason "..."` to record why. |

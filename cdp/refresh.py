@@ -159,6 +159,44 @@ def incremental_extract(
     }
 
 
+class CarrySource:
+    """The snapshot whose model/human patches (and rollback ledger) a new snapshot inherits."""
+
+    def __init__(self, snapshot_id: int, ledger: Dict, model_patches: int) -> None:
+        self.snapshot_id, self.ledger, self.model_patches = snapshot_id, ledger, model_patches
+
+
+def carry_source(backend) -> Optional[CarrySource]:
+    """Read, before `begin_snapshot` moves the selection, the snapshot a new one builds on: the
+    one `snapshot.choose_snapshot` selected (HEAD's own, else the nearest clean ancestor), never
+    another branch's or a dirty scan's. None when there is none (nothing scanned, or no git)."""
+    choice = getattr(backend, "choice", None)
+    if choice is None or choice.scan_needed or choice.row["ephemeral"]:
+        return None
+    patches = backend.load_patches()
+    return CarrySource(backend.snapshot_id(), backend.read_artifact(rollback_mod.LEDGER_ARTIFACT, {"events": []}),
+                       sum(1 for p in patches if p.get("author_kind") != "python" and p.get("status") == "complete"))
+
+
+def carry_leaf_log(backend, source: Optional[CarrySource], model_only: bool = False) -> bool:
+    """Seed the just-selected snapshot with `source`'s patch log and rollback ledger, verbatim, so the
+    claims a model wrote stay in the index: `refresh` re-verifies them against the new tree, and `scan`
+    does the same on a new commit or a dirty tree (the fold re-anchors each claim, demoting what no
+    longer holds). Only when the snapshot has no model patch of its own (it is new). `model_only`
+    (scan): skip when `source` holds none, so a repo no model has touched scans exactly as before.
+    Returns whether it carried."""
+    if source is None or source.snapshot_id == backend.snapshot_id():
+        return False
+    if model_only and not source.model_patches:
+        return False
+    if any(p.get("author_kind") != "python" for p in backend.load_patches()):
+        return False
+    backend.copy_patches_from(source.snapshot_id)
+    if source.ledger.get("events"):
+        backend.write_artifact(rollback_mod.LEDGER_ARTIFACT, source.ledger)
+    return True
+
+
 def refresh_repo(
     paths: Paths,
     *,
@@ -189,6 +227,7 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     check_repo_matches_manifest(paths, store.manifest)
     # The snapshot the shared rule chose is the base: HEAD's own (nothing to do) or the
     # nearest clean ancestor. Never another branch's, never a dirty scan's.
+    base = carry_source(backend)
     base_snapshot_id = backend.snapshot_id()
 
     stored = list(store.manifest.get("excludes") or [])
@@ -205,7 +244,9 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
 
     history_ok = True
     try:
-        rename_map, edited, added, deleted, reformatted = classify_full(paths.repo, prev_head, new_head)
+        rename_map, edited, added, deleted, reformatted = classify_full(
+            paths.repo, prev_head, new_head,
+            snapshot_mod.exclusion_patterns(paths.repo, store.manifest.get("excludes") or []) + tuple(exclude or ()))
     except HistoryUnavailable:
         history_ok = False
         rename_map, edited, added, deleted, reformatted = {}, set(), set(), set(), set()
@@ -237,20 +278,16 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     # anywhere above this line, so reading it after the snapshot switch would
     # silently return the new (not-yet-written) snapshot's empty default.
     before_demoted = len(store.state.get("unknowns", []))
-    ledger = backend.read_artifact(rollback_mod.LEDGER_ARTIFACT, {"events": []})
 
     backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"], excludes),
                          checkout=registry_mod.checkout_key(paths.repo))
     registry_mod.remember_alias(paths.repo)
-    # M2.4's per-snapshot patch isolation (`test_store_sqlite.py`) means the
-    # snapshot just selected starts with an empty log. Carry the base
-    # snapshot's log (and its rollback ledger, so rolled-back claims stay out)
-    # forward verbatim -- refresh re-verifies the *existing* log (D10), it never
-    # appends model claims, so an empty one would fold to zero claims.
-    if not backend.load_patches():
-        backend.copy_patches_from(base_snapshot_id)
-        if ledger.get("events"):
-            backend.write_artifact(rollback_mod.LEDGER_ARTIFACT, ledger)
+    # M2.4's per-snapshot patch isolation means the snapshot just selected starts with an empty log.
+    # Carry the base snapshot's log (and its rollback ledger, so rolled-back claims stay out) forward --
+    # refresh re-verifies the *existing* log (D10), it never appends model claims, so an empty one
+    # would fold to zero claims. `scan` carries the same way (`pipeline.scan`).
+    if base is not None and base.snapshot_id == base_snapshot_id:
+        carry_leaf_log(backend, base)
     backend.write_artifact("inventory", new_inventory)
     backend.write_artifact("extract", new_extraction)
     backend.write_artifact("graph", new_graph)

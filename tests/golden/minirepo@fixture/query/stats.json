@@ -15,8 +15,8 @@
   "budget_note": "stats is never budgeted: it is the check that detects a compromised answer, so it must not be able to be compromised the same way.",
   "build_name": "mini-svc",
   "census": {
-    "on_disk": 14,
-    "ratio": 1.08,
+    "on_disk": 13,
+    "ratio": 1.0,
     "tracked": 13
   },
   "claims": 13,

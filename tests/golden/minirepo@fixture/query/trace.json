@@ -73,6 +73,9 @@
     "module": "web",
     "node": "com.example.mini.web.WidgetResource"
   },
-  "trail": "8 node(s) reachable from com.example.mini.web.WidgetResource",
-  "unknowns": []
+  "trail": "9 node(s) reachable from com.example.mini.web.WidgetResource",
+  "unknowns": [],
+  "verbs": [
+    "GET"
+  ]
 }

@@ -19,6 +19,7 @@
   "query": "table",
   "tables": [
     {
+      "entity_users": [],
       "evidence": [
         "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8"
       ],
@@ -28,10 +29,23 @@
         "core/src/main/resources/db/V001__create_widget.sql:1"
       ],
       "read_by": [],
+      "readers": [],
       "schema_owned_by": [
         "core"
       ],
       "table": "widget",
+      "writers": [
+        {
+          "by": "WidgetEntity",
+          "count": 1,
+          "files": 1,
+          "fqn": "com.example.mini.core.WidgetEntity",
+          "kind": "code",
+          "sites": [
+            "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8"
+          ]
+        }
+      ],
       "written_by": [
         "com.example.mini.core.WidgetEntity"
       ]

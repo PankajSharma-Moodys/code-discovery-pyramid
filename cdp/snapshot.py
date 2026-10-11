@@ -19,7 +19,10 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .inventory import DEFAULT_EXCLUDES, _is_excluded
 from .store.registry import repo_identity, team_excludes
-from .util import run_git, stable_hash
+import hashlib
+import os
+
+from .util import git_ls_files, is_git_repo, run_git, stable_hash, walk_files
 
 
 def exclusion_patterns(repo: Path, stored: Sequence[str] = ()) -> Tuple[str, ...]:
@@ -45,9 +48,39 @@ def is_dirty(repo: Path, stored: Sequence[str] = ()) -> bool:
     return bool(_names(repo, "HEAD", stored))
 
 
-def _tree_hash(repo: Path, stored: Sequence[str] = ()) -> str:
+_HASH_FILE_MAX = 2_000_000  # content-hash files up to this size; bigger ones by (size, mtime_ns)
+
+
+def _unpinned_hash(repo: Path, stored: Sequence[str] = ()) -> str:
+    """Identity of a tree with no commit to name it (a plain directory, or a repo with no
+    commits yet): a hash over the files the inventory would index (same exclusions), each by
+    path and content. An edit, an added or a deleted file therefore changes it; a `touch`
+    does not."""
+    paths = git_ls_files(repo) if is_git_repo(repo) else None
+    if paths is None:
+        paths = walk_files(repo)
+    patterns = exclusion_patterns(repo, stored)
+    digest = hashlib.sha256()
+    for rel in sorted(p for p in paths if not _is_excluded(p, patterns)):
+        digest.update(rel.encode("utf-8", "replace") + b"\0")
+        try:
+            st = os.stat(repo / rel)
+            if st.st_size <= _HASH_FILE_MAX:
+                with open(repo / rel, "rb") as fh:
+                    digest.update(hashlib.sha256(fh.read()).digest())
+            else:
+                digest.update(("%d:%d" % (st.st_size, st.st_mtime_ns)).encode())
+        except OSError:
+            digest.update(b"?")  # unreadable or vanished: still a distinct, stable state
+    return digest.hexdigest()[:16]
+
+
+def _tree_hash(repo: Path, stored: Sequence[str] = (), head: str = "") -> str:
     """A hash of the uncommitted diff of the indexed files, not a real git object --
-    cheap, and only ever used to tell one dirty tree from another."""
+    cheap, and only ever used to tell one dirty tree from another. Without a commit
+    (`head == "unpinned"`) it hashes the indexed files themselves."""
+    if head == "unpinned":
+        return _unpinned_hash(repo, stored)
     names = _names(repo, "HEAD", stored)
     everything = run_git(repo, "diff", "--name-only", "--no-renames", "-z", "--relative", "HEAD", "--", ".") or ""
     if len(names) == len([p for p in everything.split("\0") if p]):
@@ -60,7 +93,7 @@ def current_sha(repo: Path, head: str, stored: Sequence[str] = ()) -> Tuple[str,
     """`(commit_sha, ephemeral)`: the identity a scan of `repo`'s tree as it is
     right now would be stored under."""
     if head == "unpinned":
-        return "unpinned:%s" % _tree_hash(repo, stored), True
+        return "unpinned:%s" % _tree_hash(repo, stored, head), True
     if is_dirty(repo, stored):
         return "%s+dirty:%s" % (head, _tree_hash(repo, stored)), True
     return head, False
@@ -219,3 +252,42 @@ def snapshots_to_keep(snapshots: List[Dict], repo_id: str, head_sha: str, cited_
         if s.get("repo_id") == repo_id
         and (s.get("commit_sha") == head_sha or s.get("pinned") or s.get("commit_sha") in cited_shas)
     }
+
+
+def retention(snapshots: List[Dict], repo_id: str, head_sha: str, cited_shas: Set[str],
+              checkout_heads: Dict[int, List[str]], model_hashes: Dict[int, Set[str]],
+              drop_unreviewed: bool = False) -> Dict[int, List[str]]:
+    """`gc`'s rule: `snapshot id -> why it is kept` (absent = droppable) for this repo's snapshots.
+
+    Kept: this checkout's HEAD; pinned; cited by a live claim; the snapshot every *other* checkout
+    (worktree) last scanned; and any clean snapshot holding a model or human patch that no other
+    kept snapshot carries -- a worktree on another branch, or a branch you switched away from,
+    still has its claims. `drop_unreviewed` ends the last two (HEAD, pins and citations stay): the
+    caller has said unreviewed work may go. Snapshots of a dirty tree carry their parent's claims
+    read-only, so they never count as holding any."""
+    mine = [s for s in snapshots if s.get("repo_id") == repo_id]
+    why: Dict[int, List[str]] = {}
+    for s in mine:
+        reasons = why.setdefault(s["id"], [])
+        if s.get("commit_sha") == head_sha:
+            reasons.append("HEAD of this checkout")
+        if s.get("pinned"):
+            reasons.append("pinned")
+        if s.get("commit_sha") in cited_shas:
+            reasons.append("cited by a live claim")
+        if not drop_unreviewed and checkout_heads.get(s["id"]):
+            reasons.append("last scanned by checkout %s" % ", ".join(sorted(checkout_heads[s["id"]])))
+    if not drop_unreviewed:
+        carried: Set[str] = set()
+        for s in mine:
+            if why[s["id"]]:
+                carried |= model_hashes.get(s["id"], set())
+        for s in sorted(mine, key=lambda row: -row["id"]):  # newest first: a carried copy covers its parent
+            hashes = model_hashes.get(s["id"], set())
+            if not why[s["id"]] and not s["ephemeral"] and hashes and not hashes <= carried:
+                why[s["id"]].append("holds %d model/human patch(es) no kept snapshot carries" % len(hashes - carried))
+                carried |= hashes
+    for s in mine:  # say what a kept snapshot holds, so a dry run explains itself
+        if why[s["id"]] and not s["ephemeral"] and model_hashes.get(s["id"]):
+            why[s["id"]].append("carries %d model/human patch(es)" % len(model_hashes[s["id"]]))
+    return {sid: reasons for sid, reasons in why.items() if reasons}

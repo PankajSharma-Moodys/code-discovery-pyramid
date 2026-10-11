@@ -63,10 +63,10 @@ Which kinds take which parameter:
 
 **What.** The minimal cited file set needed to understand an entry point: the files its call/persist/publish edges reach (including the `@Subscribe` handlers of an EventBus event it posts), each with the edge that put it there.
 
-- Limits: Not logic: no parameters or branches. DI/reflection wiring leaves no edge, so a short trail is not proof of 'calls nothing'. Edges tagged `medium` come from imports (can reach, not does).
-- Reading it: `resolved_as` says what the term matched (route, source or symbol); `files` are the reading list in walk order; `hops_exhausted` true means raise --max-hops; `elided: 0` means the list is complete.
+- Limits: Not logic: no parameters or branches. DI/reflection wiring leaves no edge, so a short trail is not proof of 'calls nothing'. Edges tagged `medium` come from imports or interface/override fan-out (can reach, not does). A class term (`TenantController`) is not one entry point: each public member is walked and the list is capped at 40 files (round-robin, nearest first; the cap and the unlisted count are stated, and `--budget` does not lift it) - trace a member or a route for a whole chain.
+- Reading it: `resolved_as` says what the term matched (route, source or symbol); `files` are the reading list in walk order; `hops_exhausted` true means raise --max-hops; `elided: 0` means the list is complete. A route path shared by several verbs is traced for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`).
 
-**How.** `term`: REQUIRED. A route path (`/orders`), a dataflow source, or a symbol (`OrderResource#place`); substring, first match wins in that order.
+**How.** `term`: REQUIRED. A route path (`/orders`; all its verbs) or `VERB /path` (`POST /orders`; one), a dataflow source, a class (`OrderResource`: its public members) or a member (`OrderResource#place`); substring, first match wins in that order.
 
 - `budget` (`--budget`): row cap across every list in the answer (default 200); `elided: N` reports what was dropped
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source); repeatable
@@ -83,7 +83,7 @@ Which kinds take which parameter:
 **What.** Where a class, method or constant is defined (with line extent) and every site that uses it: the transpose of the resolved import and call tables.
 
 - Limits: Not dynamic dispatch, reflection or DI wiring. `used_by` of an interface lists its implementers' callers only where the call resolves. A class's `used_by` includes its `new X(..)` sites (an implicit default constructor counts as the class). Java: a call on a type variable resolves through its declared bound(s) only; an inferred generic method result (`<T> T pick()`) stays untyped. C#: `x.M()`, `new X(..)`, `new(..)`, `: base(..)`, method groups and extension methods resolve through declared types, `var`, `await`, collections/LINQ and explicit `M<T>()` arguments; a lambda parameter is typed only for LINQ-style stages and Moq `Setup`/`Verify`; overloads share one symbol and are told apart only by argument count (an interface method can win over an extension of the same name), and a NuGet-typed receiver leaves no edge. Python: calls, references, decorators and `from x import f` resolve for `f()`, `self.m()`, `mod.f()`, `Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, `x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, `getattr`, dispatch through a list of modules and decorator-built wrappers are not found.
-- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted; `collision` true means several definitions share the name.
+- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `collision` true means several definitions share the name.
 
 **How.** `term`: REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; case-insensitive substring (exact last-name matches first) unless `exact`; `Class#method` is always exact.
 
@@ -138,7 +138,7 @@ Which kinds take which parameter:
 - Limits: Not outbound HTTP calls; not routes built at runtime. Unresolved constants are listed, not guessed.
 - Reading it: `declared_via` shows the constant expression; `unresolved_constants` non-empty means the path is partial.
 
-**How.** `term`: OPTIONAL. Substring of the route path or verb, not the handler (`/orders`, `POST`); `exact` matches the whole path or verb; omit for all.
+**How.** `term`: OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method (`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` matches the whole name; omit for all.
 
 - `budget` (`--budget`): row cap across every list in the answer (default 200); `elided: N` reports what was dropped
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source); repeatable
@@ -155,7 +155,7 @@ Which kinds take which parameter:
 **What.** Per table: owning module and migration DDL, writers, readers, each with a citation. The union is 'what breaks if I change this table'.
 
 - Limits: Only tables seen in migrations or persistence/read code; not raw SQL in strings the extractor cannot parse.
-- Reading it: `migrations` = schema owner; `written_by`/`read_by` are source symbols; `evidence` is the cited sites.
+- Reading it: `migrations` = schema owner; `writers`/`readers` group the sites by who touches the table (SQL scripts are one group: site and file counts, a few `file:line`); `entity_users` are the uses of the entity class outside the DbContext and migrations (reads and writes not told apart); `evidence` is the cited sites.
 
 **How.** `term`: OPTIONAL. Substring of the table name (`order` also matches `orders`) unless `exact`; omit for all.
 
@@ -588,7 +588,7 @@ Which kinds take which parameter:
 
 **What.** Cross-repo/module edges: which service calls which, what publishes to a topic, matched across scanned repos. Subcommands: `scan`, `query`, `prompts`, `collect`, `run`, `refresh`.
 
-**How.** `link scan` (no args: every repo in the machine store at its latest snapshot; or stand-alone state dirs) matches channel edges -- HTTP client calls (Refit, HttpClient, requests, fetch, Feign, RestTemplate) to server routes -- and writes nothing; `link scan --db` saves the links. `link query --service NAME` lists callers and unmatched calls (unknown name: error). Ambiguous matches go through `link prompts --out DIR` -> leaf -> `link collect --in DIR`, or `link run --runner-cmd` (one step). `link refresh` re-verifies after a re-scan.
+**How.** `link scan` (no args: every repo in the machine store at its latest snapshot; or stand-alone state dirs) matches channel edges -- HTTP client calls (Refit, HttpClient, requests, fetch, Feign, RestTemplate) to server routes -- and does not modify the index (it takes the one empty `locks/links-*.lock` file, reused, and SQLite may touch `index.db-shm`); `link scan --db` saves the links. `link query --service NAME` (repo directory name, path, identity or unique prefix) lists callers and unmatched calls (unknown name: error listing the known ones). Over MCP: `cdp_link`. Ambiguous matches go through `link prompts --out DIR` -> leaf -> `link collect --in DIR`, or `link run --runner-cmd` (one step). `link refresh` re-verifies after a re-scan.
 
     $ cdp link scan
     $ cdp link scan --db

@@ -54,6 +54,8 @@ Rules
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
@@ -78,22 +80,40 @@ class SubprocessRunner:
 
     def run(self, prompt_path: Path, patch_path: Path) -> RunResult:
         start = time.monotonic()
+        # Its own session: the command may be a wrapper (`bash script -> claude`), and a timeout
+        # must end the whole tree, not just the wrapper, or an orphan writes its patch later and
+        # races the retry.
         try:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 self.command + [str(prompt_path), str(patch_path)],
-                timeout=self.timeout_s,
-                capture_output=True,
-            )
-        except subprocess.TimeoutExpired:
-            return RunResult(ok=False, wall_ms=_elapsed_ms(start),
-                              error="timed out after %ss" % self.timeout_s)
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         except OSError as exc:
             return RunResult(ok=False, wall_ms=_elapsed_ms(start), error=str(exc))
+        try:
+            _, stderr = proc.communicate(timeout=self.timeout_s)
+        except subprocess.TimeoutExpired:
+            _kill_tree(proc)
+            return RunResult(ok=False, wall_ms=_elapsed_ms(start),
+                              error="timed out after %ss" % self.timeout_s)
+        except BaseException:  # KeyboardInterrupt (Ctrl-C) or anything else: leave nothing running
+            _kill_tree(proc)
+            raise
         if proc.returncode != 0:
             return RunResult(ok=False, wall_ms=_elapsed_ms(start),
-                              error="exit %d: %s" % (proc.returncode,
-                                                       proc.stderr.decode("utf-8", "replace")[:500]))
+                              error="exit %d: %s" % (proc.returncode, stderr.decode("utf-8", "replace")[:500]))
         return RunResult(ok=True, wall_ms=_elapsed_ms(start))
+
+
+def _kill_tree(proc: "subprocess.Popen") -> None:
+    """SIGKILL `proc`'s process group (it leads its own session) and reap it."""
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        proc.kill()
+    try:
+        proc.communicate(timeout=5)
+    except Exception:  # noqa: BLE001 -- already killed; nothing more to do for a stuck pipe
+        pass
 
 
 class FileRunner:

@@ -78,6 +78,7 @@
           "verdict": "consistent"
         }
       ],
+      "claims_count": 3,
       "collision": false,
       "defined_at": [
         "settings.gradle:1"
@@ -90,6 +91,7 @@
       "modules": [
         "(root)"
       ],
+      "see_all": null,
       "used_by": [],
       "used_by_count": 0,
       "value": "mini-svc",

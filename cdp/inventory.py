@@ -121,7 +121,7 @@ def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
         )
 
     modules = _module_summaries(repo, files, module_roots, manifests, root_name)
-    on_disk = count_disk_files(repo)
+    on_disk = count_disk_files(repo, excludes)
     tracked = len(files)
 
     inventory = {

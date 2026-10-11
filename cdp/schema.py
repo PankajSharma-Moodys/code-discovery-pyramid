@@ -197,3 +197,25 @@ def validate_patch(patch: Dict, validator: Validator) -> List[str]:
                 "operator, never by an agent (§5.5)" % i
             )
     return errors
+
+
+def shape_errors(patch: Dict) -> List[str]:
+    """Structural problems that would make later code (`.get` on a claim, a claim's evidence)
+    crash rather than reject: claims/unknowns must be arrays of objects, evidence an array of
+    objects. Checked before anything reads inside the patch."""
+    errors: List[str] = []
+    for key in ("claims", "unknowns"):
+        rows = patch.get(key)
+        if rows is None:
+            continue
+        if not isinstance(rows, list):
+            errors.append("/%s: must be an array, got %s" % (key, type(rows).__name__))
+            continue
+        for i, row in enumerate(rows):
+            if not isinstance(row, dict):
+                errors.append("/%s/%d: must be an object, got %s" % (key, i, type(row).__name__))
+            elif key == "claims" and row.get("evidence") is not None:
+                ev = row["evidence"]
+                if not isinstance(ev, list) or not all(isinstance(a, dict) for a in ev):
+                    errors.append("/claims/%d/evidence: must be an array of objects" % i)
+    return errors[:6]

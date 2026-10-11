@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from ..util import truncate
+from ..util import NO_REVIEW_NOTE, truncate
 from .common import _claim_lines, _more, cite
 
 
@@ -13,8 +13,39 @@ def _match_note(result: Dict) -> str:
     mode = result.get("match")
     if mode in (None, "all"):
         return ""
-    what = {"routes": "route path or verb"}.get(result.get("query"), "name")
+    what = {"routes": "route path or verb, or handler class/method"}.get(result.get("query"), "name")
     return "  [%s match on %s%s]" % (mode, what, "; `--exact` for the whole name" if mode == "substring" else "")
+
+
+def _site_lines(label: str, groups: List[Dict], fallback: List[str]) -> List[str]:
+    """`written by` / `read by`: one line per distinct writer with its true site count and a
+    few `file:line` sites; SQL scripts are one group (sites and script files counted), never
+    one identical label per script."""
+    if not groups:
+        return ["    %s: %s" % (label, ", ".join(sorted({s.rsplit(".", 1)[-1] for s in fallback})))] if fallback else []
+    lines = ["    %s:" % label]
+    for g in groups:
+        what = "%s x%d" % (g["by"], g["count"]) if g["kind"] == "code" else \
+            "%s: %d site(s) in %d script file(s)" % (g["by"], g["count"], g["files"])
+        more = "  ... %d more" % (g["count"] - len(g["sites"])) if g["count"] > len(g["sites"]) else ""
+        lines.append("      %s  %s%s" % (what, " ".join(g["sites"]), more))
+    return lines
+
+
+def _tag(row: Dict, total: int) -> str:
+    """Which verbs (route trace) or members (class trace) reach this file; nothing when all of
+    them do (the file is shared, not specific to one)."""
+    if row.get("scope") == "entry":
+        return ""
+    verbs = row.get("verbs")
+    if verbs is not None:
+        return "  (%s only)" % ",".join(verbs) if verbs and len(verbs) < total else ""
+    members = row.get("members") or []
+    if not members or len(members) >= total:
+        return ""
+    if len(members) <= 2:
+        return "  (via %s)" % ", ".join(members)
+    return "  (via %d of %d members)" % (len(members), total)
 
 
 def render(result: Dict) -> str:
@@ -48,8 +79,9 @@ def render(result: Dict) -> str:
             for use in entry["used_by"]:
                 lines.append("    %-24s %s" % (use["module"], use["at"]))
             if entry["used_by_count"] > len(entry["used_by"]):
-                lines.append("    ... %d more (elided by the budget)"
-                             % (entry["used_by_count"] - len(entry["used_by"])))
+                lines.append("    ... %d more (elided by the budget)%s"
+                             % (entry["used_by_count"] - len(entry["used_by"]),
+                                "; all of them: `%s`" % entry["see_all"] if entry.get("see_all") else ""))
             for claim in entry["claims"]:
                 lines.extend(_claim_lines(claim))
             lines.append("")
@@ -116,15 +148,16 @@ def render(result: Dict) -> str:
 
     elif kind == "routes":
         lines.append("%d route(s)%s" % (result["count"], _match_note(result)))
-        lines.extend(_more("  ", result["count"], result["routes"]))
         for r in result["routes"]:
             note = ""
             if r["unresolved_constants"]:
                 note = "  ! constant unresolved: " + ", ".join(r["unresolved_constants"])
             elif r["declared_via"]:
                 note = "  (declared as %s)" % r["declared_via"]
-            lines.append("  %-7s %-40s %s" % (r["verb"], r["route"], r["handler"].rsplit(".", 1)[-1]))
+            lines.append("  %-7s %-40s %s%s" % (r["verb"], r["route"], r["handler"].rsplit(".", 1)[-1],
+                                           "  [matched on handler]" if r.get("matched_via") == "handler" else ""))
             lines.append("          %s%s" % (" ".join(r["evidence"]), note))
+        lines.extend(_more("  ", result["count"], result["routes"]))
 
     elif kind == "table":
         lines.append("%d table(s)%s" % (result["count"], _match_note(result)))
@@ -135,10 +168,12 @@ def render(result: Dict) -> str:
             if t["migrations"]:
                 lines.append("    migrations: %s" % " ".join(t["migrations"]))
                 lines.extend(_more("    ", t["migration_count"], t["migrations"]))
-            if t["written_by"]:
-                lines.append("    written by: %s" % ", ".join(s.rsplit(".", 1)[-1] for s in t["written_by"]))
-            if t["read_by"]:
-                lines.append("    read by:    %s" % ", ".join(s.rsplit(".", 1)[-1] for s in t["read_by"]))
+            lines.extend(_site_lines("written by", t["writers"], t["written_by"]))
+            lines.extend(_site_lines("read by", t["readers"], t["read_by"]))
+            for u in t.get("entity_users", []):
+                lines.append("    used via entity %s (reads and writes not told apart): %d site(s)" % (u["entity"], u["count"]))
+                lines.append("      %s%s" % (" ".join(u["sites"]), "  ... %d more" % (u["count"] - len(u["sites"]))
+                                             if u["count"] > len(u["sites"]) else ""))
             if t["evidence"]:
                 lines.append("    %s" % " ".join(t["evidence"]))
                 lines.extend(_more("    ", t["evidence_count"], t["evidence"]))
@@ -180,13 +215,22 @@ def render(result: Dict) -> str:
         else:
             r = result["resolved_as"]
             lines.append("entry  %s   [%s]" % (r["label"], r["channel"]))
+            if r.get("members") is not None and result.get("capped"):
+                cap = result["capped"]
+                lines.append("       class term: %d public member(s) with outgoing edges walked as entry points%s"
+                             % (cap["members"], " across %d same-named classes" % cap["classes"] if cap["classes"] > 1 else ""))
             lines.append("       %s  %s" % (r["node"], r.get("at") or "-"))
             lines.append("")
             lines.append("read %d of %d cited file(s):" % (len(result["files"]), result["file_count"]))
             for row in result["files"]:
                 lines.append("  %s" % row["at"] or row["file"])
-                lines.append("      %s  [%s]" % (row["why"], row["confidence"]))
-            lines.extend(_more("  ", result["file_count"], result["files"]))
+                lines.append("      %s  [%s]%s" % (row["why"], row["confidence"], _tag(row, len(result.get("verbs") or ()) or (result.get("capped") or {}).get("members", 0))))
+            cap = result.get("capped")
+            if cap and cap["elided"]:
+                lines.append("  ... %d more file(s) not listed: a class term lists at most %d files (%d reachable "
+                             "from its members); trace one member (`Class#method`) or a route for its whole chain."
+                             % (cap["elided"], cap["cap"], cap["reachable"]))
+            lines.extend(_more("  ", result["file_count"] - (cap["elided"] if cap else 0), result["files"]))
             lines.append("")
             lines.append("  %s" % result["trail"])
             if result["hops_exhausted"]:
@@ -288,8 +332,9 @@ def render(result: Dict) -> str:
             "confidence  %s" % ", ".join("%s %d" % kv for kv in result["claims_by_confidence"].items()),
             "unknowns    %d" % result["unknowns"],
             "conflicts   %d" % result["conflicts"],
-            "coverage    %.1f%% of tracked files in complete scopes"
-            % (100 * result["coverage"].get("fraction", 0)),
+            "coverage    %.1f%% of tracked files in complete scopes%s"
+            % (100 * result["coverage"].get("fraction", 0),
+               "" if result["coverage"].get("fraction", 0) else " -- 0.0% " + NO_REVIEW_NOTE),
             "graph       declared %d / observed %d inter-module edges"
             % (result["divergence"]["declared"], result["divergence"]["observed"]),
         ]

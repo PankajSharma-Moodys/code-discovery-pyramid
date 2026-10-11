@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence
 
 from .budget import Budget
-from .common import _claim_module, _finish, _matches, _role_index, _tally, cite
+from .common import _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite
 from .store import Store
 
 
@@ -51,6 +51,10 @@ def _member_keys(store: Store, name: str) -> Dict[str, str]:
     return found
 
 
+#: Uses (or claims) each matched symbol is guaranteed before any gets more.
+MIN_USES_PER_MATCH = 3
+
+
 def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
              exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
     """Definition sites, used-by, and collisions for a symbol.
@@ -88,11 +92,10 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
         return 0 if last == name or last.rsplit("#", 1)[-1] == name else 1
 
     keys = sorted(keys, key=lambda k: (tier(k), len(k)))
-    keys = budget.take(keys)
     if not keys:
         return _finish({"query": "symbol", "name": name, "match": mode, "found": []}, store, budget)
 
-    out = []
+    pending = []
     for key in keys:
         entry = xref["symbols"][key]
         sites = entry["sites"]
@@ -114,6 +117,32 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
         if exclude_role:
             users = [u for u in users if roles.get(u.get("file")) not in exclude_role]
         claims = [c for c in store.state["claims"] if c.get("subject") == key or _matches(c.get("statement", ""), key.rsplit(".", 1)[-1])]
+        pending.append((key, entry, sites, users, claims))
+
+    # One allowance, shared fairly: with several matches the first must not spend
+    # the whole budget on its own use list and leave the rest "N more". Each match
+    # gets an equal share of what is left (a short list returns its unused rows).
+    # Each match reserves its own row plus a few uses; matches that do not fit even
+    # that are counted as elided (re-run with a longer term or a bigger budget).
+    room, chosen = budget.limit - budget.spent, []
+    for item in pending:
+        cost = 1 + min(len(item[3]) + len(item[4]), MIN_USES_PER_MATCH)
+        if cost > room and (chosen or room < 1):
+            break
+        room -= cost
+        chosen.append(item)
+    budget.elided += len(pending) - len(chosen)
+    budget.spent += len(chosen)
+    pending = chosen
+    shares = _fair_split_budget(budget.limit - budget.spent, [len(u) + len(c) for _, _, _, u, c in pending])
+    out = []
+    for (key, entry, sites, users, claims), share in zip(pending, shares):
+        n_users = min(len(users), share)
+        n_claims = min(len(claims), share - n_users)
+        shown_users = Budget(n_users).take(users)
+        shown_claims = Budget(n_claims).take(claims)
+        budget.spent += len(shown_users) + len(shown_claims)
+        budget.elided += len(users) - len(shown_users) + len(claims) - len(shown_claims)
         out.append(
             {
                 "fqn": key,
@@ -134,11 +163,11 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
                 "used_by_count": len(users),
-                "used_by": [
-                    {"module": u["module"], "at": cite(u["anchor"])}
-                    for u in budget.take(users)
-                ],
-                "claims": budget.take(claims),
+                "used_by": [{"module": u["module"], "at": cite(u["anchor"])} for u in shown_users],
+                "claims": shown_claims,
+                "claims_count": len(claims),
+                # The way to every use of this one match, at the full budget.
+                "see_all": "cdp query symbol %s --exact" % key if len(users) > len(shown_users) else None,
             }
         )
     return _finish({"query": "symbol", "name": name, "match": mode, "found": out}, store, budget)
@@ -249,17 +278,48 @@ def q_module(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
     return _finish({"query": "module", "name": name, "found": out}, store, budget)
 
 
+def _route_hit(r: Dict, pattern: str, exact: bool) -> Optional[str]:
+    """How `pattern` matched a route: `path`, `verb`, `verb+path` (`POST /v1/x`) or
+    `handler` (class, method or `Class#method`, never a package prefix); else None."""
+    low = pattern.lower().strip()
+    same = (lambda a: str(a).lower() == low) if exact else (lambda a: low in str(a).lower())
+    if same(r["route"]):
+        return "path"
+    if same(r["verb"]):
+        return "verb"
+    verb, _, path = low.partition(" ")
+    path = path.strip()
+    if path and verb.upper() == r["verb"].upper() and (
+            path == r["route"].lower() or (not exact and path in r["route"].lower())):
+        return "verb+path"
+    owner, _, method = r["handler"].partition("#")
+    simple = owner.rsplit(".", 1)[-1]
+    if exact:
+        if low in (simple.lower(), method.lower(), (simple + "#" + method).lower(), r["handler"].lower()):
+            return "handler"
+    elif "." not in low and low in (simple + "#" + method).lower():
+        return "handler"
+    return None
+
+
 def q_routes(store: Store, pattern: Optional[str] = None,
              budget: Optional[Budget] = None,
              exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
-    """The HTTP surface. A pattern matches the route path or the verb, never the
-    handler; by case-insensitive substring, or with `exact` the whole path/verb."""
+    """The HTTP surface. A pattern matches the route path, the verb, `VERB /path`
+    or the handler's class/method; by case-insensitive substring, or with `exact`
+    the whole name. Each row says which of those matched."""
     budget = budget or Budget()
     mode = "exact" if exact else "substring"
     routes = store.xref["routes"] + store.xref["unresolved_routes"]
+    via: Dict[int, str] = {}
     if pattern:
-        same = (lambda a: a.lower() == pattern.lower()) if exact else (lambda a: _matches(a, pattern))
-        routes = [r for r in routes if same(r["route"]) or same(r["verb"])]
+        keep = []
+        for r in routes:
+            how = _route_hit(r, pattern, exact)
+            if how:
+                via[id(r)] = how
+                keep.append(r)
+        routes = keep
     if exclude_role:
         roles = _role_index(store)
         # Dropped only if every evidence anchor is excluded-role.
@@ -271,7 +331,7 @@ def q_routes(store: Store, pattern: Optional[str] = None,
         {
             "query": "routes",
             "match": mode if pattern else "all",
-            "matched_on": "route path or verb" if pattern else None,
+            "matched_on": "route path or verb, or handler class/method" if pattern else None,
             "count": len(routes),
             "routes": [
                 {
@@ -282,6 +342,7 @@ def q_routes(store: Store, pattern: Optional[str] = None,
                     "declared_via": r.get("symbolic"),
                     "unresolved_constants": r.get("unresolved_constants", []),
                     "evidence": [cite(a) for a in r["evidence"]],
+                    **({"matched_via": via[id(r)]} if pattern else {}),
                 }
                 for r in budget.take(routes)
             ],
@@ -289,6 +350,86 @@ def q_routes(store: Store, pattern: Optional[str] = None,
         store,
         budget,
     )
+
+
+#: Sites listed per writer/reader group; the group's `count` is always the true total.
+SITES_PER_GROUP = 3
+
+
+def _dedupe_cites(edges: Sequence[Dict]) -> List[str]:
+    """Distinct `file:line` of `edges`, in first-seen order (a persist and a read
+    edge on one `DbSet` line are one site, not two)."""
+    seen: Dict[str, None] = {}
+    for e in edges:
+        seen.setdefault(cite(e["anchor"]), None)
+    return list(seen)
+
+
+def _site_groups(edges: Sequence[Dict]) -> List[Dict]:
+    """Edges grouped by who they come from, with distinct sites and counts.
+
+    A `migration:V1__x.sql` source is a script, not a symbol, and a table can have
+    dozens: they collapse into one `SQL migration scripts` group (count = sites,
+    `files` = scripts) instead of a list of identical labels."""
+    groups: Dict[str, Dict] = {}
+    for e in sorted(edges, key=lambda e: (e["source"], e["anchor"]["file"], e["anchor"]["line"])):
+        src = e["source"]
+        script = src.startswith("migration:")
+        key = "SQL migration scripts" if script else src
+        g = groups.setdefault(key, {"by": key if script else src.rsplit(".", 1)[-1], "fqn": None if script else src,
+                                    "kind": "script" if script else "code", "sites": {}, "files": set()})
+        g["sites"].setdefault(cite(e["anchor"]), None)
+        g["files"].add(e["anchor"]["file"])
+    return sorted(({"by": g["by"], "fqn": g["fqn"], "kind": g["kind"], "count": len(g["sites"]),
+                    "files": len(g["files"]), "sites": list(g["sites"])} for g in groups.values()),
+                  key=lambda g: (g["kind"] == "script", g["by"]))
+
+
+def _budget_groups(groups: List[Dict], budget: Budget) -> List[Dict]:
+    out = []
+    for g in groups:
+        out.append(dict(g, sites=budget.take(g["sites"][:SITES_PER_GROUP])))
+    return out
+
+
+def _entity_index(store: Store) -> Dict[tuple, str]:
+    """`(file, line)` -> entity type name, from the `entity:X` persist edges the C#
+    extractor writes on the same line as the `table:` edges of a `DbSet<X>`."""
+    out: Dict[tuple, str] = {}
+    for e in store.extraction["io_edges"]:
+        if e["channel"] == "persist" and e["target"].startswith("entity:"):
+            out[(e["anchor"]["file"], e["anchor"]["line"])] = e["target"][len("entity:"):]
+    return out
+
+
+def _entity_users(store: Store, edges: Sequence[Dict], entity_at: Dict[tuple, str],
+                  roles: Dict[str, str], budget: Budget) -> List[Dict]:
+    """Code that touches the table through its entity class: the sites that use the
+    `DbSet<X>` entity type outside the DbContext file and the migrations. Reads and
+    writes are not told apart (an entity use does not say which)."""
+    found: Dict[str, Dict[str, None]] = {}
+    done: set = set()
+    symbols = store.xref["symbols"]
+    for e in edges:
+        ent = entity_at.get((e["anchor"]["file"], e["anchor"]["line"]))
+        if not ent or (ent, e["module"]) in done:
+            continue
+        done.add((ent, e["module"]))
+        simple = ent.rsplit(".", 1)[-1]
+        keys = [k for k, v in symbols.items() if v["kind"] in ("class", "record", "struct")
+                and k.rsplit(".", 1)[-1] == simple and e["module"] in v["modules"]]
+        for key in keys:
+            for u in store.xref["used_by"].get(key, []):
+                f = u["file"]
+                if f == e["anchor"]["file"] or "/Migrations/" in f:
+                    continue
+                if roles.get(f) == "test" or "/Tests/" in f or ".Tests/" in f:
+                    continue
+                found.setdefault(simple, {}).setdefault(cite(u["anchor"]), None)
+    found = {k: v for k, v in found.items() if v}
+    found = {k: {"entity": k, "count": len(v), "sites": budget.take(list(v)[:SITES_PER_GROUP])}
+             for k, v in found.items()}
+    return [found[k] for k in sorted(found)]
 
 
 def q_table(store: Store, name: Optional[str] = None,
@@ -307,7 +448,7 @@ def q_table(store: Store, name: Optional[str] = None,
     budget = budget or Budget()
     mode = "exact" if exact else "substring"
     same = (lambda t: t.lower() == name.lower()) if exact else (lambda t: _matches(t, name or ""))
-    roles = _role_index(store) if exclude_role else {}
+    roles = _role_index(store)
     buckets: Dict[str, Dict[str, List[Dict]]] = {}
     for edge in store.extraction["io_edges"]:
         if not edge["target"].startswith("table:"):
@@ -321,10 +462,13 @@ def q_table(store: Store, name: Optional[str] = None,
         if edge["channel"] in slot:
             slot[edge["channel"]].append(edge)
 
+    entity_at = _entity_index(store)
     out = []
     for table in budget.take(sorted(buckets)):
         slot = buckets[table]
-        evidence = slot["persist"] + slot["read"]
+        evidence = _dedupe_cites(slot["persist"] + slot["read"])
+        writers = _site_groups(slot["persist"])
+        readers = _site_groups(slot["read"])
         out.append(
             {
                 "table": table,
@@ -333,8 +477,11 @@ def q_table(store: Store, name: Optional[str] = None,
                 "migrations": [cite(e["anchor"]) for e in budget.take(slot["schema_own"])],
                 "written_by": sorted({e["source"] for e in slot["persist"]}),
                 "read_by": sorted({e["source"] for e in slot["read"]}),
+                "writers": _budget_groups(writers, budget),
+                "readers": _budget_groups(readers, budget),
+                "entity_users": _entity_users(store, slot["persist"] + slot["read"], entity_at, roles, budget),
                 "evidence_count": len(evidence),
-                "evidence": [cite(e["anchor"]) for e in budget.take(evidence)],
+                "evidence": budget.take(evidence),
             }
         )
     return _finish(

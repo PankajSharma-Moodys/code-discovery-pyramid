@@ -40,5 +40,7 @@ if [ "${CDP_LEAF_DRYRUN:-}" = "1" ]; then
   exit 0
 fi
 # Claude result JSON (cost, duration, tokens) goes beside the patch for cdp run to record.
+# Not `exec`ed: the patch check below must run after claude. `cdp run`'s SubprocessRunner starts this
+# script in its own process group and kills the whole group on timeout or Ctrl-C, so no claude outlives it.
 "${cmd[@]}" > "${patch%.json}.usage"
 test -s "$patch" || { echo "cdp-leaf wrote no patch at $patch" >&2; exit 1; }

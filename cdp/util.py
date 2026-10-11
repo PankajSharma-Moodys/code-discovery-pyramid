@@ -49,6 +49,11 @@ BINARY_EXTS = frozenset(
 )
 
 
+#: What a 0.0% coverage figure means on a fresh scan: shown beside the number, never instead of it
+#: (`status`, the SessionStart text).
+NO_REVIEW_NOTE = "model-reviewed (deterministic index complete; run `cdp run` for AI review)"
+
+
 class CdpError(RuntimeError):
     """A user-facing failure. The CLI prints these without a traceback."""
 
@@ -96,6 +101,23 @@ def check_number(value: Any, name: str, minimum: float, maximum: Optional[float]
     return float(value)
 
 
+def check_str(value: Any, name: str, max_len: int = 500) -> str:
+    """A tool argument that must be a non-empty string of sane length."""
+    if not isinstance(value, str):
+        raise ArgError("%s must be a string, got %s" % (name, type(value).__name__))
+    if not value.strip() or len(value) > max_len:
+        raise ArgError("%s must be 1-%d characters, got %d" % (name, max_len, len(value)))
+    return value
+
+
+def check_enum(value: Any, name: str, choices: Iterable[str]) -> str:
+    """A tool argument that must be one of `choices` (a direct call, a client that skipped the schema)."""
+    options = list(choices)
+    if value not in options:
+        raise ArgError("%s must be one of %s, got %r" % (name, ", ".join(options), value))
+    return value
+
+
 def _range_text(minimum: Optional[int], maximum: Optional[int]) -> str:
     if minimum is not None and maximum is not None:
         return "between %d and %d" % (minimum, maximum)
@@ -141,6 +163,16 @@ def check_limit(name: str, value: Any) -> int:
     that skipped the schema): the same type and range rules as the CLI flag."""
     lo, hi = LIMITS[name]
     return check_int(value, name, lo, hi, strict=True)
+
+
+def nonempty_arg(text: str) -> str:
+    """argparse `type=` for a value that names something (a run, a commit): never blank,
+    so an empty string cannot fall through to "the default" or invent an identity."""
+    import argparse
+
+    if not isinstance(text, str) or not text.strip():
+        raise argparse.ArgumentTypeError("must not be empty")
+    return text.strip()
 
 
 def name_arg(text: str) -> str:
@@ -315,12 +347,16 @@ def walk_files(repo: Path) -> List[str]:
     return sorted(found)
 
 
-def count_disk_files(repo: Path) -> int:
-    """Every regular file on disk, excluding .git. The denominator of §5.1's ratio."""
+def count_disk_files(repo: Path, excludes: Sequence[str] = ()) -> int:
+    """Every regular file on disk, excluding .git and any path with a segment in `excludes`
+    (the inventory's own exclusion patterns: `.claude/`, `.mcp.json`, ...). The denominator of
+    §5.1's ratio: counting what the census drops would inflate it (500 tracked / 661 on disk
+    after `install --harness`, the 161 being CDP's own files)."""
+    skip = set(excludes) | {".git"}
     total = 0
     for dirpath, dirnames, filenames in os.walk(repo):
-        dirnames[:] = [d for d in dirnames if d != ".git"]
-        total += len(filenames)
+        dirnames[:] = [d for d in dirnames if d not in skip]
+        total += sum(1 for f in filenames if f not in skip)
     return total
 
 

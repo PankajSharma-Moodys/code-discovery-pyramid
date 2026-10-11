@@ -24,8 +24,8 @@ def register(lk_sub) -> None:
                       help="read from this SqliteStore's link.* namespace instead of "
                            "the one this invocation resolves to (same default-resolution "
                            "rule as every other command: the machine store)")
-    lkq.add_argument("--service", required=True, help="repo name/identifier to query, "
-                                                        "as it appears in a scanned manifest's `repo` field")
+    lkq.add_argument("--service", required=True, help="the repo to query: its directory name, "
+                                                        "checkout path, identity, or a unique prefix of either")
     lkq.add_argument("--json", action="store_true")
     lkq.set_defaults(func=cmd_link_query)
 
@@ -42,12 +42,13 @@ def cmd_link_query(args) -> int:
     try:
         edges = store.read_link_edges()
         repos = [row["repo_id"] for row in store.latest_snapshots() if row.get("repo_id")]
+        names = link_mod.repo_names(store)
     finally:
         store.close()
-    link_mod.require_known_service(edges, args.service, repos)
-    result = link_mod.query_service(edges, args.service, repos)
+    link_mod.require_known_service(edges, args.service, repos, names)
+    result = link_mod.query_service(edges, args.service, repos, names)
     if args.json:
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
-        print("\n".join(link_mod.summarise_query(result)))
+        print("\n".join(link_mod.summarise_query(result, names)))
     return 0

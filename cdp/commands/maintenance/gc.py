@@ -12,8 +12,8 @@ from pathlib import Path
 
 SPEC = Spec(
     group='maintenance',
-    usage='gc [--pin SHA] [--unpin SHA] [--dry-run]',
-    what='Drops snapshots not kept by the retention rule (HEAD, pinned, or cited by a live claim).',
+    usage='gc [--pin SHA] [--unpin SHA] [--dry-run] [--drop-unreviewed]',
+    what='Drops snapshots not kept by the retention rule (HEAD, pinned, cited by a live claim, the one each other worktree last scanned, or holding model claims nothing else carries).',
     next='tip (something dropped): `compact` to also fold superseded patches into the cold archive.',
 )
 
@@ -27,7 +27,11 @@ def register(add) -> None:
     gc.add_argument("--pin", action="append", default=[], metavar="SHA",
                     help="mark a commit's snapshot pinned before computing retention (repeatable)")
     gc.add_argument("--unpin", action="append", default=[], metavar="SHA")
-    gc.add_argument("--dry-run", action="store_true", help="report what would be dropped, drop nothing")
+    gc.add_argument("--dry-run", action="store_true",
+                    help="report what would be dropped, drop nothing; lists why each snapshot is kept")
+    gc.add_argument("--drop-unreviewed", action="store_true",
+                    help="also drop other worktrees' snapshots and branches holding model claims "
+                         "(default: kept -- their claims exist nowhere else)")
     gc.set_defaults(func=cmd_gc)
 
 
@@ -39,7 +43,8 @@ def _short(sha) -> str:
 @locked(shared=False)
 def cmd_gc(args) -> int:
     """M3.6/0.10: a snapshot is kept iff HEAD, pinned, or cited by a live
-    claim's `anchor_verified_at`/`claim_reviewed_at`.
+    claim's `anchor_verified_at`/`claim_reviewed_at` -- and (unless `--drop-unreviewed`) iff another
+    worktree's HEAD, or it holds model/human patches no kept snapshot carries (`snapshot.retention`).
 
     `--db` is an explicit escape hatch straight to a `SqliteStore` file --
     for retention against a store `paths_from_args()`/`.cdp.toml` would not resolve to
@@ -85,12 +90,19 @@ def cmd_gc(args) -> int:
         head_claims = store.read_artifact("state", {}).get("claims", [])
         cited = {c.get("anchor_verified_at") for c in head_claims} | {c.get("claim_reviewed_at") for c in head_claims}
         cited.discard(None)
-        keep_ids = snapshot_mod.snapshots_to_keep(snapshots, repo_id, head_sha, cited)
-        drop = [s for s in snapshots if s["id"] not in keep_ids]
+        me = registry_mod.snapshot_checkout_key(repo)  # this checkout's own head is the HEAD rule's business
+        others = {sid: [c for c in cs if c != me] for sid, cs in store.checkout_heads().items()}
+        keep = snapshot_mod.retention(snapshots, repo_id, head_sha, cited, {k: v for k, v in others.items() if v},
+                                      store.model_patch_hashes(), args.drop_unreviewed)
+        drop = [s for s in snapshots if s["id"] not in keep]
         stale_dirty = [s for s in drop if s["ephemeral"]]
         old_snaps = [s for s in drop if not s["ephemeral"]]
-        print("gc        keeping %d/%d snapshot(s) (head + pinned + cited), dropping %d (%d uncommitted-changes)"
+        print("gc        keeping %d/%d snapshot(s), dropping %d (%d uncommitted-changes)"
               % (len(snapshots) - len(drop), len(snapshots), len(drop), len(stale_dirty)))
+        if args.dry_run:
+            for s in snapshots:
+                if s["id"] in keep:
+                    print("          keep %s: %s" % (_short(s["commit_sha"]), "; ".join(keep[s["id"]])))
         for label, group in (("snapshot", old_snaps), ("uncommitted-changes snapshot", stale_dirty)):
             for s in group:
                 print("          drop %s %s%s" % (label, _short(s["commit_sha"]), " [dry-run]" if args.dry_run else ""))

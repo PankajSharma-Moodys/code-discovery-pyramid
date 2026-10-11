@@ -78,32 +78,107 @@ def _suffixes(segs: Tuple[str, ...]):
             yield tail
 
 
-class RouteIndex:
-    """Inbound routes by exact key and by trailing-segment suffix."""
+def _seg_match(route: str, query: str) -> Optional[bool]:
+    """None: the segments cannot match; False: equal; True: matched through a param (`*`)."""
+    if route == query:
+        return False
+    if "*" not in route and "*" not in query:
+        return None
+    if route == "*" or query == "*" or ("*" in route and "*" in query):
+        return True
+    pattern, other = (route, query) if "*" in route else (query, route)
+    rx = ".+".join(re.escape(part) for part in pattern.split("*"))
+    return True if re.fullmatch(rx, other) else None
+
+
+class _Node:
+    __slots__ = ("kids", "pats", "items")
 
     def __init__(self) -> None:
-        self.exact: Dict[Tuple[str, ...], List] = {}
-        self.suffix: Dict[Tuple[str, ...], List] = {}
+        self.kids: Dict[str, "_Node"] = {}
+        self.pats: List[Tuple[str, "_Node"]] = []      # children whose segment holds a `*`
+        self.items: List[Tuple[int, object]] = []
+
+
+class _Trie:
+    def __init__(self) -> None:
+        self.root = _Node()
+
+    def add(self, segs: Tuple[str, ...], entry: Tuple[int, object]) -> None:
+        node = self.root
+        for seg in segs:
+            nxt = node.kids.get(seg)
+            if nxt is None:
+                nxt = node.kids[seg] = _Node()
+                if "*" in seg:
+                    node.pats.append((seg, nxt))
+            node = nxt
+        node.items.append(entry)
+
+    def match(self, segs: Tuple[str, ...], suffix: bool = False) -> List[Tuple[int, object]]:
+        """Every route matching `segs` segment by segment. A route that needs no param to match
+        beats one that does; among the rest the fewest param-matched segments win. A param match
+        must still share one informative literal segment with the query, so `/v1/{x}` never
+        swallows every `/v1/...` call. In a `suffix` match (a dropped context prefix) the first segment, the boundary,
+        must be equal, never a param standing in for a literal, and two informative literals must
+        agree rather than one: `/{t}/card/{e}/artifact/bulk` is not `/{t}/Card/{e}/bulk`."""
+        found: List[Tuple[int, int, Tuple[int, object]]] = []
+
+        def walk(node: _Node, i: int, wild: int, shared: int) -> None:
+            if i == len(segs):
+                if wild == 0 or shared >= (2 if suffix else 1):
+                    found.extend((wild, shared, e) for e in node.items)
+                return
+            seg = segs[i]
+            gain = 1 if "*" not in seg and seg != "api" and not _VERSION_RE.match(seg) else 0
+            if "*" in seg:
+                options = list(node.kids.items())
+            else:
+                options = [(seg, node.kids[seg])] if seg in node.kids else []
+                options += [(k, n) for k, n in node.pats]
+            for key, child in options:
+                how = _seg_match(key, seg)
+                if how is None or (how and suffix and i == 0):
+                    continue
+                walk(child, i + 1, wild + (1 if how else 0), shared + (gain if not how else 0))
+
+        walk(self.root, 0, 0, 0)
+        if not found:
+            return []
+        best = min(w for w, _, _ in found)
+        return [e for w, _, e in found if w == best]
+
+
+class RouteIndex:
+    """Inbound routes by segment-wise match (a literal segment matches a server param) and by
+    trailing-segment suffix."""
+
+    def __init__(self) -> None:
+        self.exact = _Trie()
+        self.suffix = _Trie()
+        self._n = 0
 
     def add(self, segs: Tuple[str, ...], item) -> None:
-        self.exact.setdefault(segs, []).append(item)
+        entry = (self._n, item)
+        self._n += 1
+        self.exact.add(segs, entry)
         for tail in _suffixes(segs):
-            self.suffix.setdefault(tail, []).append(item)
+            self.suffix.add(tail, entry)
 
     def lookup(self, segs: Tuple[str, ...]) -> List:
         """Candidates for an outbound path: same shape, a server with a longer (context) prefix,
         or a client URL that carries the server's prefix. Each once, exact first."""
         out, seen = [], set()
 
-        def take(items):
-            for it in items:
-                if id(it) not in seen:
-                    seen.add(id(it))
+        def take(entries):
+            for n, it in sorted(entries, key=lambda e: e[0]):
+                if n not in seen:
+                    seen.add(n)
                     out.append(it)
 
-        take(self.exact.get(segs, []))
+        take(self.exact.match(segs))
         if len(segs) >= 2 and informative(segs) >= 2:
-            take(self.suffix.get(segs, []))
+            take(self.suffix.match(segs, True))
         for tail in _suffixes(segs):
-            take(self.exact.get(tail, []))
+            take(self.exact.match(tail, True))
         return out

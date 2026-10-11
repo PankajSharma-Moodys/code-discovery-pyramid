@@ -39,9 +39,9 @@ def register(add) -> None:
 def cmd_doctor(args) -> int:
     """M6.1 (4.10): dispatch one runner over every scope of an already-scanned
     repo, score each patch against the hand-authored golden set (currently
-    only defined for `tests/fixtures/minirepo` -- doctor on any other repo
-    reports the other four metrics with `recall`/`false_unknown_rate` at
-    `None`, rather than silently fabricating a golden set from CDP's own
+    only defined for the `tests/fixtures/minirepo` content, recognised by the symbols the
+    repo defines, not its directory name -- on any other repo recall/false-unknown are
+    n/a (`None`), rather than silently fabricating a golden set from CDP's own
     output).  Writes `<state>/doctor/<model>.json` and prints the
     compatibility table across every model report already on disk.
     """
@@ -56,7 +56,7 @@ def cmd_doctor(args) -> int:
         require_choice(args.node, [sc["node"] for sc in store.partition["scopes"]], "scope", "--node")
     runner = runner_mod.SubprocessRunner(shlex.split(args.runner_cmd), timeout_s=args.timeout)
 
-    golden_by_module = doctor_mod.GOLDEN_MINIREPO if paths.repo.name == "minirepo" else {}
+    golden_by_module = doctor_mod.golden_for(store.xref, sorted({sc["module"] for sc in store.partition["scopes"]}))
 
     out_dir = paths.work / "doctor"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -77,7 +77,7 @@ def cmd_doctor(args) -> int:
         reports.append(report)
         print("  %-40s schema_valid=%-5s empty=%-5s recall=%s false_unknown=%s"
               % (node, report.get("schema_valid"), report.get("empty"),
-                 report.get("recall"), report.get("false_unknown_rate")))
+                 doctor_mod.pct_text(report.get("recall")), doctor_mod.pct_text(report.get("false_unknown_rate"))))
 
     for p in (prompt_path, patch_path):
         if p.exists():
@@ -87,10 +87,12 @@ def cmd_doctor(args) -> int:
     agg["model"] = args.model
     agg["scope_reports"] = reports
     write_json(path_within(out_dir, "%s.json" % args.model, "--model"), agg)
-    print("doctor    %s: schema_valid=%s%% yield_collapse=%s%% recall=%s%% false_unknown=%s%% (n=%d scope(s), %d golden fact(s))"
-          % (args.model, doctor_mod._pct(agg["schema_validity_rate"]),
-             doctor_mod._pct(agg["yield_collapse_rate"]), doctor_mod._pct(agg["recall"]),
-             doctor_mod._pct(agg["false_unknown_rate"]), agg["scopes"], agg["golden_total"]))
+    print("doctor    %s: schema_valid=%s yield_collapse=%s recall=%s false_unknown=%s (n=%d scope(s), %d golden fact(s))"
+          % (args.model, doctor_mod.pct_text(agg["schema_validity_rate"]),
+             doctor_mod.pct_text(agg["yield_collapse_rate"]), doctor_mod.pct_text(agg["recall"]),
+             doctor_mod.pct_text(agg["false_unknown_rate"]), agg["scopes"], agg["golden_total"]))
+    if not agg["golden_total"]:
+        print("recall: n/a (no golden set for this repo)")
 
     models = {}
     for f in out_dir.glob("*.json"):

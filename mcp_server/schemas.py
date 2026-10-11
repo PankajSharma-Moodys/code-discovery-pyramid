@@ -1,10 +1,10 @@
 """Tool descriptions and JSON schemas -- separated from `server.py` so the
 at-rest token cost can be measured with zero `mcp` SDK dependency (7.1's own
-acceptance line: "MCP server at a few tools with a measured at-rest token cost"; now five).
+acceptance line: "MCP server at a few tools with a measured at-rest token cost"; now six).
 
 These are exactly what a real MCP client keeps loaded for the life of a
 session -- the plan's own reference point (`phase_9_plan.md`) is a 13-tool
-server measured at 49.2k tokens permanently resident. Five tools, kept small
+server measured at 49.2k tokens permanently resident. Six tools, kept small
 descriptions, is the answer; this file is what proves the number rather than
 asserting it.
 """
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
-from cdp import guide
+from cdp import guide, linkview
 from cdp.prompts import CHARS_PER_TOKEN_EST
 
 TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
@@ -67,6 +67,18 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "inputSchema": {
             "type": "object",
             "properties": {"topic": {"type": "string", "description": "a query kind, a command, 'recipes', or empty for the overview"}},
+            "additionalProperties": False,
+        },
+    },
+    "cdp_link": {
+        "description": guide.MCP_LINK_DESCRIPTION,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": list(linkview.ACTIONS)},
+                "service": {"type": "string", "description": "repo name, path or identity prefix (action=query)"},
+            },
+            "required": ["action"],
             "additionalProperties": False,
         },
     },

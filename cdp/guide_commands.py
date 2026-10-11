@@ -241,9 +241,12 @@ COMMANDS: Dict[str, Dict] = {
                 "across scanned repos. Subcommands: `scan`, `query`, `prompts`, `collect`, `run`, `refresh`.",
         "how": "`link scan` (no args: every repo in the machine store at its latest snapshot; or "
                "stand-alone state dirs) matches channel edges -- HTTP client calls (Refit, HttpClient, "
-               "requests, fetch, Feign, RestTemplate) to server routes -- and writes nothing; "
+               "requests, fetch, Feign, RestTemplate) to server routes -- and does not modify the index (it "
+               "takes the one empty `locks/links-*.lock` file, reused, and SQLite may touch `index.db-shm`); "
                "`link scan --db` saves the links. `link query "
-               "--service NAME` lists callers and unmatched calls (unknown name: error). Ambiguous matches go through "
+               "--service NAME` (repo directory name, path, identity or unique prefix) lists callers and "
+               "unmatched calls (unknown name: error listing the known ones). Over MCP: `cdp_link`. "
+               "Ambiguous matches go through "
                "`link prompts --out DIR` -> leaf -> `link collect --in DIR`, or `link run --runner-cmd` "
                "(one step). `link refresh` re-verifies after a re-scan.",
         "examples": [ex("link scan"), ex("link scan --db"), ex("link scan --db <db>", True), ex("link query --service <repo-name> --db <db>", True),
@@ -261,7 +264,7 @@ FLAG_HELP: Dict[str, str] = {
     "gc --db": "path to an existing index.db (default: the machine store); a missing path is an error, never a new empty store",
     "compact --db": "path to an existing index.db (default: the machine store); a missing path is an error, never a new empty store",
     "export --db": "path to an existing index.db (default: the machine store); a missing path is an error, never a new empty store",
-    "link scan --db": "save the links: bare `--db` into the machine store, or `--db PATH` into an existing index.db (a missing path is an error). Without it the scan writes nothing",
+    "link scan --db": "save the links: bare `--db` into the machine store, or `--db PATH` into an existing index.db (a missing path is an error). Without it the scan does not modify the index",
     "link query --db": "path to an existing index.db (default: the machine store); a missing path is an error, never a new empty store",
     "link prompts --db": "path to an existing index.db (default: the machine store); a missing path is an error, never a new empty store",
     "link collect --db": "path to an existing index.db (default: the machine store); a missing path is an error, never a new empty store",

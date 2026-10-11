@@ -239,7 +239,9 @@ def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]
         if impl:
             target = "%s#%s" % (impl["from_symbol"], method)
             add(_edge(r["fqn"], target, impl, "medium"))
-        for over in overrides(owner, method):
+        # A constructor is not virtual: `new Derived()` runs `Base#<init>` via `: base()`, but
+        # a call of `Base#<init>` never runs a subclass's constructor.
+        for over in () if method == "<init>" else overrides(owner, method):
             add(_edge(r["fqn"], over["target"], over, "medium"))
 
 

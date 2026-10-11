@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from . import rereview as rereview_mod, anchor as anchor_mod, claimgate as claimgate_mod, gates as gates_mod, query as query_mod, tiering as tiering_mod
-from .schema import Validator, schema_path, validate_patch
+from .schema import Validator, schema_path, shape_errors, validate_patch
 from .session import Paths, check_repo_matches_manifest, fold_and_write, git_identity, new_run_id, next_generation, open_store, stamp_claims
 from .util import CdpError, SKILL_ROOT, stable_hash
 from .verify import LENIENT, STRICT
@@ -71,9 +71,14 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
             rejected.append({"file": name, "errors": ["not valid JSON: %s" % patch]})
             backend.reject_inbox(name)
             continue
-        node = str(patch.get("node", "")) if isinstance(patch, dict) else ""
-        errors: List[str] = []
-        if isinstance(patch, dict) and node in scope_nodes:
+        if not isinstance(patch, dict):  # `[]`, `null`, `42`, `"x"`: valid JSON, not a patch
+            rejected.append({"file": name, "errors": ["/: a patch must be a JSON object, got %s"
+                                                       % type(patch).__name__]})
+            backend.reject_inbox(name)
+            continue
+        node = str(patch.get("node", ""))
+        errors: List[str] = shape_errors(patch)
+        if not errors and node in scope_nodes:
             had_claims = bool(patch.get("claims"))
             patch, dropped = claimgate_mod.screen_claims(patch, validator, claimgate_mod.Context.of_store(store, node, paths.repo))
             rejected_claims += [dict(d, node=node) for d in dropped]
@@ -90,7 +95,8 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
                               run, other_runs[run][:12], (store.inventory.get("head") or "?")[:12],
                               store.manifest.get("run_id")))
         errors += _abandoned_task(backend, run, node_to_hash.get(node), node)
-        cited = sorted({str(a.get("file")) for c in patch.get("claims") or [] for a in c.get("evidence") or []} & dirty)
+        cited = [] if shape_errors(patch) else sorted(
+            {str(a.get("file")) for c in patch.get("claims") or [] for a in c.get("evidence") or []} & dirty)
         if cited:
             errors.append("/claims: cites file(s) with uncommitted changes (%s); commit them and `refresh`, "
                           "or cite unchanged files" % ", ".join(cited[:5]))

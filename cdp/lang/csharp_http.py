@@ -4,7 +4,10 @@ Three styles, all from the source text (no compiler):
 
 * **Refit** -- an interface whose methods carry `[Get("/path")]`, `[Post(...)]`, ...: one
   edge per method, `Interface#Method`, anchored at the attribute line.
-* **HttpClient** -- `client.GetAsync("/x")`, `PostAsJsonAsync($"{Base}/x/{id}", ...)`,
+* **HttpClient** -- `client.GetAsync("/x")` (the receiver must be provably an HTTP client: a variable,
+  field, parameter or property typed `HttpClient`/`RestClient`, assigned `new HttpClient()` or
+  `factory.CreateClient(..)`, or one of those expressions itself; the first argument must look like a
+  path or URL, so `repo.GetAsync("a/b")` and `cache.GetAsync("some key")` are not edges), `PostAsJsonAsync($"{Base}/x/{id}", ...)`,
   `new HttpRequestMessage(HttpMethod.Post, "/x")`.
 * **RestSharp** -- `new RestRequest("/x", Method.Post)`.
 
@@ -27,6 +30,13 @@ CALL_RE = re.compile(r"\.(Get|Post|Put|Delete|Patch)(?:String|ByteArray|Stream|F
                      r"\s*(?:<[^()]*>)?\s*\(\s*" + _STR)
 REQUEST_RE = re.compile(r"HttpRequestMessage\s*\(\s*(?:System\.Net\.Http\.)?HttpMethod\.(\w+)\s*,\s*" + _STR)
 REST_RE = re.compile(r"\bRestRequest\s*\(\s*" + _STR + r"(?:\s*,\s*Method\.(\w+))?")
+_CLIENT_TYPE = r"(?:System\.Net\.Http\.)?(?:HttpClient|RestClient|IRestClient|HttpMessageInvoker)"
+_TYPED_RE = re.compile(r"\b" + _CLIENT_TYPE + r"\??\s+(@?\w+)")
+_MADE_RE = re.compile(r"\b(@?\w+)\s*=\s*(?:await\s+)?(?:new\s+" + _CLIENT_TYPE + r"\b|[\w.?]*\bCreateClient\s*\()")
+_COPY_RE = re.compile(r"\b(@?\w+)\s*=\s*(?:this\.)?(@?\w+)\s*[;,)]")
+_RECV_MADE_RE = re.compile(r"(?:new\s+" + _CLIENT_TYPE + r"\s*\([^()]*\)|\bCreateClient\s*\([^()]*\))\s*$")
+_RECV_NAME_RE = re.compile(r"(@?\w+)[?!]?$")
+_URLISH = re.compile(r"^(?:/|https?://|\{[^{}]*\}/|[^\s/{}][^\s]*/)[^\s]*$")
 _TEST_PATH = re.compile(r"(?:[/._]|[a-z])Tests?(?:/|\.cs$)|(?:^|/)tests?/")
 _HOLE_BASE = re.compile(r"^\{[^{}]*\}(?=/)")
 
@@ -34,7 +44,7 @@ _HOLE_BASE = re.compile(r"^\{[^{}]*\}(?=/)")
 def _url(raw: str) -> Optional[str]:
     """`{BaseUrl}/x/{id}` -> `/x/{id}`; a relative or absolute URL is kept; no path -> None."""
     raw = _HOLE_BASE.sub("", raw.strip())
-    if not raw or not ("/" in raw):
+    if not raw or not _URLISH.match(raw):
         return None
     return raw
 
@@ -75,6 +85,32 @@ def _method_after(code: List[str], idx: int) -> Optional[str]:
     return None
 
 
+def _clients(code: List[str]) -> set:
+    """Names the file declares or assigns as an HTTP client (`_http`, `client`, `Client`...)."""
+    text = "\n".join(code)
+    names = set(_TYPED_RE.findall(text)) | set(_MADE_RE.findall(text))
+    for _ in range(3):                      # `_client = client;` after `HttpClient client` is a parameter
+        grown = {a for a, b in _COPY_RE.findall(text) if b in names}
+        if grown <= names:
+            break
+        names |= grown
+    return {n.lstrip("@") for n in names} | names
+
+
+def _receiver_ok(code: List[str], idx: int, col: int, names: set) -> bool:
+    """Is the expression just before `.XxxAsync(` at `code[idx][col]` an HTTP client?"""
+    before = code[idx][:col]
+    j = idx
+    while not before.strip() and j > 0:     # a fluent call split across lines
+        j -= 1
+        before = code[j]
+    before = before.rstrip()
+    if _RECV_MADE_RE.search(before):
+        return True
+    m = _RECV_NAME_RE.search(before)
+    return bool(m) and m.group(1) in names
+
+
 def emit_http_clients(ctx: ExtractContext, facts: FileFacts, primary: str) -> None:
     if _TEST_PATH.search(ctx.path):
         return
@@ -85,6 +121,7 @@ def emit_http_clients(ctx: ExtractContext, facts: FileFacts, primary: str) -> No
     client = bool(re.search(r"HttpClient|HttpRequestMessage|RestSharp|RestClient", text))
     if not (refit or client):
         return
+    names = _clients(code) if client else set()
     for idx, line in enumerate(code):
         found = []  # (source, verb, url)
         if refit:
@@ -95,7 +132,8 @@ def emit_http_clients(ctx: ExtractContext, facts: FileFacts, primary: str) -> No
         if client:
             owner = _type_owner(types, idx)
             for m in CALL_RE.finditer(line):
-                found.append((owner, m.group(1).upper(), m.group(2)))
+                if _receiver_ok(code, idx, m.start(), names):
+                    found.append((owner, m.group(1).upper(), m.group(2)))
             for m in REQUEST_RE.finditer(line):
                 found.append((owner, m.group(1).upper(), m.group(2)))
             for m in REST_RE.finditer(line):

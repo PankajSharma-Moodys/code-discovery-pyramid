@@ -40,7 +40,7 @@ from . import claimgate as claimgate_mod, entail as entail_mod, rereview as rere
 from .prompts import build_prompt
 from .lock import repo_lock
 from .runner import read_usage
-from .schema import Validator, schema_path, validate_patch
+from .schema import Validator, schema_path, shape_errors, validate_patch
 from .session import Paths, check_repo_matches_manifest, fold_and_write, next_generation, next_run_id, open_store, resolve_backend, stamp_claims
 from .store import registry as registry_mod
 from .util import CdpError, SKILL_ROOT, git_head, read_json, stable_hash, write_text
@@ -285,6 +285,9 @@ def _classify_returned(patch_path: Path, node: str, validator: Validator, repo: 
         return INVALID, "not valid JSON: %s" % exc, None
     if not isinstance(patch, dict):
         return INVALID, "a patch is a JSON object, got %s" % type(patch).__name__, None
+    shape = shape_errors(patch)
+    if shape:
+        return INVALID, "; ".join(shape), None
     if ctx is not None:
         had_claims = bool(patch.get("claims"))
         patch, dropped = claimgate_mod.screen_claims(patch, validator, ctx)

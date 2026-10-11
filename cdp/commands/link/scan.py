@@ -11,14 +11,15 @@ from ...util import CdpError
 SPEC = Spec(
     group='link',
     usage='link scan <state_dir>... [--db [PATH]]',
-    what='Matches channel edges within/across scanned state directories (read-only unless `--db`).',
+    what='Matches channel edges across every scanned repo (does not modify the index unless `--db`; the only files it touches are the one empty lock `locks/links-*.lock`, reused, and SQLite\'s `index.db-shm`).',
     next='next: `link query --service <name>`. tip (ambiguous matches found): `link prompts --out <dir>`.',
 )
 
 
 def register(lk_sub) -> None:
     lks = lk_sub.add_parser("scan", help="match channel edges within and across scanned "
-                                          "state directories -- read-only, writes no snapshot")
+                                          "state directories -- does not modify the index (only the one reused "
+                                          "locks/links-*.lock file and SQLite's index.db-shm are touched)")
     lks.add_argument("state_dirs", nargs="*", metavar="STATE_DIR",
                       help="with none, links every repo in the machine store at the latest "
                            "snapshot of each. Optionally, older stand-alone state "
@@ -33,7 +34,7 @@ def register(lk_sub) -> None:
                            "verdicts on them are kept) so `link query`/`prompts`/`run` can use "
                            "them. Bare `--db` persists into the machine store (`CDP_HOME`); "
                            "`--db PATH` into that existing index.db. Without it the scan "
-                           "writes nothing")
+                           "does not modify the index")
     lks.set_defaults(func=cmd_link_scan)
 
 
@@ -59,6 +60,7 @@ def cmd_link_scan(args) -> int:
             snapshots = link_mod.snapshots_from_store(db_store)
             if not snapshots:
                 raise CdpError("no scanned repos in %s -- run `cdp scan` in a repo first" % paths.state)
+        names = link_mod.repo_names(db_store)
         report = link_mod.scan_links(snapshots)
         if persist:
             db_store.write_link_edges(report)  # replaces the links; verdicts on them are kept
@@ -67,7 +69,7 @@ def cmd_link_scan(args) -> int:
     if args.json:
         print(__import__("json").dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
     else:
-        print("\n".join(link_mod.summarise(report)))
+        print("\n".join(link_mod.summarise(report, names)))
         print("next      cdp link scan --db to save these, then cdp link query --service <name>"
               if not persist else "next      cdp link query --service <name>")
         heuristic = report.get("totals", {}).get("heuristic", 0)

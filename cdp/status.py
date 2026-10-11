@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from . import freshness as freshness_mod, query as query_mod, state as state_mod
 from .session import open_store
+from .util import NO_REVIEW_NOTE  # noqa: F401 -- re-exported for the status text
 from typing import Dict
 
 

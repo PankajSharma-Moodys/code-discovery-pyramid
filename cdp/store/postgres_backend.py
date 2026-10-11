@@ -27,7 +27,7 @@ from __future__ import annotations
 import datetime
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from . import WorkspaceStore
 from ..util import CdpError, read_json, stable_hash
@@ -238,12 +238,12 @@ class PostgresStore(WorkspaceStore):
         if not checkout:
             return []
         cur = self._cur()
-        if ephemeral:
-            cur.execute(
-                "INSERT INTO snapshot_checkout (snapshot_id, checkout, seq) VALUES "
-                "(%s, %s, (SELECT COALESCE(MAX(seq), 0) + 1 FROM snapshot_checkout)) "
-                "ON CONFLICT (snapshot_id, checkout) DO UPDATE SET seq = EXCLUDED.seq",
-                (snapshot_id, checkout))
+        # Clean snapshots are recorded too: `gc` keeps the one each checkout last stood on.
+        cur.execute(
+            "INSERT INTO snapshot_checkout (snapshot_id, checkout, seq) VALUES "
+            "(%s, %s, (SELECT COALESCE(MAX(seq), 0) + 1 FROM snapshot_checkout)) "
+            "ON CONFLICT (snapshot_id, checkout) DO UPDATE SET seq = EXCLUDED.seq",
+            (snapshot_id, checkout))
         cur.execute(
             "SELECT c.snapshot_id FROM snapshot_checkout c JOIN snapshot_meta m ON m.id = c.snapshot_id "
             "WHERE c.checkout=%s AND c.snapshot_id != %s AND m.repo_id=%s AND m.ephemeral",
@@ -259,6 +259,30 @@ class PostgresStore(WorkspaceStore):
                 self._delete_snapshot_rows(sid)
                 dropped.append(sid)
         return dropped
+
+    def checkout_heads(self) -> Dict[int, List[str]]:
+        """Same as `SqliteStore.checkout_heads`."""
+        cur = self._cur()
+        cur.execute(
+            "SELECT c.snapshot_id, c.checkout FROM snapshot_checkout c WHERE c.seq = "
+            "(SELECT MAX(seq) FROM snapshot_checkout WHERE checkout = c.checkout) ORDER BY c.snapshot_id")
+        out: Dict[int, List[str]] = {}
+        for sid, checkout in cur.fetchall():
+            out.setdefault(sid, []).append(checkout)
+        self._conn.commit()
+        return out
+
+    def model_patch_hashes(self) -> Dict[int, Set[str]]:
+        """Same as `SqliteStore.model_patch_hashes`."""
+        cur = self._cur()
+        cur.execute(
+            "SELECT snapshot_id, content_hash FROM claim_patch WHERE NOT is_derived "
+            "AND payload->>'status' = 'complete' AND COALESCE(payload->>'author_kind', '') != 'python'")
+        out: Dict[int, Set[str]] = {}
+        for sid, h in cur.fetchall():
+            out.setdefault(sid, set()).add(h)
+        self._conn.commit()
+        return out
 
     def supports_snapshot_history(self) -> bool:
         return True
@@ -733,7 +757,7 @@ class PostgresStore(WorkspaceStore):
             cur.execute(
                 "INSERT INTO claim_patch "
                 "(snapshot_id, seq, label, content_hash, payload, is_derived, created_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (snapshot_id, content_hash) DO NOTHING",
                 (dest, seq, label, content_hash, self._Json(payload), is_derived, _now()),
             )
         self._conn.commit()

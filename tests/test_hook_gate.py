@@ -116,7 +116,7 @@ class GateWrongBlockTest(_Indexed, unittest.TestCase):
 class SessionStartTextTest(_Indexed, unittest.TestCase):
     def test_a_deterministic_scan_is_not_called_model_reviewed(self) -> None:
         text = hook_mod.session_start({"cwd": str(self.repo)})
-        self.assertIn("no model review", text)
+        self.assertIn("0.0% model-reviewed (deterministic index complete; run `cdp run` for AI review)", text)
         self.assertNotIn("model-reviewed coverage", text)
         self.assertIn("cdp_query", text)
 

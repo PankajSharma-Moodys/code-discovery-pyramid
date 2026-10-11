@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .budget import Budget
 from .common import _finish, _matches, _role_index, cite
 from .store import Store
+from .trace_entry import resolve_entry
 
 
 def q_paths(
@@ -91,6 +92,13 @@ TRACE_CAVEAT = (
 )
 
 
+#: Files a class term (`trace TenantController`) may list. A class is not one entry point: it
+#: is every public member, and the union of their chains is most of a codebase. Each member is
+#: walked, nearest edges first and round-robin across members, until this many files; the rest
+#: are counted in `capped`, never dropped silently.
+CLASS_TRACE_FILES = 40
+
+
 def q_trace(
     store: Store,
     entry: str,
@@ -109,9 +117,17 @@ def q_trace(
     Every file carries the edge that put it there. A file with no justifying
     edge is not in the list, which is the only reason the list can be called
     minimal.
+
+    A route path shared by several verbs is walked once per verb, from that verb's handler
+    member (`VERB /path` narrows to one); a class term is walked once per public member and
+    capped at `CLASS_TRACE_FILES`. Files reached only through the class's imports, which no
+    member's calls justify, come last and are tagged as class-level.
     """
     budget = budget or Budget()
-    resolved = _resolve_entry(store, entry)
+    adjacency: Dict[str, List[Dict]] = {}
+    for edge in store.dataflow["edges"]:
+        adjacency.setdefault(edge["source"], []).append(edge)
+    resolved = resolve_entry(store, entry, adjacency)
     if not resolved:
         return _finish(
             {
@@ -130,28 +146,38 @@ def q_trace(
             store, budget,
         )
 
-    adjacency: Dict[str, List[Dict]] = {}
-    for edge in store.dataflow["edges"]:
-        adjacency.setdefault(edge["source"], []).append(edge)
-
     # Entry points are named by whatever recorded them — a route as
     # `Class#method`, a dataflow source as its own node — while the edge graph
     # is keyed on the file's primary symbol. Left unnormalised, a real endpoint
     # on the validation target traced to exactly one file, which reads as "this
     # endpoint touches nothing" rather than "the key did not match".
     _pivot(store, resolved, adjacency)
-    reached, exhausted = _walk(resolved["node"], adjacency, max_hops)
+    walks = _walks(resolved, adjacency, max_hops)
+    reached: Dict[str, Dict] = {}
+    for _tag, got, _ in walks:
+        for node, edge in got.items():
+            reached.setdefault(node, edge)
+    exhausted = any(ex for _, _, ex in walks)
     callers = store.xref["used_by"].get(resolved["node"], [])
 
-    rows = _trace_files(store, resolved, reached, callers)
+    rows = _merge_rows(store, resolved, walks, callers)
     # The entry point itself is never budgeted away, and the same holds for
     # role exclusion: the caller named it explicitly, so dropping it would be
     # more surprising than a stray test-role hop further down the trail.
-    head, rest = rows[:1], rows[1:]
+    n_entry = sum(1 for r in rows if r["why"].startswith("entry point"))
+    head, rest = rows[:n_entry], rows[n_entry:]
     if exclude_role:
         roles = _role_index(store)
         rest = [r for r in rest if roles.get(r["file"]) not in exclude_role]
-    files = head + budget.take(rest)
+    capped = None
+    if resolved.get("scope") == "class":
+        cap = max(0, CLASS_TRACE_FILES - len(head))
+        capped = {"cap": CLASS_TRACE_FILES, "members": len(resolved["members"]),
+                  "classes": len(resolved["classes"]), "reachable": len(head) + len(rest),
+                  "elided": max(0, len(rest) - cap)}
+        budget.elided += capped["elided"]
+        rest = rest[:cap]
+    files = head + budget.take_head(rest)
     paths_shown = {row["file"] for row in files}
 
     unknowns = budget.take([
@@ -160,37 +186,63 @@ def q_trace(
         or any(_matches(u.get("question", ""), n.rsplit(".", 1)[-1]) for n in reached)
     ])
 
-    return _finish(
-        {
-            "query": "trace",
-            "entry": entry,
-            "found": True,
-            "resolved_as": resolved,
-            "max_hops": max_hops,
-            # A walk that ran out of hops has not finished. Reporting it as
-            # completion is how a cycle turns into a confident wrong answer.
-            "hops_exhausted": exhausted,
-            # Why the trail stops, stated. An entry point with no outgoing edge
-            # renders as a one-file list, and a one-file list with no
-            # explanation reads as "this touches nothing" rather than as
-            # "CDP found no edge leaving here".
-            "trail": (
-                "%d node(s) reachable from %s" % (len(reached), resolved["node"])
-                if reached
-                else "No dataflow edge leaves %s, so the trail stops at its "
-                     "defining file. That is an absence of an extracted edge, not "
-                     "evidence that nothing is called: check `query coverage`, and "
-                     "note that runtime wiring (DI, reflection, framework "
-                     "registration) produces no import to follow."
-                     % resolved["node"]
-            ),
-            "file_count": len(rows),
-            "files": files,
-            "unknowns": unknowns,
-            "caveat": TRACE_CAVEAT,
-        },
-        store, budget,
-    )
+    result = {
+        "query": "trace",
+        "entry": entry,
+        "found": True,
+        "resolved_as": {k: v for k, v in resolved.items() if k not in ("handlers", "members", "classes")},
+        "max_hops": max_hops,
+        # A walk that ran out of hops has not finished. Reporting it as
+        # completion is how a cycle turns into a confident wrong answer.
+        "hops_exhausted": exhausted,
+        # Why the trail stops, stated. An entry point with no outgoing edge
+        # renders as a one-file list, and a one-file list with no
+        # explanation reads as "this touches nothing" rather than as
+        # "CDP found no edge leaving here".
+        "trail": (
+            "%d node(s) reachable from %s" % (len(reached), resolved["node"])
+            if reached
+            else "No dataflow edge leaves %s, so the trail stops at its "
+                 "defining file. That is an absence of an extracted edge, not "
+                 "evidence that nothing is called: check `query coverage`, and "
+                 "note that runtime wiring (DI, reflection, framework "
+                 "registration) produces no import to follow."
+                 % resolved["node"]
+        ),
+        "file_count": len(rows),
+        "files": files,
+        "unknowns": unknowns,
+        "caveat": TRACE_CAVEAT,
+    }
+    if resolved.get("handlers"):
+        result["verbs"] = [h["verb"] for h in resolved["handlers"]]
+    if capped:
+        result["capped"] = capped
+        result["resolved_as"]["members"] = resolved["members"]
+        result["resolved_as"]["classes"] = resolved["classes"]
+    result = _finish(result, store, budget)
+    if capped and capped["elided"]:
+        # Printed in the footer in place of "--budget <bigger N>": a bigger budget does not lift the cap.
+        result["budget_note"] = ("class term capped at %d files (%d reachable): `--budget` does not lift "
+                                 "it; trace one member (`Class#method`) or a route." % (capped["cap"], capped["reachable"]))
+    return result
+
+
+def _walks(resolved: Dict, adjacency: Dict[str, List[Dict]], max_hops: int) -> List[Tuple[Optional[str], Dict, bool]]:
+    """`(tag, reached, exhausted)` per start: one per verb handler of a route, one per public
+    member of a class, then the class-level walk (tag None) from the file's primary symbol."""
+    starts: List[Tuple[Optional[str], str]] = []
+    for h in resolved.get("handlers", ()):
+        if h["handler"] in adjacency:
+            starts.append((h["verb"], h["handler"]))
+    for member in resolved.get("members", ()):
+        starts.append((member.rsplit("#", 1)[-1], member))
+    starts.append((None, resolved["node"]))
+    out = []
+    for tag, node in starts:
+        got, exhausted = _walk(node, adjacency, max_hops)
+        out.append((tag, got, exhausted))
+    return out
 
 
 def _pivot(store: Store, resolved: Dict, adjacency: Dict[str, List[Dict]]) -> None:
@@ -215,52 +267,6 @@ def _pivot(store: Store, resolved: Dict, adjacency: Dict[str, List[Dict]]) -> No
             resolved["pivoted_from"] = node
             resolved["node"] = candidate
             return
-
-
-def _resolve_entry(store: Store, entry: str) -> Optional[Dict]:
-    """Route path, dataflow source, or symbol — in that order of specificity."""
-    for route in store.xref["routes"] + store.xref["unresolved_routes"]:
-        if route["route"] == entry or _matches(route["route"], entry):
-            # A route handler is recorded as `Class#method`, while the dataflow
-            # graph is keyed on the file's primary symbol. Walking from the raw
-            # handler string finds no adjacency and silently returns a one-file
-            # trace, which reads as "this endpoint touches nothing".
-            info = store.extraction["files"].get(route["file"], {})
-            node = info.get("primary") or route["handler"].split("#", 1)[0]
-            return {
-                "kind": "route",
-                "node": node,
-                "handler": route["handler"],
-                "label": "%s %s" % (route["verb"], route["route"]),
-                "channel": "http_in",
-                "module": route["module"],
-                "at": cite(route["evidence"][0]) if route["evidence"] else None,
-            }
-    for source in store.dataflow.get("sources", []):
-        if source["node"] == entry or source["trigger"] == entry or _matches(source["node"], entry):
-            return {
-                "kind": "source",
-                "node": source["node"],
-                "label": source["trigger"],
-                "channel": source["channel"],
-                "module": source["module"],
-                "at": cite(source["anchor"]),
-            }
-    symbols = store.xref["symbols"]
-    keys = [k for k in symbols if k == entry or k.rsplit(".", 1)[-1] == entry]
-    keys = keys or [k for k in symbols if _matches(k, entry)]
-    if keys:
-        key = sorted(keys, key=lambda k: (len(k), k))[0]
-        sites = symbols[key]["sites"]
-        return {
-            "kind": "symbol",
-            "node": key,
-            "label": key,
-            "channel": "defines",
-            "module": sites[0]["module"] if sites else None,
-            "at": cite(sites[0]["anchor"]) if sites else None,
-        }
-    return None
 
 
 def _walk(
@@ -309,14 +315,11 @@ def _is_boilerplate(store: Store, target: str) -> bool:
     return True
 
 
-def _trace_files(
-    store: Store, resolved: Dict, reached: Dict[str, Dict], callers: Sequence[Dict]
-) -> List[Dict]:
-    """One row per file, each with the single edge that justified including it.
+def _edge_rows(store: Store, reached: Dict[str, Dict]) -> List[Dict]:
+    """One row per file a walk reached, each with the edge that justified it, nearest first.
 
-    Deduplicated on the file, because a reading list that names the same file
-    three times for three edges is longer than the grep it replaced.
-    """
+    Plain accessors go last: a reading list is cut from the end, and a getter should go
+    before the service that matters."""
     rows: List[Dict] = []
     seen: Set[str] = set()
 
@@ -328,13 +331,6 @@ def _trace_files(
         rows.append({"file": path, "module": module, "why": why, "at": at,
                      "confidence": confidence})
 
-    entry_file = (resolved.get("at") or "").rsplit(":", 1)[0] or None
-    add(entry_file, resolved.get("module"),
-        "entry point (%s) %s" % (resolved["channel"], resolved["label"]),
-        resolved.get("at"), "high")
-
-    # Nearest hops first, and plain accessors last: a reading list is cut by the
-    # budget from the end, and a getter should go before the service that matters.
     order = sorted(reached, key=lambda t: (_is_boilerplate(store, t), reached[t].get("hop", 0), t))
     for target in order:
         edge = reached[target]
@@ -350,9 +346,83 @@ def _trace_files(
                     edge["source"].rsplit(".", 1)[-1], target.rsplit(".", 1)[-1],
                     edge["source"].rsplit(".", 1)[-1])
             add(site["file"], site["module"], why, cite(site["anchor"]), "high")
+    return rows
+
+
+def _merge_rows(store: Store, resolved: Dict, walks: Sequence, callers: Sequence[Dict]) -> List[Dict]:
+    """Entry rows, then the walks' rows interleaved (nearest of each walk first), then callers.
+
+    Deduplicated on the file, because a reading list that names the same file three times for
+    three edges is longer than the grep it replaced. A file keeps the tags (verbs of a route,
+    members of a class) of every walk that reached it; a file only the class-level walk reached
+    is tagged `scope: class` and, for a route, with every verb."""
+    rows: List[Dict] = []
+    by_file: Dict[str, Dict] = {}
+    handlers = resolved.get("handlers", ())
+    verbs = [h["verb"] for h in handlers]
+    tag_key = "verbs" if handlers else "members"
+    # Tags say which verb/member reaches a file; with one verb and no member walks there is
+    # nothing to tell apart, so none are written.
+    tagged = len(handlers) > 1 or any(t is not None for t, _, _ in walks) and not handlers
+
+    def entry(path: Optional[str], module: Optional[str], why: str, at: Optional[str]) -> None:
+        if path and path not in by_file:
+            row = {"file": path, "module": module, "why": why, "at": at, "confidence": "high"}
+            by_file[path] = row
+            rows.append(row)
+
+    if handlers:
+        # One entry row per handler file, naming every verb served from it.
+        per_file: Dict[str, List[Dict]] = {}
+        for h in handlers:
+            per_file.setdefault((h["at"] or "").rsplit(":", 1)[0], []).append(h)
+        path_part = resolved["label"].split(" ", 1)[-1]
+        for path, hs in per_file.items():
+            entry(path or None, hs[0]["module"],
+                  "entry point (http_in) %s %s" % (",".join(h["verb"] for h in hs), path_part), hs[0]["at"])
+            if path in by_file:
+                by_file[path]["verbs"] = [h["verb"] for h in hs]
+    else:
+        entry((resolved.get("at") or "").rsplit(":", 1)[0] or None, resolved.get("module"),
+              "entry point (%s) %s" % (resolved["channel"], resolved["label"]), resolved.get("at"))
+    for row in rows:
+        if tagged:
+            row["scope"] = "entry"
+        else:
+            row.pop("verbs", None)
+
+    lists = [(tag, _edge_rows(store, got)) for tag, got, _ in walks]
+    depth = max((len(r) for _, r in lists), default=0)
+    for i in range(depth):
+        for tag, got in lists:
+            if i >= len(got):
+                continue
+            cand = got[i]
+            row = by_file.get(cand["file"])
+            if row is None:
+                row = dict(cand, scope="class" if tag is None else "member") if tagged else dict(cand)
+                by_file[cand["file"]] = row
+                rows.append(row)
+            if tag is not None and tagged:
+                if tag not in row.setdefault(tag_key, []):
+                    row[tag_key].append(tag)
+                if row["scope"] == "class":
+                    row["scope"] = "member"
+    for row in rows:
+        if tagged and row["scope"] == "class" and handlers:
+            row["verbs"] = list(verbs)
 
     for caller in callers:
-        add(caller["file"], caller["module"],
-            "references %s" % resolved["node"].rsplit(".", 1)[-1],
-            cite(caller["anchor"]), "high")
+        path = caller["file"]
+        if path in by_file:
+            continue
+        row = {"file": path, "module": caller["module"],
+               "why": "references %s" % resolved["node"].rsplit(".", 1)[-1],
+               "at": cite(caller["anchor"]), "confidence": "high"}
+        if tagged:
+            row["scope"] = "class"
+            if handlers:
+                row["verbs"] = list(verbs)
+        by_file[path] = row
+        rows.append(row)
     return rows

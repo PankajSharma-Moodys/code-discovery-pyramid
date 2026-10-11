@@ -7,6 +7,7 @@ import json
 from .._common import Spec, locked, paths_from_args
 from ... import supervisor as supervisor_mod
 from ...status import status
+from ...util import NO_REVIEW_NOTE
 from typing import Dict
 
 
@@ -47,8 +48,12 @@ def print_status(result: Dict) -> None:
                  else "the index does not reflect",
                  ", ".join(result["dirty_files"][:5])))
     cov = result["coverage"]
-    print("coverage  %.1f%% (%d/%d tracked files)"
-          % (100 * cov["fraction"], cov["files_complete"], cov["files_total"]))
+    if cov.get("model_reviewed_fraction") is None:  # keep the number, say what it measures
+        print("coverage  %.1f%% %s (%d/%d tracked files)"
+              % (100 * cov["fraction"], NO_REVIEW_NOTE, cov["files_complete"], cov["files_total"]))
+    else:
+        print("coverage  %.1f%% model-reviewed (%d/%d tracked files)"
+              % (100 * cov["fraction"], cov["files_complete"], cov["files_total"]))
     fresh = result["freshness"]
     if fresh is not None:
         print("freshness %d live, %d stale, %d anchored-but-unreviewed, %d unknown-churn"
