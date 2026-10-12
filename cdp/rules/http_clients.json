@@ -1,0 +1,38 @@
+{
+  "family": "http_clients",
+  "language": "java",
+  "rules": [
+    {
+      "id": "http_client.exchange",
+      "match": {
+        "fqn": ["org.springframework.web.service.annotation.HttpExchange",
+                "org.springframework.web.service.annotation.GetExchange",
+                "org.springframework.web.service.annotation.PostExchange",
+                "org.springframework.web.service.annotation.PutExchange",
+                "org.springframework.web.service.annotation.DeleteExchange",
+                "org.springframework.web.service.annotation.PatchExchange"],
+        "on": "method"
+      },
+      "aliases": ["HttpExchange", "GetExchange", "PostExchange", "PutExchange", "DeleteExchange", "PatchExchange"],
+      "vars": {"verb": {"GetExchange": "GET", "PostExchange": "POST", "PutExchange": "PUT", "DeleteExchange": "DELETE",
+                        "PatchExchange": "PATCH", "HttpExchange": "ANY"}},
+      "emit": {"channel": "http_out",
+               "target": "http:{method|vars.verb} {join(owner.HttpExchange.value|owner.HttpExchange.url, value|url)}"}
+    },
+    {
+      "id": "http_client.restclient",
+      "match": {
+        "fqn": ["javax.ws.rs.GET", "javax.ws.rs.POST", "javax.ws.rs.PUT", "javax.ws.rs.DELETE", "javax.ws.rs.HEAD",
+                "javax.ws.rs.OPTIONS", "javax.ws.rs.PATCH",
+                "jakarta.ws.rs.GET", "jakarta.ws.rs.POST", "jakarta.ws.rs.PUT", "jakarta.ws.rs.DELETE",
+                "jakarta.ws.rs.HEAD", "jakarta.ws.rs.OPTIONS", "jakarta.ws.rs.PATCH"],
+        "on": "method"
+      },
+      "aliases": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+      "when": {"owner": {"fqn": "org.eclipse.microprofile.rest.client.inject.RegisterRestClient",
+                         "aliases": ["RegisterRestClient"]}},
+      "emit": {"channel": "http_out",
+               "target": "http:{ann.name} {join(owner.RegisterRestClient.baseUri, owner.Path.value, decl.Path.value)}"}
+    }
+  ]
+}
