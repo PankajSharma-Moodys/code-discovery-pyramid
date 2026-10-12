@@ -1,0 +1,40 @@
+{
+  "family": "jaxrs",
+  "language": "java",
+  "rules": [
+    {
+      "id": "jaxrs.verb",
+      "match": {
+        "fqn": [
+          "javax.ws.rs.GET", "javax.ws.rs.POST", "javax.ws.rs.PUT", "javax.ws.rs.DELETE", "javax.ws.rs.HEAD",
+          "javax.ws.rs.OPTIONS", "javax.ws.rs.PATCH",
+          "jakarta.ws.rs.GET", "jakarta.ws.rs.POST", "jakarta.ws.rs.PUT", "jakarta.ws.rs.DELETE", "jakarta.ws.rs.HEAD",
+          "jakarta.ws.rs.OPTIONS", "jakarta.ws.rs.PATCH"
+        ],
+        "on": "method"
+      },
+      "aliases": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+      "unless": {"owner": {"fqn": ["org.springframework.cloud.openfeign.FeignClient",
+                                   "org.springframework.cloud.netflix.feign.FeignClient"],
+                           "aliases": ["FeignClient"]},
+                 "imports": ["retrofit2.http"]},
+      "emit": {
+        "channel": "http_in",
+        "signal": "http_resource",
+        "target": "route:{ann.name} {join(owner.Path.value|owner.RequestMapping.value|owner.RequestMapping.path, decl.Path.value)}"
+      }
+    },
+    {
+      "id": "jaxrs.path.class",
+      "match": {"fqn": ["javax.ws.rs.Path", "jakarta.ws.rs.Path"], "on": "class"},
+      "aliases": ["Path"],
+      "fallback": true,
+      "when": {"first_type": true},
+      "unless": {"owner": {"fqn": ["org.springframework.cloud.openfeign.FeignClient",
+                                   "org.springframework.cloud.netflix.feign.FeignClient"],
+                           "aliases": ["FeignClient"]},
+                 "imports": ["retrofit2.http"]},
+      "emit": {"channel": "http_in", "signal": "http_resource", "target": "route:{value|path}"}
+    }
+  ]
+}

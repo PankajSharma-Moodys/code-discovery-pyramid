@@ -296,6 +296,54 @@ class SchedulingFamilyTest(unittest.TestCase):
                          [("a.C#m", 4), ("a.C#n", 6), ("a.C#n", 7)])
 
 
+def routes(src: str):
+    return sorted((s.split("#")[-1], t) for _, s, t, _ in shipped(src))
+
+
+class WebFamilyTest(unittest.TestCase):
+    SPRING = "package a;\nimport org.springframework.web.bind.annotation.*;\n"
+    JAXRS = "package a;\nimport javax.ws.rs.*;\n"
+
+    def test_spring_class_prefix_on_the_same_line_and_verbs(self):
+        src = self.SPRING + ('@RestController @RequestMapping("/c")\nclass C {\n  @GetMapping("/x") String x() { return ""; }\n'
+                             '  @PostMapping String p() { return ""; }\n  @RequestMapping(value = "/any") void a() {}\n'
+                             '  @DeleteMapping(path = "/d/{id}") void d() {}\n}\n')
+        self.assertEqual(routes(src), [("a", "route:ANY /c/any"), ("d", "route:DELETE /c/d/{id}"),
+                                       ("p", "route:POST /c"), ("x", "route:GET /c/x")])
+
+    def test_jaxrs_path_and_verbs_with_jakarta_and_a_constant_prefix(self):
+        src = ("package a;\nimport jakarta.ws.rs.GET;\nimport jakarta.ws.rs.PUT;\nimport jakarta.ws.rs.Path;\n"
+               "@Path(ApiConstants.SERVERS)\nclass R {\n  @GET @Path(\"/{id}\") void g() {}\n  @PUT void u() {}\n}\n")
+        self.assertEqual(routes(src), [("g", "route:GET ${ApiConstants.SERVERS}/{id}"),
+                                       ("u", "route:PUT ${ApiConstants.SERVERS}")])
+
+    def test_each_handler_takes_the_prefix_of_its_own_type(self):
+        src = self.SPRING + ('@RequestMapping("/one")\nclass A {\n  @GetMapping("/x") void x() {}\n}\n'
+                             '@RequestMapping("/two")\nclass B {\n  @GetMapping("/y") void y() {}\n}\n')
+        self.assertEqual(routes(src), [("x", "route:GET /one/x"), ("y", "route:GET /two/y")])
+
+    def test_feign_and_retrofit_types_emit_no_routes(self):
+        feign = self.SPRING + ('import org.springframework.cloud.openfeign.FeignClient;\n'
+                               '@FeignClient(name="s")\ninterface F {\n  @GetMapping("/a") String a();\n}\n')
+        self.assertEqual(routes(feign), [])
+        retro = "package a;\nimport retrofit2.http.*;\nimport javax.ws.rs.GET;\ninterface R {\n  @GET(\"/a\") void a();\n}\n"
+        self.assertEqual(routes(retro), [])
+
+    def test_a_resource_class_with_a_mount_and_no_handlers_is_still_a_route(self):
+        self.assertEqual(routes(self.JAXRS + '@Path("/health")\nclass H {}\n'), [("a.H", "route:/health")])
+        self.assertEqual(routes(self.SPRING + '@RequestMapping("/m")\nclass H {}\n'), [("a.H", "route:/m")])
+        self.assertEqual(routes(self.JAXRS + '@Path("/m")\nclass H {\n  @GET void g() {}\n}\n'), [("g", "route:GET /m")])
+
+    def test_another_packages_get_is_not_a_route_and_other_arguments_are_not_a_path(self):
+        self.assertEqual(routes("package a;\nimport com.acme.GET;\nclass R {\n  @GET void g() {}\n}\n"), [])
+        src = self.SPRING + '@RequestMapping("/c")\nclass C {\n  @GetMapping(produces = "application/json") void g() {}\n}\n'
+        self.assertEqual(routes(src), [("g", "route:GET /c")])      # the old reader took the media type as the path
+
+    def test_constant_concatenation_keeps_every_part(self):
+        src = self.JAXRS + '@Path(Api.ROOT + "/v1")\nclass R {\n  @GET void g() {}\n}\n'
+        self.assertEqual(routes(src), [("g", "route:GET ${Api.ROOT}/v1")])
+
+
 class AllEdgesTest(unittest.TestCase):
     def test_all_edges_merges_in_io_edges_order_and_returns_io_edges_when_there_are_no_rule_edges(self):
         io = [{"source": "b", "target": "t", "channel": "c", "file": "f", "anchor": {"file": "f", "line": 1}}]
