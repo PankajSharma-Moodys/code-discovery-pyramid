@@ -1,0 +1,55 @@
+{
+  "family": "sql_annotations",
+  "language": "java",
+  "rules": [
+    {
+      "id": "sql.spring_data.jpql",
+      "match": {"fqn": "org.springframework.data.jpa.repository.Query", "on": "method"},
+      "aliases": ["Query"],
+      "unless": {"arg": {"nativeQuery": true}},
+      "emit": {"channel": "read", "dialect": "jpql", "sql": "{value}"}
+    },
+    {
+      "id": "sql.spring_data.native",
+      "match": {"fqn": "org.springframework.data.jpa.repository.Query", "on": "method"},
+      "aliases": ["Query"],
+      "when": {"arg": {"nativeQuery": true}},
+      "emit": {"channel": "read", "sql": "{value}"}
+    },
+    {
+      "id": "sql.spring_data.jdbc",
+      "match": {"fqn": "org.springframework.data.jdbc.repository.query.Query", "on": "method"},
+      "emit": {"channel": "read", "sql": "{value}"}
+    },
+    {
+      "id": "sql.jpa.named_query",
+      "match": {"fqn": ["javax.persistence.NamedQuery", "jakarta.persistence.NamedQuery"], "on": "class"},
+      "aliases": ["NamedQuery"],
+      "emit": {"channel": "read", "dialect": "jpql", "sql": "{query}"}
+    },
+    {
+      "id": "sql.jpa.named_native_query",
+      "match": {"fqn": ["javax.persistence.NamedNativeQuery", "jakarta.persistence.NamedNativeQuery"], "on": "class"},
+      "aliases": ["NamedNativeQuery"],
+      "emit": {"channel": "read", "sql": "{query}"}
+    },
+    {
+      "id": "sql.jdbi",
+      "match": {"fqn": ["org.jdbi.v3.sqlobject.statement.SqlQuery", "org.jdbi.v3.sqlobject.statement.SqlUpdate",
+                        "org.jdbi.v3.sqlobject.statement.SqlBatch", "org.jdbi.v3.sqlobject.statement.SqlCall",
+                        "org.skife.jdbi.v2.sqlobject.SqlQuery", "org.skife.jdbi.v2.sqlobject.SqlUpdate",
+                        "org.skife.jdbi.v2.sqlobject.SqlBatch", "org.skife.jdbi.v2.sqlobject.SqlCall"],
+                "on": "method"},
+      "aliases": ["SqlQuery", "SqlUpdate", "SqlBatch", "SqlCall"],
+      "emit": {"channel": "read", "sql": "{value:all}"}
+    },
+    {
+      "id": "sql.mybatis",
+      "match": {"fqn": ["org.apache.ibatis.annotations.Select", "org.apache.ibatis.annotations.Insert",
+                        "org.apache.ibatis.annotations.Update", "org.apache.ibatis.annotations.Delete"],
+                "on": "method"},
+      "aliases": ["Select", "Insert", "Update", "Delete"],
+      "emit": {"channel": "read", "sql": "{value:all}"}
+    }
+  ]
+}

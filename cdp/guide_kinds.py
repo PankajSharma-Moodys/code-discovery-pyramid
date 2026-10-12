@@ -167,12 +167,15 @@ KINDS: Dict[str, Dict] = {
         "summary": "who owns (migration), writes and reads a database table",
         "what": "Per table: owning module and migration DDL, writers, readers, each with a "
                 "citation. The union is 'what breaks if I change this table'.",
-        "not": "Only tables seen in migrations or persistence/read code; not raw SQL in "
-               "strings the extractor cannot parse.",
+        "not": "Only tables seen in migrations, persistence/read code and SQL in annotations; not SQL "
+               "built in method bodies or constants (`search` finds those).",
         "read": "`migrations` = schema owner; `writers`/`readers` group the sites by who touches the table "
                 "(SQL scripts are one group: site and file counts, a few `file:line`); `entity_users` are "
                 "the uses of the entity class outside the DbContext and migrations (reads and writes not told "
-                "apart); `evidence` is the cited sites. "
+                "apart); `evidence` is the cited sites. SQL in annotations (Spring Data `@Query`, `@NamedQuery`, "
+                "JDBI `@SqlQuery`/`@SqlUpdate`, MyBatis `@Select`/`@Insert`/`@Update`/`@Delete`) makes the "
+                "annotated method a writer (INSERT/UPDATE/DELETE/MERGE) or reader (SELECT/JOIN); JPQL "
+                "reaches the table through its entity's `@Table(name=..)`. "
                 "Each code writer/reader group shows its annotations (verbatim text + `file:line`), annotated "
                 "parameters and owner-class annotations (e.g. `@Table(name=..)`); script groups show none.",
         "term": "OPTIONAL. Substring of the table name (`order` also matches `orders`) unless `exact`; omit for all.",

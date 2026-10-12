@@ -15,7 +15,7 @@ would ever read them.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .base import ExtractContext, Extractor, FileFacts, anchor_at, count_loc, mk_define, mk_edge
 
@@ -102,6 +102,340 @@ def _table_name(raw: str) -> Optional[str]:
     if not name or name == "__ph__" or name.lower() in SQL_RESERVED:
         return None
     return name
+
+
+# ---------------------------------------------------------------- SQL in code (ANNOTATIONS_PLAN P7)
+#
+# `sql_tables` reads the SQL (or JPQL) of an annotation or a string, not a migration file: it knows
+# SELECT/FROM/JOIN, UPDATE, DELETE, INSERT/MERGE INTO and TRUNCATE. The migration extractor above is
+# unchanged and keeps its line patterns.
+
+_SQL_STOP = frozenset(SQL_RESERVED | {
+    "select", "where", "group", "order", "having", "union", "intersect", "except", "minus", "limit", "offset",
+    "fetch", "for", "window", "returning", "when", "then", "else", "case", "join", "inner", "outer", "left",
+    "right", "full", "cross", "natural", "straight_join", "apply", "lateral", "set", "of", "nowait", "wait",
+    "skip", "cascade", "restrict", "with", "connect", "start", "qualify", "dual", "delete", "update", "insert",
+    "merge", "using", "by", "all", "distinct", "top", "end", "is", "in", "like", "between", "key", "no", "do",
+    "conflict", "matched", "tablesample", "partition", "values", "value"})
+_CLAUSE_END = frozenset(["where", "group", "order", "having", "union", "intersect", "except", "minus", "limit",
+                         "offset", "fetch", "for", "window", "duplicate", "conflict", "set", "values", "returning",
+                         "select", "when", "then", "connect", "start", "qualify", "using"])
+_FROM_FUNCS = frozenset(["extract", "trim", "substring", "overlay", "position", "substr"])
+_TABLE_MODS = frozenset(["only", "lateral", "table", "fetch"])
+_NOT_TARGET_PREV = frozenset(["for", "no", "key", "on", "of", "do", "before", "after", "instead", "then"])
+
+
+def _skip_placeholder(text: str, i: int) -> int:
+    """End of the placeholder starting at `i` (`${..}`, `{{..}}`, `#{..}`, `$(..)`), or -1."""
+    for opener, closer in (("${", "}"), ("#{", "}"), ("{{", "}}"), ("$(", ")")):
+        if text.startswith(opener, i):
+            j = text.find(closer, i + len(opener))
+            return len(text) if j < 0 else j + len(closer)
+    return -1
+
+
+def _sql_tokens(text: str) -> List[tuple]:
+    """`(kind, value)` tokens: `w` word, `q` quoted name, `ph` placeholder (`${x}`, `:x`, `?`, `@x`,
+    `#tmp`), `n` number, `s` string literal (content dropped), punctuation as itself. Comments and
+    string contents never reach the parser."""
+    out: List[tuple] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+        elif text.startswith("--", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c == "'":
+            i += 1
+            while i < n:
+                if text[i] == "'":
+                    if text[i + 1:i + 2] == "'":
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            out.append(("s", ""))
+        elif c in '"`' or (c == "[" and re.match(r"\[[^\[\]\n,]*[^\W\d][^\[\]\n,]*\]", text[i:i + 200])):
+            close = "]" if c == "[" else c
+            j = text.find(close, i + 1)
+            j = n if j < 0 else j
+            out.append(("q", text[i + 1:j]))
+            i = j + 1
+        elif _skip_placeholder(text, i) >= 0:
+            i = _glue(text, _skip_placeholder(text, i))
+            out.append(("ph", ""))
+        elif c == ":" and text.startswith("::", i):
+            i += 2
+            out.append(("o", "::"))
+        elif c == ":" and re.match(r":#?[A-Za-z_{]", text[i:i + 2]):
+            if text.startswith(":#{", i):
+                j = text.find("}", i)
+                i = n if j < 0 else j + 1
+            else:
+                i += 1
+                while i < n and (text[i].isalnum() or text[i] in "_."):
+                    i += 1
+                    if text[i - 1] == "." and not (i < n and text[i].isalpha()):
+                        i -= 1
+                        break
+            out.append(("ph", ""))
+        elif c == "?":
+            i += 1
+            while i < n and text[i].isdigit():
+                i += 1
+            out.append(("ph", ""))
+        elif c in "@#" and re.match(r"[@#]+[A-Za-z_]", text[i:i + 3]):
+            while i < n and text[i] in "@#":
+                i += 1
+            while i < n and (text[i].isalnum() or text[i] in "_$"):
+                i += 1
+            out.append(("ph", ""))
+        elif c.isalpha() or c == "_" or ord(c) > 127:
+            j = i + 1
+            while j < n and (text[j].isalnum() or text[j] in "_$" or ord(text[j]) > 127) \
+                    and _skip_placeholder(text, j) < 0:
+                j += 1
+            glued = _skip_placeholder(text, j)
+            if glued >= 0:
+                i = _glue(text, glued)
+                out.append(("ph", ""))
+            else:
+                out.append(("w", text[i:j]))
+                i = j
+        elif c.isdigit():
+            j = i + 1
+            while j < n and (text[j].isalnum() or text[j] == "_"):
+                j += 1
+            out.append(("n", text[i:j]))
+            i = j
+        else:
+            out.append((c if c in ".(),;" else "o", c))
+            i += 1
+    return out
+
+
+def _glue(text: str, i: int) -> int:
+    """A placeholder inside a name (`pool_${env}_cfg`) makes the whole name unknown."""
+    n = len(text)
+    while i < n:
+        end = _skip_placeholder(text, i)
+        if end >= 0:
+            i = end
+        elif text[i].isalnum() or text[i] in "_$":
+            i += 1
+        else:
+            break
+    return i
+
+
+def _cte_names(toks: List[tuple]) -> set:
+    """Names defined by `WITH a AS (...), b(cols) AS (...)`: not tables."""
+    names = set()
+
+    def group(j: int) -> int:
+        depth = 0
+        while j < len(toks):
+            depth += 1 if toks[j][0] == "(" else -1 if toks[j][0] == ")" else 0
+            j += 1
+            if depth == 0:
+                return j
+        return j
+
+    for i, (kind, val) in enumerate(toks):
+        if kind != "w" or val.lower() != "with":
+            continue
+        j = i + 1
+        if j < len(toks) and toks[j][0] == "w" and toks[j][1].lower() == "recursive":
+            j += 1
+        while j < len(toks) and toks[j][0] in ("w", "q"):
+            name = toks[j][1]
+            j += 1
+            if j < len(toks) and toks[j][0] == "(":
+                j = group(j)
+            if not (j < len(toks) and toks[j][0] == "w" and toks[j][1].lower() == "as"):
+                break
+            j += 1
+            while j < len(toks) and toks[j][0] == "w" and toks[j][1].lower() in ("not", "materialized"):
+                j += 1
+            if j >= len(toks) or toks[j][0] != "(":
+                break
+            names.add(name.lower())
+            j = group(j)
+            if j < len(toks) and toks[j][0] == ",":
+                j += 1
+                continue
+            break
+    return names
+
+
+def _name_at(toks: List[tuple], j: int):
+    """`(parts, next index)` of the dotted name at `j`; parts hold None for a placeholder."""
+    parts: List[Optional[str]] = []
+    while j < len(toks) and toks[j][0] in ("w", "q", "ph"):
+        parts.append(None if toks[j][0] == "ph" else toks[j][1])
+        j += 1
+        if j + 1 < len(toks) and toks[j][0] == "." and toks[j + 1][0] in ("w", "q", "ph"):
+            j += 1
+            continue
+        break
+    return parts, j
+
+
+def sql_tables(text: str, jpql: bool = False) -> List[Tuple[str, str]]:
+    """`[(table, "read" | "write"), ...]` for the SQL in `text`, in order of appearance, deduplicated.
+
+    Reads: `FROM`/`JOIN` (comma lists, subqueries, `USING` of a MERGE/DELETE). Writes: `UPDATE`,
+    `DELETE [FROM]`, `INSERT/REPLACE/MERGE/SELECT ... INTO`, `TRUNCATE`. Names lose their schema
+    qualifier and quoting (`[dbo].[server]` -> `server`), like the migration extractor's; an alias
+    given to an `UPDATE`/`DELETE` target resolves to its table. Not tables: CTE names, `dual`,
+    functions in `FROM`, `${schema}`/`:param`/`?`/`#{x}` placeholders standing alone (a qualified
+    `${schema}.server` is `server`). Comments and string literals are ignored; keywords any case.
+    `jpql=True` reads entity names instead (`FROM Entity e`, `JOIN Entity`, `UPDATE Entity`) and
+    skips member paths (`JOIN e.items`)."""
+    toks = _sql_tokens(text or "")
+    segments, cur = [], []
+    for t in toks:
+        if t[0] == ";":
+            segments.append(cur)
+            cur = []
+        else:
+            cur.append(t)
+    segments.append(cur)
+    out: List[Tuple[str, str]] = []
+    for seg in segments:
+        for row in _statement(seg, jpql):
+            if row not in out:
+                out.append(row)
+    return out
+
+
+def _statement(toks: List[tuple], jpql: bool) -> List[Tuple[str, str]]:
+    ctes = _cte_names(toks)
+    events: List[list] = []        # [name, kind, qualified, alias_form]
+    aliases: Dict[str, str] = {}
+    lists: set = set()
+    parens: List[str] = []
+    using_ok = False
+    n = len(toks)
+
+    def word(j: int, *vals: str) -> bool:
+        return 0 <= j < n and toks[j][0] == "w" and (not vals or toks[j][1].lower() in vals)
+
+    def table_at(j: int, kind: str, join: bool = False, alias_ok: bool = True) -> int:
+        while word(j) and toks[j][1].lower() in _TABLE_MODS:
+            j += 1
+        if j >= n or toks[j][0] not in ("w", "q", "ph"):
+            return j
+        if toks[j][0] == "w" and toks[j][1].lower() in _SQL_STOP:
+            return j
+        parts, k = _name_at(toks, j)
+        name = parts[-1] if parts else None
+        is_func = k < n and toks[k][0] == "(" and kind == "read"
+        skip = name is None or is_func
+        if jpql and not skip and len(parts) > 1 and (join or (parts[0] or "").lower() in aliases):
+            skip = True                      # a member path (`e.items`), not an entity
+        if not skip and kind == "write" and k < n and toks[k][0] == "o" and toks[k][1] == "=":
+            skip = True                      # `ON DUPLICATE KEY UPDATE col = ...`
+        if not skip:
+            events.append([name, kind, len(parts) > 1, False])
+        if alias_ok and k < n:
+            a = k + 1 if word(k, "as") else k
+            if (word(a) and toks[a][1].lower() not in _SQL_STOP | _CLAUSE_END) or (a > k and a < n and toks[a][0] == "q"):
+                if name:
+                    aliases[toks[a][1].lower()] = name
+                k = a + 1
+        return k
+
+    i = 0
+    while i < n:
+        kind, val = toks[i]
+        low = val.lower() if kind == "w" else ""
+        prev = toks[i - 1][1].lower() if i and toks[i - 1][0] == "w" else ""
+        if kind == "(":
+            parens.append(prev)
+            i += 1
+            continue
+        if kind == ")":
+            if parens:
+                parens.pop()
+            lists = {d for d in lists if d <= len(parens)}
+            i += 1
+            continue
+        depth = len(parens)
+        if kind == "," and depth in lists:
+            i = table_at(i + 1, "read")
+            continue
+        if kind != "w":
+            i += 1
+            continue
+        if low in _CLAUSE_END:
+            lists.discard(depth)
+        if low == "from":
+            infunc = bool(parens) and parens[-1] in _FROM_FUNCS
+            if prev == "distinct" or infunc:
+                i += 1
+            else:
+                lists.add(depth)
+                i = table_at(i + 1, "write" if prev == "delete" else "read")
+            continue
+        if low == "join" or (low == "using" and using_ok):
+            i = table_at(i + 1, "read", join=True)
+            continue
+        if low == "into":
+            i = table_at(i + 1, "write", alias_ok=False)
+            continue
+        if low == "update" and prev not in _NOT_TARGET_PREV:
+            j = i + 1
+            while word(j, "only", "versioned"):
+                j += 1
+            start = len(events)
+            i = table_at(j, "write")
+            for ev in events[start:]:
+                ev[3] = True
+            continue
+        if low == "delete" and prev not in _NOT_TARGET_PREV:
+            using_ok = True
+            if word(i + 1, "from"):
+                i += 1
+                continue
+            start = len(events)
+            j = i + 1
+            if word(j) or toks[j:j + 1] and toks[j][0] in ("q", "ph"):
+                i = table_at(j, "write", alias_ok=jpql)
+                for ev in events[start:]:
+                    ev[3] = True
+                continue
+        if low == "merge":
+            using_ok = True
+        if low == "truncate":
+            i = table_at(i + 1, "write", alias_ok=False)
+            continue
+        i += 1
+    rows = []
+    for name, kind, qualified, alias_form in events:
+        if alias_form and kind == "write" and not qualified:
+            name = aliases.get(name.lower(), name)
+        elif not qualified and name.lower() in ctes:
+            continue
+        rows.append((name, kind))
+    return rows
+
+
+def sql_edges(text: str) -> List[Tuple[str, str]]:
+    """The `SQL_HOOK` for rules: `[(target, channel)]`, `table:<name>` with `persist` for a write and
+    `read` for a read."""
+    return [("table:" + t, "persist" if k == "write" else "read") for t, k in sql_tables(text)]
+
+
+def jpql_edges(text: str) -> List[Tuple[str, str]]:
+    """The same for JPQL: `entity:<Name>` edges."""
+    return [("entity:" + t, "persist" if k == "write" else "read") for t, k in sql_tables(text, jpql=True)]
 
 
 class DockerExtractor(Extractor):

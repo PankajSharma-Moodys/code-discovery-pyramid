@@ -70,16 +70,18 @@ class LoaderTest(unittest.TestCase):
             with self.assertRaises(rules.RuleError):
                 rules.load_rules(Path(tmp))
 
-    def test_p7_sql_hook_point_is_the_only_emit_extension(self):
+    def test_sql_hook_point_is_the_only_emit_extension(self):
         rule = mk({"id": "q", "match": {"fqn": "x.Query", "on": "method"},
                    "emit": {"channel": "read", "sql": "{value}"}})
         src = 'package a;\nimport x.Query;\nclass C {\n  @Query("select 1 from t")\n  void m() {}\n}\n'
-        self.assertEqual(targets(run(src, [rule])), [])        # no hook installed: nothing emitted
+        saved = rules.SQL_HOOK
         try:
+            rules.SQL_HOOK = None
+            self.assertEqual(targets(run(src, [rule])), [])    # no hook: nothing emitted
             rules.SQL_HOOK = lambda text: [("table:t", "read")] if "from t" in text else []
             self.assertEqual(targets(run(src, [rule])), ["table:t"])
         finally:
-            rules.SQL_HOOK = None
+            rules.SQL_HOOK = saved
 
 
 class MatcherTest(unittest.TestCase):

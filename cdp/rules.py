@@ -31,8 +31,12 @@ Constants stay symbolic: a dotted reference renders `${Owner.NAME}`, an unqualif
 `${<declaring class>.NAME}`. A placeholder with no value drops that `target` alternative; the
 next one is tried.
 
-`emit.sql` is the hook point for SQL in annotations (P7): a template rendering the SQL text, handed
-to `SQL_HOOK(text) -> [(target, channel)]`, one edge each. No hook is installed, so it emits nothing.
+`emit.sql` is the hook for SQL in annotations (P7): a template rendering the SQL text, handed to
+`SQL_HOOK(text) -> [(target, channel)]` (native SQL: `table:` edges, `persist` for writes, `read` for
+reads), one edge each; `"dialect": "jpql"` hands it to `JPQL_HOOK` (`entity:` edges) instead, and an
+entity with a known `@Table` name also yields that `table:` edge. `{value:all}` joins every string of
+an array argument (MyBatis `@Select({"select ...", "from t"})`). `when`/`unless` may test an argument
+of the matched annotation: `{"arg": {"nativeQuery": true}}`.
 
 Rule edges are stored in `extraction["rule_edges"]` (recomputed on every scan and refresh), never in
 `io_edges`, which `incremental_extract` carries forward per module. Read both through `all_edges`.
@@ -54,10 +58,24 @@ INHERIT_DEPTH = 5
 TYPE_KINDS = ("class", "interface", "enum", "record", "annotation")
 ON_KINDS = {"class": TYPE_KINDS, "method": ("method",), "field": ("field",), "constant": ("constant",)}
 _RULE_KEYS = {"id", "match", "aliases", "emit", "vars", "unless", "when", "fallback", "inherit", "declared"}
-_EMIT_KEYS = {"channel", "target", "signal", "sql"}
+_EMIT_KEYS = {"channel", "target", "signal", "sql", "dialect"}
 
-#: P7 plugs in here: `SQL_HOOK(sql_text) -> [(target, channel), ...]`.
-SQL_HOOK: Optional[Callable[[str], List[Tuple[str, str]]]] = None
+
+def _native_sql_edges(text: str) -> List[Tuple[str, str]]:
+    from .lang.data import sql_edges
+    return sql_edges(text)
+
+
+def _jpql_edges(text: str) -> List[Tuple[str, str]]:
+    from .lang.data import jpql_edges
+    return jpql_edges(text)
+
+
+#: `emit.sql` hooks (ANNOTATIONS_PLAN P7): `hook(sql_text) -> [(target, channel), ...]`. `SQL_HOOK` reads
+#: native SQL (`table:` edges); `JPQL_HOOK`, used by rules with `"dialect": "jpql"`, reads entity names
+#: (`entity:` edges). Setting either to None switches that dialect off.
+SQL_HOOK: Optional[Callable[[str], List[Tuple[str, str]]]] = _native_sql_edges
+JPQL_HOOK: Optional[Callable[[str], List[Tuple[str, str]]]] = _jpql_edges
 
 
 # ------------------------------------------------------------------ loading
@@ -330,6 +348,16 @@ class Site:
             if expr.startswith("join("):
                 base_e, sub_e = _split_top(expr[len("join("):-1], ",")
                 vals = [join_route(self._alts(base_e) or "", self._alts(sub_e) or "")]
+            elif flt == "all":
+                text = ""
+                for term in _split_top(expr, "|"):
+                    raw = (self.ann.get("args") or {}).get(term)
+                    items = raw if isinstance(raw, list) else [raw]
+                    text = " ".join(t for t in (render_value(it, (self.owner or self.decl)["fqn"].rsplit(".", 1)[-1])
+                                                for it in items) if t)
+                    if text:
+                        break
+                vals = [text] if text else []
             elif flt == "keys":
                 vals = []
                 for term in _split_top(expr, "|"):
@@ -369,10 +397,25 @@ def _source(d: Dict, owner: Optional[Dict]) -> str:
     return d["fqn"]
 
 
-def _blocked(rule: Dict, owner: Optional[Dict], rel: str, idx: _Index) -> bool:
+def _arg_is(ann: Optional[Dict], spec: Dict) -> bool:
+    """Every `arg: value` of `spec` holds on the annotation (`true` also matches the text "true")."""
+    args = (ann or {}).get("args") or {}
+    for key, want in spec.items():
+        got = args.get(key)
+        if got != want and not (isinstance(want, bool) and isinstance(got, str) and got.lower() == str(want).lower()):
+            return False
+    return True
+
+
+def _blocked(rule: Dict, owner: Optional[Dict], rel: str, idx: _Index, ann: Optional[Dict] = None) -> bool:
+    when = (rule.get("when") or {}).get("arg")
+    if when and not _arg_is(ann, when):
+        return True
     unless = rule.get("unless")
     if not unless:
         return False
+    if unless.get("arg") and _arg_is(ann, unless["arg"]):
+        return True
     spec = unless.get("owner") or {}
     if owner and any(ann_matches(a, _as_list(spec.get("fqn")), _as_list(spec.get("aliases")))
                      for a in owner.get("annotations") or ()):
@@ -437,15 +480,21 @@ def apply(extraction: Dict, rules: Optional[Sequence[Dict]] = None, repo: Option
     seen = set()
     fired: Dict[str, set] = {}
     deferred: List[Tuple] = []
+    jpql_edges: List[Tuple] = []
 
     def emit(rule: Dict, site: Site, rel: str, module, line: int, end_text: str, source: str, owner_file: str) -> None:
         for target in site.targets() if rule["_targets"] else ():
             put(rule, rel, module, line, end_text, source, target, rule["emit"]["channel"], owner_file)
         sql = rule["emit"].get("sql")
-        if sql and SQL_HOOK is not None:
+        jpql = rule["emit"].get("dialect") == "jpql"
+        hook = JPQL_HOOK if jpql else SQL_HOOK
+        if sql and hook is not None:
             for text in site.expand(sql):
-                for target, channel in SQL_HOOK(text):
-                    put(rule, rel, module, line, end_text, source, target, channel, owner_file)
+                for target, channel in hook(text):
+                    if jpql:
+                        jpql_edges.append((rule, rel, module, line, end_text, source, target, channel, owner_file))
+                    else:
+                        put(rule, rel, module, line, end_text, source, target, channel, owner_file)
 
     def put(rule, rel, module, line, text, source, target, channel, owner_file) -> None:
         key = (rule["id"], source, target, channel, rel, line)
@@ -476,7 +525,7 @@ def apply(extraction: Dict, rules: Optional[Sequence[Dict]] = None, repo: Option
         for role, ann, param in _decl_sites(d):
             on = _on_for(d, role)
             for rule, eff in idx.effective(ann, rel, on):
-                if _blocked(rule, owner, rel, idx):
+                if _blocked(rule, owner, rel, idx, eff):
                     continue
                 if (rule.get("when") or {}).get("first_type") and (first_type.get(rel) or (0, None))[1] != d["fqn"]:
                     continue
@@ -501,7 +550,7 @@ def apply(extraction: Dict, rules: Optional[Sequence[Dict]] = None, repo: Option
                         if role != "decl":
                             continue
                         for rule, eff in idx.effective(ann, srel, "method"):
-                            if not rule.get("inherit") or _blocked(rule, sup, srel, idx):
+                            if not rule.get("inherit") or _blocked(rule, sup, srel, idx, eff):
                                 continue
                             if any(r is rule for a in _flatten(d.get("annotations"))
                                    for r, _e in idx.effective(a, rel, "method")):
@@ -516,10 +565,38 @@ def apply(extraction: Dict, rules: Optional[Sequence[Dict]] = None, repo: Option
             continue
         emit(*job)
 
+    if jpql_edges:
+        _jpql_to_tables(jpql_edges, edges, put)
     edges.sort(key=_edge_key)
     extraction["rule_edges"] = edges
     _refresh_counts(extraction, fired, rules)
     return extraction
+
+
+def _entity_tables(edges: Sequence[Dict]) -> Dict[str, List[Tuple[str, str]]]:
+    """Entity simple name -> `[(module, table)]`: the `table:` edge `@Entity` + `@Table(name=...)` make,
+    whose source is the entity class."""
+    out: Dict[str, List[Tuple[str, str]]] = {}
+    for e in edges:
+        if e.get("rule") == "jpa.entity" and e["target"].startswith("table:"):
+            out.setdefault(e["source"].rsplit(".", 1)[-1], []).append((e["module"], e["target"][len("table:"):]))
+    return out
+
+
+def _jpql_to_tables(pending: List[Tuple], edges: List[Dict], put) -> None:
+    """JPQL names entities. The `entity:` edge is emitted; when the entity's table is named in source
+    (`@Table(name=...)`, same module preferred, never guessed between two tables) the `table:` edge is
+    emitted too. A write whose table is known gives the `table:` edge only: an `entity:` persist edge
+    is read as "persisted, no table named" by the data-model claims."""
+    tables = _entity_tables(edges)
+    for rule, rel, module, line, text, source, target, channel, owner_file in pending:
+        cands = tables.get(target[len("entity:"):].rsplit(".", 1)[-1], [])
+        pick = {t for m, t in cands if m == module} or {t for _m, t in cands}
+        table = next(iter(pick)) if len(pick) == 1 else None
+        if table is None or channel != "persist":
+            put(rule, rel, module, line, text, source, target, channel, owner_file)
+        if table is not None:
+            put(rule, rel, module, line, text, source, "table:" + table, channel, owner_file)
 
 
 def _refresh_counts(extraction: Dict, fired: Dict[str, set], rules: Sequence[Dict]) -> None:
