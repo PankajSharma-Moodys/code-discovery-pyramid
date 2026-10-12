@@ -24,7 +24,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Tuple
 
-from .java_decl import DeclParser, JMember, JType
+from .java_decl import DeclParser, JMember, JType, join_tokens, skip_annotation
 from .java_flow import emit_flow, use_row
 from .java_tokens import Tokens
 from .java_types import norm_type, resolve_name
@@ -37,6 +37,7 @@ from .base import (
     count_loc,
     first_string_literal,
     is_third_party,
+    annotation_rows,
     mk_define,
     mk_edge,
     mk_use,
@@ -61,7 +62,6 @@ METHOD_RE = re.compile(
     r"([\w$<>\[\],.?\s]+?)\s+([a-zA-Z_$][\w$]*)\s*\("
 )
 MAIN_RE = re.compile(r"\bpublic\s+static\s+void\s+main\s*\(\s*(?:final\s+)?String")
-ANNOTATION_RE = re.compile(r"^\s*@([A-Za-z_$][\w$.]*)\s*(\(.*)?$")
 EXTENDS_REPO_RE = re.compile(
     r"\b(?:extends|implements)\s+[\w.]*(JpaRepository|CrudRepository|PagingAndSortingRepository|MongoRepository|JpaSpecificationExecutor)\s*<\s*([\w$.]+)"
 )
@@ -121,14 +121,14 @@ class JavaExtractor(Extractor):
         resolver = _Resolver(pkg, simple_to_fqn, wildcards)
         resolver.local_types = {t.name: t.fqn for t in types}
         decls = _declarations(ctx, facts, tk, types, resolver, imports)
-        annotations = _read_annotations(code)
+        annotations = _read_annotations(tk, types)
 
         primary = decls[0]["fqn"] if decls else (pkg + "." + _stem(ctx.path) if pkg else _stem(ctx.path))
         facts.primary = primary
 
         _emit_import_edges(ctx, facts, imports, primary)
         _emit_annotation_facts(ctx, facts, annotations, decls, primary, resolver, code)
-        _emit_repository_edges(ctx, facts, code, decls, primary, resolver)
+        _emit_repository_edges(ctx, facts, code, annotations, decls, primary, resolver)
         _emit_mapper_edges(ctx, facts, code, annotations, decls, primary, resolver)
         _emit_entrypoints(ctx, facts, code, primary)
         statics: Dict[str, str] = {}
@@ -243,13 +243,18 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
             row["ret" if row["kind"] == "method" else "ftype"] = norm
         return row
 
+    for jt in types:
+        _resolve_annotations(jt, resolver)
     for jt in sorted(types, key=lambda t: (t.line, t.fqn)):
         anchor = anchor_at(ctx, jt.line)
         no_routes = retrofit or any(n == "FeignClient" for n, _ in jt.anns)
         if anchor is not None:
-            row = mk_define(jt.fqn, jt.kind, _visibility(jt.mods), anchor)
+            row = mk_define(jt.fqn, jt.kind, _visibility(jt.mods), anchor, annotations=jt.anns)
             if jt.tparams:
                 row["tparams"] = jt.tparams
+            if jt.supertypes:
+                row["supertypes"] = [norm_type(t, lambda n: resolve_name(resolver, n), jt.all_tparams()) or t
+                                     for t in jt.supertypes]
             facts.defines.append(row)
             decls.append({"fqn": jt.fqn, "kind": jt.kind, "visibility": _visibility(jt.mods),
                           "anchor": anchor, "index": jt.line, "name": jt.name})
@@ -265,14 +270,20 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
             if m.kind in ("method", "ctor"):
                 name = "<init>" if m.kind == "ctor" else m.name
                 fqn = jt.fqn + "#" + name
-                row = mk_define(fqn, "method", vis, anchor, end_line=m.end_line + 1)
+                row = mk_define(fqn, "method", vis, anchor, end_line=m.end_line + 1, annotations=m.anns)
                 if m.kind == "method":
                     typed(row, m.ret, tv | set(m.tparams))
+                if m.params:
+                    mtv = tv | set(m.tparams)
+                    row["params"] = [
+                        _param_row(pname, norm_type(ptype, lambda n: resolve_name(resolver, n), mtv) or ptype, pa)
+                        for (ptype, pname), pa in zip(m.params, m.param_anns)]
                 facts.defines.append(row)
                 decls.append({"fqn": fqn, "kind": "method", "visibility": vis, "anchor": anchor,
                               "index": m.line, "name": name, "no_routes": no_routes})
             elif m.kind == "enum_const":
-                row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1)
+                row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1,
+                                annotations=m.anns)
                 row["ftype"] = jt.fqn
                 facts.defines.append(row)
             elif m.kind == "field":
@@ -281,11 +292,11 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                 if static_final and m.init:
                     value = _constant_value(tk, m, jt, values)
                     values[m.name] = value
-                    row = mk_define(fqn, "constant", vis, anchor, value=value)
+                    row = mk_define(fqn, "constant", vis, anchor, value=value, annotations=m.anns)
                     decls.append({"fqn": fqn, "kind": "constant", "visibility": vis, "anchor": anchor,
                                   "index": m.line, "name": m.name, "no_routes": no_routes})
                 else:
-                    row = mk_define(fqn, "field", vis, anchor)
+                    row = mk_define(fqn, "field", vis, anchor, annotations=m.anns)
                     decls.append({"fqn": fqn, "kind": "field", "visibility": vis, "anchor": anchor,
                                   "index": m.line, "name": m.name, "owner_fqn": jt.fqn,
                                   "no_routes": no_routes})
@@ -293,6 +304,38 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                 facts.defines.append(row)
     decls.sort(key=lambda d: d["index"])
     return decls
+
+
+_QUALIFIED_ANN_RE = re.compile(r"@([\w$]+(?:\s*\.\s*[\w$]+)*)")
+
+
+def _resolve_annotations(jt: JType, resolver: "_Resolver") -> None:
+    """Set `fqn` on every annotation of the type, its members and their parameters, where the
+    file says what it is: a dotted name, a single-type import, or a type declared here. A name
+    that only a wildcard import or the JDK could supply stays simple (rules match its alias)."""
+    def one(ann) -> None:
+        m = _QUALIFIED_ANN_RE.match(ann[1])
+        name = m.group(1).replace(" ", "") if m else ann[0]
+        if "." in name:
+            ann.fqn = resolver.resolve(name)[0]
+        else:
+            ann.fqn = resolver.local_types.get(name) or resolver.simple_to_fqn.get(name)
+
+    for ann in jt.anns:
+        one(ann)
+    for m in jt.members:
+        for ann in m.anns:
+            one(ann)
+        for group in m.param_anns:
+            for ann in group:
+                one(ann)
+
+
+def _param_row(name: str, ptype: str, anns) -> Dict:
+    row = {"name": name, "type": ptype}
+    if anns:
+        row["annotations"] = annotation_rows(anns)
+    return row
 
 
 def _constant_value(tk: Tokens, m: JMember, jt: JType, values: Dict[str, Optional[str]]) -> str:
@@ -363,23 +406,30 @@ def _mask_literals(line: str) -> str:
     return "".join(out)
 
 
-def _read_annotations(code: List[str]) -> List[_Annotation]:
-    """Annotation sites, joining arguments that wrap across lines."""
+def _read_annotations(tk: Tokens, types: List[JType]) -> List[_Annotation]:
+    """Every declaration-level annotation site, from the token stream: any position (several
+    to a line, after a modifier, on a parameter, nested in another annotation's arguments) and
+    never inside a string or comment. Method bodies and field initialisers are skipped: an
+    annotation there decorates a local variable or an anonymous class's member, not an API.
+    `args` is the argument list as compact source text, `(...)`."""
+    skip = bytearray(tk.n)
+    for jt in types:
+        for m in jt.members:
+            for span in (m.body, m.init):
+                if span:
+                    skip[span[0]:span[1]] = b"\x01" * (span[1] - span[0])
     found: List[_Annotation] = []
-    for idx, line in enumerate(code):
-        m = ANNOTATION_RE.match(line)
-        if not m:
+    for i in range(tk.n):
+        if skip[i]:
             continue
-        name = m.group(1).rsplit(".", 1)[-1]
-        args = m.group(2) or ""
-        if args:
-            depth = args.count("(") - args.count(")")
-            j = idx + 1
-            while depth > 0 and j < len(code) and j - idx < 30:
-                args += " " + code[j].strip()
-                depth += code[j].count("(") - code[j].count(")")
-                j += 1
-        found.append(_Annotation(name, args, idx))
+        if tk.text[i] != "@" or tk.kind[i] != "op" or not tk.is_id(i + 1) or tk.text[i + 1] == "interface":
+            continue
+        j = i + 1
+        while tk.at(j + 1) == "." and tk.is_id(j + 2):
+            j += 2
+        k = skip_annotation(tk, i)
+        args = join_tokens(tk, j + 1, k) if k > j + 1 else ""
+        found.append(_Annotation(tk.text[j], args, tk.line[i]))
     return found
 
 
@@ -682,6 +732,7 @@ def _emit_repository_edges(
     ctx: ExtractContext,
     facts: FileFacts,
     code: List[str],
+    annotations: List[_Annotation],
     decls: List[Dict],
     primary: str,
     resolver: _Resolver,
@@ -698,11 +749,8 @@ def _emit_repository_edges(
     Collapsing them would either lose three repositories or invent three entity
     bindings, and the second failure is the one nobody would notice.
     """
-    for idx, line in enumerate(code):
-        m = ANNOTATION_RE.match(line)
-        if m and m.group(1).rsplit(".", 1)[-1] == "Repository":
-            facts.signals.append("repository")
-            break
+    if any(a.name == "Repository" for a in annotations):
+        facts.signals.append("repository")
 
     for idx, line in enumerate(code):
         m = EXTENDS_REPO_RE.search(line)

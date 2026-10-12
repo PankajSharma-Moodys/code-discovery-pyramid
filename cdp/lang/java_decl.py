@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Set, Tuple
 
+from .base import Ann
 from .java_tokens import Tokens
 
 MODIFIERS = frozenset(["public", "protected", "private", "static", "final", "abstract",
@@ -28,7 +29,7 @@ TYPE_KEYWORDS = ("class", "interface", "enum")
 
 class JMember:
     __slots__ = ("kind", "name", "mods", "anns", "ret", "params", "tparams", "line", "start_line",
-                 "end_line", "body", "init", "owner", "static", "ftype", "varargs")
+                 "end_line", "body", "init", "owner", "static", "ftype", "varargs", "param_anns")
 
     def __init__(self, kind: str, name: str, owner: "JType") -> None:
         self.kind, self.name, self.owner = kind, name, owner
@@ -37,6 +38,7 @@ class JMember:
         self.ret = ""
         self.ftype = ""
         self.params: List[Tuple[str, str]] = []
+        self.param_anns: List[List[Ann]] = []         # parallel to `params`
         self.tparams: List[str] = []
         self.line = self.start_line = self.end_line = 0
         self.body: Optional[Tuple[int, int]] = None   # token span of a method body
@@ -78,6 +80,10 @@ class JType:
         self.types: List["JType"] = []
         self.body: Tuple[int, int] = (0, 0)
         self.static = False
+
+    @property
+    def supertypes(self) -> List[str]:
+        return self.extends + self.implements
 
     def all_bounds(self) -> Dict[str, List[str]]:
         """Declared bounds of every type parameter in scope (inner declarations win)."""
@@ -148,7 +154,27 @@ def parse_type(tk: Tokens, i: int) -> Optional[Tuple[int, str]]:
         break
     while tk.at(j) == "[" and tk.at(j + 1) == "]":
         j += 2
-    return j, join_tokens(tk, start, j)
+    return j, join_type(tk, start, j)
+
+
+def join_type(tk: Tokens, a: int, b: int) -> str:
+    """Type text for tokens [a, b) without type-use annotations (`List<@NonNull String>`)."""
+    kept: List[str] = []
+    i = a
+    while i < b:
+        if tk.text[i] == "@" and tk.kind[i] == "op" and tk.is_id(i + 1):
+            i = skip_annotation(tk, i)
+            continue
+        kept.append(tk.text[i])
+        i += 1
+    out: List[str] = []
+    prev = ""
+    for t in kept:
+        if prev and (prev[-1].isalnum() or prev[-1] in "_$") and (t[0].isalnum() or t[0] in "_$"):
+            out.append(" ")
+        out.append(t)
+        prev = t
+    return "".join(out)
 
 
 class TParams(list):
@@ -223,6 +249,18 @@ class DeclParser:
             i = max(j, i + 1) if j == i else j + 1
         return tops
 
+    def _annotation(self, i: int) -> Tuple[Ann, int]:
+        """The annotation at the `@` at `i` (simple name, whitespace-light text, line span) and
+        the index past it."""
+        tk = self.tk
+        name = tk.text[i + 1]
+        j = i + 2
+        while tk.at(j) == "." and tk.is_id(j + 1):
+            name = tk.text[j + 1]
+            j += 2
+        k = skip_annotation(tk, i)
+        return Ann(name, join_tokens(tk, i, k), tk.line[i], tk.line[k - 1]), k
+
     def _modifiers(self, i: int) -> Tuple[Set[str], List[Tuple[str, str]], int]:
         tk = self.tk
         mods: Set[str] = set()
@@ -230,14 +268,8 @@ class DeclParser:
         while i < tk.n:
             t = tk.text[i]
             if t == "@" and tk.at(i + 1) != "interface" and tk.is_id(i + 1):
-                name = tk.text[i + 1]
-                j = i + 2
-                while tk.at(j) == "." and tk.is_id(j + 1):
-                    name = tk.text[j + 1]
-                    j += 2
-                k = skip_annotation(tk, i)
-                anns.append((name, join_tokens(tk, i, k)))
-                i = k
+                ann, i = self._annotation(i)
+                anns.append(ann)
             elif tk.kind[i] == "id" and t in MODIFIERS and not (t == "default" and tk.at(i + 1) in (":", "->")):
                 mods.add(t)
                 i += 1
@@ -313,8 +345,9 @@ class DeclParser:
         return jt, close + 1
 
     def _record_components(self, jt: JType, a: int, b: int) -> None:
-        for ptype, pname, line, _ in self._params(a, b):
+        for ptype, pname, line, _, panns in self._params(a, b):
             m = JMember("field", pname, jt)
+            m.anns = panns
             m.mods = {"private", "final"}
             m.ftype, m.line, m.start_line, m.end_line = ptype, line, line, line
             jt.members.append(m)
@@ -386,14 +419,19 @@ class DeclParser:
             i += 1
         return i + 1
 
-    def _params(self, a: int, b: int) -> List[Tuple[str, str, int, bool]]:
-        """(type text, name, line, varargs) for the parameter list in tokens [a, b)."""
+    def _params(self, a: int, b: int) -> List[Tuple[str, str, int, bool, List[Ann]]]:
+        """(type text, name, line, varargs, annotations) for the parameter list in tokens [a, b)."""
         tk = self.tk
-        out: List[Tuple[str, str, int, bool]] = []
+        out: List[Tuple[str, str, int, bool, List[Ann]]] = []
         i = a
         while i < b:
+            panns: List[Ann] = []
             while i < b and (tk.at(i) == "@" or tk.at(i) == "final"):
-                i = skip_annotation(tk, i) if tk.at(i) == "@" else i + 1
+                if tk.at(i) == "@":
+                    ann, i = self._annotation(i)
+                    panns.append(ann)
+                else:
+                    i += 1
             r = parse_type(tk, i)
             if r is None:
                 # skip to the next top-level comma
@@ -417,7 +455,7 @@ class DeclParser:
                     ptype += "[]"
                     j += 2
                 if name != "this":
-                    out.append((ptype, name, line, varargs))
+                    out.append((ptype, name, line, varargs, panns))
             while j < b and tk.text[j] != ",":
                 if tk.kind[j] == "op" and tk.text[j] in "([{":
                     j = tk.close(j)
@@ -436,8 +474,9 @@ class DeclParser:
         po = name_i + 1
         pc = tk.close(po)
         plist = self._params(po + 1, pc)
-        m.params = [(t, n) for t, n, _, _ in plist]
-        m.varargs = any(v for *_, v in plist)
+        m.params = [(t, n) for t, n, *_ in plist]
+        m.param_anns = [pa for *_, pa in plist]
+        m.varargs = any(v for _, _, _, v, _ in plist)
         j = pc + 1
         while j < end and tk.text[j] not in ("{", ";"):
             if tk.text[j] == "default" and tk.kind[j] == "id":
@@ -502,11 +541,14 @@ class DeclParser:
     def _enum_constants(self, jt: JType, i: int, end: int) -> int:
         tk = self.tk
         while i < end:
+            canns: List[Ann] = []
             while tk.at(i) == "@":
-                i = skip_annotation(tk, i)
+                ann, i = self._annotation(i)
+                canns.append(ann)
             if not tk.is_id(i):
                 break
             m = JMember("enum_const", tk.text[i], jt)
+            m.anns = canns
             m.mods = {"public", "static", "final"}
             m.static = True
             m.ftype = jt.name

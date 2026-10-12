@@ -53,6 +53,12 @@
       "fqn": "com.example.mini.core.Widget#<init>",
       "kind": "method",
       "module": "core",
+      "params": [
+        {
+          "name": "id",
+          "type": "String"
+        }
+      ],
       "visibility": "public"
     },
     {
@@ -61,11 +67,25 @@
         "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
         "line": 19
       },
+      "annotations": [
+        {
+          "end_line": 18,
+          "line": 18,
+          "name": "Override",
+          "text": "@Override"
+        }
+      ],
       "end_line": 21,
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget#equals",
       "kind": "method",
       "module": "core",
+      "params": [
+        {
+          "name": "other",
+          "type": "Object"
+        }
+      ],
       "visibility": "public"
     },
     {
@@ -113,6 +133,22 @@
         "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
         "line": 10
       },
+      "annotations": [
+        {
+          "end_line": 8,
+          "fqn": "jakarta.persistence.Entity",
+          "line": 8,
+          "name": "Entity",
+          "text": "@Entity"
+        },
+        {
+          "end_line": 9,
+          "fqn": "jakarta.persistence.Table",
+          "line": 9,
+          "name": "Table",
+          "text": "@Table(name=\"widget\")"
+        }
+      ],
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity",
       "kind": "class",
@@ -138,6 +174,15 @@
         "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
         "line": 15
       },
+      "annotations": [
+        {
+          "end_line": 14,
+          "fqn": "jakarta.persistence.Column",
+          "line": 14,
+          "name": "Column",
+          "text": "@Column(name=\"display_name\")"
+        }
+      ],
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity.displayName",
       "kind": "field",
@@ -150,6 +195,15 @@
         "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
         "line": 12
       },
+      "annotations": [
+        {
+          "end_line": 12,
+          "fqn": "jakarta.persistence.Id",
+          "line": 12,
+          "name": "Id",
+          "text": "@Id"
+        }
+      ],
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity.id",
       "kind": "field",
@@ -162,10 +216,22 @@
         "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
         "line": 7
       },
+      "annotations": [
+        {
+          "end_line": 6,
+          "fqn": "org.springframework.stereotype.Repository",
+          "line": 6,
+          "name": "Repository",
+          "text": "@Repository"
+        }
+      ],
       "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
       "fqn": "com.example.mini.core.WidgetRepository",
       "kind": "interface",
       "module": "core",
+      "supertypes": [
+        "org.springframework.data.jpa.repository.JpaRepository<com.example.mini.core.WidgetEntity,Long>"
+      ],
       "visibility": "public"
     },
     {
@@ -229,6 +295,12 @@
       "fqn": "com.example.mini.web.WebApplication#main",
       "kind": "method",
       "module": "web",
+      "params": [
+        {
+          "name": "args",
+          "type": "String[]"
+        }
+      ],
       "visibility": "public"
     },
     {
@@ -237,6 +309,15 @@
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 11
       },
+      "annotations": [
+        {
+          "end_line": 10,
+          "fqn": "javax.ws.rs.Path",
+          "line": 10,
+          "name": "Path",
+          "text": "@Path(ApiPaths.WIDGETS)"
+        }
+      ],
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.web.WidgetResource",
       "kind": "class",
@@ -254,6 +335,12 @@
       "fqn": "com.example.mini.web.WidgetResource#<init>",
       "kind": "method",
       "module": "web",
+      "params": [
+        {
+          "name": "repository",
+          "type": "com.example.mini.core.WidgetRepository"
+        }
+      ],
       "visibility": "public"
     },
     {
@@ -262,11 +349,42 @@
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 26
       },
+      "annotations": [
+        {
+          "end_line": 24,
+          "fqn": "javax.ws.rs.GET",
+          "line": 24,
+          "name": "GET",
+          "text": "@GET"
+        },
+        {
+          "end_line": 25,
+          "fqn": "javax.ws.rs.Path",
+          "line": 25,
+          "name": "Path",
+          "text": "@Path(\"/{id}\")"
+        }
+      ],
       "end_line": 28,
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.web.WidgetResource#get",
       "kind": "method",
       "module": "web",
+      "params": [
+        {
+          "annotations": [
+            {
+              "end_line": 26,
+              "fqn": "javax.ws.rs.PathParam",
+              "line": 26,
+              "name": "PathParam",
+              "text": "@PathParam(\"id\")"
+            }
+          ],
+          "name": "id",
+          "type": "String"
+        }
+      ],
       "ret": "com.example.mini.core.Widget",
       "visibility": "public"
     },
@@ -276,6 +394,15 @@
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 20
       },
+      "annotations": [
+        {
+          "end_line": 19,
+          "fqn": "javax.ws.rs.GET",
+          "line": 19,
+          "name": "GET",
+          "text": "@GET"
+        }
+      ],
       "end_line": 22,
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.web.WidgetResource#list",

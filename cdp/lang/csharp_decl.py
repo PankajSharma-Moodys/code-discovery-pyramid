@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Set, Tuple
 
+from .base import Ann
 from .csharp_tokens import CsTokens
 from .java_decl import JMember, JType, join_tokens
 
@@ -357,7 +358,7 @@ class DeclParser:
                         break
                     if name.endswith("Attribute") and len(name) > 9:
                         name = name[:-9]
-                    anns.append((name, join_tokens(tk, a, j)))
+                    anns.append(Ann(name, join_tokens(tk, a, j), tk.line[a], tk.line[max(a, j - 1)]))
                 a = j + 1
             j += 1
         return c + 1

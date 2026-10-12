@@ -174,13 +174,49 @@ def anchor_at(ctx: ExtractContext, index: int) -> Optional[Dict]:
     return build_anchor(ctx.path, ctx.lines, index)
 
 
+class Ann(tuple):
+    """One annotation (Java) or attribute (C#): `(name, text)` like the plain tuples it
+    replaces, so `for name, text in anns` still reads it, plus the 0-based `line` and
+    `end_line` it spans, so the index can cite the annotation and not just its owner."""
+
+    def __new__(cls, name: str, text: str, line: int, end_line: int) -> "Ann":
+        self = tuple.__new__(cls, (name, text))
+        self.line, self.end_line = line, end_line
+        self.fqn: Optional[str] = None      # set by the language extractor when imports resolve it
+        return self
+
+
+#: Longest annotation text kept on a define row; a longer one (a multi-line `@Query`) is cut
+#: with `...`, and its cited lines hold the rest.
+ANNOTATION_TEXT_MAX = 400
+
+
+def annotation_rows(anns: Sequence) -> List[Dict]:
+    """The `annotations` a define row carries: name, source text, 1-based line span."""
+    rows = []
+    for ann in anns:
+        name, text = ann[0], re.sub(r"\s*\n\s*", " ", ann[1]).strip()   # strings stay exact
+        if len(text) > ANNOTATION_TEXT_MAX:
+            text = text[:ANNOTATION_TEXT_MAX - 3] + "..."
+        row = {"name": name}
+        if isinstance(ann, Ann) and ann.fqn:
+            row["fqn"] = ann.fqn
+        row["text"] = text
+        if isinstance(ann, Ann):
+            row["line"], row["end_line"] = ann.line + 1, ann.end_line + 1
+        rows.append(row)
+    return rows
+
+
 def mk_define(fqn: str, kind: str, visibility: str, anchor: Dict, value: Optional[str] = None,
-              end_line: Optional[int] = None) -> Dict:
+              end_line: Optional[int] = None, annotations: Sequence = ()) -> Dict:
     row = {"fqn": fqn, "kind": kind, "visibility": visibility, "anchor": anchor}
     if value is not None:
         row["value"] = value
     if end_line is not None:
         row["end_line"] = end_line
+    if annotations:
+        row["annotations"] = annotation_rows(annotations)
     return row
 
 
