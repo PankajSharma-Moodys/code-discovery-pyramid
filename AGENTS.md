@@ -40,6 +40,10 @@ Add `--json` to any `query` for the full, unabridged result.
 - **Check coverage before saying "there is no X".** Run `query coverage`
   first. Low coverage means the index has not looked, not that the fact is
   absent.
+- **Follow every fork before you answer.** When a result branches (several
+  handlers, callers, implementations, readers or writers, `elided: N`, or a
+  path that stops short), run `query` for each branch to its end first. Never
+  answer from the first branch; if you stop early, say which you did not follow.
 - **If the repo has changed since the last `scan`**, run `query stats` and
   compare its `head` to the current commit; re-`scan` (or `refresh`, if this
   is a git repository) rather than trusting a stale index.

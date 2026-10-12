@@ -173,13 +173,23 @@ class InstallExtrasTest(unittest.TestCase):
             self.assertIn("`%s`" % kind, block)
         rows = [r for r in block.splitlines() if r.startswith("| ") and "`" in r and "Question" not in r]
         self.assertEqual(len(rows), 6)
-        # The five usage rules: CDP first for discovery, no grep first, cited ranges, help, memory.
+        # The six usage rules: CDP first for discovery, no grep first, cited ranges, every fork, help, memory.
         for rule in ("MUST use CDP for code discovery", "Do not grep first", "offset`/`limit",
-                     "`cdp_help`", "memory note"):
+                     "Follow every fork before you answer", "`cdp_help`", "memory note"):
             self.assertIn(rule, block)
-        self.assertEqual([r[:2] for r in block.splitlines() if r[:1].isdigit()], ["1.", "2.", "3.", "4.", "5."])
+        self.assertEqual([r[:2] for r in block.splitlines() if r[:1].isdigit()], ["1.", "2.", "3.", "4.", "5.", "6."])
         with mock.patch.object(install_extras, "KINDS", {**KINDS, "jobs": {"summary": "scheduled jobs and when they run"}}):
             self.assertIn("`jobs`", install_extras.claude_md_block())
+
+    def test_follow_every_fork_rule_is_on_each_once_per_session_surface(self) -> None:
+        """The rule lives where it is read once (CLAUDE.md block, AGENTS.md, the MCP tool description),
+        not in the per-prompt hook text, which would add its tokens to every turn."""
+        from cdp import guide, hook
+        agents = (Path(install_extras.__file__).resolve().parent.parent / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("Follow every fork before you answer", install_extras.claude_md_block())
+        self.assertIn("Follow every fork before you answer", agents)
+        self.assertIn("query every branch before answering", guide.mcp_query_description())
+        self.assertNotIn("fork", hook.STANDING_RULE + hook.RECIPE)
 
     def test_a_dangling_begin_marker_is_refused_not_clobbered(self) -> None:
         path = self.target / "CLAUDE.md"

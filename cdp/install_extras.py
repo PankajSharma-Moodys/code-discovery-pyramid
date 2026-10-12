@@ -48,9 +48,12 @@ def claude_md_block() -> str:
         "or when `cdp_query` found nothing and kind `coverage` shows the place was not examined.",
         "3. **Respect the cited ranges.** CDP answers cite `file:line` and `file:start-end`. Read code with exactly "
         "those ranges (Read `offset`/`limit`); never read a whole source file when a range is cited.",
-        "4. **Confused? Ask CDP.** When unsure which kind, term or flag fits, call `cdp_help` (CLI `cdp help`) "
+        "4. **Follow every fork before you answer.** When a `cdp_query` answer branches (several handlers, callers, "
+        "implementations, readers or writers, `elided: N`, or a path that stops short), query each branch to its end "
+        "first. Never answer from the first branch; if you stop early, say which branches you did not follow.",
+        "5. **Confused? Ask CDP.** When unsure which kind, term or flag fits, call `cdp_help` (CLI `cdp help`) "
         "before falling back to anything else.",
-        "5. **Remember these rules.** Keep a memory note (type feedback) that this repo is CDP-indexed and rules 1-4 "
+        "6. **Remember these rules.** Keep a memory note (type feedback) that this repo is CDP-indexed and rules 1-5 "
         "apply, so they hold across sessions; when you notice you broke one, say so and update that note.",
         "",
         "| Question | `kind` |",

@@ -126,7 +126,9 @@ def mcp_query_description() -> str:
              "gives flags and recipes. Pick `kind`:"]
     lines += ["%s: %s [%s]" % (k, v["summary"], _term_tag(k)) for k, v in KINDS.items()]
     lines.append("Params apply per kind; passing one a kind does not use is an error. `elided: N` "
-                 "means rows were cut by `budget`; check `coverage` before saying 'no X'.")
+                 "means rows were cut by `budget`; check `coverage` before saying 'no X'. At a fork (several "
+                 "handlers, callers, implementations, readers or writers, a path that stops) query every "
+                 "branch before answering.")
     return "\n".join(lines)
 
 
