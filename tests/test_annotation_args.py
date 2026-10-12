@@ -8,7 +8,7 @@ import time
 import unittest
 from pathlib import Path
 
-from helpers import Pipeline
+from helpers import Pipeline, facts_edges
 
 from cdp.lang.base import ExtractContext
 from cdp.lang.java import JavaExtractor
@@ -145,7 +145,7 @@ class PlacementTest(unittest.TestCase):
     def test_edges_are_unchanged_by_args(self):
         f = extract('package a;\nimport org.springframework.beans.factory.annotation.Value;\nclass C {\n'
                     '  @Value("${k:30}") int n;\n}\n')
-        self.assertIn("config:k", [e["target"] for e in f.io_edges if e["channel"] == "config_read"])
+        self.assertIn("config:k", [e["target"] for e in facts_edges(f) if e["channel"] == "config_read"])
 
 
 CONSTANTS = """package a.api;

@@ -69,7 +69,6 @@ IFACE_METHOD_RE = re.compile(
     r"^\s*(?:public\s+|default\s+|abstract\s+)*"
     r"([A-Z][\w$<>,.\s\[\]]*?)\s+([a-zA-Z_$][\w$]*)\s*\(\s*([^)]*)\)\s*[;{]"
 )
-VALUE_KEY_RE = re.compile(r"\$\{([^}:]+)(?::[^}]*)?\}")
 JOB_RE = re.compile(r"\b(?:implements|extends)\s+[\w.]*\b(Job|InterruptableJob|AbstractJob)\b")
 
 HTTP_VERBS = ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS")
@@ -548,22 +547,7 @@ def _emit_annotation_facts(
     # --- HTTP inbound ------------------------------------------------------
     _emit_http_routes(ctx, facts, decls)
 
-    # --- configuration -----------------------------------------------------
-    for ann in by_name.get("Value", []):
-        for key in VALUE_KEY_RE.findall(ann.args):
-            anchor = anchor_at(ctx, ann.index)
-            if anchor:
-                facts.io_edges.append(
-                    mk_edge(_owner_for(ann.index, decls, primary), "config:" + key, "config_read", anchor)
-                )
-    for ann in by_name.get("ConfigurationProperties", []):
-        prefix = _named_arg(ann.args, "prefix") or first_string_literal(ann.args) or ""
-        anchor = anchor_at(ctx, ann.index)
-        if anchor:
-            facts.io_edges.append(
-                mk_edge(_owner_for(ann.index, decls, primary),
-                        "config:" + (prefix or "(class)"), "config_read", anchor)
-            )
+    # `@Value`, `@ConfigurationProperties` -> config_read edges: rules/spring_config.json.
 
     # --- scheduling --------------------------------------------------------
     scheduled = set()

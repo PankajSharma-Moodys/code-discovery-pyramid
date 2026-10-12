@@ -254,6 +254,28 @@ class JpaFamilyTest(unittest.TestCase):
         self.assertEqual(ex["files"]["a/C.java"]["io_edges"], len(rules.all_edges(ex)))
 
 
+class ConfigFamilyTest(unittest.TestCase):
+    def test_value_keys_from_field_method_and_constructor_parameter(self):
+        src = ('package a;\nimport org.springframework.beans.factory.annotation.Value;\nclass C {\n'
+               '  @Value("${a.b:30}") int f;\n'
+               '  C(\n    @Value("${c.d}") String d,\n    @Value("${e}") String e) {}\n'
+               '  @Value("${x}-${y:1}") void set(String s) {}\n}\n')
+        got = [(s, t, line) for _, s, t, line in shipped(src)]
+        self.assertEqual(sorted(got), [("a.C", "config:a.b", 4), ("a.C#<init>", "config:c.d", 6),
+                                        ("a.C#<init>", "config:e", 7), ("a.C#set", "config:x", 8),
+                                        ("a.C#set", "config:y", 8)])
+
+    def test_configuration_properties_prefix_forms(self):
+        for ann, want in (('@ConfigurationProperties(prefix = "pool")', "config:pool"),
+                          ('@ConfigurationProperties("srv")', "config:srv"),
+                          ("@ConfigurationProperties", "config:(class)")):
+            src = "package a;\nimport org.springframework.boot.context.properties.*;\n%s\nclass P {}\n" % ann
+            self.assertEqual([(s, t) for _, s, t, _ in shipped(src)], [("a.P", want)])
+
+    def test_a_value_annotation_of_another_package_is_not_config(self):
+        self.assertEqual(shipped('package a;\nimport org.other.Value;\nclass C {\n  @Value("${k}") int f;\n}\n'), [])
+
+
 class AllEdgesTest(unittest.TestCase):
     def test_all_edges_merges_in_io_edges_order_and_returns_io_edges_when_there_are_no_rule_edges(self):
         io = [{"source": "b", "target": "t", "channel": "c", "file": "f", "anchor": {"file": "f", "line": 1}}]
