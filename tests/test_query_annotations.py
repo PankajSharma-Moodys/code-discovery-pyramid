@@ -10,9 +10,10 @@ from pathlib import Path
 
 from helpers import Pipeline
 
-from cdp.query.lookup import q_file, q_symbol
+from cdp.query.lookup import q_config, q_file, q_routes, q_symbol, q_table
 from cdp.query.render import render
 from cdp.query.search import q_search
+from cdp.query.trace import q_trace
 
 JOB = """package a.jobs;
 
@@ -33,7 +34,34 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/c")
 public class C {
     @GetMapping("/x/{id}")
-    public String x(@PathVariable("id") Long id, @RequestBody String body) { return ""; }
+    public String x(@PathVariable("id") Long id, @RequestBody String body) { return svc.load(id); }
+    private final a.svc.OrderService svc = null;
+}
+"""
+
+SERVICE = """package a.svc;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+@Service("orders")
+public class OrderService {
+    @Value("${orders.url:http://x}")
+    private String url;
+
+    public String load(Long id) { return url; }
+}
+"""
+
+ENTITY = """package a.svc;
+
+import javax.persistence.Entity;
+import javax.persistence.Table;
+
+@Entity
+@Table(name = "orders")
+public class OrderEntity {
+    Long id;
 }
 """
 
@@ -41,6 +69,7 @@ public class C {
 class _Store:
     def __init__(self, p: Pipeline) -> None:
         self.extraction, self.xref, self.inventory = p.extraction, p.xref, p.inventory
+        self.dataflow = p.dataflow
         self.state = {"claims": [], "unknowns": [], "provenance": {}}
 
     def node_of(self, path):
@@ -53,7 +82,9 @@ class QueryAnnotationsTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         root = Path(cls.tmp.name) / "annrepo"
         for rel, body in (("src/main/java/a/jobs/AutoScaleJob.java", JOB),
-                          ("src/main/java/a/web/C.java", CONTROLLER)):
+                          ("src/main/java/a/web/C.java", CONTROLLER),
+                          ("src/main/java/a/svc/OrderService.java", SERVICE),
+                          ("src/main/java/a/svc/OrderEntity.java", ENTITY)):
             path = root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(body)
@@ -109,6 +140,44 @@ class QueryAnnotationsTest(unittest.TestCase):
         job = next(d for d in entry["defines"] if d["fqn"] == "a.jobs.AutoScaleJob")
         self.assertEqual(job["annotations"][0]["at"].rsplit(":", 1)[1], "5-6")
         self.assertIn("@Every(", render({"query": "file", "path": "x", "match": "exact", "found": [entry]}))
+
+    def test_routes_carry_the_handlers_annotations(self):
+        (row,) = q_routes(self.store, "/x")["routes"]
+        self.assertEqual([a["text"] for a in row["annotations"]], ['@GetMapping("/x/{id}")'])
+        self.assertEqual([a["text"] for a in row["class_annotations"]], ["@RestController", '@RequestMapping("/c")'])
+        self.assertEqual([p["name"] for p in row["params"]], ["id", "body"])
+        text = render({"query": "routes", "count": 1, "routes": [row], "match": "all"})
+        self.assertIn('@GetMapping("/x/{id}")', text)
+        self.assertIn("class @RestController", text)
+
+    def test_table_code_group_carries_annotations_and_script_group_none(self):
+        (t,) = q_table(self.store, "orders")["tables"]
+        groups = t["writers"] + t["readers"]
+        g = next(g for g in groups if g["fqn"] == "a.svc.OrderEntity")
+        self.assertEqual([a["text"] for a in g["annotations"]], ["@Entity", '@Table(name="orders")'])
+        self.assertTrue(all("annotations" not in g for g in groups if g["kind"] == "script"))
+        text = render({"query": "table", "count": 1, "tables": [t], "match": "all"})
+        self.assertIn('@Table(name="orders")', text)
+
+    def test_config_read_site_carries_its_reader_annotations(self):
+        (key,) = q_config(self.store, "orders.url")["keys"]
+        site = next(r for r in key["read"] if r["by"].startswith("a.svc.OrderService"))
+        # Config reads are attributed to the class, so its own annotations are the reader's.
+        self.assertEqual([a["text"] for a in site["annotations"]], ['@Service("orders")'])
+
+    def test_trace_entry_and_hops_carry_annotations_where_one_symbol_is_cited(self):
+        result = q_trace(self.store, "a.svc.OrderService#load")
+        self.assertEqual([a["text"] for a in result["resolved_as"]["annotations"]], ['@Service("orders")'])
+        route = q_trace(self.store, "/x/{id}")
+        self.assertEqual([a["text"] for a in route["resolved_as"]["annotations"]], ['@GetMapping("/x/{id}")'])
+        cited = [r for r in route["files"] if r.get("symbol")]
+        self.assertTrue(cited, route["files"])
+        for r in cited:
+            self.assertTrue(r["why"].startswith("defines "))
+            self.assertEqual([a["text"] for a in r["class_annotations"]], ['@Service("orders")'])
+        self.assertTrue(all("annotations" not in r and "class_annotations" not in r
+                            for r in route["files"] if not r.get("symbol")))
+        self.assertIn("@Service", render(route))
 
 
 if __name__ == "__main__":

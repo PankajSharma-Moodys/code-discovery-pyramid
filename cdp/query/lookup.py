@@ -357,6 +357,7 @@ def q_routes(store: Store, pattern: Optional[str] = None,
                     "unresolved_constants": r.get("unresolved_constants", []),
                     "evidence": [cite(a) for a in r["evidence"]],
                     **({"matched_via": via[id(r)]} if pattern else {}),
+                    **annotations_of(store, r["handler"]),
                 }
                 for r in budget.take(routes)
             ],
@@ -379,7 +380,7 @@ def _dedupe_cites(edges: Sequence[Dict]) -> List[str]:
     return list(seen)
 
 
-def _site_groups(edges: Sequence[Dict]) -> List[Dict]:
+def _site_groups(store: Store, edges: Sequence[Dict]) -> List[Dict]:
     """Edges grouped by who they come from, with distinct sites and counts.
 
     A `migration:V1__x.sql` source is a script, not a symbol, and a table can have
@@ -395,7 +396,8 @@ def _site_groups(edges: Sequence[Dict]) -> List[Dict]:
         g["sites"].setdefault(cite(e["anchor"]), None)
         g["files"].add(e["anchor"]["file"])
     return sorted(({"by": g["by"], "fqn": g["fqn"], "kind": g["kind"], "count": len(g["sites"]),
-                    "files": len(g["files"]), "sites": list(g["sites"])} for g in groups.values()),
+                    "files": len(g["files"]), "sites": list(g["sites"]),
+                    **(annotations_of(store, g["fqn"]) if g["fqn"] else {})} for g in groups.values()),
                   key=lambda g: (g["kind"] == "script", g["by"]))
 
 
@@ -481,8 +483,8 @@ def q_table(store: Store, name: Optional[str] = None,
     for table in budget.take(sorted(buckets)):
         slot = buckets[table]
         evidence = _dedupe_cites(slot["persist"] + slot["read"])
-        writers = _site_groups(slot["persist"])
-        readers = _site_groups(slot["read"])
+        writers = _site_groups(store, slot["persist"])
+        readers = _site_groups(store, slot["read"])
         out.append(
             {
                 "table": table,
@@ -549,7 +551,7 @@ def q_config(store: Store, key: Optional[str] = None,
             continue
         if exclude_role and roles.get(read["file"]) in exclude_role:
             continue
-        site = {"by": read["by"], "at": cite(read["anchor"])}
+        site = {"by": read["by"], "at": cite(read["anchor"]), **annotations_of(store, read["by"])}
         if read.get("symbolic"):
             site["via_constant"] = read["symbolic"]
         slot_of(read["key"])["read"].append(site)

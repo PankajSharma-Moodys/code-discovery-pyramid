@@ -19,6 +19,18 @@
   "query": "routes",
   "routes": [
     {
+      "annotations": [
+        {
+          "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:19",
+          "text": "@GET"
+        }
+      ],
+      "class_annotations": [
+        {
+          "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:10",
+          "text": "@Path(ApiPaths.WIDGETS)"
+        }
+      ],
       "declared_via": "${ApiPaths.WIDGETS}",
       "evidence": [
         "web/src/main/java/com/example/mini/web/WidgetResource.java:19",
@@ -31,6 +43,22 @@
       "verb": "GET"
     },
     {
+      "annotations": [
+        {
+          "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:24",
+          "text": "@GET"
+        },
+        {
+          "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:25",
+          "text": "@Path(\"/{id}\")"
+        }
+      ],
+      "class_annotations": [
+        {
+          "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:10",
+          "text": "@Path(ApiPaths.WIDGETS)"
+        }
+      ],
       "declared_via": "${ApiPaths.WIDGETS}/{id}",
       "evidence": [
         "web/src/main/java/com/example/mini/web/WidgetResource.java:24",
@@ -38,6 +66,18 @@
       ],
       "handler": "com.example.mini.web.WidgetResource#get",
       "module": "web",
+      "params": [
+        {
+          "annotations": [
+            {
+              "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:26",
+              "text": "@PathParam(\"id\")"
+            }
+          ],
+          "name": "id",
+          "type": "String"
+        }
+      ],
       "route": "/v1/widgets/{id}",
       "unresolved_constants": [],
       "verb": "GET"

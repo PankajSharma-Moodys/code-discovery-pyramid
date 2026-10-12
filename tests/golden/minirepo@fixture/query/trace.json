@@ -29,6 +29,7 @@
       "confidence": "high",
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
       "module": "core",
+      "symbol": "com.example.mini.core.Widget",
       "why": "defines com.example.mini.core.Widget"
     },
     {
@@ -36,20 +37,39 @@
       "confidence": "high",
       "file": "core/src/test/java/com/example/mini/core/Widget.java",
       "module": "core",
+      "symbol": "com.example.mini.core.Widget",
       "why": "defines com.example.mini.core.Widget"
     },
     {
+      "annotations": [
+        {
+          "at": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java:6",
+          "text": "@Repository"
+        }
+      ],
       "at": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java:7",
       "confidence": "high",
       "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
       "module": "core",
+      "symbol": "com.example.mini.core.WidgetRepository",
       "why": "defines com.example.mini.core.WidgetRepository"
     },
     {
+      "annotations": [
+        {
+          "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8",
+          "text": "@Entity"
+        },
+        {
+          "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:9",
+          "text": "@Table(name=\"widget\")"
+        }
+      ],
       "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:10",
       "confidence": "high",
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "module": "core",
+      "symbol": "com.example.mini.core.WidgetEntity",
       "why": "defines com.example.mini.core.WidgetEntity"
     },
     {
@@ -57,6 +77,7 @@
       "confidence": "high",
       "file": "core/src/main/resources/db/V001__create_widget.sql",
       "module": "core",
+      "symbol": "table:widget",
       "why": "defines table:widget"
     }
   ],
@@ -65,8 +86,20 @@
   "max_hops": 8,
   "query": "trace",
   "resolved_as": {
+    "annotations": [
+      {
+        "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:19",
+        "text": "@GET"
+      }
+    ],
     "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:19",
     "channel": "http_in",
+    "class_annotations": [
+      {
+        "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:10",
+        "text": "@Path(ApiPaths.WIDGETS)"
+      }
+    ],
     "handler": "com.example.mini.web.WidgetResource#list",
     "kind": "route",
     "label": "GET /v1/widgets",

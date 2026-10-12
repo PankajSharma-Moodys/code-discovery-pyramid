@@ -29,16 +29,34 @@ def _site_lines(label: str, groups: List[Dict], fallback: List[str]) -> List[str
             "%s: %d site(s) in %d script file(s)" % (g["by"], g["count"], g["files"])
         more = "  ... %d more" % (g["count"] - len(g["sites"])) if g["count"] > len(g["sites"]) else ""
         lines.append("      %s  %s%s" % (what, " ".join(g["sites"]), more))
+        lines.extend(_annotation_lines("        ", g, 100, 6))
     return lines
 
 
-def _annotation_lines(indent: str, row: Dict) -> List[str]:
-    """Verbatim annotations of a definition, its owner class's and its parameters', one per line."""
-    lines = ["%s%s  %s" % (indent, truncate(a["text"], 140), a["at"]) for a in row.get("annotations", [])]
-    lines += ["%sclass %s  %s" % (indent, truncate(a["text"], 140), a["at"]) for a in row.get("class_annotations", [])]
+def _annotation_lines(indent: str, row: Dict, width: int = 140, cap: int = 0) -> List[str]:
+    """Verbatim annotations of a definition, its owner class's and its parameters', one per line.
+
+    With `cap` (the compact form used under routes, writers, readers and trace hops) the file is
+    named once per row and later annotations in it give `L<line>`, text is cut at `width`, and
+    more than `cap` annotation lines end in a count; JSON rows always carry every annotation."""
+    first: List[str] = []
+
+    def where(a: Dict) -> str:
+        if not cap:
+            return a["at"]
+        path, _, line = a["at"].partition(":")
+        if not first:
+            first.append(path)
+            return a["at"]
+        return "L" + line if path == first[0] else a["at"]
+
+    lines = ["%s%s  %s" % (indent, truncate(a["text"], width), where(a)) for a in row.get("annotations", [])]
+    lines += ["%sclass %s  %s" % (indent, truncate(a["text"], width), where(a)) for a in row.get("class_annotations", [])]
     for p in row.get("params", []):
         lines.append("%s(%s %s) %s" % (indent, p.get("type") or "", p["name"],
                                        " ".join(truncate(a["text"], 100) for a in p["annotations"])))
+    if cap and len(lines) > cap:
+        lines = lines[:cap] + ["%s... %d more annotation(s); `symbol`/`--json` shows all" % (indent, len(lines) - cap)]
     return lines
 
 
@@ -169,6 +187,7 @@ def render(result: Dict) -> str:
             lines.append("  %-7s %-40s %s%s" % (r["verb"], r["route"], r["handler"].rsplit(".", 1)[-1],
                                            "  [matched on handler]" if r.get("matched_via") == "handler" else ""))
             lines.append("          %s%s" % (" ".join(r["evidence"]), note))
+            lines.extend(_annotation_lines("          ", r, 100, 6))
         lines.extend(_more("  ", result["count"], result["routes"]))
 
     elif kind == "table":
@@ -206,6 +225,7 @@ def render(result: Dict) -> str:
             for r in c["read"]:
                 lines.append("    read by %-50s %s%s" % (truncate(r["by"], 50), r["at"],
                              "  (key from %s)" % r["via_constant"] if r.get("via_constant") else ""))
+                lines.extend(_annotation_lines("        ", r, 100, 4))
             lines.extend(_more("    ", c["read_count"], c["read"]))
 
     elif kind == "paths":
@@ -232,11 +252,13 @@ def render(result: Dict) -> str:
                 lines.append("       class term: %d public member(s) with outgoing edges walked as entry points%s"
                              % (cap["members"], " across %d same-named classes" % cap["classes"] if cap["classes"] > 1 else ""))
             lines.append("       %s  %s" % (r["node"], r.get("at") or "-"))
+            lines.extend(_annotation_lines("       ", r, 100, 6))
             lines.append("")
             lines.append("read %d of %d cited file(s):" % (len(result["files"]), result["file_count"]))
             for row in result["files"]:
                 lines.append("  %s" % row["at"] or row["file"])
                 lines.append("      %s  [%s]%s" % (row["why"], row["confidence"], _tag(row, len(result.get("verbs") or ()) or (result.get("capped") or {}).get("members", 0))))
+                lines.extend(_annotation_lines("      ", row, 100, 4))
             cap = result.get("capped")
             if cap and cap["elided"]:
                 lines.append("  ... %d more file(s) not listed: a class term lists at most %d files (%d reachable "

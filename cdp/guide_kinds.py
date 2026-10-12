@@ -61,7 +61,10 @@ KINDS: Dict[str, Dict] = {
         "read": "`resolved_as` says what the term matched (route, source or symbol); `files` are "
                 "the reading list in walk order; `hops_exhausted` true means raise --max-hops; "
                 "`elided: 0` means the list is complete. A route path shared by several verbs is traced "
-                "for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`).",
+                "for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`). "
+                "The entry point (`resolved_as`) and each hop row that cites one definition (`defines X`) carry "
+                "that symbol's annotations (verbatim text + `file:line`), annotated parameters and owner-class "
+                "annotations; a hop with no single cited symbol shows none.",
         "term": "REQUIRED. A route path (`/orders`; all its verbs) or `VERB /path` (`POST /orders`; one), a dataflow source, "
                 "a class (`OrderResource`: its public members) or a member (`OrderResource#place`); "
                 "substring, first match wins in that order.",
@@ -93,7 +96,9 @@ KINDS: Dict[str, Dict] = {
         "read": "`defined_range` is `file:start-end` (read exactly that); `used_by_count` is the "
                 "true total even when the list is budgeted (several matches split the budget evenly, "
                 "and a cut one gives `see_all`, the exact command for every use); `collision` true means "
-                "several definitions share the name.",
+                "several definitions share the name. "
+                "Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters "
+                "and the owner class's annotations (Java).",
         "term": "REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; "
                 "case-insensitive substring (exact last-name matches first) unless `exact`; "
                 "`Class#method` is always exact.",
@@ -109,7 +114,9 @@ KINDS: Dict[str, Dict] = {
                 "and its I/O edges (tables, config, HTTP, events).",
         "not": "Not file contents. Use it to pick the line range to Read.",
         "read": "`defines` is the outline with `line`..`end_line`; `io_edges` are what the file "
-                "reads/writes/calls out to.",
+                "reads/writes/calls out to. "
+                "Each definition lists its annotations (verbatim text + `file:line`), annotated parameters and "
+                "the owner class's annotations (Java).",
         "term": "REQUIRED. A repo-relative path or any substring of one (`exact`: the path or a trailing `dir/file`); an absolute path "
                 "inside another scanned repo is routed to that repo's store.",
         "uses": ("term",) + _B + ("exact",),
@@ -140,7 +147,9 @@ KINDS: Dict[str, Dict] = {
         "not": "Not outbound HTTP calls; not routes built at runtime. Unresolved constants "
                "are listed, not guessed.",
         "read": "`declared_via` shows the constant expression; `unresolved_constants` non-empty "
-                "means the path is partial.",
+                "means the path is partial. "
+                "Each route also shows its handler's annotations (verbatim text + `file:line`), annotated "
+                "parameters and owner-class annotations, a few lines per route (`--json` has all).",
         "term": "OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method "
                 "(`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` "
                 "matches the whole name; omit for all.",
@@ -159,7 +168,9 @@ KINDS: Dict[str, Dict] = {
         "read": "`migrations` = schema owner; `writers`/`readers` group the sites by who touches the table "
                 "(SQL scripts are one group: site and file counts, a few `file:line`); `entity_users` are "
                 "the uses of the entity class outside the DbContext and migrations (reads and writes not told "
-                "apart); `evidence` is the cited sites.",
+                "apart); `evidence` is the cited sites. "
+                "Each code writer/reader group shows its annotations (verbatim text + `file:line`), annotated "
+                "parameters and owner-class annotations (e.g. `@Table(name=..)`); script groups show none.",
         "term": "OPTIONAL. Substring of the table name (`order` also matches `orders`) unless `exact`; omit for all.",
         "uses": ("term",) + _B + ("exact",),
         "required": (),
@@ -179,7 +190,9 @@ KINDS: Dict[str, Dict] = {
                "config/properties/env, or a wrapper reached only through an interface, is not.",
         "read": "`declared` vs `read` sites; `values` are the literal defaults seen. Keys are ranked "
                 "by read sites; `read_count` is the true total, `keys_elided`/`sites_elided` count what "
-                "the budget cut (raise `budget` or pass a term to see every site).",
+                "the budget cut (raise `budget` or pass a term to see every site). "
+                "Each read site shows its reader's annotations (verbatim text + `file:line`), annotated "
+                "parameters and owner-class annotations.",
         "term": "OPTIONAL. Substring of the key name (`MINI_DB`, `billing.url`; `exact`: whole key); omit for all keys "
                 "(most-read first, a few citations each; pass a term to see every site).",
         "uses": ("term",) + _B + ("exact",),
@@ -208,7 +221,9 @@ KINDS: Dict[str, Dict] = {
         "what": "Substring search over claim subjects/statements, symbol names, constant "
                 "values, unknown questions and file paths, ranked by closeness.",
         "not": "Not file contents (that is grep); an empty answer says what was and was not searched.",
-        "read": "`counts` are true totals; each list is budget-split fairly.",
+        "read": "`counts` are true totals; each list is budget-split fairly. "
+                "An `annotations` bucket matches annotation name, fqn, verbatim text and argument values, "
+                "whitespace ignored (`search @Every`, `search 60s`); rows are `owner  @text  file:line`.",
         "term": "REQUIRED. Any text.",
         "uses": ("term",) + _B,
         "required": ("term",),

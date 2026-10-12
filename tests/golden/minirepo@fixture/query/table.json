@@ -36,6 +36,16 @@
       "table": "widget",
       "writers": [
         {
+          "annotations": [
+            {
+              "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8",
+              "text": "@Entity"
+            },
+            {
+              "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:9",
+              "text": "@Table(name=\"widget\")"
+            }
+          ],
           "by": "WidgetEntity",
           "count": 1,
           "files": 1,

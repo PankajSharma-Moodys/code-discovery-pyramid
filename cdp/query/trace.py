@@ -6,7 +6,7 @@ import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .budget import Budget
-from .common import _finish, _matches, _role_index, cite
+from .common import _finish, annotations_of, _matches, _role_index, cite
 from .store import Store
 from .trace_entry import resolve_entry
 
@@ -186,11 +186,16 @@ def q_trace(
         or any(_matches(u.get("question", ""), n.rsplit(".", 1)[-1]) for n in reached)
     ])
 
+    # Annotations of the one symbol a row cites; a row with no single symbol gets none.
+    files = [dict(row, **annotations_of(store, row["symbol"])) if row.get("symbol") else row for row in files]
+    cited = resolved["handler"] if resolved.get("kind") == "route" else \
+        resolved["node"] if resolved.get("kind") == "symbol" else None
     result = {
         "query": "trace",
         "entry": entry,
         "found": True,
-        "resolved_as": {k: v for k, v in resolved.items() if k not in ("handlers", "members", "classes")},
+        "resolved_as": {**{k: v for k, v in resolved.items() if k not in ("handlers", "members", "classes")},
+                        **(annotations_of(store, cited) if cited else {})},
         "max_hops": max_hops,
         # A walk that ran out of hops has not finished. Reporting it as
         # completion is how a cycle turns into a confident wrong answer.
@@ -324,12 +329,13 @@ def _edge_rows(store: Store, reached: Dict[str, Dict]) -> List[Dict]:
     seen: Set[str] = set()
 
     def add(path: Optional[str], module: Optional[str], why: str,
-            at: Optional[str], confidence: str) -> None:
+            at: Optional[str], confidence: str, symbol: Optional[str] = None) -> None:
         if not path or path in seen:
             return
         seen.add(path)
+        # `symbol` only on a row that cites one definition ("defines X"), never a call-site row.
         rows.append({"file": path, "module": module, "why": why, "at": at,
-                     "confidence": confidence})
+                     "confidence": confidence, **({"symbol": symbol} if symbol else {})})
 
     order = sorted(reached, key=lambda t: (_is_boilerplate(store, t), reached[t].get("hop", 0), t))
     for target in order:
@@ -345,7 +351,7 @@ def _edge_rows(store: Store, reached: Dict[str, Dict]) -> List[Dict]:
                 why = "%s --event--> %s (subscribes to an event %s posts)" % (
                     edge["source"].rsplit(".", 1)[-1], target.rsplit(".", 1)[-1],
                     edge["source"].rsplit(".", 1)[-1])
-            add(site["file"], site["module"], why, cite(site["anchor"]), "high")
+            add(site["file"], site["module"], why, cite(site["anchor"]), "high", target)
     return rows
 
 
