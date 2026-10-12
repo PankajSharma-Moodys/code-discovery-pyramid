@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from .rules import all_edges
 from .graph import build_symbol_index, owners_of
 from .cfgwrap import wrapped_reads
 from .cstypes import CsTypeIndex
@@ -524,7 +525,7 @@ def config_reads(extraction: Dict, constants: Dict[str, Dict], wrapped: Sequence
     read is counted and cited, never dropped. Declarations (`config-file:`
     sources) are not reads."""
     out: List[Dict] = []
-    for edge in [*extraction["io_edges"], *wrapped]:
+    for edge in [*all_edges(extraction), *wrapped]:
         if edge["channel"] != "config_read" or not edge["target"].startswith("config:"):
             continue
         if edge["source"].startswith("config-file:"):

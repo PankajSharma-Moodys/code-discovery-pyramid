@@ -9,6 +9,7 @@ import unittest
 
 from cdp.lang.base import ExtractContext
 from cdp.lang.java import JavaExtractor
+from helpers import facts_edges
 
 
 def extract(src: str):
@@ -20,7 +21,7 @@ def define(facts, fqn):
 
 
 def edges(facts, channel):
-    return [e["target"] for e in facts.io_edges if e["channel"] == channel]
+    return [e["target"] for e in facts_edges(facts) if e["channel"] == channel]
 
 
 class AnnotationCaptureTest(unittest.TestCase):

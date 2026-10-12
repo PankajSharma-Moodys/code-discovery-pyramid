@@ -12,6 +12,7 @@ import re
 from typing import Dict, List, Optional
 
 from .store import Store
+from ..rules import all_edges
 
 _SPLIT = re.compile(r"[.#:/_\-\s]+|(?<=[a-z0-9])(?=[A-Z])")
 
@@ -29,7 +30,7 @@ def _candidates(store: Store, kind: str) -> List[str]:
     if kind == "routes":
         return sorted({r["route"] for r in store.xref["routes"] + store.xref["unresolved_routes"]})
     if kind == "table":
-        return sorted({e["target"][6:] for e in store.extraction["io_edges"] if e["target"].startswith("table:")})
+        return sorted({e["target"][6:] for e in all_edges(store.extraction) if e["target"].startswith("table:")})
     if kind == "config":
         return sorted({r["fqn"][7:] for r in store.extraction["defines"]
                        if r["kind"] == "config_key" and r["fqn"].startswith("config:")})

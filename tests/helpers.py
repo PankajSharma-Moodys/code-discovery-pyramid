@@ -26,6 +26,7 @@ FIXTURE = FIXTURES / "minirepo"
 from cdp.dataflow import build_dataflow  # noqa: E402
 from cdp.derive import derive_claims  # noqa: E402
 from cdp.extract import run_extract  # noqa: E402
+from cdp.rules import all_edges, apply as apply_rules  # noqa: E402
 from cdp.graph import build_graph  # noqa: E402
 from cdp.inventory import build_inventory  # noqa: E402
 from cdp.partition import partition  # noqa: E402
@@ -72,6 +73,26 @@ def make_repo(tmp: Path, fixture: str = "minirepo") -> Path:
     return repo
 
 
+def extraction_of(*facts_list, module: str = "m"):
+    """A one-file-at-a-time extraction (the shape `run_extract` returns) from `FileFacts`, with the
+    rule post-pass applied: what a test needs to see rule-made edges without a repo on disk."""
+    ex = {"defines": [], "uses": [], "io_edges": [], "imports": [], "files": {}, "totals": {}}
+    for facts in facts_list:
+        for key in ("defines", "uses", "io_edges"):
+            for row in getattr(facts, key):
+                ex[key].append(dict(row, file=facts.path, module=module))
+        for row in facts.imports:
+            ex["imports"].append({"file": facts.path, "module": module, "fqn": row["fqn"], "line": row["line"]})
+        ex["files"][facts.path] = {"language": facts.language, "package": facts.package, "primary": facts.primary,
+                                   "signals": list(facts.signals), "io_edges": len(facts.io_edges)}
+    return apply_rules(ex)
+
+
+def facts_edges(*facts_list):
+    """Every edge (extractor-made and rule-made) of some `FileFacts`."""
+    return all_edges(extraction_of(*facts_list))
+
+
 class Pipeline:
     """Every deterministic phase, run once, for tests to assert against."""
 
@@ -79,6 +100,7 @@ class Pipeline:
         self.repo = repo
         self.inventory = build_inventory(repo)
         self.extraction = run_extract(repo, self.inventory)
+        apply_rules(self.extraction, repo=repo)
         self.graph = build_graph(self.inventory, self.extraction)
         self.partition = partition(self.inventory)
         self.schedule = build_schedule(self.partition, self.graph)
@@ -93,7 +115,7 @@ class Pipeline:
         return [d for d in self.extraction["defines"] if d["fqn"] == fqn]
 
     def edges(self, channel: Optional[str] = None, target: Optional[str] = None):
-        rows = self.extraction["io_edges"]
+        rows = all_edges(self.extraction)
         if channel:
             rows = [r for r in rows if r["channel"] == channel]
         if target:

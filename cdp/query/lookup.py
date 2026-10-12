@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Sequence
 from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite
 from .store import Store
+from ..rules import all_edges
 
 
 def _type_index(store: Store):
@@ -213,7 +214,7 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
         info = store.extraction["files"].get(rel, {})
         defines = sorted((d for d in store.extraction["defines"] if d["file"] == rel),
                          key=lambda d: d["anchor"]["line"])
-        edges = [e for e in store.extraction["io_edges"] if e["file"] == rel]
+        edges = [e for e in all_edges(store.extraction) if e["file"] == rel]
         claims = [
             c for c in store.state["claims"]
             if any(a.get("file") == rel for a in c.get("evidence", []))
@@ -413,7 +414,7 @@ def _entity_index(store: Store) -> Dict[tuple, str]:
     """`(file, line)` -> entity type name, from the `entity:X` persist edges the C#
     extractor writes on the same line as the `table:` edges of a `DbSet<X>`."""
     out: Dict[tuple, str] = {}
-    for e in store.extraction["io_edges"]:
+    for e in all_edges(store.extraction):
         if e["channel"] == "persist" and e["target"].startswith("entity:"):
             out[(e["anchor"]["file"], e["anchor"]["line"])] = e["target"][len("entity:"):]
     return out
@@ -467,7 +468,7 @@ def q_table(store: Store, name: Optional[str] = None,
     same = (lambda t: t.lower() == name.lower()) if exact else (lambda t: _matches(t, name or ""))
     roles = _role_index(store)
     buckets: Dict[str, Dict[str, List[Dict]]] = {}
-    for edge in store.extraction["io_edges"]:
+    for edge in all_edges(store.extraction):
         if not edge["target"].startswith("table:"):
             continue
         table = edge["target"][len("table:") :]

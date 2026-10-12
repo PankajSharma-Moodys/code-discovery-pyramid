@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from .rules import all_edges
 import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
@@ -26,7 +27,7 @@ class Facts:
         self.bound: Set[str] = set()
         self.table_of: Dict[str, Optional[str]] = {}
         self.table_at: Dict[str, str] = {}
-        for e in (extraction or {}).get("io_edges") or []:
+        for e in all_edges(extraction or {}):
             if e.get("channel") != "persist":
                 continue
             src, tgt = str(e.get("source") or ""), str(e.get("target") or "")

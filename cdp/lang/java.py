@@ -536,31 +536,14 @@ def _emit_annotation_facts(
             facts.signals.append("di:" + ann.name)
 
     # --- persistence -------------------------------------------------------
-    table_names: Dict[int, str] = {}
     for ann in by_name.get("Table", []):
         name = _named_arg(ann.args, "name") or first_string_literal(ann.args)
         if name:
-            table_names[ann.index] = name
             anchor = anchor_at(ctx, ann.index)
             if anchor:
                 facts.defines.append(mk_define("table:" + name, "table", "public", anchor))
 
-    for ann in by_name.get("Entity", []):
-        owner = _owner_for(ann.index, decls, primary)
-        # The @Table beside @Entity, if any: same declaration, within a few lines.
-        target = None
-        for t_index, t_name in table_names.items():
-            if abs(t_index - ann.index) <= 4:
-                target = "table:" + t_name
-                break
-        anchor = anchor_at(ctx, ann.index)
-        if anchor is None:
-            continue
-        facts.signals.append("entity")
-        # No @Table means JPA defaults the table name from the class name. That
-        # is an inference, not a reading, so the edge points at the entity type
-        # and the table binding is left for a human rather than guessed.
-        facts.io_edges.append(mk_edge(owner, target or ("entity:" + owner), "persist", anchor))
+    # `@Entity` -> persist edge: rules/jpa.json (cdp/rules.py), after extraction.
 
     # --- HTTP inbound ------------------------------------------------------
     _emit_http_routes(ctx, facts, decls)

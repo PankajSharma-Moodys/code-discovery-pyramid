@@ -21,6 +21,7 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 from .inventory import ROOT_MODULE
 from .util import human_int, truncate, write_text
+from .rules import all_edges
 
 
 def render_all(
@@ -604,7 +605,7 @@ def _claude_md(inventory: Dict, graph: Dict, xref: Dict, state: Dict, extraction
                          "will not find its handler. Grep for the constant name instead.")
         lines.append("")
 
-    tables = sorted({e["target"][len("table:"):] for e in extraction["io_edges"]
+    tables = sorted({e["target"][len("table:"):] for e in all_edges(extraction)
                      if e["target"].startswith("table:")})
     if tables:
         lines += ["## Tables", "", ", ".join("`%s`" % t for t in tables[:60]), "",
