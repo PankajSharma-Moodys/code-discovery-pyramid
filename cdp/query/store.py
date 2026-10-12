@@ -63,6 +63,7 @@ class Store:
     xref = property(lambda self: self._load("xref"))
     state = property(lambda self: self._load("state", {"claims": [], "unknowns": [], "conflicts": []}))
     dataflow = property(lambda self: self._load("dataflow", {"edges": [], "paths": [], "process_boundaries": []}))
+    code = property(lambda self: self._load("code", {}))
     manifest = property(lambda self: self._load("manifest", {}))
 
     def node_of(self, path: str) -> Optional[str]:

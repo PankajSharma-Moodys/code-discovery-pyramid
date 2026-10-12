@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence
 
+from .. import codeindex
 from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite
 from .store import Store
@@ -162,6 +163,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                 ],
                 "collision": bool(entry.get("collision")),
                 **annotations_of(store, key),
+                **_symbol_body(store, key, entry, sites),
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
                 "used_by_count": len(users),
@@ -175,6 +177,52 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
     return _finish({"query": "symbol", "name": name, "match": mode, "found": out}, store, budget)
 
 
+def _memo(store: Store, key: str, build):
+    """Per-query cache on the store; a duck-typed store with no cache just rebuilds."""
+    cache = getattr(store, "_cache", None)
+    if cache is None:
+        return build()
+    if key not in cache:
+        cache[key] = build()
+    return cache[key]
+
+
+def _call_index(store: Store) -> Dict:
+    """`(file, from_symbol) -> [callee, ...]` (deduped, in source order) from `uses` rows of kind
+    `call`; built once per query."""
+    def build() -> Dict:
+        seen: Dict = {}
+        for u in sorted((u for u in store.extraction["uses"] if u.get("kind") == "call" and u.get("from_symbol")),
+                        key=lambda u: (u["file"], u["anchor"]["line"])):
+            rows = seen.setdefault((u["file"], u["from_symbol"]), [])
+            if u["fqn"] not in rows:
+                rows.append(u["fqn"])
+        return seen
+
+    return _memo(store, "_call_index", build)
+
+
+def _body_facts(store: Store, rel: str, fqn: str, d: Dict) -> Dict:
+    """What a method body does, from facts already indexed: the members it calls, the exceptions it
+    declares, and how many string literals its body holds (counted from the `code` artifact).
+    Empty keys are left out."""
+    if d.get("kind") not in ("method", "function"):
+        return {}
+    out: Dict = {}
+    calls = _call_index(store).get((rel, fqn), [])
+    if calls:
+        out["calls"] = [_short_name(c) for c in calls]
+    if d.get("throws"):
+        out["throws"] = list(d["throws"])
+    text = (getattr(store, "code", None) or {}).get("files", {}).get(rel)
+    end = d.get("end_line")
+    if text and end:
+        n = codeindex.count_literals(rel, text, d["anchor"]["line"], end)
+        if n:
+            out["literals"] = n
+    return out
+
+
 def _define_annotations(rel: str, d: Dict) -> Dict:
     """`annotations` and annotated `params` of one define row, as the query shows them."""
     out: Dict = {}
@@ -185,6 +233,21 @@ def _define_annotations(rel: str, d: Dict) -> Dict:
     if params:
         out["params"] = params
     return out
+
+
+def _symbol_body(store: Store, key: str, entry: Dict, sites: List[Dict]) -> Dict:
+    """`body`: one row per definition site of a method (overloads differ): calls, throws, literals."""
+    if entry["kind"] != "method":
+        return {}
+    rows = _memo(store, "_method_rows", lambda: {(d["fqn"], d["file"], d["anchor"]["line"]): d
+                                                 for d in store.extraction["defines"] if d["kind"] == "method"})
+    body = []
+    for s in sites:
+        d = rows.get((key, s["file"], s["anchor"]["line"]))
+        facts = _body_facts(store, s["file"], key, d) if d else {}
+        if facts:
+            body.append({"at": cite(s["anchor"]), **facts})
+    return {"body": body} if body else {}
 
 
 def _short_name(fqn: str) -> str:
@@ -234,7 +297,7 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
                     {"fqn": d["fqn"], "kind": d["kind"], "at": cite(d["anchor"]),
                      "name": _short_name(d["fqn"]), "visibility": d.get("visibility"),
                      "line": d["anchor"]["line"], "end_line": d.get("end_line"),
-                     **_define_annotations(rel, d)}
+                     **_define_annotations(rel, d), **_body_facts(store, rel, d["fqn"], d)}
                     for d in budget.take(defines)
                 ],
                 "io_edges_count": len(edges),

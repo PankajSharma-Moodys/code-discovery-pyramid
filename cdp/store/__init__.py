@@ -30,7 +30,7 @@ from ..util import CdpError
 
 ARTIFACTS = (
     "inventory", "extract", "graph", "partition", "schedule",
-    "xref", "dataflow", "state", "manifest",
+    "xref", "dataflow", "state", "manifest", "code",
 )
 REPORTS = ("verify", "conflicts", "prompts", "rejected", "unknown_gates", "tiering")
 

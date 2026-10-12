@@ -274,6 +274,8 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                 row = mk_define(fqn, "method", vis, anchor, end_line=m.end_line + 1, annotations=m.anns)
                 if m.kind == "method":
                     typed(row, m.ret, tv | set(m.tparams))
+                if m.throws:
+                    row["throws"] = list(m.throws)   # as written: a guessed package would mislead
                 if m.params:
                     mtv = tv | set(m.tparams)
                     row["params"] = [

@@ -83,7 +83,7 @@ Which kinds take which parameter:
 **What.** Where a class, method or constant is defined (with line extent) and every site that uses it: the transpose of the resolved import and call tables.
 
 - Limits: Not dynamic dispatch, reflection or DI wiring. `used_by` of an interface lists its implementers' callers only where the call resolves. A class's `used_by` includes its `new X(..)` sites (an implicit default constructor counts as the class). Java: a call on a type variable resolves through its declared bound(s) only; an inferred generic method result (`<T> T pick()`) stays untyped. C#: `x.M()`, `new X(..)`, `new(..)`, `: base(..)`, method groups and extension methods resolve through declared types, `var`, `await`, collections/LINQ and explicit `M<T>()` arguments; a lambda parameter is typed only for LINQ-style stages and Moq `Setup`/`Verify`; overloads share one symbol and are told apart only by argument count (an interface method can win over an extension of the same name), and a NuGet-typed receiver leaves no edge. Python: calls, references, decorators and `from x import f` resolve for `f()`, `self.m()`, `mod.f()`, `Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, `x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, `getattr`, dispatch through a list of modules and decorator-built wrappers are not found.
-- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `collision` true means several definitions share the name. Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java).
+- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `collision` true means several definitions share the name. Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java). A method's `body` row (one per overload) lists the members it `calls`, the exceptions it declares (`throws`, Java) and its string-literal count (`literals`, from the code text).
 
 **How.** `term`: REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; case-insensitive substring (exact last-name matches first) unless `exact`; `Class#method` is always exact.
 
@@ -102,7 +102,7 @@ Which kinds take which parameter:
 **What.** One file's module, language, role, LOC, every definition with line extent, and its I/O edges (tables, config, HTTP, events).
 
 - Limits: Not file contents. Use it to pick the line range to Read.
-- Reading it: `defines` is the outline with `line`..`end_line`; `io_edges` are what the file reads/writes/calls out to. Each definition lists its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java).
+- Reading it: `defines` is the outline with `line`..`end_line`; `io_edges` are what the file reads/writes/calls out to. Each definition lists its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java). Each method also gives the members it `calls`, the exceptions it declares (`throws`, Java) and its string-literal count (`literals`); one line per method.
 
 **How.** `term`: REQUIRED. A repo-relative path or any substring of one (`exact`: the path or a trailing `dir/file`); an absolute path inside another scanned repo is routed to that repo's store.
 
@@ -208,10 +208,10 @@ Which kinds take which parameter:
 
 ### `search` -- free-text fallback across claims, symbols, constants, unknowns and files
 
-**What.** Substring search over claim subjects/statements, symbol names, constant values, unknown questions and file paths, ranked by closeness.
+**What.** Substring search over claim subjects/statements, symbol names, constant values, unknown questions, file paths and the source text of source-role files (code search), ranked by closeness.
 
-- Limits: Not file contents (that is grep); an empty answer says what was and was not searched.
-- Reading it: `counts` are true totals; each list is budget-split fairly. An `annotations` bucket matches annotation name, fqn, verbatim text and argument values, whitespace ignored (`search @Every`, `search 60s`); rows are `owner  @text  file:line`.
+- Limits: Not tests, config, docs, binary, over-size or generated files' text, and no match across two lines; an empty answer says what was and was not searched.
+- Reading it: `counts` are true totals; each list is budget-split fairly. An `annotations` bucket matches annotation name, fqn, verbatim text and argument values, whitespace ignored (`search @Every`, `search 60s`); rows are `owner  @text  file:line`. A `code` bucket matches source lines (case-insensitive substring, one line at a time) and cites the enclosing member (else the type, else the file): `owner  file:line  text`. It replaces grep for literals, log messages, inline SQL and comments; `as_of.code_note` says when the tree has uncommitted edits.
 
 **How.** `term`: REQUIRED. Any text.
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime
 
-from . import rereview as rereview_mod, dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
+from . import codeindex as codeindex_mod, rereview as rereview_mod, dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
 from .extract import MAX_PARSE_BYTES, _sorted
 from .lang import extract_file
 from .derived import build_derived_patch
@@ -294,6 +294,8 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     backend.write_artifact("partition", new_part)
     backend.write_artifact("xref", new_xref)
     backend.write_artifact("dataflow", new_flow)
+    # Rebuilt in full: a pure function of the inventory and the tree (a deleted, edited or renamed file cannot linger).
+    backend.write_artifact("code", codeindex_mod.build_code(paths.repo, new_inventory))
     # A scan writes this too; without it `status` and the schedule-reading
     # commands fail on the refreshed snapshot ("missing artifact 'schedule'").
     new_sched = schedule_mod.build_schedule(
