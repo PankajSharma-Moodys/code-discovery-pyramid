@@ -80,6 +80,15 @@
         "web/src/main/java/com/example/mini/web/ApiPaths.java:5"
       ],
       "handler": "com.example.mini.web.WidgetResource#get",
+      "inputs": [
+        {
+          "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:26",
+          "kind": "path",
+          "name": "id",
+          "param": "id",
+          "type": "String"
+        }
+      ],
       "module": "web",
       "params": [
         {

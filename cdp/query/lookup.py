@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Sequence
 
 from .. import codeindex
 from .budget import Budget
-from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite
+from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite, route_inputs
 from .store import Store
 from ..rules import all_edges
 
@@ -381,6 +381,11 @@ def _route_hit(r: Dict, pattern: str, exact: bool) -> Optional[str]:
     return None
 
 
+def _inputs_of(store: Store, route: Dict) -> Dict:
+    inputs = route_inputs(store, route["handler"], route["evidence"])
+    return {"inputs": inputs} if inputs else {}
+
+
 def q_routes(store: Store, pattern: Optional[str] = None,
              budget: Optional[Budget] = None,
              exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
@@ -423,6 +428,7 @@ def q_routes(store: Store, pattern: Optional[str] = None,
                     "evidence": [cite(a) for a in r["evidence"]],
                     **({"matched_via": via[id(r)]} if pattern else {}),
                     **annotations_of(store, r["handler"]),
+                    **_inputs_of(store, r),
                 }
                 for r in budget.take(routes)
             ],

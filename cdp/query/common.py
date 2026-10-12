@@ -127,6 +127,74 @@ def annotations_of(store: Store, fqn: str) -> Dict:
     return {k: v for k, v in out.items() if v}
 
 
+#: Parameter annotations that name a request input: kind -> annotation fqns (simple names when the
+#: fqn is unresolved, as for every rule match).
+INPUT_ANNOTATIONS = {
+    "path": ("org.springframework.web.bind.annotation.PathVariable", "javax.ws.rs.PathParam", "jakarta.ws.rs.PathParam"),
+    "query": ("org.springframework.web.bind.annotation.RequestParam", "javax.ws.rs.QueryParam", "jakarta.ws.rs.QueryParam"),
+    "header": ("org.springframework.web.bind.annotation.RequestHeader", "javax.ws.rs.HeaderParam", "jakarta.ws.rs.HeaderParam"),
+    "body": ("org.springframework.web.bind.annotation.RequestBody",),
+}
+INPUT_SIMPLE = frozenset(f.rsplit(".", 1)[-1] for fqns in INPUT_ANNOTATIONS.values() for f in fqns) | {"DefaultValue"}
+
+
+def _input_kind(ann: Dict) -> Optional[str]:
+    from ..rules import ann_matches
+    for kind, fqns in INPUT_ANNOTATIONS.items():
+        if ann_matches(ann, fqns, [f.rsplit(".", 1)[-1] for f in fqns]):
+            return kind
+    return None
+
+
+def route_inputs(store: Store, handler: str, evidence: Sequence[Dict]) -> List[Dict]:
+    """What a route's handler reads from the request: one row per annotated parameter,
+    `{name, kind, type, [required], [default]}`, from `@PathVariable`/`@RequestParam`/`@RequestHeader`/
+    `@RequestBody` and the JAX-RS `*Param` annotations. `required`/`default` appear only when the
+    annotation's arguments (or a JAX-RS `@DefaultValue`) state them; the row's `at` is the
+    annotation's `file:line`."""
+    sites = store.xref["symbols"].get(handler, {}).get("sites", [])
+    if not sites:
+        return []
+    ev = evidence[0] if evidence else {}
+    same = [s for s in sites if s["file"] == ev.get("file")] or sites
+    after = [s for s in same if s["anchor"]["line"] >= (ev.get("line") or 0)]
+    site = min(after or same, key=lambda s: s["anchor"]["line"] if after else -s["anchor"]["line"])
+    out: List[Dict] = []
+    for p in site.get("params", []):
+        anns = p.get("annotations") or []
+        for a in anns:
+            kind = _input_kind(a)
+            if kind is None:
+                continue
+            args = a.get("args") or {}
+            name = args.get("value") if isinstance(args.get("value"), str) else args.get("name")
+            row = {"name": name if isinstance(name, str) else (None if kind == "body" else p["name"]),
+                   "kind": kind, "type": p.get("type"), "param": p["name"], "at": ann_at(site["file"], a)}
+            if isinstance(args.get("required"), bool):
+                row["required"] = args["required"]
+            default = args.get("defaultValue")
+            for d in anns:
+                if (d.get("name") or "") == "DefaultValue" and isinstance((d.get("args") or {}).get("value"), str):
+                    default = d["args"]["value"]
+            if isinstance(default, str):
+                row["default"] = default
+            out.append(row)
+            break
+    return out
+
+
+def inputs_line(inputs: Sequence[Dict], cap: int = 8) -> str:
+    """`inputs: path id:Long, query q:String?=x, body Foo` (`?` = not required, `=x` = default)."""
+    parts = []
+    for i in inputs[:cap]:
+        typ = (i.get("type") or "").rsplit(".", 1)[-1]
+        mark = ("?" if i.get("required") is False else "") + ("=" + i["default"] if "default" in i else "")
+        head = i["kind"] + (" " + i["name"] + ":" if i.get("name") else " ")
+        parts.append(head + typ + mark)
+    more = ", ... +%d" % (len(inputs) - cap) if len(inputs) > cap else ""
+    return "inputs: " + ", ".join(parts) + more
+
+
 def squash(text: str) -> str:
     """Lower-case with all whitespace removed, so `value = "60s"` finds `value="60s"`."""
     return "".join(str(text).split()).lower()

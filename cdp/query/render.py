@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from ..util import NO_REVIEW_NOTE, truncate
-from .common import _claim_lines, _more, cite
+from .common import INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line
 
 
 def _match_note(result: Dict) -> str:
@@ -31,6 +31,12 @@ def _site_lines(label: str, groups: List[Dict], fallback: List[str]) -> List[str
         lines.append("      %s  %s%s" % (what, " ".join(g["sites"]), more))
         lines.extend(_annotation_lines("        ", g, 100, 6))
     return lines
+
+
+def _only_inputs(param: Dict, covered) -> bool:
+    """A parameter the `inputs:` line already states (its annotations are all input annotations)."""
+    return param["name"] in covered and all(a["text"].lstrip("@").split("(")[0].rsplit(".", 1)[-1] in INPUT_SIMPLE
+                                         for a in param["annotations"])
 
 
 def _annotation_lines(indent: str, row: Dict, width: int = 140, cap: int = 0) -> List[str]:
@@ -204,6 +210,10 @@ def render(result: Dict) -> str:
             lines.append("  %-7s %-40s %s%s" % (r["verb"], r["route"], r["handler"].rsplit(".", 1)[-1],
                                            "  [matched on handler]" if r.get("matched_via") == "handler" else ""))
             lines.append("          %s%s" % (" ".join(r["evidence"]), note))
+            if r.get("inputs"):
+                lines.append("          " + inputs_line(r["inputs"]))
+                covered = {i["param"] for i in r["inputs"]}
+                r = dict(r, params=[p for p in r.get("params", []) if not _only_inputs(p, covered)])
             lines.extend(_annotation_lines("          ", r, 100, 6))
         lines.extend(_more("  ", result["count"], result["routes"]))
 

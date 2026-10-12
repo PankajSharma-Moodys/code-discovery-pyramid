@@ -153,7 +153,10 @@ KINDS: Dict[str, Dict] = {
         "read": "`declared_via` shows the constant expression; `unresolved_constants` non-empty "
                 "means the path is partial. "
                 "Each route also shows its handler's annotations (verbatim text + `file:line`), annotated "
-                "parameters and owner-class annotations, a few lines per route (`--json` has all).",
+                "parameters and owner-class annotations, a few lines per route (`--json` has all). "
+                "`inputs` lists what the handler reads from the request (`@PathVariable`, `@RequestParam`, "
+                "`@RequestHeader`, `@RequestBody`, JAX-RS `*Param`): kind, name, type, `required`/`default` "
+                "when the annotation states them.",
         "term": "OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method "
                 "(`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` "
                 "matches the whole name; omit for all.",
@@ -245,7 +248,9 @@ KINDS: Dict[str, Dict] = {
                 "and evidence anchors.",
         "not": "Deterministic scans yield few claims; no model review means few "
                 "interpretive ones (see `coverage`).",
-        "read": "`confidence` and `verdict` per claim; every claim has evidence `file:line`.",
+        "read": "`confidence` and `verdict` per claim; every claim has evidence `file:line`. Scheduled "
+                "jobs (`--kind entrypoint`) state their interval, cron, start delay, misfire policy and "
+                "concurrency from the annotation arguments.",
         "term": "OPTIONAL shorthand for `claim_kind`; do not combine with a different "
                 "`claim_kind`.",
         "uses": ("term", "claim_kind", "module", "subject") + _B,
