@@ -102,6 +102,34 @@ class AnnotationCaptureTest(unittest.TestCase):
         from cdp.lang.java_decl import JType
         self.assertFalse(JType("class", "C", "C", None).static)
 
+    def test_schedules_container_and_repeats_emit_one_edge_per_line(self):
+        f = extract('package a;\nimport org.springframework.scheduling.annotation.*;\nclass C {\n'
+                    '  @Schedules({@Scheduled(fixedRate=1), @Scheduled(cron="0 * * * * *")})\n  void m() {}\n'
+                    '  @Scheduled(fixedRate=5) @Scheduled(fixedRate=6) void n() {}\n}\n')
+        sched = [(e["source"], e["target"]) for e in f.io_edges
+                 if e["channel"] == "schedule" and e["source"].startswith("a.C#")]
+        self.assertEqual(sorted(sched), [("a.C#m", "a.C"), ("a.C#n", "a.C")])
+
+    def test_feign_interface_does_not_inherit_a_controllers_prefix(self):
+        f = extract('package a;\nimport org.springframework.web.bind.annotation.*;\n'
+                    'import org.springframework.cloud.openfeign.FeignClient;\n'
+                    '@RestController @RequestMapping("/c")\nclass C {\n  @GetMapping("/x") String x() { return ""; }\n}\n'
+                    '@FeignClient(name="s")\ninterface F {\n  @GetMapping("/a") String a();\n}\n')
+        self.assertEqual([t for t in edges(f, "http_in") if t.startswith("route:")], ["route:GET /c/x"])
+        self.assertEqual(edges(f, "http_out"), ["http:GET http://s/a"])
+
+    def test_each_type_uses_its_own_prefix(self):
+        f = extract('package a;\nimport org.springframework.web.bind.annotation.*;\n'
+                    '@RequestMapping("/one") class A {\n  @GetMapping("/x") void x() {}\n}\n'
+                    '@RequestMapping("/two") class B {\n  @GetMapping("/y") void y() {}\n}\n')
+        self.assertEqual(sorted(t for t in edges(f, "http_in") if t.startswith("route:")),
+                         ["route:GET /one/x", "route:GET /two/y"])
+
+    def test_annotated_array_dimension_does_not_drop_the_parameter(self):
+        f = extract('package a;\nclass C {\n  void f(@Baz(@Q) int @Z [] y, int z) {}\n}\n')
+        self.assertEqual([(p["name"], p["type"]) for p in define(f, "a.C#f")["params"]],
+                         [("y", "int[]"), ("z", "int")])
+
 
 if __name__ == "__main__":
     unittest.main()

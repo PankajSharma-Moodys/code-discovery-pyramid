@@ -152,9 +152,21 @@ def parse_type(tk: Tokens, i: int) -> Optional[Tuple[int, str]]:
             j += 1
             continue
         break
-    while tk.at(j) == "[" and tk.at(j + 1) == "]":
-        j += 2
+    j = _skip_dims(tk, j)
     return j, join_type(tk, start, j)
+
+
+def _skip_dims(tk: Tokens, j: int) -> int:
+    """Index past any `[]` pairs at `j`, each optionally preceded by a type-use annotation
+    (`int @Z [] y`)."""
+    while True:
+        k = j
+        while tk.at(k) == "@" and tk.is_id(k + 1):
+            k = skip_annotation(tk, k)
+        if tk.at(k) == "[" and tk.at(k + 1) == "]":
+            j = k + 2
+            continue
+        return j
 
 
 def join_type(tk: Tokens, a: int, b: int) -> str:
@@ -451,9 +463,9 @@ class DeclParser:
                 name = tk.text[j]
                 line = tk.line[j]
                 j += 1
-                while tk.at(j) == "[" and tk.at(j + 1) == "]":
-                    ptype += "[]"
-                    j += 2
+                k = _skip_dims(tk, j)
+                ptype += "[]" * ((k - j) and sum(1 for q in range(j, k) if tk.at(q) == "["))
+                j = k
                 if name != "this":
                     out.append((ptype, name, line, varargs, panns))
             while j < b and tk.text[j] != ",":

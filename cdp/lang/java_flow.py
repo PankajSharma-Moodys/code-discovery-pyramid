@@ -75,6 +75,7 @@ def emit_flow(ctx: ExtractContext, facts: FileFacts, code: List[str], tk: Tokens
                 _note_constant(tk, m, constants)
         info = _feign_info("\n".join(text for _, text in jt.anns))
         if info:
+            info["span"] = (jt.start_line, jt.end_line)
             feign[jt.fqn] = info
         _emit_type_header(ctx, facts, jt, resolver)
 
@@ -418,9 +419,13 @@ def _emit_feign(ctx, facts, code, feign: Dict[str, Dict], members, resolver) -> 
 
 
 def _feign_owner(code: List[str], idx: int, feign: Dict[str, Dict]) -> Optional[str]:
-    # Feign clients are single-level interfaces; the owner is the one declared
-    # above this line, which for a flat file is the last (only) entry.
-    return list(feign)[-1] if feign else None
+    """The `@FeignClient` type whose lines contain `idx`; a mapping anywhere else in the
+    file (a controller beside the client) is not a client call."""
+    for fqn, info in feign.items():
+        lo, hi = info["span"]
+        if lo <= idx <= hi:
+            return fqn
+    return None
 
 
 def _named_or_first(args: str, keys) -> Optional[str]:

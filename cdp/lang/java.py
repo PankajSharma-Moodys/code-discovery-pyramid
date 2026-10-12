@@ -257,7 +257,8 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                                      for t in jt.supertypes]
             facts.defines.append(row)
             decls.append({"fqn": jt.fqn, "kind": jt.kind, "visibility": _visibility(jt.mods),
-                          "anchor": anchor, "index": jt.line, "name": jt.name})
+                          "anchor": anchor, "index": jt.line, "name": jt.name,
+                          "anns": jt.anns, "no_routes": no_routes})
         tv = jt.all_tparams()
         values = consts.setdefault(jt.fqn, {})
         for m in jt.members:
@@ -280,7 +281,8 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                         for (ptype, pname), pa in zip(m.params, m.param_anns)]
                 facts.defines.append(row)
                 decls.append({"fqn": fqn, "kind": "method", "visibility": vis, "anchor": anchor,
-                              "index": m.line, "name": name, "no_routes": no_routes})
+                              "index": m.line, "name": name, "no_routes": no_routes,
+                              "anns": m.anns, "type_fqn": jt.fqn})
             elif m.kind == "enum_const":
                 row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1,
                                 annotations=m.anns)
@@ -561,7 +563,7 @@ def _emit_annotation_facts(
         facts.io_edges.append(mk_edge(owner, target or ("entity:" + owner), "persist", anchor))
 
     # --- HTTP inbound ------------------------------------------------------
-    _emit_http_routes(ctx, facts, by_name, decls, primary, code)
+    _emit_http_routes(ctx, facts, decls)
 
     # --- configuration -----------------------------------------------------
     for ann in by_name.get("Value", []):
@@ -581,8 +583,13 @@ def _emit_annotation_facts(
             )
 
     # --- scheduling --------------------------------------------------------
+    scheduled = set()
     for name in ("Scheduled", "DisallowConcurrentExecution", "PersistJobDataAfterExecution", "Every"):
         for ann in by_name.get(name, []):
+            owner = _owner_for(ann.index, decls, primary)
+            if (name, owner, ann.index) in scheduled:
+                continue     # repeated or `@Schedules`-wrapped on one line: one edge
+            scheduled.add((name, owner, ann.index))
             anchor = anchor_at(ctx, ann.index)
             if anchor:
                 facts.signals.append("scheduled")
@@ -598,90 +605,75 @@ def _emit_annotation_facts(
             break
 
 
-def _emit_http_routes(
-    ctx: ExtractContext,
-    facts: FileFacts,
-    by_name: Dict[str, List[_Annotation]],
-    decls: List[Dict],
-    primary: str,
-    code: List[str],
-) -> None:
+_TYPE_KINDS = ("class", "interface", "enum", "record", "annotation")
+
+
+def _ann_args(ann) -> str:
+    """The argument list of an `Ann`: its source text from the first `(`."""
+    i = ann[1].find("(")
+    return ann[1][i:] if i >= 0 else ""
+
+
+def _emit_http_routes(ctx: ExtractContext, facts: FileFacts, decls: List[Dict]) -> None:
     """JAX-RS and Spring MVC routes, with constants left symbolic (§6.3).
 
     A class-level `@Path` whose argument is a constant reference becomes
     `${ApiConstants.SQL_POOL_SERVER_PATH}` in the target string. Nothing here
     tries to look the constant up: it may well live in another module, and a
     leaf that reached for it would be violating scope discipline.
+
+    Each handler takes its prefix from its own enclosing type's annotations, never from
+    another type in the file, and a Feign or Retrofit type emits no routes.
     """
-    class_index = decls[0]["index"] if decls else 0
-
-    # Annotations are grouped by the declaration they sit above, not by line
-    # proximity. Proximity is wrong whenever two handlers are close together:
-    # a bare `@GET` followed six lines later by another method's `@Path("/{id}")`
-    # will adopt that sub-path, and both routes collapse onto the same target
-    # under deduplication. One route silently disappears and the other is wrong.
-    blocks: Dict[int, List[_Annotation]] = {}
-    boundaries = [d["index"] for d in decls]
-    for ann in [a for group in by_name.values() for a in group]:
-        owner = None
-        for boundary in boundaries:
-            if boundary >= ann.index:
-                owner = boundary
-                break
-        if owner is None or owner - ann.index > 40:
+    bases: Dict[str, Tuple[str, Optional[Dict]]] = {}
+    for d in decls:
+        if d["kind"] not in _TYPE_KINDS or d.get("no_routes"):
             continue
-        blocks.setdefault(owner, []).append(ann)
-
-    base = ""
-    base_anchor = None
-    for ann in sorted(blocks.get(class_index, []), key=lambda a: a.index):
-        if ann.name == "Path":
-            base = _path_arg(ann.args)
-            base_anchor = anchor_at(ctx, ann.index)
-        elif ann.name in SPRING_MAPPINGS:
-            spring_path = _path_arg(ann.args)
-            if spring_path:
-                base = spring_path
-                base_anchor = anchor_at(ctx, ann.index)
+        base, base_anchor = "", None
+        for ann in sorted(d.get("anns", []), key=lambda a: a.line):
+            if ann[0] == "Path":
+                base, base_anchor = _path_arg(_ann_args(ann)), anchor_at(ctx, ann.line)
+            elif ann[0] in SPRING_MAPPINGS:
+                spring_path = _path_arg(_ann_args(ann))
+                if spring_path:
+                    base, base_anchor = spring_path, anchor_at(ctx, ann.line)
+        bases[d["fqn"]] = (base, base_anchor)
 
     emitted = False
-    unrouted = {d["index"] for d in decls if d.get("no_routes")}
-    for owner in sorted(blocks):
-        if owner == class_index or owner in unrouted:
+    for d in decls:
+        if d["kind"] != "method" or d.get("no_routes") or d.get("type_fqn") not in bases:
             continue
-        group = sorted(blocks[owner], key=lambda a: a.index)
+        base = bases[d["type_fqn"]][0]
+        group = sorted(d.get("anns", []), key=lambda a: a.line)
         sub = ""
         for ann in group:
-            if ann.name == "Path":
-                sub = _path_arg(ann.args)
+            if ann[0] == "Path":
+                sub = _path_arg(_ann_args(ann))
         for ann in group:
             verb = None
-            if ann.name in HTTP_VERBS:
-                verb = ann.name
-            elif ann.name in SPRING_MAPPINGS:
-                verb = SPRING_MAPPINGS[ann.name]
-                sub = _path_arg(ann.args) or sub
+            if ann[0] in HTTP_VERBS:
+                verb = ann[0]
+            elif ann[0] in SPRING_MAPPINGS:
+                verb = SPRING_MAPPINGS[ann[0]]
+                sub = _path_arg(_ann_args(ann)) or sub
             if verb is None:
                 continue
-            anchor = anchor_at(ctx, ann.index)
+            anchor = anchor_at(ctx, ann.line)
             if anchor is None:
                 continue
             emitted = True
             facts.signals.append("http_resource")
             facts.io_edges.append(
-                mk_edge(
-                    _owner_for(ann.index, decls, primary),
-                    "route:%s %s" % (verb, _join_route(base, sub)),
-                    "http_in",
-                    anchor,
-                )
-            )
+                mk_edge(d["fqn"], "route:%s %s" % (verb, _join_route(base, sub)), "http_in", anchor))
 
     # A resource class with a class-level @Path and no verb-annotated method is
     # still a mounted route; recording it is better than losing the mount point.
-    if base and not emitted and base_anchor:
-        facts.signals.append("http_resource")
-        facts.io_edges.append(mk_edge(primary, "route:" + base, "http_in", base_anchor))
+    first = next((d for d in decls if d["kind"] in _TYPE_KINDS), None)
+    if first is not None and first["fqn"] in bases and not emitted:
+        base, base_anchor = bases[first["fqn"]]
+        if base and base_anchor:
+            facts.signals.append("http_resource")
+            facts.io_edges.append(mk_edge(first["fqn"], "route:" + base, "http_in", base_anchor))
 
 
 def _join_route(base: str, sub: str) -> str:
