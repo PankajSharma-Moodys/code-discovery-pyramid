@@ -49,6 +49,11 @@ A deterministic extractor has already produced, with anchors:
 - typed channel edges — routes, entities, repositories, mappers, config reads,
   scheduled jobs, side effects
 
+- annotations on types, methods and parameters, as verbatim source text with
+  their line numbers (`@Every(...)`, `@Table(...)`). They are facts, not
+  guesses: cite their lines as anchors, say what they mean for the system, and
+  never invent an annotation or argument that is not shown.
+
 **Do not restate any of it.** Listing `public class ServerService` as a claim
 adds nothing; Python already knows. Your job is what the structure cannot say.
 

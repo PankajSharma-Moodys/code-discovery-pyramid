@@ -269,8 +269,12 @@ def _structure(extraction: Dict, scope_files: Set[str]) -> Dict:
         for signal in extraction["files"].get(rel, {}).get("signals", []):
             signals.setdefault(signal, []).append(rel)
     return {
-        "defines": [d for d in defines if d["kind"] in ("class", "interface", "enum", "record", "annotation")],
+        "defines": [d for d in defines if d["kind"] in _TYPE_KINDS],
         "constants": [d for d in defines if d["kind"] in ("constant", "config_key")],
+        # Annotated declarations of any kind (types, methods, fields, ctors),
+        # including those whose only annotations sit on a parameter.
+        "annotated": [d for d in defines if d.get("annotations")
+                      or any(p.get("annotations") for p in d.get("params") or [])],
         "edges": edges,
         "signals": signals,
     }
@@ -393,6 +397,56 @@ def _digest_section(
     return "\n".join(parts), fingerprint
 
 
+# Prompt-only noise filter: stored and queryable everywhere else, but carrying
+# no fact a leaf needs spelled out.
+NOISE_ANNOTATIONS = frozenset({"Override", "SuppressWarnings", "Generated"})
+
+
+_TYPE_KINDS = ("class", "interface", "enum", "record", "annotation")
+
+
+def _ann_span(ann: Dict) -> str:
+    line, end = ann.get("line"), ann.get("end_line")
+    if not line:
+        return ""
+    return "L%d-%d" % (line, end) if end and end != line else "L%d" % line
+
+
+def _annotation_rows(structure: Dict) -> List[str]:
+    """`- Class#method L14-18: @Every(...)` -- verbatim text, cited lines. Parameter
+    annotations follow their method as `(param: @X)`."""
+    rows: List[Tuple[int, int, int, str]] = []
+    freq: Dict[str, int] = {}
+    for d in structure.get("annotated", []):
+        for a in d.get("annotations") or []:
+            freq[a.get("name")] = freq.get(a.get("name"), 0) + 1
+    for d in structure.get("annotated", []):
+        anns = [a for a in d.get("annotations") or [] if a.get("name") not in NOISE_ANNOTATIONS]
+        params = []
+        for prm in d.get("params") or []:
+            texts = [a["text"] for a in prm.get("annotations") or [] if a.get("name") not in NOISE_ANNOTATIONS]
+            if texts:
+                params.append("%s: %s" % (prm.get("name", "?"), " ".join(texts)))
+        if not anns and not params:
+            continue
+        owner, sep, member = d["fqn"].partition("#")
+        if not sep and d["kind"] not in _TYPE_KINDS:  # fields/constants: `Class.field` -> `Class#field`
+            owner, _, member = owner.rpartition(".")
+            sep = "#"
+        label = owner.rpartition(".")[2] + sep + member
+        span = _ann_span(anns[0]) if anns else "L%d" % d["anchor"]["line"]
+        text = " ".join(a["text"] for a in anns)
+        if params:
+            text = (text + " " if text else "") + "(" + "; ".join(params) + ")"
+        # Cut order (stable, deterministic): when `row_cap` cuts, bare/unnamed-argument rows
+        # (`@Component`, `@Test`, `@Autowired`, `@JsonProperty("x")`) go before rows carrying
+        # named arguments (`@Every(value="60s")`, `@Table(name=...)`), rarest annotation first.
+        named = 0 if any("=" in a["text"] for a in anns) else 1
+        rank = min((freq.get(a.get("name"), 0) for a in anns), default=1 << 30)
+        rows.append((named, rank, len(rows), "- %s %s: %s" % (label, span, text)))
+    return [r[-1] for r in sorted(rows)]
+
+
 def _structure_section(structure: Dict, row_cap: int = MAX_STRUCTURE_ROWS) -> str:
     constants_cap = max(10, row_cap // 2)  # 60 at the default row_cap=120, same as before this was parameterised
 
@@ -414,6 +468,19 @@ def _structure_section(structure: Dict, row_cap: int = MAX_STRUCTURE_ROWS) -> st
                 row["fqn"], row["visibility"], row["kind"], row["anchor"]["file"], row["anchor"]["line"]))
         if len(structure["defines"]) > row_cap:
             parts.append("- ... and %d more" % (len(structure["defines"]) - row_cap))
+        parts.append("")
+
+    ann_rows = _annotation_rows(structure)
+    if ann_rows:
+        # Shrinks with `row_cap`, i.e. on the same lever as the type and edge rows in
+        # build_prompt's token loop (inherited -> digest -> structure rows), so the
+        # existing shrink order is unchanged and deterministic.
+        # Half the type/edge cap (like constants): annotations are the first rows to go,
+        # so tightening never costs more type/edge rows than it did before this section.
+        parts.append("### Annotations declared here (verbatim source; cite the lines)\n")
+        parts.extend(ann_rows[:constants_cap])
+        if len(ann_rows) > constants_cap:
+            parts.append("- ... and %d more" % (len(ann_rows) - constants_cap))
         parts.append("")
 
     if structure["constants"]:
@@ -526,6 +593,9 @@ def _task_section(node: str, run_id: str, digest_mode: bool = False,
         "3. **Route what you cannot evidence to `unknowns[]`.** An explicit unknown is useful "
         "output — it names precisely where the knowledge still lives in someone's head. A claim "
         "you cannot anchor is not.\n\n"
+        "Annotations in the structure section are verbatim source facts: cite their lines "
+        "as anchors and interpret what they mean for the system; never invent an annotation, "
+        "argument or value that is not shown.\n\n"
         "Do not run a self-verification pass. An independent Python verifier re-opens every cited "
         "file and checks every anchor; claims that fail are demoted to `unknowns[]` automatically, "
         "and the demotion rate is being measured. Spending your budget re-reading your own "

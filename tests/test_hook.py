@@ -462,6 +462,11 @@ class PromptSubmitTest(_OwnHome, unittest.TestCase):
         for kind in hook_mod.RECIPE_KINDS:
             self.assertIn("kind=%s" % kind, hook_mod.RECIPE.replace("kind=search", "kind=search"))
 
+    def test_recipe_routes_schedules_and_annotation_values_to_search(self) -> None:
+        self.assertIn("@Every", hook_mod.RECIPE)
+        self.assertIn("kind=search", hook_mod.RECIPE.split("@Every")[0].splitlines()[-1])
+        self.assertLess(len(hook_mod.RECIPE), 1400)
+
     def test_silent_without_a_scan_or_for_a_non_code_prompt(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
