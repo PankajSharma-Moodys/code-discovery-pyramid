@@ -25,6 +25,7 @@ import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .inventory import ROOT_MODULE
+from . import schedfacts
 from .rules import all_edges
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -51,7 +52,7 @@ def derive_claims(
     claims: List[Dict] = []
     claims += _naming(inventory, extraction, node_of)
     claims += _routes(xref, node_of)
-    claims += _entrypoints(extraction, node_of)
+    claims += _entrypoints(extraction, node_of, repo)
     claims += _deployables(extraction, node_of)
     claims += _data_models(extraction, xref, node_of)
     claims += _schema_ownership(extraction, node_of)
@@ -253,8 +254,27 @@ def _routes(xref: Dict, node_of: Dict[str, str]) -> List[Dict]:
     return out
 
 
-def _entrypoints(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
+def _scheduled(extraction: Dict, node_of: Dict[str, str], repo) -> Tuple[List[Dict], set]:
+    """One claim per scheduled symbol, stating the interval/cron/delay the annotations give (P6, T6)."""
     out: List[Dict] = []
+    done = set()
+    for row in schedfacts.schedule_sources(extraction):
+        name = _short(row["source"])
+        statement = schedfacts.describe(name, row["items"])
+        if statement is None:
+            continue
+        before = len(out)
+        _add(out, _claim(node_of, "entrypoint", row["source"],
+                         statement,
+                         schedfacts.evidence(repo, row), channel="schedule",
+                         id_parts=("entrypoint", "schedule", row["source"])))
+        if len(out) > before:
+            done.add(row["source"])
+    return out, done
+
+
+def _entrypoints(extraction: Dict, node_of: Dict[str, str], repo=None) -> List[Dict]:
+    out, scheduled = _scheduled(extraction, node_of, repo)
     for edge in all_edges(extraction):
         if edge["channel"] == "process_boundary" and edge["target"].startswith("process:"):
             # A Dockerfile also marks its directory as a process. That fact is
@@ -277,7 +297,7 @@ def _entrypoints(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
                     id_parts=("entrypoint", "main", edge["source"]),
                 ),
             )
-        elif edge["channel"] == "schedule" and edge["target"] in ("scheduler",):
+        elif edge["channel"] == "schedule" and edge["target"] in ("scheduler",) and edge["source"] not in scheduled:
             _add(
                 out,
                 _claim(

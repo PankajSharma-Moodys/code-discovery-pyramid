@@ -136,7 +136,7 @@ Which kinds take which parameter:
 **What.** Every HTTP route with verb, path (constants resolved; a Dropwizard module's `server.applicationContextPath` prefixed), handler and the annotation/constant sites that declare it.
 
 - Limits: Not outbound HTTP calls; not routes built at runtime. Unresolved constants are listed, not guessed.
-- Reading it: `declared_via` shows the constant expression; `unresolved_constants` non-empty means the path is partial. Each route also shows its handler's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations, a few lines per route (`--json` has all).
+- Reading it: `declared_via` shows the constant expression; `unresolved_constants` non-empty means the path is partial. Each route also shows its handler's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations, a few lines per route (`--json` has all). `inputs` lists what the handler reads from the request (`@PathVariable`, `@RequestParam`, `@RequestHeader`, `@RequestBody`, JAX-RS `*Param`): kind, name, type, `required`/`default` when the annotation states them.
 
 **How.** `term`: OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method (`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` matches the whole name; omit for all.
 
@@ -228,7 +228,7 @@ Which kinds take which parameter:
 **What.** The claim log: structural facts and model/human claims with confidence and evidence anchors.
 
 - Limits: Deterministic scans yield few claims; no model review means few interpretive ones (see `coverage`).
-- Reading it: `confidence` and `verdict` per claim; every claim has evidence `file:line`.
+- Reading it: `confidence` and `verdict` per claim; every claim has evidence `file:line`. Scheduled jobs (`--kind entrypoint`) state their interval, cron, start delay, misfire policy and concurrency from the annotation arguments.
 
 **How.** `term`: OPTIONAL shorthand for `claim_kind`; do not combine with a different `claim_kind`.
 

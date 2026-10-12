@@ -4,8 +4,7 @@
   "rules": [
     {
       "id": "schedule.spring",
-      "match": {"fqn": ["org.springframework.scheduling.annotation.Scheduled", "io.quarkus.scheduler.Scheduled",
-                        "io.micronaut.scheduling.annotation.Scheduled"], "on": ["class", "method", "field", "constant"]},
+      "match": {"fqn": ["org.springframework.scheduling.annotation.Scheduled", "io.quarkus.scheduler.Scheduled", "io.micronaut.scheduling.annotation.Scheduled"], "on": ["class", "method", "field", "constant"]},
       "aliases": ["Scheduled"],
       "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
     },
@@ -13,6 +12,36 @@
       "id": "schedule.every",
       "match": {"fqn": ["io.dropwizard.jobs.annotations.Every", "de.spinscale.dropwizard.jobs.annotations.Every"], "on": ["class", "method", "field", "constant"]},
       "aliases": ["Every"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.delay_start",
+      "match": {"fqn": ["io.dropwizard.jobs.annotations.DelayStart", "de.spinscale.dropwizard.jobs.annotations.DelayStart"], "on": ["class", "method", "field", "constant"]},
+      "aliases": ["DelayStart"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.on",
+      "match": {"fqn": ["io.dropwizard.jobs.annotations.On", "de.spinscale.dropwizard.jobs.annotations.On"], "on": ["class", "method", "field", "constant"]},
+      "aliases": ["On"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.on_application_start",
+      "match": {"fqn": ["io.dropwizard.jobs.annotations.OnApplicationStart", "de.spinscale.dropwizard.jobs.annotations.OnApplicationStart"], "on": ["class", "method", "field", "constant"]},
+      "aliases": ["OnApplicationStart"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.on_application_stop",
+      "match": {"fqn": ["io.dropwizard.jobs.annotations.OnApplicationStop", "de.spinscale.dropwizard.jobs.annotations.OnApplicationStop"], "on": ["class", "method", "field", "constant"]},
+      "aliases": ["OnApplicationStop"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.jakarta",
+      "match": {"fqn": ["javax.ejb.Schedule", "jakarta.ejb.Schedule"], "on": ["method"]},
+      "aliases": ["Schedule"],
       "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
     },
     {

@@ -15,8 +15,9 @@
       },
       "aliases": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
       "unless": {"owner": {"fqn": ["org.springframework.cloud.openfeign.FeignClient",
-                                   "org.springframework.cloud.netflix.feign.FeignClient"],
-                           "aliases": ["FeignClient"]},
+                                   "org.springframework.cloud.netflix.feign.FeignClient",
+                                   "org.eclipse.microprofile.rest.client.inject.RegisterRestClient"],
+                           "aliases": ["FeignClient", "RegisterRestClient"]},
                  "imports": ["retrofit2.http"]},
       "emit": {
         "channel": "http_in",
@@ -39,8 +40,9 @@
       "declared": false,
       "aliases": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
       "unless": {"owner": {"fqn": ["org.springframework.cloud.openfeign.FeignClient",
-                                   "org.springframework.cloud.netflix.feign.FeignClient"],
-                           "aliases": ["FeignClient"]},
+                                   "org.springframework.cloud.netflix.feign.FeignClient",
+                                   "org.eclipse.microprofile.rest.client.inject.RegisterRestClient"],
+                           "aliases": ["FeignClient", "RegisterRestClient"]},
                  "imports": ["retrofit2.http"]},
       "emit": {
         "channel": "http_in",
@@ -55,8 +57,9 @@
       "fallback": true,
       "when": {"first_type": true},
       "unless": {"owner": {"fqn": ["org.springframework.cloud.openfeign.FeignClient",
-                                   "org.springframework.cloud.netflix.feign.FeignClient"],
-                           "aliases": ["FeignClient"]},
+                                   "org.springframework.cloud.netflix.feign.FeignClient",
+                                   "org.eclipse.microprofile.rest.client.inject.RegisterRestClient"],
+                           "aliases": ["FeignClient", "RegisterRestClient"]},
                  "imports": ["retrofit2.http"]},
       "emit": {"channel": "http_in", "signal": "http_resource", "target": "route:{value|path}"}
     }

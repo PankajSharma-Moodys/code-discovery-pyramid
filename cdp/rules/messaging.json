@@ -1,0 +1,45 @@
+{
+  "family": "messaging",
+  "language": "java",
+  "rules": [
+    {
+      "id": "messaging.kafka",
+      "match": {"fqn": "org.springframework.kafka.annotation.KafkaListener", "on": ["class", "method"]},
+      "aliases": ["KafkaListener"],
+      "emit": {"channel": "event_subscribe", "signal": "message_listener", "target": "event:{topics|value|topicPattern:each}"}
+    },
+    {
+      "id": "messaging.jms",
+      "match": {"fqn": "org.springframework.jms.annotation.JmsListener", "on": ["class", "method"]},
+      "aliases": ["JmsListener"],
+      "emit": {"channel": "event_subscribe", "signal": "message_listener", "target": "event:{destination|value:each}"}
+    },
+    {
+      "id": "messaging.rabbit",
+      "match": {"fqn": "org.springframework.amqp.rabbit.annotation.RabbitListener", "on": ["class", "method"]},
+      "aliases": ["RabbitListener"],
+      "emit": {"channel": "event_subscribe", "signal": "message_listener", "target": "event:{queues|value|queuesToDeclare:each}"}
+    },
+    {
+      "id": "messaging.sqs",
+      "match": {"fqn": ["io.awspring.cloud.sqs.annotation.SqsListener",
+                        "org.springframework.cloud.aws.messaging.listener.annotation.SqsListener"],
+                "on": ["class", "method"]},
+      "aliases": ["SqsListener"],
+      "emit": {"channel": "event_subscribe", "signal": "message_listener", "target": "event:{value|queueNames:each}"}
+    },
+    {
+      "id": "messaging.stream",
+      "match": {"fqn": "org.springframework.cloud.stream.annotation.StreamListener", "on": ["method"]},
+      "aliases": ["StreamListener"],
+      "emit": {"channel": "event_subscribe", "signal": "message_listener", "target": "event:{value|target:each}"}
+    },
+    {
+      "id": "messaging.event",
+      "match": {"fqn": "org.springframework.context.event.EventListener", "on": ["method"]},
+      "aliases": ["EventListener"],
+      "emit": {"channel": "event_subscribe", "signal": "message_listener",
+               "target": ["event:{classes|value:each}", "event:{params.0.type}"]}
+    }
+  ]
+}

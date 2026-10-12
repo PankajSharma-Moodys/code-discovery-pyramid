@@ -571,7 +571,7 @@ def _unreferenced(
         for signal in info.get("signals", []):
             if signal.startswith("di:") or signal in (
                 "http_resource", "repository", "mapper", "entity", "quartz_job",
-                "scheduled", "main", "deployable",
+                "scheduled", "message_listener", "main", "deployable",
             ):
                 framework_managed.add(rel)
 
