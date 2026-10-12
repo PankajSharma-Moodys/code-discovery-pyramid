@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence
 
 from .budget import Budget
-from .common import cite, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _search_rank_key
+from .common import ann_at, cite, squash, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _search_rank_key
 from .store import Store
 
 
-SEARCHED = "claim subjects and statements, symbol names, constant values, unknown questions, file paths"
+SEARCHED = ("claim subjects and statements, symbol names, constant values, annotations (name, fqn, text), "
+            "unknown questions, file paths")
 
 
 def q_search(store: Store, text: str, budget: Optional[Budget] = None,
@@ -31,6 +32,7 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
          for k, e in store.xref["symbols"].items()
          if k not in named and e.get("value") is not None and _matches(e["value"], text)),
     )
+    annotations = _annotation_hits(store, text, exclude_role)
     files = sorted(
         (
             f["path"] for f in store.inventory["files"]
@@ -41,9 +43,11 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     # Fair-split, not a single shared budget spent in construction order --
     # see `_fair_split_budget`'s docstring for the real-repo failure mode
     # this replaced.
-    claims_room, symbols_room, unknowns_room, files_room, constants_room = _fair_split_budget(
-        budget.limit, [len(claims), len(symbols), len(unknowns), len(files), len(constants)]
+    claims_room, symbols_room, unknowns_room, files_room, constants_room, annotations_room = _fair_split_budget(
+        budget.limit, [len(claims), len(symbols), len(unknowns), len(files), len(constants), len(annotations)]
     )
+    annotations_budget = Budget(annotations_room)
+    kept_annotations = annotations_budget.take(annotations)
     constants_budget = Budget(constants_room)
     kept_constants = constants_budget.take(constants)
     claims_budget = Budget(claims_room)
@@ -56,11 +60,11 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     kept_files = files_budget.take(files)
     budget.spent = (
         claims_budget.spent + symbols_budget.spent
-        + unknowns_budget.spent + files_budget.spent + constants_budget.spent
+        + unknowns_budget.spent + files_budget.spent + constants_budget.spent + annotations_budget.spent
     )
     budget.elided = (
         claims_budget.elided + symbols_budget.elided
-        + unknowns_budget.elided + files_budget.elided + constants_budget.elided
+        + unknowns_budget.elided + files_budget.elided + constants_budget.elided + annotations_budget.elided
     )
     return _finish(
         {
@@ -69,7 +73,7 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
             "counts": {
                 "claims": len(claims), "symbols": len(symbols),
                 "unknowns": len(unknowns), "files": len(files),
-                "constants": len(constants),
+                "constants": len(constants), "annotations": len(annotations),
             },
             "searched": SEARCHED,
             "not_searched": "file contents (use grep for text inside a file)",
@@ -78,10 +82,33 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
             "unknowns": kept_unknowns,
             "files": kept_files,
             "constants": kept_constants,
+            "annotations": kept_annotations,
         },
         store,
         budget,
     )
+
+
+def _annotation_hits(store: Store, text: str, exclude_role: Optional[Sequence[str]]) -> List[Dict]:
+    """Annotations (on declarations and on parameters) whose name, fqn or source text contains
+    `text`, whitespace ignored on both sides. Row: owner, verbatim text, `file:line-end`."""
+    needle = squash(text)
+    if not needle:
+        return []
+    roles = _role_index(store) if exclude_role else {}
+    hits = []
+    for fqn, entry in store.xref["symbols"].items():
+        for site in entry.get("sites", []):
+            if exclude_role and roles.get(site["file"]) in exclude_role:
+                continue
+            groups = [(fqn, site.get("annotations", []))]
+            groups += [("%s(%s)" % (fqn, p["name"]), p.get("annotations", [])) for p in site.get("params", [])]
+            for owner, rows in groups:
+                for r in rows:
+                    if needle in squash(r["name"]) or needle in squash(r.get("fqn", "")) or needle in squash(r["text"]):
+                        hits.append({"owner": owner, "text": r["text"], "at": ann_at(site["file"], r)})
+    hits.sort(key=lambda h: (_search_rank_key(h["text"], text), h["owner"], h["at"]))
+    return hits
 
 
 def q_claims(

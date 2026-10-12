@@ -90,6 +90,9 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
         }
         if row.get("end_line"):
             site["end_line"] = row["end_line"]
+        for key in ("annotations", "params", "supertypes"):   # per declaration: overloads differ
+            if row.get(key):
+                site[key] = row[key]
         entry["sites"].append(site)
         if row.get("value") is not None:
             entry["value"] = row["value"]

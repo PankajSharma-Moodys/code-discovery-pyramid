@@ -32,6 +32,16 @@ def _site_lines(label: str, groups: List[Dict], fallback: List[str]) -> List[str
     return lines
 
 
+def _annotation_lines(indent: str, row: Dict) -> List[str]:
+    """Verbatim annotations of a definition, its owner class's and its parameters', one per line."""
+    lines = ["%s%s  %s" % (indent, truncate(a["text"], 140), a["at"]) for a in row.get("annotations", [])]
+    lines += ["%sclass %s  %s" % (indent, truncate(a["text"], 140), a["at"]) for a in row.get("class_annotations", [])]
+    for p in row.get("params", []):
+        lines.append("%s(%s %s) %s" % (indent, p.get("type") or "", p["name"],
+                                       " ".join(truncate(a["text"], 100) for a in p["annotations"])))
+    return lines
+
+
 def _tag(row: Dict, total: int) -> str:
     """Which verbs (route trace) or members (class trace) reach this file; nothing when all of
     them do (the file is shared, not specific to one)."""
@@ -75,6 +85,7 @@ def render(result: Dict) -> str:
             lines.append("  defined in %s at %s" % (", ".join(entry["modules"]), ", ".join(entry["defined_at"])))
             if entry["collision"]:
                 lines.append("  ! declared at more than one site; no winner is picked (§6.4)")
+            lines.extend(_annotation_lines("  ", entry))
             lines.append("  used by %d site(s)" % entry["used_by_count"])
             for use in entry["used_by"]:
                 lines.append("    %-24s %s" % (use["module"], use["at"]))
@@ -111,6 +122,7 @@ def render(result: Dict) -> str:
                             span, d.get("visibility") or "", d["kind"], d["name"]))
                     else:
                         lines.append("    %-9s %-60s %s" % (d["kind"], truncate(d["fqn"], 60), d["at"]))
+                    lines.extend(_annotation_lines("        ", d))
                 lines.extend(_more("    ", entry["defines_count"], entry["defines"]))
             if entry["io_edges"]:
                 lines.append("  edges:")
@@ -256,6 +268,10 @@ def render(result: Dict) -> str:
             lines.append("constants (matched by value):")
             lines += ["  " + c for c in result["constants"]]
             lines.extend(_more("  ", counts["constants"], result["constants"]))
+        if result.get("annotations"):
+            lines.append("annotations:")
+            lines += ["  %s  %s  %s" % (a["owner"], truncate(a["text"], 140), a["at"]) for a in result["annotations"]]
+            lines.extend(_more("  ", counts["annotations"], result["annotations"]))
         if result["files"]:
             lines.append("files:")
             lines += ["  " + f for f in result["files"]]

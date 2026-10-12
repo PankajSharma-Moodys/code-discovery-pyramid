@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence
 
 from .budget import Budget
-from .common import _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite
+from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite
 from .store import Store
 
 
@@ -160,6 +160,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                     for s in sites
                 ],
                 "collision": bool(entry.get("collision")),
+                **annotations_of(store, key),
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
                 "used_by_count": len(users),
@@ -171,6 +172,18 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
             }
         )
     return _finish({"query": "symbol", "name": name, "match": mode, "found": out}, store, budget)
+
+
+def _define_annotations(rel: str, d: Dict) -> Dict:
+    """`annotations` and annotated `params` of one define row, as the query shows them."""
+    out: Dict = {}
+    if d.get("annotations"):
+        out["annotations"] = ann_view(rel, d["annotations"])
+    params = [{"name": p["name"], "type": p.get("type"), "annotations": ann_view(rel, p["annotations"])}
+              for p in d.get("params", []) if p.get("annotations")]
+    if params:
+        out["params"] = params
+    return out
 
 
 def _short_name(fqn: str) -> str:
@@ -219,7 +232,8 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
                 "defines": [
                     {"fqn": d["fqn"], "kind": d["kind"], "at": cite(d["anchor"]),
                      "name": _short_name(d["fqn"]), "visibility": d.get("visibility"),
-                     "line": d["anchor"]["line"], "end_line": d.get("end_line")}
+                     "line": d["anchor"]["line"], "end_line": d.get("end_line"),
+                     **_define_annotations(rel, d)}
                     for d in budget.take(defines)
                 ],
                 "io_edges_count": len(edges),

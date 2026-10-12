@@ -92,6 +92,45 @@ def cite(anchor: Dict) -> str:
     return "%s:%s" % (anchor.get("file"), anchor.get("line"))
 
 
+def ann_at(file: str, row: Dict) -> str:
+    """`file:line` or `file:line-end` for an annotation row."""
+    line, end = row.get("line"), row.get("end_line")
+    if not line:
+        return file
+    return "%s:%d" % (file, line) + ("-%d" % end if end and end != line else "")
+
+
+def ann_view(file: str, rows: Sequence[Dict]) -> List[Dict]:
+    """Annotation rows as the query shows them: verbatim text and where it sits."""
+    return [{"text": r["text"], "at": ann_at(file, r)} for r in rows]
+
+
+def annotations_of(store: Store, fqn: str) -> Dict:
+    """What decorates a symbol: its own annotations and parameters, and its owner class's.
+    One entry per definition site (overloads differ); empty keys are left out."""
+    syms = store.xref["symbols"]
+    out: Dict[str, List] = {"annotations": [], "params": [], "class_annotations": []}
+    for site in syms.get(fqn, {}).get("sites", []):
+        out["annotations"] += ann_view(site["file"], site.get("annotations", []))
+        for p in site.get("params", []):
+            if p.get("annotations"):
+                out["params"].append({"name": p["name"], "type": p.get("type"),
+                                      "annotations": ann_view(site["file"], p["annotations"])})
+    owner = fqn.partition("#")[0]
+    if "#" not in fqn:
+        head = fqn.rpartition(".")[0]
+        owner = head if syms.get(head, {}).get("kind") in ("class", "interface", "enum", "record") else ""
+    if owner and owner != fqn:
+        for site in syms.get(owner, {}).get("sites", []):
+            out["class_annotations"] += ann_view(site["file"], site.get("annotations", []))
+    return {k: v for k, v in out.items() if v}
+
+
+def squash(text: str) -> str:
+    """Lower-case with all whitespace removed, so `value = "60s"` finds `value="60s"`."""
+    return "".join(str(text).split()).lower()
+
+
 def _claim_lines(claim: Dict, indent: str = "  ") -> List[str]:
     out = ["%s%s" % (indent, claim.get("statement", ""))]
     for text in claim.get("statements", [])[1:]:
