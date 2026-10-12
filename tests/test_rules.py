@@ -343,6 +343,22 @@ class WebFamilyTest(unittest.TestCase):
         src = self.JAXRS + '@Path(Api.ROOT + "/v1")\nclass R {\n  @GET void g() {}\n}\n'
         self.assertEqual(routes(src), [("g", "route:GET ${Api.ROOT}/v1")])
 
+    def test_inherited_interface_mappings_apply_to_implementations(self):
+        api = ('package a;\nimport org.springframework.web.bind.annotation.*;\n@RequestMapping("/api")\n'
+               'public interface Api {\n  @GetMapping("/items") String items();\n}\n')
+        impl = "package a;\n@org.springframework.web.bind.annotation.RestController\nclass Impl implements Api {\n  public String items() { return \"\"; }\n}\n"
+        ex = rules.apply(extraction_of(extract(api, "a/Api.java"), extract(impl, "a/Impl.java")))
+        got = sorted((e["rule"], e["source"], e["target"], e["file"], e["anchor"]["line"]) for e in ex["rule_edges"])
+        self.assertEqual(got, [("spring.web.mapping", "a.Api#items", "route:GET /api/items", "a/Api.java", 5),
+                               ("spring.web.mapping.inherited", "a.Impl#items", "route:GET /api/items", "a/Api.java", 5)])
+
+    def test_inherited_jaxrs_interface_mappings_apply_to_implementations(self):
+        api = ("package a;\nimport javax.ws.rs.*;\n@Path(\"/api\")\ninterface Api {\n  @GET @Path(\"/i\") String i();\n}\n")
+        impl = "package a;\nclass Impl implements Api {\n  public String i() { return \"\"; }\n}\n"
+        ex = rules.apply(extraction_of(extract(api, "a/Api.java"), extract(impl, "a/Impl.java")))
+        self.assertEqual(sorted((e["rule"], e["source"], e["target"]) for e in ex["rule_edges"]),
+                         [("jaxrs.verb", "a.Api#i", "route:GET /api/i"), ("jaxrs.verb.inherited", "a.Impl#i", "route:GET /api/i")])
+
 
 class AllEdgesTest(unittest.TestCase):
     def test_all_edges_merges_in_io_edges_order_and_returns_io_edges_when_there_are_no_rule_edges(self):
