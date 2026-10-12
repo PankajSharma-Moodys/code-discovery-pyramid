@@ -64,7 +64,7 @@ Which kinds take which parameter:
 **What.** The minimal cited file set needed to understand an entry point: the files its call/persist/publish edges reach (including the `@Subscribe` handlers of an EventBus event it posts), each with the edge that put it there.
 
 - Limits: Not logic: no parameters or branches. DI/reflection wiring leaves no edge, so a short trail is not proof of 'calls nothing'. Edges tagged `medium` come from imports or interface/override fan-out (can reach, not does). A class term (`TenantController`) is not one entry point: each public member is walked and the list is capped at 40 files (round-robin, nearest first; the cap and the unlisted count are stated, and `--budget` does not lift it) - trace a member or a route for a whole chain.
-- Reading it: `resolved_as` says what the term matched (route, source or symbol); `files` are the reading list in walk order; `hops_exhausted` true means raise --max-hops; `elided: 0` means the list is complete. A route path shared by several verbs is traced for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`).
+- Reading it: `resolved_as` says what the term matched (route, source or symbol); `files` are the reading list in walk order; `hops_exhausted` true means raise --max-hops; `elided: 0` means the list is complete. A route path shared by several verbs is traced for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`). The entry point (`resolved_as`) and each hop row that cites one definition (`defines X`) carry that symbol's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations; a hop with no single cited symbol shows none.
 
 **How.** `term`: REQUIRED. A route path (`/orders`; all its verbs) or `VERB /path` (`POST /orders`; one), a dataflow source, a class (`OrderResource`: its public members) or a member (`OrderResource#place`); substring, first match wins in that order.
 
@@ -83,7 +83,7 @@ Which kinds take which parameter:
 **What.** Where a class, method or constant is defined (with line extent) and every site that uses it: the transpose of the resolved import and call tables.
 
 - Limits: Not dynamic dispatch, reflection or DI wiring. `used_by` of an interface lists its implementers' callers only where the call resolves. A class's `used_by` includes its `new X(..)` sites (an implicit default constructor counts as the class). Java: a call on a type variable resolves through its declared bound(s) only; an inferred generic method result (`<T> T pick()`) stays untyped. C#: `x.M()`, `new X(..)`, `new(..)`, `: base(..)`, method groups and extension methods resolve through declared types, `var`, `await`, collections/LINQ and explicit `M<T>()` arguments; a lambda parameter is typed only for LINQ-style stages and Moq `Setup`/`Verify`; overloads share one symbol and are told apart only by argument count (an interface method can win over an extension of the same name), and a NuGet-typed receiver leaves no edge. Python: calls, references, decorators and `from x import f` resolve for `f()`, `self.m()`, `mod.f()`, `Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, `x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, `getattr`, dispatch through a list of modules and decorator-built wrappers are not found.
-- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `collision` true means several definitions share the name.
+- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `collision` true means several definitions share the name. Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java).
 
 **How.** `term`: REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; case-insensitive substring (exact last-name matches first) unless `exact`; `Class#method` is always exact.
 
@@ -102,7 +102,7 @@ Which kinds take which parameter:
 **What.** One file's module, language, role, LOC, every definition with line extent, and its I/O edges (tables, config, HTTP, events).
 
 - Limits: Not file contents. Use it to pick the line range to Read.
-- Reading it: `defines` is the outline with `line`..`end_line`; `io_edges` are what the file reads/writes/calls out to.
+- Reading it: `defines` is the outline with `line`..`end_line`; `io_edges` are what the file reads/writes/calls out to. Each definition lists its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java).
 
 **How.** `term`: REQUIRED. A repo-relative path or any substring of one (`exact`: the path or a trailing `dir/file`); an absolute path inside another scanned repo is routed to that repo's store.
 
@@ -136,7 +136,7 @@ Which kinds take which parameter:
 **What.** Every HTTP route with verb, path (constants resolved; a Dropwizard module's `server.applicationContextPath` prefixed), handler and the annotation/constant sites that declare it.
 
 - Limits: Not outbound HTTP calls; not routes built at runtime. Unresolved constants are listed, not guessed.
-- Reading it: `declared_via` shows the constant expression; `unresolved_constants` non-empty means the path is partial.
+- Reading it: `declared_via` shows the constant expression; `unresolved_constants` non-empty means the path is partial. Each route also shows its handler's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations, a few lines per route (`--json` has all).
 
 **How.** `term`: OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method (`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` matches the whole name; omit for all.
 
@@ -155,7 +155,7 @@ Which kinds take which parameter:
 **What.** Per table: owning module and migration DDL, writers, readers, each with a citation. The union is 'what breaks if I change this table'.
 
 - Limits: Only tables seen in migrations or persistence/read code; not raw SQL in strings the extractor cannot parse.
-- Reading it: `migrations` = schema owner; `writers`/`readers` group the sites by who touches the table (SQL scripts are one group: site and file counts, a few `file:line`); `entity_users` are the uses of the entity class outside the DbContext and migrations (reads and writes not told apart); `evidence` is the cited sites.
+- Reading it: `migrations` = schema owner; `writers`/`readers` group the sites by who touches the table (SQL scripts are one group: site and file counts, a few `file:line`); `entity_users` are the uses of the entity class outside the DbContext and migrations (reads and writes not told apart); `evidence` is the cited sites. Each code writer/reader group shows its annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations (e.g. `@Table(name=..)`); script groups show none.
 
 **How.** `term`: OPTIONAL. Substring of the table name (`order` also matches `orders`) unless `exact`; omit for all.
 
@@ -174,7 +174,7 @@ Which kinds take which parameter:
 **What.** Each config key / env var with its declarations, values and read sites (config files, Docker `ENV`, `${VAR:-default}` placeholders, Python (`os.environ[..]`/`.get`, `os.getenv`, `environ`/`getenv` imports, keys held in constants, `django.conf.settings.X`, pydantic `BaseSettings` fields)/JS/Go env reads, Java `System.getenv`/`getProperty`/`Long.getLong`/`getenv().getOrDefault`, `@Value`; C# `IConfiguration` indexer/`GetValue`/`GetSection`/`GetConnectionString`, `Environment.GetEnvironmentVariable`, `appsettings*.json` keys as `A:B`).
 
 - Limits: Not values set outside the repo (deploy-time env). A key built at run time is listed under `(dynamic)`, not by name. Java reads through a provider (`configProvider.getValue(KEY)`, `env.getProperty("k")`) and calls to wrapper methods that pass a literal/constant key on to `System.getenv`/a provider are found; a provider whose type and names never mention config/properties/env, or a wrapper reached only through an interface, is not.
-- Reading it: `declared` vs `read` sites; `values` are the literal defaults seen. Keys are ranked by read sites; `read_count` is the true total, `keys_elided`/`sites_elided` count what the budget cut (raise `budget` or pass a term to see every site).
+- Reading it: `declared` vs `read` sites; `values` are the literal defaults seen. Keys are ranked by read sites; `read_count` is the true total, `keys_elided`/`sites_elided` count what the budget cut (raise `budget` or pass a term to see every site). Each read site shows its reader's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations.
 
 **How.** `term`: OPTIONAL. Substring of the key name (`MINI_DB`, `billing.url`; `exact`: whole key); omit for all keys (most-read first, a few citations each; pass a term to see every site).
 
@@ -211,7 +211,7 @@ Which kinds take which parameter:
 **What.** Substring search over claim subjects/statements, symbol names, constant values, unknown questions and file paths, ranked by closeness.
 
 - Limits: Not file contents (that is grep); an empty answer says what was and was not searched.
-- Reading it: `counts` are true totals; each list is budget-split fairly.
+- Reading it: `counts` are true totals; each list is budget-split fairly. An `annotations` bucket matches annotation name, fqn, verbatim text and argument values, whitespace ignored (`search @Every`, `search 60s`); rows are `owner  @text  file:line`.
 
 **How.** `term`: REQUIRED. Any text.
 
@@ -553,10 +553,11 @@ Which kinds take which parameter:
 
 **What.** Copies the skill into another repo (`.claude/skills/cdp`, plus the `cdp-leaf` agent; runtime files only, no `tests/`, ~0.5 MB). Nothing else is written by default; `--harness` adds Claude Code hooks and `.mcp.json`.
 
-**How.** `install <target>`; `--framework {claude-code,langgraph,adk,none}`; `--hook` adds the PreToolUse nudge (`--hook --strict` blocks the first source read); `--harness` = the nudge (never blocks) + SessionStart refresh/status + a PostToolUse hint after empty searches + MCP server; `--harness --strict` installs the denying gate instead (a repo-wide grep/find or whole-file Read the index fully answers is denied once with the answer; any MCP `cdp_query` switches it off for the session); `--agents-md` also writes AGENTS.md (off by default); headless `claude -p` refuses MCP tools unless allowed (`--allowedTools "mcp__cdp__*"`), interactive sessions prompt once; `--remove-harness` undoes hook/harness settings and deletes settings files it leaves empty; `--self` refreshes this repo's vendored copy (for CDP developers).
+**How.** `install <target>`; `--framework {claude-code,langgraph,adk,none}`; `--hook` adds the PreToolUse nudge; `--harness` = the nudge (never blocks; it names the exact `cdp_query` for the Grep/Glob/Read the model reached for, once per subject, quiet after the first `cdp_query`) + UserPromptSubmit (names the kind for the question) + SessionStart refresh/status + a PostToolUse hint after empty searches + MCP server; `--strict` swaps the nudge for the gate (a repo-wide grep/find or whole-file Read the index fully answers is denied once with the answer, everything else runs; any `cdp_query` switches it off for the session); `--claude-md` writes a marked `MUST use cdp_query first` block (generated from this guide) into the target's CLAUDE.md, creating the file, never touching text outside the markers; `--allow-mcp` adds `mcp__cdp__*` to `permissions.allow` (the cdp tools run without a prompt; they edit no repository files); `--priority` = `--harness --strict --claude-md --allow-mcp`, the CDP-first preset; `--agents-md` also writes AGENTS.md; headless `claude -p` refuses MCP tools unless allowed (`--allowedTools "mcp__cdp__*"` or `--allow-mcp`); `--remove-harness` undoes hooks, the MCP entry, the CLAUDE.md block and the permission (only what install added) and deletes settings files it leaves empty; `--self` refreshes this repo's vendored copy (for CDP developers).
 
     $ cdp install <target>
     $ cdp install <target> --harness
+    $ cdp install <target> --priority
     $ cdp install <target> --remove-harness
 
 **Where.** Once per repo you want Claude to use CDP in. Then `scan --repo <target>`.
