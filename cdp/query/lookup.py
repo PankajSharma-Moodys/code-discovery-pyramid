@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional, Sequence
 
 from .budget import Budget
@@ -510,6 +511,33 @@ def q_table(store: Store, name: Optional[str] = None,
 CITES_PER_KEY = 3
 
 
+_PLACEHOLDER_RE = re.compile(r"\$\{([^}:]+)(?::([^}]*))?\}")
+
+
+def _value_default(store: Store, read: Dict) -> Optional[str]:
+    """The `${key:default}` default of the `@Value` that made this read, from the annotation's
+    parsed `args` (the edge itself is unchanged). None when there is no default."""
+    index = getattr(store, "_value_anns", None)
+    if index is None:
+        index = {}
+        for row in store.extraction["defines"]:
+            groups = [row.get("annotations") or []]
+            groups += [p.get("annotations") or [] for p in row.get("params") or []]
+            for anns in groups:
+                for ann in anns:
+                    if ann.get("name") == "Value" and isinstance(ann.get("args", {}).get("value"), str):
+                        index.setdefault((row["file"], ann.get("line")), []).append(ann["args"]["value"])
+        try:
+            store._value_anns = index
+        except AttributeError:
+            pass
+    for text in index.get((read["file"], read["anchor"].get("line")), ()):
+        for m in _PLACEHOLDER_RE.finditer(text):
+            if m.group(2) is not None and m.group(1) == read["key"]:
+                return m.group(2)
+    return None
+
+
 def q_config(store: Store, key: Optional[str] = None,
              budget: Optional[Budget] = None,
              exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
@@ -552,6 +580,9 @@ def q_config(store: Store, key: Optional[str] = None,
         if exclude_role and roles.get(read["file"]) in exclude_role:
             continue
         site = {"by": read["by"], "at": cite(read["anchor"]), **annotations_of(store, read["by"])}
+        default = _value_default(store, read)
+        if default is not None:
+            site["default"] = default
         if read.get("symbolic"):
             site["via_constant"] = read["symbolic"]
         slot_of(read["key"])["read"].append(site)

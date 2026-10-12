@@ -4,7 +4,7 @@
     "changed_files": [],
     "commit": "<HEAD>",
     "dirty_files": [],
-    "fold_hash": "7f01052e6136f4b77df80947dbc4f237382d7766800569ca32bc59bdf8463fa7",
+    "fold_hash": "7dabb4da1c7bc31c19fe700dc781e27f4acf4169297a5f6560580055f7791001",
     "head": "<HEAD>",
     "identity": "<REPO_ID>",
     "repo": "tree",
@@ -27,6 +27,12 @@
       ],
       "class_annotations": [
         {
+          "args": {
+            "value": {
+              "ref": "ApiPaths.WIDGETS",
+              "resolved": "/v1/widgets"
+            }
+          },
           "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:10",
           "text": "@Path(ApiPaths.WIDGETS)"
         }
@@ -49,12 +55,21 @@
           "text": "@GET"
         },
         {
+          "args": {
+            "value": "/{id}"
+          },
           "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:25",
           "text": "@Path(\"/{id}\")"
         }
       ],
       "class_annotations": [
         {
+          "args": {
+            "value": {
+              "ref": "ApiPaths.WIDGETS",
+              "resolved": "/v1/widgets"
+            }
+          },
           "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:10",
           "text": "@Path(ApiPaths.WIDGETS)"
         }
@@ -70,6 +85,9 @@
         {
           "annotations": [
             {
+              "args": {
+                "value": "id"
+              },
               "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:26",
               "text": "@PathParam(\"id\")"
             }

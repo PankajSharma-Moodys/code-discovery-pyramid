@@ -47,6 +47,7 @@ def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
 
     symbols, collisions = _symbol_table(extraction, role_of)
     constants = _constant_table(extraction)
+    _resolve_annotation_args(symbols, constants)
     paths = [f["path"] for f in inventory["files"]]
     cfg_calls: List[Tuple[str, Dict]] = []
     uses, counts = _resolve_by_language(extraction, module_set, symbol_owner, namespace_owner, symbols,
@@ -131,6 +132,64 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
         dict(sorted(table.items())),
         sorted(collisions, key=lambda c: (not c["cross_module"], c["fqn"])),
     )
+
+
+def _resolve_arg(value, constants: Dict[str, Dict], owner: str, module: str):
+    """`value` with `resolved` added to every `{"ref"}` / `{"concat"}` the constant table can
+    resolve (a constant of any file); anything else, and anything unresolvable, is returned as is."""
+    if isinstance(value, list):
+        return [_resolve_arg(v, constants, owner, module) for v in value]
+    if not isinstance(value, dict):
+        return value
+    if "ref" in value:
+        text = _resolve_ref(value["ref"], constants, owner, module)
+        return {**value, "resolved": text} if text is not None else value
+    if "concat" in value:
+        out = []
+        for part in value["concat"]:
+            text = part if isinstance(part, str) else _resolve_ref(part.get("ref", ""), constants, owner, module)
+            if text is None:
+                return value
+            out.append(text)
+        return {**value, "resolved": "".join(out)}
+    if "args" in value and "name" in value:             # a nested annotation row
+        return {**value, "args": _resolve_args(value["args"], constants, owner, module)}
+    return value
+
+
+def _resolve_ref(ref: str, constants: Dict[str, Dict], owner: str, module: str):
+    parts = ref.split(".")
+    key = ".".join(parts[-2:]) if len(parts) > 1 else "%s.%s" % (owner, ref)
+    if not owner and len(parts) == 1:
+        return None
+    text, _, missing = expand_placeholders("${%s}" % key, constants, module=module)
+    return None if missing else text
+
+
+def _resolve_args(args: Dict, constants: Dict[str, Dict], owner: str, module: str) -> Dict:
+    return {k: _resolve_arg(v, constants, owner, module) for k, v in args.items()}
+
+
+def _resolve_annotation_args(symbols: Dict[str, Dict], constants: Dict[str, Dict]) -> None:
+    """Annotation `args` on xref sites gain `resolved` next to constant refs and concatenations
+    (`{"ref": "ApiConstants.X", "resolved": "/v1/servers"}`). The extraction rows are not touched."""
+    if not constants:
+        return
+
+    def rows(anns, owner, module):
+        return [{**a, "args": _resolve_args(a["args"], constants, owner, module)} if a.get("args") else a
+                for a in anns]
+
+    for fqn, entry in symbols.items():
+        head = fqn.partition("#")[0]
+        owner = head.rpartition(".")[2]
+        for site in entry["sites"]:
+            module = site["module"]
+            if site.get("annotations"):
+                site["annotations"] = rows(site["annotations"], owner, module)
+            if site.get("params"):
+                site["params"] = [{**p, "annotations": rows(p["annotations"], owner, module)}
+                                  if p.get("annotations") else p for p in site["params"]]
 
 
 def _constant_table(extraction: Dict) -> Dict[str, Dict]:

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Set, Tuple
 
+from .annotation_args import annotation_args
 from .base import Ann
 from .java_tokens import Tokens
 
@@ -271,7 +272,7 @@ class DeclParser:
             name = tk.text[j + 1]
             j += 2
         k = skip_annotation(tk, i)
-        return Ann(name, join_tokens(tk, i, k), tk.line[i], tk.line[k - 1]), k
+        return Ann(name, join_tokens(tk, i, k), tk.line[i], tk.line[k - 1], annotation_args(tk, i, k)), k
 
     def _modifiers(self, i: int) -> Tuple[Set[str], List[Tuple[str, str]], int]:
         tk = self.tk

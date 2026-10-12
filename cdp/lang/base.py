@@ -179,9 +179,11 @@ class Ann(tuple):
     replaces, so `for name, text in anns` still reads it, plus the 0-based `line` and
     `end_line` it spans, so the index can cite the annotation and not just its owner."""
 
-    def __new__(cls, name: str, text: str, line: int, end_line: int) -> "Ann":
+    def __new__(cls, name: str, text: str, line: int, end_line: int,
+                arg_map: Optional[Dict] = None) -> "Ann":
         self = tuple.__new__(cls, (name, text))
         self.line, self.end_line = line, end_line
+        self.arg_map: Dict = arg_map or {}   # parsed element values (annotation_args.py)
         self.fqn: Optional[str] = None      # set by the language extractor when imports resolve it
         return self
 
@@ -204,6 +206,8 @@ def annotation_rows(anns: Sequence) -> List[Dict]:
         row["text"] = text
         if isinstance(ann, Ann):
             row["line"], row["end_line"] = ann.line + 1, ann.end_line + 1
+            if ann.arg_map:
+                row["args"] = ann.arg_map
         rows.append(row)
     return rows
 

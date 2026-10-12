@@ -101,8 +101,9 @@ def ann_at(file: str, row: Dict) -> str:
 
 
 def ann_view(file: str, rows: Sequence[Dict]) -> List[Dict]:
-    """Annotation rows as the query shows them: verbatim text and where it sits."""
-    return [{"text": r["text"], "at": ann_at(file, r)} for r in rows]
+    """Annotation rows as the query shows them: verbatim text, where it sits and its parsed `args`."""
+    return [{"text": r["text"], "at": ann_at(file, r), **({"args": r["args"]} if r.get("args") else {})}
+            for r in rows]
 
 
 def annotations_of(store: Store, fqn: str) -> Dict:

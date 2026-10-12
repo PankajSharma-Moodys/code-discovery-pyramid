@@ -4,7 +4,7 @@
     "changed_files": [],
     "commit": "<HEAD>",
     "dirty_files": [],
-    "fold_hash": "7f01052e6136f4b77df80947dbc4f237382d7766800569ca32bc59bdf8463fa7",
+    "fold_hash": "7dabb4da1c7bc31c19fe700dc781e27f4acf4169297a5f6560580055f7791001",
     "head": "<HEAD>",
     "identity": "<REPO_ID>",
     "repo": "tree",
@@ -61,6 +61,9 @@
           "text": "@Entity"
         },
         {
+          "args": {
+            "name": "widget"
+          },
           "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:9",
           "text": "@Table(name=\"widget\")"
         }
@@ -96,6 +99,12 @@
     "channel": "http_in",
     "class_annotations": [
       {
+        "args": {
+          "value": {
+            "ref": "ApiPaths.WIDGETS",
+            "resolved": "/v1/widgets"
+          }
+        },
         "at": "web/src/main/java/com/example/mini/web/WidgetResource.java:10",
         "text": "@Path(ApiPaths.WIDGETS)"
       }

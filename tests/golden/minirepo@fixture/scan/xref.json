@@ -368,6 +368,9 @@
               "text": "@Entity"
             },
             {
+              "args": {
+                "name": "widget"
+              },
               "end_line": 9,
               "fqn": "jakarta.persistence.Table",
               "line": 9,
@@ -418,6 +421,9 @@
           },
           "annotations": [
             {
+              "args": {
+                "name": "display_name"
+              },
               "end_line": 14,
               "fqn": "jakarta.persistence.Column",
               "line": 14,
@@ -617,6 +623,12 @@
           },
           "annotations": [
             {
+              "args": {
+                "value": {
+                  "ref": "ApiPaths.WIDGETS",
+                  "resolved": "/v1/widgets"
+                }
+              },
               "end_line": 10,
               "fqn": "javax.ws.rs.Path",
               "line": 10,
@@ -681,6 +693,9 @@
               "text": "@GET"
             },
             {
+              "args": {
+                "value": "/{id}"
+              },
               "end_line": 25,
               "fqn": "javax.ws.rs.Path",
               "line": 25,
@@ -695,6 +710,9 @@
             {
               "annotations": [
                 {
+                  "args": {
+                    "value": "id"
+                  },
                   "end_line": 26,
                   "fqn": "javax.ws.rs.PathParam",
                   "line": 26,

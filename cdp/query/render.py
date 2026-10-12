@@ -225,6 +225,8 @@ def render(result: Dict) -> str:
             for r in c["read"]:
                 lines.append("    read by %-50s %s%s" % (truncate(r["by"], 50), r["at"],
                              "  (key from %s)" % r["via_constant"] if r.get("via_constant") else ""))
+                if "default" in r:
+                    lines.append("        default: %r" % r["default"])
                 lines.extend(_annotation_lines("        ", r, 100, 4))
             lines.extend(_more("    ", c["read_count"], c["read"]))
 
