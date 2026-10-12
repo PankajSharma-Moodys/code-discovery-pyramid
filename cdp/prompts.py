@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .partition import DEFAULT_MAX_INHERITED
+from .rules import all_edges
 from .tiering import compute_tier
 from .util import CdpError, sha256_text, truncate
 
@@ -263,7 +264,7 @@ def _inherit(
 
 def _structure(extraction: Dict, scope_files: Set[str]) -> Dict:
     defines = [d for d in extraction["defines"] if d["file"] in scope_files]
-    edges = [e for e in extraction["io_edges"] if e["file"] in scope_files]
+    edges = [e for e in all_edges(extraction) if e["file"] in scope_files]
     signals: Dict[str, List[str]] = {}
     for rel in sorted(scope_files):
         for signal in extraction["files"].get(rel, {}).get("signals", []):

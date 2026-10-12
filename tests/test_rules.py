@@ -375,7 +375,7 @@ class AllEdgesTest(unittest.TestCase):
     def test_no_consumer_reads_io_edges_directly(self):
         """Every read goes through `all_edges`; the allowed readers are the writers of `io_edges`
         and the leaf-prompt builder (owned by another change, listed so it is not forgotten)."""
-        allowed = {"extract.py", "refresh.py", "rules.py", "prompts.py", "render.py"}
+        allowed = {"extract.py", "refresh.py", "rules.py", "render.py"}
         pattern = re.compile(r"""(?:\[|get\()["']io_edges["']""")
         offenders = []
         for path in sorted((ROOT / "cdp").rglob("*.py")):
