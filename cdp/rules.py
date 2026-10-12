@@ -27,7 +27,10 @@ Template placeholders `{...}`: `a|b|'lit'` is the first non-empty alternative (`
 argument of another annotation on the owner class / the declaring member; `ann.name`, `decl.fqn`,
 `owner.fqn`, `file.primary`, `vars.<name>` are facts; `join(base, sub)` is a route join; a
 `:keys` filter yields one target per `${key}` named in a string (`@Value("${a}-${b}")`).
-Constants stay symbolic: a dotted reference renders `${Owner.NAME}`, an unqualified one
+`join(a, b, c...)` folds any number of route parts; `params.0.type` is the declaring method's first
+parameter type; an `:each` filter yields one target per string (or `Foo.class`, resolved through the
+file's imports) in a list argument. `when.owner` requires an owner-class annotation (the inverse of
+`unless.owner`). Constants stay symbolic: a dotted reference renders `${Owner.NAME}`, an unqualified one
 `${<declaring class>.NAME}`. A placeholder with no value drops that `target` alternative; the
 next one is tried.
 
@@ -185,6 +188,25 @@ class _Index:
         hits = self.ann_by_simple.get(name, [])
         return hits[0] if len(hits) == 1 else None
 
+    def resolver(self, rel: str) -> Callable[[str], str]:
+        """`Foo` / `Outer.Inner` as a class name written in this file -> fqn when imports or the
+        package say so, else the name as written."""
+        imports = self.imports.get(rel, [])
+        pkg = (self.files.get(rel) or {}).get("package") or ""
+
+        def resolve(name: str) -> str:
+            head, _, rest = name.partition(".")
+            if head[:1].islower() and rest:
+                return name                        # already qualified (`com.x.Foo`)
+            for imp in imports:
+                if imp.rsplit(".", 1)[-1] == head:
+                    return imp + ("." + rest if rest else "")
+            if pkg and pkg + "." + name in self.types:
+                return pkg + "." + name
+            return name
+
+        return resolve
+
     def direct(self, ann: Dict, on: str):
         for rule in self.rules:
             if on in rule["_on"] and ann_matches(ann, rule["_fqns"], rule["_aliases"]):
@@ -266,6 +288,16 @@ def _string_leaves(v) -> List[str]:
     return []
 
 
+def _each_leaves(v, resolve: Callable[[str], str], owner_name: str = "") -> List[str]:
+    """Every string, class literal (resolved) and constant of an argument, one per list item."""
+    if isinstance(v, list):
+        return [x for item in v for x in _each_leaves(item, resolve, owner_name)]
+    if isinstance(v, dict) and "class" in v:
+        return [resolve(v["class"])]
+    text = render_value(v, owner_name)
+    return [text] if text else []
+
+
 def join_route(base: str, sub: str) -> str:
     if not sub:
         return base or "/"
@@ -277,9 +309,11 @@ def join_route(base: str, sub: str) -> str:
 class Site:
     """One annotation use: the matched row and the declaration facts a template reads."""
 
-    def __init__(self, rule: Dict, ann: Dict, decl: Dict, owner: Dict, file_info: Dict, param_of=None) -> None:
+    def __init__(self, rule: Dict, ann: Dict, decl: Dict, owner: Dict, file_info: Dict, param_of=None,
+                 resolve: Optional[Callable[[str], str]] = None) -> None:
         self.rule, self.ann, self.decl, self.owner = rule, ann, decl, owner
         self.file_info, self.param_of = file_info, param_of
+        self.resolve = resolve or (lambda name: name)
 
     def _arg(self, anns: Sequence[Dict], name: str, key: str, owner_name: str) -> str:
         for a in anns or ():
@@ -302,6 +336,10 @@ class Site:
             return self.owner["fqn"] if self.owner else ""
         if head == "file" and rest == "primary":
             return self.file_info.get("primary") or ""
+        if head == "params" and rest.count(".") == 1 and rest.split(".")[1] == "type":
+            params = self.decl.get("params") or []
+            i = rest.split(".")[0]
+            return (params[int(i)].get("type") or "").split("<", 1)[0] if i.isdigit() and int(i) < len(params) else ""
         if head == "vars":
             return ((self.rule.get("vars") or {}).get(rest) or {}).get(self.ann.get("name")) or ""
         if head in ("owner", "decl") and rest.count(".") == 1:
@@ -328,8 +366,18 @@ class Site:
             pos = m.end()
             expr, _, flt = m.group(1).partition(":") if not m.group(1).startswith("join(") else (m.group(1), "", "")
             if expr.startswith("join("):
-                base_e, sub_e = _split_top(expr[len("join("):-1], ",")
-                vals = [join_route(self._alts(base_e) or "", self._alts(sub_e) or "")]
+                parts = [self._alts(e) or "" for e in _split_top(expr[len("join("):-1], ",")]
+                acc = parts[0]
+                for part in parts[1:]:
+                    acc = join_route(acc, part)
+                vals = [acc]
+            elif flt == "each":
+                vals = []
+                for term in _split_top(expr, "|"):
+                    vals = _each_leaves((self.ann.get("args") or {}).get(term), self.resolve,
+                                        (self.owner or self.decl)["fqn"].rsplit(".", 1)[-1])
+                    if vals:
+                        break
             elif flt == "keys":
                 vals = []
                 for term in _split_top(expr, "|"):
@@ -367,6 +415,15 @@ def _source(d: Dict, owner: Optional[Dict]) -> str:
     if d["kind"] == "field" and owner:
         return owner["fqn"]
     return d["fqn"]
+
+
+def _unmet(rule: Dict, owner: Optional[Dict]) -> bool:
+    """`when.owner`: the rule needs one of these annotations on the owner class."""
+    spec = (rule.get("when") or {}).get("owner")
+    if not spec:
+        return False
+    return not (owner and any(ann_matches(a, _as_list(spec.get("fqn")), _as_list(spec.get("aliases")))
+                              for a in owner.get("annotations") or ()))
 
 
 def _blocked(rule: Dict, owner: Optional[Dict], rel: str, idx: _Index) -> bool:
@@ -476,13 +533,13 @@ def apply(extraction: Dict, rules: Optional[Sequence[Dict]] = None, repo: Option
         for role, ann, param in _decl_sites(d):
             on = _on_for(d, role)
             for rule, eff in idx.effective(ann, rel, on):
-                if _blocked(rule, owner, rel, idx):
+                if _blocked(rule, owner, rel, idx) or _unmet(rule, owner):
                     continue
                 if (rule.get("when") or {}).get("first_type") and (first_type.get(rel) or (0, None))[1] != d["fqn"]:
                     continue
                 if rule.get("declared") is False:
                     continue
-                site = Site(rule, eff, d, owner, idx.files.get(rel) or {})
+                site = Site(rule, eff, d, owner, idx.files.get(rel) or {}, resolve=idx.resolver(rel))
                 job = (rule, site, rel, d.get("module"), eff.get("line") or ann.get("line"),
                        eff.get("text") or "", _source(d, owner), rel)
                 if rule.get("fallback"):
