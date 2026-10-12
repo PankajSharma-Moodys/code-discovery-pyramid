@@ -17,6 +17,7 @@ from helpers import MiniRepoTest, make_repo
 
 from cdp.extract import run_extract
 from cdp.refresh import classify_changes, incremental_extract
+from cdp.rules import all_edges, apply as apply_rules
 from cdp.state import fold
 from cdp.verify import FileCache, verify_all
 
@@ -41,13 +42,27 @@ class IncrementalExtractEquivalenceTest(MiniRepoTest):
         incremental = incremental_extract(self.repo, inventory, prior, {one_file})
         full = run_extract(self.repo, inventory)
 
-        self.assertEqual(incremental, full)
+        # P5: `prior` already carries rule signals/counts in its per-file rows; the rule post-pass
+        # recomputes them, so the two paths agree once it has run on both.
+        self.assertEqual(apply_rules(incremental, repo=self.repo), apply_rules(full, repo=self.repo))
+
+    def test_rule_edges_are_recomputed_not_carried(self) -> None:
+        prior = self.pipeline.extraction
+        inventory = self.pipeline.inventory
+        self.assertTrue(prior["rule_edges"])
+        incremental = incremental_extract(self.repo, inventory, prior, {inventory["files"][0]["path"]})
+        self.assertNotIn("rule_edges", incremental)
+        before = len(all_edges(prior))
+        for _ in range(2):    # applying again must not duplicate
+            apply_rules(incremental, repo=self.repo)
+        self.assertEqual(len(all_edges(incremental)), before)
+        self.assertEqual(incremental, prior)
 
     def test_empty_changed_set_carries_everything_forward(self) -> None:
         prior = self.pipeline.extraction
         inventory = self.pipeline.inventory
         incremental = incremental_extract(self.repo, inventory, prior, set())
-        self.assertEqual(incremental, prior)
+        self.assertEqual(apply_rules(incremental, repo=self.repo), prior)
 
 
 @unittest.skipUnless(subprocess.run(["git", "--version"], capture_output=True).returncode == 0, "git required")

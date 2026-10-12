@@ -24,6 +24,7 @@ Three verdicts, in order of how much they tell you:
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence
+from .rules import all_edges
 
 ENTAILED = "entailed"
 CONSISTENT = "consistent"
@@ -34,7 +35,7 @@ def entail_claims(claims: Sequence[Dict], extraction: Optional[Dict]) -> List[Di
     """Return `claims` with a `verdict` field added to each, verdict never
     read back into anything else -- it is an annotation, not a rewrite of the
     claim's own asserted fields."""
-    io_edges = (extraction or {}).get("io_edges") or []
+    io_edges = all_edges(extraction or {})
     defines = (extraction or {}).get("defines") or []
     edge_keys = {(e.get("source"), e.get("channel")) for e in io_edges}
     def_by_fqn: Dict[str, Dict] = {}

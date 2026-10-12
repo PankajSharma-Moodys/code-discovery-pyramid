@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 from helpers import SKILL_ROOT, Pipeline, make_repo
+from cdp.rules import all_edges
 
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
@@ -98,7 +99,7 @@ class JavaExtractionTest(unittest.TestCase):
         self.assertEqual([h["fqn"] for h in ctor], [SVC + "#<init>"])
 
     def test_b12_flyway_placeholders_and_comments(self):
-        tables = {e["target"] for e in self.p.extraction["io_edges"] if e["target"].startswith("table:")}
+        tables = {e["target"] for e in all_edges(self.p.extraction) if e["target"].startswith("table:")}
         self.assertEqual(tables, {"table:QRTZ_LOCKS", "table:server"})
 
     def test_python_prose_is_not_a_table(self):

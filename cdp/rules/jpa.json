@@ -1,0 +1,16 @@
+{
+  "family": "jpa",
+  "language": "java",
+  "rules": [
+    {
+      "id": "jpa.entity",
+      "match": {"fqn": ["javax.persistence.Entity", "jakarta.persistence.Entity"], "on": "class"},
+      "aliases": ["Entity"],
+      "emit": {
+        "channel": "persist",
+        "signal": "entity",
+        "target": ["table:{owner.Table.name}", "entity:{owner.fqn}"]
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import datetime
 from . import codeindex as codeindex_mod, dataflow as dataflow_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, refresh as refresh_mod, resolve as resolve_mod, schedule as schedule_mod, snapshot as snapshot_mod
 from .derived import build_derived_patch, structural_unknowns  # noqa: F401  (re-exported)
 from .extract import run_extract
+from .rules import apply as apply_rules
 from .session import Paths, extra_excludes, fold_and_write, open_store, render_docs
 from .store import registry as registry_mod
 from .util import CDP_VERSION
@@ -54,6 +55,7 @@ def scan(
     say("\n".join(inventory_mod.summarise(inventory)))
 
     extraction = run_extract(paths.repo, inventory, workers=workers)
+    apply_rules(extraction, repo=paths.repo)   # rule_edges: recomputed in full on every scan (ANNOTATIONS_PLAN P5)
     say("extract   %d files parsed, %d symbols, %d edges, %d imports"
         % (extraction["totals"]["parsed_files"], extraction["totals"]["defines"],
            extraction["totals"]["io_edges"], extraction["totals"]["imports"]))

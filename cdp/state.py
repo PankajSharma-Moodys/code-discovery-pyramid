@@ -40,6 +40,7 @@ from . import factcheck
 from .merge import merge_claims
 from .util import git_head, stable_hash
 from .verify import STRICT, verify_all
+from .rules import edges_untagged
 
 if TYPE_CHECKING:
     from .store import WorkspaceStore
@@ -237,7 +238,7 @@ def fold_hash(
     parts.append(stable_hash(xref.get("symbols", {})))
     parts.append(stable_hash([s["node"] for s in (partition or {}).get("scopes", [])]))
     if extraction is not None:
-        parts.append(stable_hash({"io_edges": extraction.get("io_edges"), "defines": extraction.get("defines")}))
+        parts.append(stable_hash({"io_edges": edges_untagged(extraction), "defines": extraction.get("defines")}))
     return stable_hash(parts)
 
 

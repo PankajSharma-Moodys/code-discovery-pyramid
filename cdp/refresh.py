@@ -18,6 +18,7 @@ import datetime
 
 from . import codeindex as codeindex_mod, rereview as rereview_mod, dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
 from .extract import MAX_PARSE_BYTES, _sorted
+from . import rules as rules_mod
 from .lang import extract_file
 from .derived import build_derived_patch
 from .session import Paths, check_repo_matches_manifest, extra_excludes, git_head_or_raise, open_store
@@ -258,6 +259,7 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     else:
         changed = {e["path"] for e in new_inventory["files"]}
     new_extraction = incremental_extract(paths.repo, new_inventory, store.extraction, changed)
+    rules_mod.apply(new_extraction, repo=paths.repo)   # rule_edges: recomputed in full, never carried (P5)
 
     new_graph = graph_mod.build_graph(new_inventory, new_extraction)
     new_xref = resolve_mod.build_xref(new_inventory, new_extraction, new_graph)

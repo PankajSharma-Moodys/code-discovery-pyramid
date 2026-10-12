@@ -9,6 +9,7 @@ import unittest
 
 from cdp.lang.base import ExtractContext
 from cdp.lang.java import JavaExtractor
+from helpers import facts_edges
 
 
 def extract(src: str):
@@ -20,7 +21,7 @@ def define(facts, fqn):
 
 
 def edges(facts, channel):
-    return [e["target"] for e in facts.io_edges if e["channel"] == channel]
+    return [e["target"] for e in facts_edges(facts) if e["channel"] == channel]
 
 
 class AnnotationCaptureTest(unittest.TestCase):
@@ -106,7 +107,7 @@ class AnnotationCaptureTest(unittest.TestCase):
         f = extract('package a;\nimport org.springframework.scheduling.annotation.*;\nclass C {\n'
                     '  @Schedules({@Scheduled(fixedRate=1), @Scheduled(cron="0 * * * * *")})\n  void m() {}\n'
                     '  @Scheduled(fixedRate=5) @Scheduled(fixedRate=6) void n() {}\n}\n')
-        sched = [(e["source"], e["target"]) for e in f.io_edges
+        sched = [(e["source"], e["target"]) for e in facts_edges(f)
                  if e["channel"] == "schedule" and e["source"].startswith("a.C#")]
         self.assertEqual(sorted(sched), [("a.C#m", "a.C"), ("a.C#n", "a.C")])
 

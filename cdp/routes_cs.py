@@ -13,6 +13,7 @@ and `[action]` the handler's name.
 from __future__ import annotations
 
 from typing import Dict, Iterator, List, Optional, Set
+from .rules import all_edges
 
 
 def _class_tables(extraction: Dict):
@@ -63,7 +64,7 @@ def expand_routes(extraction: Dict) -> Iterator[Dict]:
     """The `io_edges` of the extraction with each C# `route_class` edge replaced by one edge per
     class template, its target holding the full path."""
     tables = None
-    for edge in extraction["io_edges"]:
+    for edge in all_edges(extraction):
         cls = edge.get("route_class")
         if not cls or edge["channel"] != "http_in":
             yield edge

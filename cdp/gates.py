@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .util import normalise_ws, stable_hash
+from .rules import all_edges
 
 UNEXAMINED = "unexamined"
 UNKNOWN = "unknown"
@@ -41,7 +42,7 @@ def build_extraction_index(extraction: Optional[Dict]) -> Tuple[set, set, Dict[T
     the same structural index `entail.py` builds for claims, reused here so
     "subject exists" and "already answered" mean the same thing for an
     unknown as `entailed`/`contradicted` mean for a claim."""
-    io_edges = (extraction or {}).get("io_edges") or []
+    io_edges = all_edges(extraction or {})
     defines = (extraction or {}).get("defines") or []
     def_fqns = {d.get("fqn") for d in defines if d.get("fqn")}
     edge_subjects = {e.get("source") for e in io_edges if e.get("source")}

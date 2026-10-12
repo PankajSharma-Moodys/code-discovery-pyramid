@@ -25,6 +25,7 @@ import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .inventory import ROOT_MODULE
+from .rules import all_edges
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -254,7 +255,7 @@ def _routes(xref: Dict, node_of: Dict[str, str]) -> List[Dict]:
 
 def _entrypoints(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
     out: List[Dict] = []
-    for edge in extraction["io_edges"]:
+    for edge in all_edges(extraction):
         if edge["channel"] == "process_boundary" and edge["target"].startswith("process:"):
             # A Dockerfile also marks its directory as a process. That fact is
             # already stated as a `deployable` claim with the entry command, so
@@ -318,7 +319,7 @@ def _deployables(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
 
 def _data_models(extraction: Dict, xref: Dict, node_of: Dict[str, str]) -> List[Dict]:
     out: List[Dict] = []
-    for edge in extraction["io_edges"]:
+    for edge in all_edges(extraction):
         if edge["channel"] != "persist":
             continue
         if edge["target"].startswith("table:"):
@@ -362,7 +363,7 @@ def _data_models(extraction: Dict, xref: Dict, node_of: Dict[str, str]) -> List[
 
     # Representation chains: each `map` edge is one hop of the transformation
     # topology §6.1 calls invisible to a dependency graph.
-    for edge in extraction["io_edges"]:
+    for edge in all_edges(extraction):
         if edge["channel"] != "map":
             continue
         _add(
@@ -384,7 +385,7 @@ def _data_models(extraction: Dict, xref: Dict, node_of: Dict[str, str]) -> List[
 
 def _schema_ownership(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
     by_table: Dict[str, List[Dict]] = {}
-    for edge in extraction["io_edges"]:
+    for edge in all_edges(extraction):
         if edge["channel"] == "schema_own" and edge["target"].startswith("table:"):
             by_table.setdefault(edge["target"], []).append(edge)
 
@@ -422,7 +423,7 @@ _SIDE_EFFECTS = {
 def _side_effects(extraction: Dict, node_of: Dict[str, str]) -> List[Dict]:
     out: List[Dict] = []
     grouped: Dict[Tuple[str, str], List[Dict]] = {}
-    for edge in extraction["io_edges"]:
+    for edge in all_edges(extraction):
         if edge["channel"] in _SIDE_EFFECTS:
             grouped.setdefault((edge["module"], edge["channel"]), []).append(edge)
 

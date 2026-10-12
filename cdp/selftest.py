@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import sys
 
-from . import golden as golden_mod, query as query_mod
+from . import golden as golden_mod, query as query_mod, rules as rules_mod
 from .session import Paths, open_store
 from .store import ARTIFACTS, REPORTS
 from .util import CdpError, SKILL_ROOT, path_within, safe_name
@@ -264,9 +264,10 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
         # content, not of the storage format.
         backend = open_store(Paths(repo=repo, state=state))
         for name in ARTIFACTS:
-            artifacts["scan/%s.json" % name] = golden_mod.canonical(
-                backend.read_artifact(name, {})
-            )
+            data = backend.read_artifact(name, {})
+            if name == "extract":
+                data = rules_mod.legacy_view(data)   # rule edges folded back: the baseline is edge content
+            artifacts["scan/%s.json" % name] = golden_mod.canonical(data)
         for name in REPORTS:
             artifacts["scan/reports/%s.json" % name] = golden_mod.canonical(
                 backend.read_report(name, {})

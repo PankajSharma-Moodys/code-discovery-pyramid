@@ -1,0 +1,21 @@
+{
+  "family": "spring_config",
+  "language": "java",
+  "rules": [
+    {
+      "id": "config.value",
+      "match": {"fqn": ["org.springframework.beans.factory.annotation.Value", "io.micronaut.context.annotation.Value"],
+                "on": ["class", "method", "field", "constant", "param"]},
+      "aliases": ["Value"],
+      "emit": {"channel": "config_read", "target": "config:{value:keys}"}
+    },
+    {
+      "id": "config.properties",
+      "match": {"fqn": ["org.springframework.boot.context.properties.ConfigurationProperties",
+                        "io.micronaut.context.annotation.ConfigurationProperties"],
+                "on": ["class", "method", "field", "constant"]},
+      "aliases": ["ConfigurationProperties"],
+      "emit": {"channel": "config_read", "target": "config:{prefix|value|'(class)'}"}
+    }
+  ]
+}

@@ -11,6 +11,7 @@ from __future__ import annotations
 import unittest
 
 from helpers import MiniRepoTest, have_git
+from cdp.rules import all_edges
 
 
 class TestInventory(MiniRepoTest):
@@ -108,7 +109,7 @@ class TestRoutes(MiniRepoTest):
         # global pass. Otherwise a constant in another module silently deletes
         # the entire route inventory, with every step behaving as specified.
         raw = [
-            e for e in self.pipeline.extraction["io_edges"]
+            e for e in all_edges(self.pipeline.extraction)
             if e["channel"] == "http_in" and e["target"].startswith("route:")
         ]
         self.assertTrue(raw)

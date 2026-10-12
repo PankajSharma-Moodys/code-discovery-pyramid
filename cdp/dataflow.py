@@ -22,6 +22,7 @@ reason, and it is still far more than a dependency graph can say.
 from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from .rules import all_edges
 
 DEFAULT_MAX_HOPS = 8
 MAX_PATHS = 2000
@@ -89,7 +90,7 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
     labels = {(r["file"], r["handler"], r["evidence"][0]["line"]): "route:%s %s" % (r["verb"], r["route"])
               for r in xref.get("routes", []) if r.get("evidence")}
 
-    for row in extraction["io_edges"]:
+    for row in all_edges(extraction):
         if row["channel"] == "http_in" and row["target"].startswith("route:"):
             label = labels.get((row["file"], row["source"], row["anchor"]["line"]))
             if label:
