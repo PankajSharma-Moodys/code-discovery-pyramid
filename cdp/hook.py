@@ -27,19 +27,15 @@ folder with a scan, so a scanned subfolder beats its parent -- and selects that
 repo's snapshot **for the current HEAD**. Selecting "the oldest snapshot in the
 file" is what once made the hook go silent after a repo's second scan.
 
-**Strict mode (Phase 9, `--strict`)** turns the same one-shot trigger into a
-block instead of a nudge, but only when blocking cannot backfire: coverage
-(`state.json`'s `coverage.fraction`) is at or above `STRICT_MIN_COVERAGE`, and
-the same freshness gate below (`inventory.head == git HEAD`) that already
-guards the nudge also guards the block. Coverage is not freshness (R8, two
-dates) — a 100%-coverage index at a stale HEAD is exactly the case that must
-still degrade to a nudge, not block, since the index may no longer describe
-the tree being read. Below the threshold, or when either gate fails, strict
-mode degrades to the ordinary nudge rather than refusing silently or blocking
-against ignorance — same "triggers at most once per session, never gets
-stuck" one-shot marker as the nudge, so a block (or its degraded nudge) can
-never repeat within a session and never leaves the model stuck: it fires once,
-states why, and gets out of the way.
+**The nudge names the call.** `decide` (the default `install --harness` hook) does not repeat a
+generic paragraph: it reads the Grep/Glob/Read/Bash-grep the model reached for and names the exact
+`cdp_query` that replaces it (`hook_intent.call_hint`), once per (session, subject), at most
+`MAX_NUDGES` a session, and not at all after the model has asked the index. UserPromptSubmit does the
+same for the question (`hook_intent.prompt_hint`). Blocking is only the gate below: the older
+coverage-threshold block (`strict_decide`, `STRICT_MIN_COVERAGE`) is gone, because model-review
+coverage is 0.0 on a deterministic-only index and a threshold on it could never fire; what decides
+whether the gate may answer is the freshness check below (`inventory.head == git HEAD`) and whether the
+index holds the answer.
 
 **Fails open, always.** Any exception, any unreadable state, any surprise in the
 input shape exits 0 with no output. A hook is in the path of every file read in
@@ -84,13 +80,6 @@ SEARCH_COMMAND = re.compile(r"(?:^|[|;&(]\s*|\bxargs\s+)(?:grep|egrep|rg|ag|ack|
 #: The only role that gets a nudge. Editing a README, a CI file or a fixture is
 #: not a question the index can answer better.
 NUDGE_ROLE = "source"
-
-#: Below this, a block would deny the model the source *and* leave the index
-#: unable to answer (`RESEARCH_GRAPHIFY.md §7.8`) -- degrade to a nudge instead.
-#: Deliberately high: blocking is a one-shot, session-shaping event, so the
-#: bar for "the index can stand in for the source" is higher than the bar for
-#: "the index is worth mentioning."
-STRICT_MIN_COVERAGE = 0.95
 
 #: Seconds each of refresh/status may take at session start.
 SESSION_REFRESH_TIMEOUT = 60
@@ -262,7 +251,7 @@ def claim_session(state: Path, session_id: str) -> bool:
 
 
 def _gate(event: Dict) -> Optional[Dict]:
-    """Everything both the nudge and the strict-mode block need in common:
+    """Everything both the nudge and the gate need in common:
     a reachable, fresh, source-role read. Returns `None` for any of the four
     silent no-ops (no state, unreadable state, stale index, wrong role);
     otherwise a dict with `state`/`inventory`/`repo`/`indexed`/`rel`. Does
@@ -301,7 +290,6 @@ def _gate(event: Dict) -> Optional[Dict]:
             backend.close()
             return None  # no-op 2: the index does not describe this working tree
         inventory = backend.read_artifact("inventory")
-        folded = backend.read_artifact("state", {})
         # An exact match on an uncommitted tree already includes its edits; otherwise the
         # snapshot is of a commit and the files differing from HEAD are newer than it.
         edited = [] if (choice.row or {}).get("ephemeral") else list(choice.dirty_files)
@@ -323,9 +311,7 @@ def _gate(event: Dict) -> Optional[Dict]:
     return {
         "search": is_search, "file": rel if is_file else "",
         "state": state, "inventory": inventory, "repo": repo,
-        "indexed": indexed, "rel": rel, "edited": edited, "coverage_fraction": folded.get(
-            "coverage", {}).get("fraction", 0.0),
-    }
+        "indexed": indexed, "rel": rel, "edited": edited,     }
 
 
 def _marker(state: Path, session_id: str, tag: str) -> Path:
@@ -366,6 +352,56 @@ def index_was_asked(session_id: str) -> bool:
 
 #: A whole-file Read of a source file longer than this gets the file's outline first.
 READ_MIN_LOC = 250
+
+
+def _loose_search(command: str) -> Dict:
+    """A pure grep/find line the index extracts no term from (a plain word): just its path operands."""
+    tokens = hook_rules._tokens(command.split("|", 1)[0].strip())
+    operands = [t for t in tokens[1:] if not t.startswith("-")]
+    if tokens and tokens[0].rsplit("/", 1)[-1] != "find":
+        operands = operands[1:]  # grep: the first operand is the pattern
+    return {"terms": [], "paths": operands}
+
+
+def block_search_decide(event: Dict) -> Optional[Dict]:
+    """`--block-all`: deny every repository search (Grep, Glob, a grep/rg/find shell line), every time.
+
+    No once-per-subject allowance and no release after a `cdp_query`: the message names the call
+    that replaces the search and the retry is denied too. Reads are untouched (the model must be
+    able to read the ranges the index cites). The only fail-open cases are the gate's own:
+    nothing scanned, an index behind the working tree, a path outside the repo or in a
+    non-source directory (`resources`, logs), or a source file edited since the indexed commit.
+    """
+    from . import hook_intent, hook_rules
+
+    sid = str(event.get("session_id") or "no-session")
+    if is_index_query(event.get("tool_name")):
+        note_index_asked(sid)
+        return None
+    tool = str(event.get("tool_name"))
+    if tool not in ("Grep", "Glob", "Bash"):
+        return None
+    gated = _gate(event)
+    if gated is None:
+        return None
+    tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    if tool == "Bash":
+        command = str(tool_input.get("command") or "")
+        if not hook_rules.is_pure_search(command):
+            return None
+        searches = hook_rules.shell_searches(command, targeted=True) or [_loose_search(command)]
+    else:  # a Grep/Glob call is a search whatever its pattern (a plain word has no index term)
+        searches = [{"terms": [], "paths": []}]
+    scopes = _search_scopes(tool, searches, gated, event)
+    if scopes is None or _edited_in(scopes, gated):
+        return None
+    hint = hook_intent.call_hint(tool, tool_input, str(gated["repo"]), gated["rel"])
+    how = hint[1] if hint else ("Use `cdp_query` (kinds trace, symbol, file, routes, table, config, search; "
+                                "`cdp_help` for flags).")
+    return {"block": True, "message": (
+        "Blocked: searching this repo with grep/find/Grep/Glob is disabled while its CDP index (commit %s) is "
+        "current. %s Then Read only the cited line ranges. For something the index cannot hold, check "
+        "`cdp_query` kind `coverage`." % (gated["indexed"][:12], how))}
 
 
 def gate_decide(event: Dict) -> Optional[Dict]:
@@ -503,39 +539,44 @@ def post_search(event: Dict) -> Optional[str]:
             % (gated["indexed"][:12], hint))
 
 
+#: Most call-specific nudges one session gets: after this the channel is boilerplate.
+MAX_NUDGES = 3
+
+
 def decide(event: Dict) -> Optional[str]:
-    """The nudge to emit, or None for a silent no-op. Never raises."""
-    gated = _gate(event)
-    if gated is None:
-        return None
-    if not claim_session(gated["state"], str(event.get("session_id") or "no-session")):
-        return None
-    return nudge_text(gated["indexed"], gated["file"], bool(gated["edited"]))
+    """The nudge for this Grep/Glob/Read/Bash-grep, or None for a silent no-op. Never raises.
 
-
-def strict_decide(event: Dict) -> Optional[Dict]:
-    """Strict mode's one-shot decision: block, or degrade to the nudge.
-
-    Returns `None` for a silent no-op (same four gates `decide` uses), or a
-    dict `{"block": bool, "message": str}` -- `block` is only ever `True` when
-    coverage clears `STRICT_MIN_COVERAGE` *and* the freshness gate above
-    already held (`_gate` checked it before this function is reached).
+    The text names the exact `cdp_query` that replaces THIS call (`hook_intent.call_hint`),
+    at most once per (session, subject) and `MAX_NUDGES` times a session, and never after the
+    model has asked the index: it has nothing left to learn then.
     """
+    from . import hook_intent
+
+    sid = str(event.get("session_id") or "no-session")
+    if is_index_query(event.get("tool_name")):
+        note_index_asked(sid)
+        return None
+    if index_was_asked(sid):
+        return None
     gated = _gate(event)
     if gated is None:
         return None
-    if not claim_session(gated["state"], str(event.get("session_id") or "no-session")):
+    tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    hint = hook_intent.call_hint(str(event.get("tool_name")), tool_input, str(gated["repo"]), gated["rel"])
+    if hint is None:
         return None
-    message = nudge_text(gated["indexed"], gated["file"], bool(gated["edited"]))
-    if gated["coverage_fraction"] < STRICT_MIN_COVERAGE:
-        return {"block": False, "message": message}
-    block_message = (
-        "Blocked: the index covers %.0f%% of this repository at %s and can "
-        "answer this without reading source. %s If the index truly cannot "
-        "answer, override this once and read the file directly." %
-        (gated["coverage_fraction"] * 100, gated["indexed"][:12], message)
-    )
-    return {"block": True, "message": block_message}
+    subject, text = hint
+    state = gated["state"]
+    if _marker(state, sid, "nudge:" + subject).exists():
+        return None
+    if not any(_claim(state, sid, "nudge-slot-%d" % i) for i in range(MAX_NUDGES)):
+        return None
+    if not _claim(state, sid, "nudge:" + subject):
+        return None
+    text += " (index @ %s)" % gated["indexed"][:12]
+    if gated["edited"]:
+        text += " Note: the working tree is dirty; the index describes the commit, not your uncommitted edits, so verify files you changed."
+    return text
 
 
 def _relative(path: Path, repo: Path) -> Optional[str]:
@@ -577,10 +618,8 @@ def payload(message: str, block: bool = False) -> Dict:
     if block:
         # `permissionDecision`/`permissionDecisionReason` is the documented
         # PreToolUse contract for actually deciding the call, unlike the plain
-        # nudge above -- unverified against a live harness in this environment
-        # (no interactive session to block for real in this repo's own test
-        # suite), so `strict_decide` never blocks unless `_gate` already
-        # confirmed a fresh, high-coverage index, per this module's docstring.
+        # nudge above (verified live); `gate_decide` only denies when `_gate`
+        # confirmed a fresh index that holds the whole answer.
         # No `systemMessage`: it made the harness show the user a "hook error"
         # next to a deliberate block, and the reason reaches the model anyway.
         return {
@@ -674,28 +713,43 @@ def _first_line(text: str) -> str:
     return ""
 
 
+#: Appended to every prompt in a scanned repo (the per-message stand-in for a system prompt: a hook
+#: cannot set one). The rule plus a recipe card: which kind answers which question and what `term` is.
+#: `tests/test_hook.py` fails if a kind named here is not in `guide_kinds.KINDS`.
+STANDING_RULE = ("CDP rule: if this request involves reading or locating code, call the MCP tool `cdp_query` "
+                 "first for every lookup; grep/find/whole-file Read only for text the index cannot hold, after "
+                 "kind `coverage` says so, and Read only cited line ranges.")
+RECIPE_KINDS = ("trace", "symbol", "file", "routes", "table", "config", "module", "paths", "search", "coverage")
+RECIPE = (
+    "cdp_query(kind=..., term=...) recipes (term is a substring, case-insensitive; exact=true for a whole name):\n"
+    "- how does X work / what to read: kind=trace, term=route (`/orders`, `POST /orders`), class or `Class#method`\n"
+    "- where is X defined / who calls it: kind=symbol, term=`OrderService` or `Class#method`\n"
+    "- what is in this file: kind=file, term=path or path fragment (outline, with line extents)\n"
+    "- HTTP endpoints: kind=routes, term=optional path/verb/handler; DB table owners, writers, readers: kind=table\n"
+    "- config keys / env vars and every reader: kind=config, term=`billing.url`; build module: kind=module\n"
+    "- A to B dataflow: kind=paths, frm=..., to=...; job classes by name: kind=search, term=`Job`/`Quartz`\n"
+    "- empty or surprising result: kind=coverage (what was not examined) before concluding 'absent'\n"
+    "Narrow with budget=N, exclude_role=[\"test\"], max_hops=N (trace); `cdp_help` lists every flag.")
+
+
 def prompt_submit(event: Dict) -> Optional[str]:
     """UserPromptSubmit: the one hook that runs before the model's first move.
 
-    Once per session, and only for a repo with a scan. No refresh here (the
-    SessionStart hook did that); just the instruction, so it arrives with the
-    prompt instead of after the model has already started grepping.
+    Reads the user's prompt and names the one `cdp_query` call that answers it
+    (`hook_intent.prompt_hint`); silent when the repo has no scan; otherwise always carries STANDING_RULE. Once per prompt by construction (the harness fires it once per prompt);
+    no refresh here (SessionStart did that).
     """
+    from . import hook_intent
+
     cwd = Path(event.get("cwd") or os.getcwd())
     found = find_state(cwd)
     if found is None:
         return None
-    home, repo_id, _repo = found
-    if not claim_session(home / "work" / repo_id, str(event.get("session_id") or "no-session") + ":prompt"):
+    prompt = event.get("prompt")
+    if not isinstance(prompt, str):
         return None
-    # Facts, not commands: the hooks docs warn that imperative "system
-    # instruction" phrasing in additionalContext can trip the model's
-    # prompt-injection defenses, which would explain it being ignored.
-    return ("This repo has a CDP index: the MCP tool `cdp_query` (kinds: trace, symbol, table, "
-            "config, routes, paths, file, module) returns cited file:line locations for the whole "
-            "call chain in one call, so grep/find/Read are only needed afterwards, on the cited "
-            "line ranges. Start with kind `trace` (term = route or symbol) or `symbol`; "
-            "`cdp_help` gives flags and recipes.")
+    hint = hook_intent.prompt_hint(prompt, str(found[2]))
+    return "%s\n%s\n%s" % (STANDING_RULE, RECIPE, hint) if hint else "%s\n%s" % (STANDING_RULE, RECIPE)
 
 
 #: Set to `1` by `scripts/cdp-claude-leaf.sh` (only `1` counts: `0` or empty is off) so a leaf session -- which must read its
@@ -707,7 +761,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if os.environ.get(LEAF_ENV) == "1" and "--explain" not in argv:
         return 0
-    if "--gate" in argv:
+    if "--block-all" in argv:
+        try:
+            event = json.loads(sys.stdin.read() or "{}")
+            result = block_search_decide(event if isinstance(event, dict) else {})
+        except Exception:
+            return 0
+        if result:
+            print(json.dumps(payload(result["message"], block=True)))
+        return 0
+    if "--gate" in argv or "--strict" in argv:  # `--strict`: what older installs registered; same gate
         try:
             event = json.loads(sys.stdin.read() or "{}")
             result = gate_decide(event if isinstance(event, dict) else {})
@@ -752,23 +815,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         print()
         print("Sample nudge:\n  %s" % nudge_text("0" * 40, "src/Example.java", False))
         return 0
-    strict = "--strict" in argv
     try:
         event = json.loads(sys.stdin.read() or "{}")
-        event = event if isinstance(event, dict) else {}
-        if strict:
-            result = strict_decide(event)
-            message = result["message"] if result else None
-            block = bool(result and result["block"])
-        else:
-            message = decide(event)
-            block = False
+        message = decide(event if isinstance(event, dict) else {})
     except Exception:
         # Fails open. See the module docstring: this runs before every file read
         # in the session, and breaking that is far worse than missing a nudge.
         return 0
     if message:
-        print(json.dumps(payload(message, block=block)))
+        print(json.dumps(payload(message)))
     return 0
 
 

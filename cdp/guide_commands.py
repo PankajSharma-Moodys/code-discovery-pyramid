@@ -209,15 +209,21 @@ COMMANDS: Dict[str, Dict] = {
         "what": "Copies the skill into another repo (`.claude/skills/cdp`, plus the `cdp-leaf` agent; runtime "
                 "files only, no `tests/`, ~0.5 MB). Nothing else is written by default; `--harness` adds Claude Code hooks and `.mcp.json`.",
         "how": "`install <target>`; `--framework {claude-code,langgraph,adk,none}`; `--hook` adds the "
-               "PreToolUse nudge (`--hook --strict` blocks the first source read); `--harness` = the nudge "
-               "(never blocks) + SessionStart refresh/status + a PostToolUse hint after empty searches + "
-               "MCP server; `--harness --strict` installs the denying gate instead (a repo-wide grep/find "
-               "or whole-file Read the index fully answers is denied once with the answer; any MCP "
-               "`cdp_query` switches it off for the session); `--agents-md` also writes AGENTS.md (off by "
-               "default); headless `claude -p` refuses MCP tools unless allowed (`--allowedTools "
-               "\"mcp__cdp__*\"`), interactive sessions prompt once; `--remove-harness` undoes hook/harness settings and deletes settings files it "
-               "leaves empty; `--self` refreshes this repo's vendored copy (for CDP developers).",
-        "examples": [ex("install <target>"), ex("install <target> --harness", True),
+               "PreToolUse nudge; `--harness` = the nudge (never blocks; it names the exact `cdp_query` for the "
+               "Grep/Glob/Read the model reached for, once per subject, quiet after the first `cdp_query`) + "
+               "UserPromptSubmit (names the kind for the question) + SessionStart refresh/status + a PostToolUse "
+               "hint after empty searches + MCP server; `--strict` swaps the nudge for the gate (a repo-wide "
+               "grep/find or whole-file Read the index fully answers is denied once with the answer, everything "
+               "else runs; any `cdp_query` switches it off for the session); `--claude-md` writes a marked "
+               "`MUST use cdp_query first` block (generated from this guide) into the target's CLAUDE.md, "
+               "creating the file, never touching text outside the markers; `--allow-mcp` adds `mcp__cdp__*` to "
+               "`permissions.allow` (the cdp tools run without a prompt; they edit no repository files); "
+               "`--priority` = `--harness --strict --claude-md --allow-mcp`, the CDP-first preset; `--agents-md` "
+               "also writes AGENTS.md; headless `claude -p` refuses MCP tools unless allowed (`--allowedTools "
+               "\"mcp__cdp__*\"` or `--allow-mcp`); `--remove-harness` undoes hooks, the MCP entry, the CLAUDE.md "
+               "block and the permission (only what install added) and deletes settings files it leaves empty; "
+               "`--self` refreshes this repo's vendored copy (for CDP developers).",
+        "examples": [ex("install <target>"), ex("install <target> --harness", True), ex("install <target> --priority", True),
                      ex("install <target> --remove-harness", True)],
         "where": "Once per repo you want Claude to use CDP in. Then `scan --repo <target>`.",
     },
@@ -292,6 +298,9 @@ FLAG_HELP: Dict[str, str] = {
     "gc --unpin": "remove the pin on this commit's snapshot (repeatable)",
     "githook action": "install or uninstall the post-commit/post-checkout/post-merge/post-rewrite hooks",
     "install --agents-md": "also write AGENTS.md at the repository root (never overwrites; off by default)",
+    "install --claude-md": "write a marked CDP rule block into the target's CLAUDE.md (idempotent; off by default)",
+    "install --allow-mcp": "add mcp__cdp__* to permissions.allow so the cdp MCP tools run without a prompt (off by default)",
+    "install --priority": "CDP-first preset: --harness --strict --claude-md --allow-mcp",
     "install --hook": "also install the Claude Code PreToolUse nudge (not git hooks; for those use `githook install`)",
     "lessons lessons_action": "cut a new lesson-set, show one, or unpromote a cut",
     "link link_command": "scan, query, prompts, collect, run or refresh (see `help link`)",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 
 from . import hook as hook_mod
+from .install_extras import install_allow_mcp, install_claude_md, remove_allow_mcp, remove_claude_md
 from .slim import slim_python
 from .store import registry as registry_mod
 from .util import CdpError, SKILL_ROOT, read_json
@@ -50,12 +51,11 @@ TARGET_IGNORE = shutil.ignore_patterns(
 )
 
 
-#: `matcher` is compared as an exact string when it contains only letters,
-# digits and `|`, so this fires on exactly these three tools and nothing else.
-HOOK_MATCHER = "Read|Grep|Glob|Bash"
+#: A regex (it has `^`), so the nudge also sees the model's own `cdp_query` and goes quiet after it.
+HOOK_MATCHER = "^(Read|Grep|Glob|Bash|mcp__.*cdp_query)$"
 
 #: The flags `hook.py` takes when registered as a Claude Code hook.
-HOOK_FLAGS = ("--strict", "--gate", "--session-start", "--prompt-submit", "--post-search")
+HOOK_FLAGS = ("--strict", "--gate", "--block-all", "--session-start", "--prompt-submit", "--post-search")
 
 
 def hook_command(target: Path, dest: Path, flag: str = "") -> str:
@@ -181,7 +181,7 @@ def register_leaf_agent(target: Path, framework: str,
         pass
 
 
-def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
+def install_hook(target: Path, dest: Path, strict: bool = False, block_all: bool = False) -> List[str]:
     """Register the PreToolUse nudge in `<target>/.claude/settings.json`.
 
     The hook finds the machine store (`CDP_HOME`) and the repo's rows in it
@@ -206,7 +206,9 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
     # Flags live in the command string, not an `args` field: with `args` present
     # Claude Code spawns `command` as a bare executable (no shell), so
     # "python3 /path/hook.py" fails with ENOENT.
-    command = hook_command(target, dest, "--strict" if strict else "")
+    if strict:  # the one blocking mode is the gate; `--strict` as a hook flag is only an alias for it
+        return install_gate_hook(target, dest, block_all)
+    command = hook_command(target, dest, "")
     entry = {"type": "command", "command": command}
     groups = _event_groups(settings, "PreToolUse")
     # Idempotent: drop any earlier CDP entry wherever it sits (an older install
@@ -222,15 +224,8 @@ def install_hook(target: Path, dest: Path, strict: bool = False) -> List[str]:
 
     _write_settings(settings_path, settings)
     notes.insert(0, "hook      PreToolUse on %s -> %s" % (HOOK_MATCHER, settings_path))
-    if strict:
-        notes.insert(1, "          strict mode: blocks the first source read of a session "
-                        "when the index is fresh\n          and covers at least %d%% of the "
-                        "repo; degrades to the nudge otherwise, and never\n          blocks "
-                        "(or nudges) twice in one session."
-                        % int(hook_mod.STRICT_MIN_COVERAGE * 100))
-    else:
-        notes.insert(1, "          a nudge, never a block: it fires only on source reads/searches, at most once\n"
-                        "          per session, and no-ops silently when inventory.head != git HEAD.")
+    notes.insert(1, "          a nudge, never a block: it names the exact cdp_query for the Grep/Glob/Read the model\n"
+                    "          reached for, once per (session, subject), and goes quiet once cdp_query has been used.")
     notes.append("          python3 %s --explain   to see what it injects and why"
                  % (dest / "cdp" / "hook.py"))
     return notes
@@ -255,21 +250,26 @@ def _load_json_object(path: Path, hint: str) -> Dict:
 GATE_MATCHER = "^(Read|Grep|Glob|Bash|mcp__.*cdp_query)$"
 
 
-def install_gate_hook(target: Path, dest: Path) -> List[str]:
-    """PreToolUse gate: the first source search/read of a session is denied once
-    until the index has been asked. Replaces the plain nudge (same script). Opt-in
+def install_gate_hook(target: Path, dest: Path, block_all: bool = False) -> List[str]:
+    """PreToolUse gate: a search/read the index fully answers is denied once with the answer. Replaces the plain nudge (same script). Opt-in
     (`--harness --strict`): it denies calls."""
     settings_path = target / ".claude" / "settings.json"
     settings = _load_json_object(settings_path, "Fix or move it, then re-run.")
     _check_shapes(settings, settings_path)
     groups = _event_groups(settings, "PreToolUse")
     _drop_handlers(groups, cdp_hook_commands(dest, target))
-    groups.append({"matcher": GATE_MATCHER,
-                   "hooks": [{"type": "command", "command": hook_command(target, dest, "--gate"),
-                              "timeout": 30}]})
+    handlers = [{"type": "command", "command": hook_command(target, dest, "--gate"), "timeout": 30}]
+    if block_all:  # denies every search, every time; the gate above still outlines whole-file Reads
+        handlers.append({"type": "command", "command": hook_command(target, dest, "--block-all"), "timeout": 30})
+    groups.append({"matcher": GATE_MATCHER, "hooks": handlers})
     _write_settings(settings_path, settings)
-    return ["hook      PreToolUse gate -> first source search/read is denied once until the "
-            "index is asked, in %s" % settings_path]
+    if block_all:
+        return ["hook      PreToolUse BLOCK-ALL in %s: every Grep/Glob and pure grep/rg/find shell search in an indexed "
+                "source dir is denied with the cdp_query to use instead (no release after a cdp_query); Reads "
+                "run; unscanned, stale-index, non-source and edited-file paths run" % settings_path]
+    return ["hook      PreToolUse gate in %s: a recursive grep/find on indexed names or a whole-file Read of a long file "
+            "is answered from the index (denied once with the answer); anything the index cannot fully answer runs;"
+            " off for the session after any cdp_query" % settings_path]
 
 
 def install_session_hook(target: Path, dest: Path) -> List[str]:
@@ -363,6 +363,7 @@ def remove_harness(target: Path) -> List[str]:
             else:
                 _write_settings(settings_path, settings)
         notes.append("removed   %d CDP hook(s) from %s" % (removed, settings_path))
+    notes += remove_allow_mcp(target) + remove_claude_md(target)
     mcp_path = target / ".mcp.json"
     if mcp_path.exists():
         config = _load_json_object(mcp_path, "Fix or move it, then re-run.")
@@ -387,14 +388,22 @@ def install(
     strict: bool = False,
     harness: bool = False,
     agents_md: bool = False,
+    claude_md: bool = False,
+    allow_mcp: bool = False,
+    priority: bool = False,
+    block_all: bool = False,
     say: Callable[..., None] = lambda *a: None,
 ) -> Path:
     """Copy the skill into `target`'s `.claude/skills/cdp/`, register the leaf agent for
     `framework`, and optionally wire the refresh hook. Returns the skill dir."""
+    if block_all:
+        strict = True
+    if priority:  # `--priority` = --harness --strict --claude-md --allow-mcp
+        harness = strict = claude_md = allow_mcp = True
     dest = target / ".claude" / "skills" / "cdp"
     # Refuse before writing anything: an unreadable settings/.mcp.json must not leave
     # the skill copied and the hooks missing.
-    if hook or harness:
+    if hook or harness or allow_mcp:
         settings_file = target / ".claude" / "settings.json"
         _check_shapes(_load_json_object(settings_file, "Fix or move it, then re-run."), settings_file)
     if harness:
@@ -420,18 +429,25 @@ def install(
         elif source_agents_md.exists():
             shutil.copy2(source_agents_md, agents_path)
             say("wrote     %s" % agents_path)
+    if claude_md:
+        for line in install_claude_md(target):
+            say(line)
     if hook and not harness:
-        for line in install_hook(target, dest, strict=strict):
+        for line in install_hook(target, dest, strict=strict, block_all=block_all):
             say(line)
     if harness:
         # The default is the nudge: it never blocks. The denying gate is `--strict`.
-        first = install_gate_hook(target, dest) if strict else install_hook(target, dest)
+        first = install_gate_hook(target, dest, block_all) if strict else install_hook(target, dest)
         for line in first + install_session_hook(target, dest) + install_mcp(target, dest):
+            say(line)
+    if allow_mcp:
+        for line in install_allow_mcp(target):
             say(line)
     say("try       python3 %s scan --repo %s"
           % (dest / "run.py", target))
-    say("tip       --harness for the Claude Code hooks + MCP server (add --strict to deny repo-wide "
-        "greps the index answers); `githook install` to refresh on commit/pull/rebase; "
-        "headless `claude -p` refuses MCP tools unless allowed (`--allowedTools \"mcp__cdp__*\"`; "
-        "interactive sessions prompt once); --agents-md to add AGENTS.md; --framework {langgraph,adk} for non-Claude-Code leaves")
+    say("tip       --priority = --harness --strict --claude-md --allow-mcp (CDP first, one flag; the demo setting). "
+        "Pieces: --harness (hooks + MCP server; add --strict to answer greps the index covers), --claude-md (a marked "
+        "rule block in CLAUDE.md), --allow-mcp (no permission prompt for the cdp tools), --agents-md; `githook install` "
+        "refreshes on commit/pull/rebase; headless `claude -p` refuses MCP tools unless allowed "
+        "(`--allowedTools \"mcp__cdp__*\"` or --allow-mcp); --framework {langgraph,adk} for non-Claude-Code leaves")
     return dest

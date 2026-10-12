@@ -23,6 +23,7 @@ from unittest import mock
 
 from cdp import hook as hook_mod, snapshot as snapshot_mod
 from cdp.cli import main
+from cdp.install import HOOK_MATCHER
 from cdp.store import SqliteStore, registry
 
 
@@ -80,8 +81,8 @@ class HookTest(_OwnHome, unittest.TestCase):
     def test_fires_on_a_source_read(self) -> None:
         message = self.fire()
         self.assertIsNotNone(message)
-        self.assertIn("cdp query", message)
-        self.assertIn("query coverage", message)
+        self.assertIn("cdp_query", message)
+        self.assertIn('kind="file"', message)
         self.assertIn(self.source, message)
 
     def test_fires_at_most_once_per_session(self) -> None:
@@ -96,8 +97,11 @@ class HookTest(_OwnHome, unittest.TestCase):
         """Grep and Glob name a directory or a pattern, not a file. An exact
         path match alone would make the hook fire on Read and never on the two
         tools that cost the most."""
-        message = self.fire(tool="Grep", path=str(self.repo / "core"))
+        ev = event("Grep", str(self.repo / "core"), self.repo, self.session)
+        ev["tool_input"]["pattern"] = "WidgetRegistry"
+        message = hook_mod.decide(ev)
         self.assertIsNotNone(message)
+        self.assertIn('kind="symbol", term="WidgetRegistry"', message)
 
     # ------------------------------------------------ the three mandatory no-ops
 
@@ -220,76 +224,59 @@ class HookTest(_OwnHome, unittest.TestCase):
         self.assertNotIn("working tree is dirty", self.fire())
 
 
-@unittest.skipUnless(have_git(), "the HEAD check needs a real git repository")
-class StrictModeTest(_OwnHome, unittest.TestCase):
-    """Phase 9: `--strict` blocks the first source read instead of nudging,
-    but only when coverage and freshness both clear the bar (the stress test
-    named in `phase_9_plan.md`: coverage is not freshness, R8)."""
+@unittest.skipUnless(have_git(), "needs a real git repository")
+class StrictGateIgnoresModelCoverageTest(_OwnHome, unittest.TestCase):
+    """`--strict` is the gate. The older coverage-threshold block (`coverage.fraction >= 0.95`) could
+    never fire on a deterministic-only index (a bare scan reports 0.0 model-reviewed coverage); the
+    gate answers whenever the index holds the answer, whatever that number says."""
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.make_home()
-        self.repo = make_repo(Path(self.tmp.name))
+        self.repo = make_repo(Path(self.tmp.name), "reservrepo")
         main(["scan", "--repo", str(self.repo), "--quiet"])
-        self.source = "core/src/main/java/COM/Example/mini/core/Widget.java"
-        self.session = self.id()
 
     def _set_coverage(self, fraction: float) -> None:
         backend = self.open_snapshot()
         state = backend.read_artifact("state", {})
-        state["coverage"]["fraction"] = fraction
+        state.setdefault("coverage", {})["fraction"] = fraction
         backend.write_artifact("state", state)
         backend.close()
 
-    def fire(self, session=None):
-        return hook_mod.strict_decide(
-            event("Read", str(self.repo / self.source), self.repo, session or self.session))
+    def _grep(self, session):
+        return hook_mod.gate_decide({"session_id": self.id() + session, "cwd": str(self.repo), "tool_name": "Bash",
+                                     "tool_input": {"command": "grep -rn processPendingReservations ."}})
 
-    def test_below_threshold_degrades_to_a_nudge_not_a_block(self) -> None:
-        # The fixture's own real coverage after a bare scan (no agent dispatch)
-        # is well under STRICT_MIN_COVERAGE -- exercised as-is, not forced.
-        result = self.fire()
-        self.assertIsNotNone(result)
-        self.assertFalse(result["block"])
-        self.assertIn("cdp query", result["message"])
-
-    def test_full_coverage_and_fresh_head_blocks(self) -> None:
+    def test_the_gate_answers_at_zero_and_at_full_model_coverage_alike(self) -> None:
+        self._set_coverage(0.0)
+        low = self._grep("low")
         self._set_coverage(1.0)
-        result = self.fire()
-        self.assertIsNotNone(result)
-        self.assertTrue(result["block"])
-        self.assertIn("Blocked", result["message"])
+        high = self._grep("high")
+        self.assertTrue(low["block"] and high["block"])
+        self.assertEqual(low["message"], high["message"])
 
-    def test_full_coverage_but_stale_head_still_degrades_to_a_nudge(self) -> None:
-        """The named stress test: 100% coverage does not license a block when
-        the index no longer describes the working tree (R8, two dates)."""
-        self._set_coverage(1.0)
-        backend = self.open_snapshot()
-        inventory = backend.read_artifact("inventory")
-        inventory["head"] = "0" * 40
-        backend.write_artifact("inventory", inventory)
-        backend.close()
-        self.assertIsNone(self.fire())
+    def test_the_coverage_threshold_block_is_gone(self) -> None:
+        self.assertFalse(hasattr(hook_mod, "strict_decide"))
+        self.assertFalse(hasattr(hook_mod, "STRICT_MIN_COVERAGE"))
 
-    def test_blocks_at_most_once_per_session_then_stays_silent(self) -> None:
-        self._set_coverage(1.0)
-        first = self.fire()
-        self.assertTrue(first["block"])
-        self.assertIsNone(self.fire())
+    def test_the_legacy_strict_flag_is_the_gate_and_denies_through_main(self) -> None:
+        for flag in ("--strict", "--gate"):
+            proc = subprocess.run(
+                [sys.executable, "-m", "cdp.hook", flag],
+                input=json.dumps({"session_id": "cli" + flag, "cwd": str(self.repo), "tool_name": "Bash",
+                                  "tool_input": {"command": "grep -rn processPendingReservations ."}}),
+                capture_output=True, text=True, cwd=str(SKILL_ROOT), env=dict(os.environ))
+            self.assertEqual(proc.returncode, 0)
+            body = json.loads(proc.stdout)["hookSpecificOutput"]
+            self.assertEqual(body["permissionDecision"], "deny", flag)
+            self.assertIn("ReservationService.java", body["permissionDecisionReason"])
 
-    def test_strict_flag_makes_main_emit_a_deny_decision(self) -> None:
-        self._set_coverage(1.0)
-        proc = subprocess.run(
-            [sys.executable, "-m", "cdp.hook", "--strict"],
-            input=json.dumps(event("Read", str(self.repo / self.source),
-                                    self.repo, "cli-session")),
-            capture_output=True, text=True, cwd=str(SKILL_ROOT))
-        self.assertEqual(proc.returncode, 0)
-        body = json.loads(proc.stdout)
-        self.assertEqual(
-            body["hookSpecificOutput"]["permissionDecision"], "deny")
-        self.assertIn("permissionDecisionReason", body["hookSpecificOutput"])
+    def test_what_the_index_cannot_answer_is_allowed_never_deadlocked(self) -> None:
+        for command in ("grep -rn NoSuchSymbolAnywhere .", "grep -rIl -i reservations ."):
+            self.assertIsNone(hook_mod.gate_decide({
+                "session_id": self.id() + command, "cwd": str(self.repo), "tool_name": "Bash",
+                "tool_input": {"command": command}}), command)
 
 
 class HookSafetyTest(unittest.TestCase):
@@ -299,7 +286,6 @@ class HookSafetyTest(unittest.TestCase):
     def test_garbage_input_is_silent(self) -> None:
         for payload in ({}, {"tool_name": "Read"}, {"tool_name": "Read", "tool_input": 3}):
             self.assertIsNone(hook_mod.decide(payload))
-            self.assertIsNone(hook_mod.strict_decide(payload))
 
     def test_non_json_stdin_exits_zero_with_no_output(self) -> None:
         proc = subprocess.run([sys.executable, "-m", "cdp.hook"],
@@ -354,7 +340,7 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             groups = settings["hooks"]["PreToolUse"]
             self.assertEqual(len(groups), 1)
-            self.assertEqual(groups[0]["matcher"], "Read|Grep|Glob|Bash")
+            self.assertEqual(groups[0]["matcher"], HOOK_MATCHER)
             self.assertEqual(len(groups[0]["hooks"]), 1, "duplicated on re-install")
 
     def test_reinstall_replaces_an_older_wider_matcher(self) -> None:
@@ -367,7 +353,7 @@ class InstallHookTest(unittest.TestCase):
             (target / ".claude" / "settings.json").write_text(json.dumps(old))
             main(["install", str(target), "--hook"])
             groups = json.loads((target / ".claude" / "settings.json").read_text())["hooks"]["PreToolUse"]
-            self.assertEqual([g["matcher"] for g in groups], ["Read|Grep|Glob|Bash"])
+            self.assertEqual([g["matcher"] for g in groups], [HOOK_MATCHER])
             self.assertEqual(len(groups[0]["hooks"]), 1)
             self.assertNotIn("args", groups[0]["hooks"][0])
 
@@ -380,7 +366,7 @@ class InstallHookTest(unittest.TestCase):
                 (target / ".claude" / "settings.json").read_text(encoding="utf-8"))
             handlers = settings["hooks"]["PreToolUse"][0]["hooks"]
             self.assertEqual(len(handlers), 1)
-            self.assertTrue(handlers[0]["command"].endswith('hook.py" --strict'))
+            self.assertTrue(handlers[0]["command"].endswith('hook.py" --gate'))  # `--hook --strict` = the gate
             self.assertNotIn("args", handlers[0])
 
             # Re-installing without --strict updates the existing entry in
@@ -469,16 +455,23 @@ class SessionStartFromSubfolderTest(_OwnHome, unittest.TestCase):
 
 @unittest.skipUnless(have_git(), "needs a real git repository")
 class PromptSubmitTest(_OwnHome, unittest.TestCase):
-    def test_once_per_session_and_silent_without_a_scan(self) -> None:
+    def test_recipe_names_only_real_kinds(self) -> None:
+        from cdp.guide_kinds import KINDS
+
+        self.assertTrue(set(hook_mod.RECIPE_KINDS) <= set(KINDS))
+        for kind in hook_mod.RECIPE_KINDS:
+            self.assertIn("kind=%s" % kind, hook_mod.RECIPE.replace("kind=search", "kind=search"))
+
+    def test_silent_without_a_scan_or_for_a_non_code_prompt(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.make_home()
         repo = make_repo(Path(self.tmp.name))
-        ev = {"cwd": str(repo), "session_id": self.id()}
+        ev = {"cwd": str(repo), "session_id": self.id(), "prompt": "Who calls Widget.render in this repo?"}
         self.assertIsNone(hook_mod.prompt_submit(ev))  # not scanned yet
         main(["scan", "--repo", str(repo), "--quiet"])
         self.assertIn("cdp_query", hook_mod.prompt_submit(ev))
-        self.assertIsNone(hook_mod.prompt_submit(ev))
+        self.assertEqual(hook_mod.prompt_submit({**ev, "prompt": "thanks, that is all"}), "%s\n%s" % (hook_mod.STANDING_RULE, hook_mod.RECIPE))  # no intent: rule + recipe
 
 
 @unittest.skipUnless(have_git(), "needs a real git repository")
@@ -505,6 +498,25 @@ class GateTest(_OwnHome, unittest.TestCase):
         self.assertTrue(result["block"])
         self.assertIn("ProcessPendingJob.java", result["message"])
         self.assertIn("ReservationService.java:", result["message"])
+
+    def test_block_all_denies_every_search_every_time(self) -> None:
+        def decide(tool, session="b", **tool_input):
+            return hook_mod.block_search_decide(self.ev(tool, session, **tool_input))
+
+        for _ in range(2):  # the retry is denied too
+            for result in (decide("Bash", command="grep -rn NoSuchSymbolAnywhere ."),
+                           decide("Bash", command="grep -n validateMakeReservation src/main/java/com/acme/res/ReservationService.java"),
+                           decide("Grep", pattern="reservations"),
+                           decide("Glob", pattern="**/*Service*.java")):
+                self.assertTrue(result["block"])
+                self.assertIn("cdp_query", result["message"])
+        # a cdp_query does not release it
+        self.assertIsNone(decide("mcp__cdp__cdp_query"))
+        self.assertTrue(decide("Grep", pattern="reservations")["block"])
+        # not searches: reads, a piped filter, other commands
+        self.assertIsNone(decide("Read", file_path=self.service))
+        self.assertIsNone(decide("Bash", command="cat x | grep ERROR"))
+        self.assertIsNone(decide("Bash", command="git status"))
 
     def test_the_retry_runs(self) -> None:
         self.assertIsNotNone(self.bash("grep -rn processPendingReservations ."))
