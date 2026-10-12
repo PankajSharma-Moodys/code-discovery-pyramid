@@ -36,10 +36,12 @@
       "verdict": "consistent"
     }
   ],
+  "code": [],
   "constants": [],
   "counts": {
     "annotations": 0,
     "claims": 1,
+    "code": 0,
     "constants": 0,
     "files": 0,
     "symbols": 0,
@@ -47,9 +49,9 @@
   },
   "elided": 0,
   "files": [],
-  "not_searched": "file contents (use grep for text inside a file)",
+  "not_searched": "source text of files that are not source-role (tests, config, docs, assets), binary, over-size or generated files, and anything that spans two lines",
   "query": "search",
-  "searched": "claim subjects and statements, symbol names, constant values, annotations (name, fqn, text), unknown questions, file paths",
+  "searched": "claim subjects and statements, symbol names, constant values, annotations (name, fqn, text), unknown questions, file paths, source text of source-role files (code: case-insensitive substring, one line at a time, cited to the enclosing member)",
   "symbols": [],
   "text": "config",
   "unknowns": []

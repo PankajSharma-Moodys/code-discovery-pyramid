@@ -98,7 +98,9 @@ KINDS: Dict[str, Dict] = {
                 "and a cut one gives `see_all`, the exact command for every use); `collision` true means "
                 "several definitions share the name. "
                 "Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters "
-                "and the owner class's annotations (Java).",
+                "and the owner class's annotations (Java). "
+                "A method's `body` row (one per overload) lists the members it `calls`, the exceptions it declares "
+                "(`throws`, Java) and its string-literal count (`literals`, from the code text).",
         "term": "REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; "
                 "case-insensitive substring (exact last-name matches first) unless `exact`; "
                 "`Class#method` is always exact.",
@@ -116,7 +118,9 @@ KINDS: Dict[str, Dict] = {
         "read": "`defines` is the outline with `line`..`end_line`; `io_edges` are what the file "
                 "reads/writes/calls out to. "
                 "Each definition lists its annotations (verbatim text + `file:line`), annotated parameters and "
-                "the owner class's annotations (Java).",
+                "the owner class's annotations (Java). "
+                "Each method also gives the members it `calls`, the exceptions it declares (`throws`, Java) and "
+                "its string-literal count (`literals`); one line per method.",
         "term": "REQUIRED. A repo-relative path or any substring of one (`exact`: the path or a trailing `dir/file`); an absolute path "
                 "inside another scanned repo is routed to that repo's store.",
         "uses": ("term",) + _B + ("exact",),
@@ -219,11 +223,15 @@ KINDS: Dict[str, Dict] = {
     "search": {
         "summary": "free-text fallback across claims, symbols, constants, unknowns and files",
         "what": "Substring search over claim subjects/statements, symbol names, constant "
-                "values, unknown questions and file paths, ranked by closeness.",
-        "not": "Not file contents (that is grep); an empty answer says what was and was not searched.",
+                "values, unknown questions, file paths and the source text of source-role files (code search), ranked by closeness.",
+        "not": "Not tests, config, docs, binary, over-size or generated files' text, and no match across two lines; "
+               "an empty answer says what was and was not searched.",
         "read": "`counts` are true totals; each list is budget-split fairly. "
                 "An `annotations` bucket matches annotation name, fqn, verbatim text and argument values, "
-                "whitespace ignored (`search @Every`, `search 60s`); rows are `owner  @text  file:line`.",
+                "whitespace ignored (`search @Every`, `search 60s`); rows are `owner  @text  file:line`. "
+                "A `code` bucket matches source lines (case-insensitive substring, one line at a time) and cites the "
+                "enclosing member (else the type, else the file): `owner  file:line  text`. It replaces grep for "
+                "literals, log messages, inline SQL and comments; `as_of.code_note` says when the tree has uncommitted edits.",
         "term": "REQUIRED. Any text.",
         "uses": ("term",) + _B,
         "required": ("term",),

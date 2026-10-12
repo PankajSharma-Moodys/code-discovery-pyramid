@@ -60,6 +60,20 @@ def _annotation_lines(indent: str, row: Dict, width: int = 140, cap: int = 0) ->
     return lines
 
 
+def _body_line(indent: str, row: Dict, cap: int = 8) -> List[str]:
+    """One compact line: what a member calls (first `cap`), what it declares it throws, its literal count."""
+    bits = []
+    calls = row.get("calls") or []
+    if calls:
+        bits.append("calls " + ", ".join(calls[0:cap]) + (" (+%d more; `--json`)" % (len(calls) - cap)
+                                                          if len(calls) > cap else ""))
+    if row.get("throws"):
+        bits.append("throws " + ", ".join(row["throws"]))
+    if row.get("literals"):
+        bits.append("%d string literal(s)" % row["literals"])
+    return ["%s%s" % (indent, " | ".join(bits))] if bits else []
+
+
 def _tag(row: Dict, total: int) -> str:
     """Which verbs (route trace) or members (class trace) reach this file; nothing when all of
     them do (the file is shared, not specific to one)."""
@@ -104,6 +118,8 @@ def render(result: Dict) -> str:
             if entry["collision"]:
                 lines.append("  ! declared at more than one site; no winner is picked (§6.4)")
             lines.extend(_annotation_lines("  ", entry))
+            for b in entry.get("body", []):
+                lines.extend(_body_line("  %s: " % b["at"], b))
             lines.append("  used by %d site(s)" % entry["used_by_count"])
             for use in entry["used_by"]:
                 lines.append("    %-24s %s" % (use["module"], use["at"]))
@@ -141,6 +157,7 @@ def render(result: Dict) -> str:
                     else:
                         lines.append("    %-9s %-60s %s" % (d["kind"], truncate(d["fqn"], 60), d["at"]))
                     lines.extend(_annotation_lines("        ", d))
+                    lines.extend(_body_line("        ", d))
                 lines.extend(_more("    ", entry["defines_count"], entry["defines"]))
             if entry["io_edges"]:
                 lines.append("  edges:")
@@ -294,6 +311,10 @@ def render(result: Dict) -> str:
             lines.append("annotations:")
             lines += ["  %s  %s  %s" % (a["owner"], truncate(a["text"], 140), a["at"]) for a in result["annotations"]]
             lines.extend(_more("  ", counts["annotations"], result["annotations"]))
+        if result.get("code"):
+            lines.append("code (case-insensitive substring, one line at a time):")
+            lines += ["  %s  %s  %s" % (c["owner"], c["at"], c["text"]) for c in result["code"]]
+            lines.extend(_more("  ", counts["code"], result["code"]))
         if result["files"]:
             lines.append("files:")
             lines += ["  " + f for f in result["files"]]
@@ -438,6 +459,8 @@ def _footer(result: Dict) -> str:
                          % (str(as_of.get("commit"))[:12], ", ".join(as_of["dirty_files"][:5]) + more))
         else:
             parts.append("UNCOMMITTED changes not in this index: %s" % ", ".join(as_of["dirty_files"][:5]) + more)
+    if as_of.get("code_note"):
+        parts.append("note: %s" % as_of["code_note"])
     if as_of.get("changed_since"):
         parts.append("cited files changed since: %s" % ", ".join(as_of["changed_since"][:5]))
     return "\n" + "\n".join(parts)

@@ -242,9 +242,9 @@ class P5QueryTest(unittest.TestCase):
         self.assertEqual(hit["counts"]["constants"], 1, hit)
         self.assertIn("MAGIC_HEADER", hit["constants"][0])
         miss = self.q("search", "zzz-not-there")
-        self.assertIn("file contents", miss["not_searched"])
+        self.assertIn("source text", miss["not_searched"])
         text = self.cdp.run("query", "search", "zzz-not-there", check=False).stdout
-        self.assertIn("Not searched: file contents", text)
+        self.assertIn("Not searched: source text of files that are not source-role", text)
 
     def test_h3_exclude_role_filters_used_by_and_rejects_unknown_roles(self):
         full = self.q("symbol", "ServerService#register")["found"][0]

@@ -29,7 +29,7 @@ TYPE_KEYWORDS = ("class", "interface", "enum")
 
 class JMember:
     __slots__ = ("kind", "name", "mods", "anns", "ret", "params", "tparams", "line", "start_line",
-                 "end_line", "body", "init", "owner", "static", "ftype", "varargs", "param_anns")
+                 "end_line", "body", "init", "owner", "static", "ftype", "varargs", "param_anns", "throws")
 
     def __init__(self, kind: str, name: str, owner: "JType") -> None:
         self.kind, self.name, self.owner = kind, name, owner
@@ -45,6 +45,7 @@ class JMember:
         self.init: Optional[Tuple[int, int]] = None   # token span of a field initialiser
         self.static = False
         self.varargs = False
+        self.throws: List[str] = []                   # declared `throws` types, as written
 
     @property
     def symbol(self) -> str:
@@ -491,6 +492,17 @@ class DeclParser:
         m.varargs = any(v for _, _, _, v, _ in plist)
         j = pc + 1
         while j < end and tk.text[j] not in ("{", ";"):
+            if tk.text[j] == "throws" and tk.kind[j] == "id":
+                j += 1
+                while j < end and tk.text[j] not in ("{", ";"):
+                    r = parse_type(tk, j)
+                    if r is None:
+                        break
+                    j, thrown = r
+                    m.throws.append(thrown)
+                    if tk.at(j) == ",":
+                        j += 1
+                continue
             if tk.text[j] == "default" and tk.kind[j] == "id":
                 while j < end and tk.text[j] != ";":
                     if tk.kind[j] == "op" and tk.text[j] in "([{":

@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence
 
+from .. import codeindex
+from ..util import truncate
 from .budget import Budget
 from .common import ann_at, cite, squash, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _search_rank_key
 from .store import Store
 
 
 SEARCHED = ("claim subjects and statements, symbol names, constant values, annotations (name, fqn, text), "
-            "unknown questions, file paths")
+            "unknown questions, file paths, source text of source-role files (code: case-insensitive "
+            "substring, one line at a time, cited to the enclosing member)")
 
 
 def q_search(store: Store, text: str, budget: Optional[Budget] = None,
@@ -33,6 +36,7 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
          if k not in named and e.get("value") is not None and _matches(e["value"], text)),
     )
     annotations = _annotation_hits(store, text, exclude_role)
+    code = _code_hits(store, text, exclude_role)
     files = sorted(
         (
             f["path"] for f in store.inventory["files"]
@@ -43,9 +47,13 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     # Fair-split, not a single shared budget spent in construction order --
     # see `_fair_split_budget`'s docstring for the real-repo failure mode
     # this replaced.
-    claims_room, symbols_room, unknowns_room, files_room, constants_room, annotations_room = _fair_split_budget(
-        budget.limit, [len(claims), len(symbols), len(unknowns), len(files), len(constants), len(annotations)]
+    (claims_room, symbols_room, unknowns_room, files_room, constants_room, annotations_room,
+     code_room) = _fair_split_budget(
+        budget.limit,
+        [len(claims), len(symbols), len(unknowns), len(files), len(constants), len(annotations), len(code)]
     )
+    code_budget = Budget(code_room)
+    kept_code = code_budget.take(code)
     annotations_budget = Budget(annotations_room)
     kept_annotations = annotations_budget.take(annotations)
     constants_budget = Budget(constants_room)
@@ -60,33 +68,76 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     kept_files = files_budget.take(files)
     budget.spent = (
         claims_budget.spent + symbols_budget.spent
-        + unknowns_budget.spent + files_budget.spent + constants_budget.spent + annotations_budget.spent
+        + unknowns_budget.spent + files_budget.spent + constants_budget.spent + annotations_budget.spent + code_budget.spent
     )
     budget.elided = (
         claims_budget.elided + symbols_budget.elided
-        + unknowns_budget.elided + files_budget.elided + constants_budget.elided + annotations_budget.elided
+        + unknowns_budget.elided + files_budget.elided + constants_budget.elided + annotations_budget.elided + code_budget.elided
     )
-    return _finish(
+    result = _finish(
         {
             "query": "search",
             "text": text,
             "counts": {
                 "claims": len(claims), "symbols": len(symbols),
                 "unknowns": len(unknowns), "files": len(files),
-                "constants": len(constants), "annotations": len(annotations),
+                "constants": len(constants), "annotations": len(annotations), "code": len(code),
             },
             "searched": SEARCHED,
-            "not_searched": "file contents (use grep for text inside a file)",
+            "not_searched": ("source text of files that are not source-role (tests, config, docs, assets), "
+                             "binary, over-size or generated files, and anything that spans two lines"),
             "claims": kept_claims,
             "symbols": kept_symbols,
             "unknowns": kept_unknowns,
             "files": kept_files,
             "constants": kept_constants,
             "annotations": kept_annotations,
+            "code": kept_code,
         },
         store,
         budget,
     )
+    note = _code_note(result["as_of"])
+    if note:
+        result["as_of"]["code_note"] = note
+    return result
+
+
+def _code_note(as_of: Dict) -> str:
+    """Said when code text may differ from the tree on disk: a dirty scan indexed working files, and
+    edits since the scan are not in the `code` artifact."""
+    if as_of.get("snapshot_uncommitted"):
+        return "code text is from the working files at scan time (uncommitted edits included)"
+    if as_of.get("dirty_files"):
+        return "code text is as indexed; uncommitted edits since the scan are not searched"
+    return ""
+
+
+def _window(line: str, needle: str, width: int = 160) -> str:
+    """The line trimmed, cut to `width` around the first match so the match stays visible."""
+    line = line.strip()
+    if len(line) <= width:
+        return line
+    at = max(0, line.lower().find(needle) - width // 3)
+    return ("..." if at else "") + line[at:at + width] + ("..." if at + width < len(line) else "")
+
+
+def _code_hits(store: Store, text: str, exclude_role: Optional[Sequence[str]]) -> List[Dict]:
+    """Lines of source text containing `text` (case-insensitive substring, one line at a time).
+    Row: the enclosing member (or type, or the file), `file:line`, the trimmed line. The `code`
+    artifact holds source-role files only, so a role filter on it is a no-op unless it names `source`."""
+    files = (getattr(store, "code", None) or {}).get("files") or {}
+    needle = text.lower()
+    if not files or not needle.strip() or (exclude_role and "source" in exclude_role):
+        return []
+    members = codeindex.member_index(store.xref["symbols"])
+    hits = []
+    for path in sorted(files):
+        rows = members.get(path, [])
+        for line, content in codeindex.scan_lines(files[path], needle):
+            hits.append({"owner": codeindex.owner_of(rows, line) or path, "at": "%s:%d" % (path, line),
+                         "text": _window(content, needle)})
+    return hits
 
 
 def _annotation_hits(store: Store, text: str, exclude_role: Optional[Sequence[str]]) -> List[Dict]:
