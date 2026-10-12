@@ -728,6 +728,7 @@ RECIPE = (
     "- HTTP endpoints: kind=routes, term=optional path/verb/handler; DB table owners, writers, readers: kind=table\n"
     "- config keys / env vars and every reader: kind=config, term=`billing.url`; build module: kind=module\n"
     "- A to B dataflow: kind=paths, frm=..., to=...; job classes by name: kind=search, term=`Job`/`Quartz`\n"
+    "- schedules, annotation values (intervals, cron): kind=search, term=`@Every`/`60s`, then kind=file, term=<Class>\n"
     "- empty or surprising result: kind=coverage (what was not examined) before concluding 'absent'\n"
     "Narrow with budget=N, exclude_role=[\"test\"], max_hops=N (trace); `cdp_help` lists every flag.")
 
