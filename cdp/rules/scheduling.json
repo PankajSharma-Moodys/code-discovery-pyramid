@@ -1,0 +1,31 @@
+{
+  "family": "scheduling",
+  "language": "java",
+  "rules": [
+    {
+      "id": "schedule.spring",
+      "match": {"fqn": ["org.springframework.scheduling.annotation.Scheduled", "io.quarkus.scheduler.Scheduled",
+                        "io.micronaut.scheduling.annotation.Scheduled"], "on": ["class", "method", "field", "constant"]},
+      "aliases": ["Scheduled"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.every",
+      "match": {"fqn": ["io.dropwizard.jobs.annotations.Every", "de.spinscale.dropwizard.jobs.annotations.Every"], "on": ["class", "method", "field", "constant"]},
+      "aliases": ["Every"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.quartz.disallow_concurrent",
+      "match": {"fqn": "org.quartz.DisallowConcurrentExecution", "on": ["class", "method", "field", "constant"]},
+      "aliases": ["DisallowConcurrentExecution"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    },
+    {
+      "id": "schedule.quartz.persist_job_data",
+      "match": {"fqn": "org.quartz.PersistJobDataAfterExecution", "on": ["class", "method", "field", "constant"]},
+      "aliases": ["PersistJobDataAfterExecution"],
+      "emit": {"channel": "schedule", "signal": "scheduled", "target": "{file.primary}"}
+    }
+  ]
+}

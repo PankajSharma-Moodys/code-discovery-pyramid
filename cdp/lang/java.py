@@ -549,20 +549,8 @@ def _emit_annotation_facts(
 
     # `@Value`, `@ConfigurationProperties` -> config_read edges: rules/spring_config.json.
 
-    # --- scheduling --------------------------------------------------------
-    scheduled = set()
-    for name in ("Scheduled", "DisallowConcurrentExecution", "PersistJobDataAfterExecution", "Every"):
-        for ann in by_name.get(name, []):
-            owner = _owner_for(ann.index, decls, primary)
-            if (name, owner, ann.index) in scheduled:
-                continue     # repeated or `@Schedules`-wrapped on one line: one edge
-            scheduled.add((name, owner, ann.index))
-            anchor = anchor_at(ctx, ann.index)
-            if anchor:
-                facts.signals.append("scheduled")
-                facts.io_edges.append(
-                    mk_edge(_owner_for(ann.index, decls, primary), primary, "schedule", anchor)
-                )
+    # --- scheduling ---------------------------------------------------------
+    # Scheduled/Every/DisallowConcurrentExecution/PersistJobDataAfterExecution: rules/scheduling.json.
     for idx, line in enumerate(code):
         if JOB_RE.search(line):
             anchor = anchor_at(ctx, idx)

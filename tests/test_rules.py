@@ -276,6 +276,26 @@ class ConfigFamilyTest(unittest.TestCase):
         self.assertEqual(shipped('package a;\nimport org.other.Value;\nclass C {\n  @Value("${k}") int f;\n}\n'), [])
 
 
+class SchedulingFamilyTest(unittest.TestCase):
+    def test_markers_edge_to_the_primary_type_with_the_scheduled_signal(self):
+        src = ('package a;\nimport org.quartz.*;\nimport io.dropwizard.jobs.annotations.Every;\n'
+               '@DisallowConcurrentExecution @PersistJobDataAfterExecution\n'
+               '@Every("60s")\npublic class J {}\n')
+        ex = extraction_of(extract(src))
+        self.assertEqual(sorted((e["rule"], e["source"], e["target"], e["anchor"]["line"]) for e in ex["rule_edges"]),
+                         [("schedule.every", "a.J", "a.J", 5),
+                          ("schedule.quartz.disallow_concurrent", "a.J", "a.J", 4),
+                          ("schedule.quartz.persist_job_data", "a.J", "a.J", 4)])
+        self.assertIn("scheduled", ex["files"]["a/C.java"]["signals"])
+
+    def test_schedules_container_and_repeats_make_one_edge_per_line(self):
+        src = ('package a;\nimport org.springframework.scheduling.annotation.*;\nclass C {\n'
+               '  @Schedules({@Scheduled(fixedRate=1), @Scheduled(cron="0 * * * * *")})\n  void m() {}\n'
+               '  @Scheduled(fixedRate=5)\n  @Scheduled(fixedRate=6)\n  void n() {}\n}\n')
+        self.assertEqual([(s, line) for _, s, _, line in shipped(src)],
+                         [("a.C#m", 4), ("a.C#n", 6), ("a.C#n", 7)])
+
+
 class AllEdgesTest(unittest.TestCase):
     def test_all_edges_merges_in_io_edges_order_and_returns_io_edges_when_there_are_no_rule_edges(self):
         io = [{"source": "b", "target": "t", "channel": "c", "file": "f", "anchor": {"file": "f", "line": 1}}]
