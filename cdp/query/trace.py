@@ -6,7 +6,7 @@ import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .budget import Budget
-from .common import _finish, annotations_of, _matches, _role_index, cite
+from .common import _finish, annotations_of, _matches, _role_index, cite, make_matcher
 from .store import Store
 from .trace_entry import resolve_entry
 
@@ -16,6 +16,7 @@ def q_paths(
     frm: Optional[str] = None,
     to: Optional[str] = None,
     budget: Optional[Budget] = None,
+    match: str = "substring",
 ) -> Dict:
     budget = budget or Budget()
     paths = store.dataflow["paths"]
@@ -24,11 +25,13 @@ def q_paths(
     # both, `--from` must come at or before `--to`. A `Class#member` term also
     # matches the class, because dataflow nodes are classes, not members.
     if frm or to:
-        paths = [p for p in paths if _through(p, frm, to)]
+        hit = {n: make_matcher(n, match) for n in (frm, to) if n}
+        paths = [p for p in paths if _through(p, frm, to, hit, match)]
     return _finish(
         {
             "query": "paths",
-            "match": "any node on the path (source, hops, sink)" if frm or to else "all",
+            "match": ("any node on the path (source, hops, sink)" + ("" if match == "substring" else "; %s" % match))
+            if frm or to else "all",
             "count": len(paths),
             "paths": [
                 {
@@ -62,23 +65,28 @@ def _nodes(path: Dict) -> List[str]:
     return out
 
 
-def _node_hit(node: str, needle: str) -> bool:
-    if _matches(node, needle):
+def _node_hit(node: str, needle: str, hit=None, match: str = "substring") -> bool:
+    hit = hit or make_matcher(needle, match)
+    if hit(node):
         return True
+    if match == "regex":  # `Class#member` -> class is a substring/exact notion; a pattern states what it means
+        return False
     owner = needle.partition("#")[0]
-    return owner != needle and bool(owner) and _matches(node, owner)
+    return owner != needle and bool(owner) and make_matcher(owner, match)(node)
 
 
-def _through(path: Dict, frm: Optional[str], to: Optional[str]) -> bool:
+def _through(path: Dict, frm: Optional[str], to: Optional[str], hit: Optional[Dict] = None,
+             match: str = "substring") -> bool:
     nodes = _nodes(path)
     first = 0
+    hit = hit or {}
     if frm:
-        hits = [i for i, n in enumerate(nodes) if _node_hit(n, frm)]
+        hits = [i for i, n in enumerate(nodes) if _node_hit(n, frm, hit.get(frm), match)]
         if not hits:
             return False
         first = hits[0]
     if to:
-        return any(_node_hit(n, to) for n in nodes[first:])
+        return any(_node_hit(n, to, hit.get(to), match) for n in nodes[first:])
     return True
 
 
@@ -105,6 +113,7 @@ def q_trace(
     max_hops: int = 8,
     budget: Optional[Budget] = None,
     exclude_role: Optional[Sequence[str]] = None,
+    match: str = "substring",
 ) -> Dict:
     """The minimal cited file set needed to answer a question about an entry point.
 
@@ -127,7 +136,7 @@ def q_trace(
     adjacency: Dict[str, List[Dict]] = {}
     for edge in store.dataflow["edges"]:
         adjacency.setdefault(edge["source"], []).append(edge)
-    resolved = resolve_entry(store, entry, adjacency)
+    resolved = resolve_entry(store, entry, adjacency, match)
     if not resolved:
         return _finish(
             {
@@ -194,7 +203,7 @@ def q_trace(
         "query": "trace",
         "entry": entry,
         "found": True,
-        "resolved_as": {**{k: v for k, v in resolved.items() if k not in ("handlers", "members", "classes")},
+        "resolved_as": {**{k: v for k, v in resolved.items() if k not in ("handlers", "members", "classes", "also_matched")},
                         **(annotations_of(store, cited) if cited else {})},
         "max_hops": max_hops,
         # A walk that ran out of hops has not finished. Reporting it as
@@ -221,6 +230,9 @@ def q_trace(
     }
     if resolved.get("handlers"):
         result["verbs"] = [h["verb"] for h in resolved["handlers"]]
+    result["match"] = match
+    if resolved.get("also_matched"):
+        result["also_matched"] = resolved["also_matched"]
     if capped:
         result["capped"] = capped
         result["resolved_as"]["members"] = resolved["members"]

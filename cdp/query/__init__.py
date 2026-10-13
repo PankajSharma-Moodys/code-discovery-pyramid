@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Optional, Sequence
 
-from ..guide_kinds import APPLIES, PARAMS, ROLES
+from ..guide_kinds import APPLIES, MATCHES, PARAMS, ROLES
 from .budget import DEFAULT_BUDGET, UNBUDGETED, Budget
 from .common import _as_of, _fair_split_budget, _role_index, _search_rank_key, cite
 from .lookup import q_config, q_file, q_module, q_routes, q_symbol, q_table
@@ -40,6 +40,7 @@ from .stats import q_coverage, q_stats
 from .store import Store
 from .suggest import annotate
 from .trace import q_paths, q_trace
+from . import views
 
 
 QUERIES: Dict[str, Callable] = {
@@ -89,6 +90,9 @@ def _dispatch(
     max_hops: Optional[int] = None,
     exclude_role: Optional[Sequence[str]] = None,
     exact: bool = False,
+    include_tests: bool = False,
+    include_library: bool = False,
+    match: Optional[str] = None,
 ) -> Dict:
     """One dispatch table for `kind` -> the right `QUERIES[kind]` call, shared
     by `cli.cmd_query` and `mcp_server` (7.1) so the MCP tool answers exactly
@@ -110,8 +114,19 @@ def _dispatch(
             "`query %s` does not support --exclude-role: it is a whole-repo "
             "census, and silently dropping rows would misreport it." % kind
         )
+    if match is not None and match not in MATCHES:
+        raise ValueError("match must be one of %s, got %r" % (", ".join(MATCHES), match))
+    if exact and match not in (None, "exact"):
+        raise ValueError("`exact` means match=exact; it conflicts with match=%s" % match)
     _reject_unused(kind, term=term, budget=budget, exclude_role=exclude_role, claim_kind=claim_kind,
-                   module=module, subject=subject, frm=frm, to=to, max_hops=max_hops, exact=exact or None)
+                   module=module, subject=subject, frm=frm, to=to, max_hops=max_hops, exact=exact or None,
+                   include_tests=include_tests or None, include_library=include_library or None, match=match)
+    mode = "exact" if exact or match == "exact" else match or "substring"
+    exact, regex = mode == "exact", mode == "regex"
+    # Noise is off by default: test files (and, for claims, third-party `library:` subjects) are dropped
+    # unless the caller opts in. `file` is an explicit path lookup, so it is never filtered by default.
+    if "include_tests" in APPLIES[kind] and not include_tests and kind != "file":
+        exclude_role = list(dict.fromkeys(list(exclude_role or ()) + ["test"]))
     if kind == "claims" and term and claim_kind and term != claim_kind:
         raise ValueError("`query claims` got term %r and kind %r: pass one (term is shorthand "
                          "for claim_kind)" % (term, claim_kind))
@@ -121,28 +136,59 @@ def _dispatch(
         if not term:
             raise ValueError("`query %s` needs a term" % kind)
         if kind == "search":
-            return fn(store, term, budget=b, exclude_role=exclude_role)
-        return fn(store, term, budget=b, exclude_role=exclude_role, exact=exact)
+            return fn(store, term, budget=b, exclude_role=exclude_role, regex=regex)
+        return fn(store, term, budget=b, exclude_role=exclude_role, exact=exact, regex=regex)
     if kind == "module":
         if not term:
             raise ValueError("`query module` needs a term")
-        return fn(store, term, budget=b)
+        return fn(store, term, budget=b, match=mode)
     if kind == "trace":
         if not term:
             raise ValueError("`query trace` needs an entry point")
         kwargs = {} if max_hops is None else {"max_hops": max_hops}
-        return fn(store, term, budget=b, exclude_role=exclude_role, **kwargs)
+        return fn(store, term, budget=b, exclude_role=exclude_role, match=mode, **kwargs)
     if kind == "unknowns":
-        return fn(store, term, budget=b, exclude_role=exclude_role)
+        return fn(store, term, budget=b, exclude_role=exclude_role, match=mode)
     if kind in ("routes", "table", "config"):
-        return fn(store, term, budget=b, exclude_role=exclude_role, exact=exact)
+        return fn(store, term, budget=b, exclude_role=exclude_role, exact=exact, regex=regex)
     if kind == "paths":
-        return fn(store, frm, to, budget=b)
+        return fn(store, frm, to, budget=b, match=mode)
     if kind == "claims":
-        return fn(store, claim_kind or term, module, subject, budget=b, exclude_role=exclude_role)
+        return fn(store, claim_kind or term, module, subject, budget=b, exclude_role=exclude_role,
+                  include_library=include_library, match=mode)
     return fn(store)
 
 
-def dispatch(store: Store, kind: str, term: Optional[str] = None, **params) -> Dict:
-    """`_dispatch`, plus `not_found: {term, did_you_mean}` when a name lookup matched nothing (H8)."""
-    return annotate(store, kind, term, _dispatch(store, kind, term, **params))
+def dispatch(store: Store, kind: str, term: Optional[str] = None, *, view: Optional[str] = None,
+             format: Optional[str] = None, offset: Optional[int] = None, max_tokens: Optional[int] = None,
+             query_config: Optional[Dict] = None, as_of_extra: Optional[Dict] = None, **params) -> Dict:
+    """`_dispatch`, plus `not_found: {term, did_you_mean}` when a name lookup matched nothing (H8), then the
+    answer projected to `view`/`format` under the size cap (`views.py`). `query_config` is the repo's
+    `.cdp.toml` `[query]`; a call's own `view`, `format` and `max_tokens` override it. `as_of_extra` is
+    merged into the answer's `as_of` before projection."""
+    for name, value in (("offset", offset), ("max_tokens", max_tokens)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+            raise ValueError("%s must be a non-negative integer, got %r" % (name, value))
+    _reject_unused(kind, view=view, format=format, offset=offset or None, max_tokens=max_tokens)
+    projected = kind not in views.UNPROJECTED
+    if projected:
+        shape, fmt, cap = views.resolve(kind, view, format, max_tokens, query_config)
+        explicit_budget = params.get("budget") is not None
+        if not explicit_budget:  # every view is cut by the size cap and paged by `offset`, never pre-cut
+            params["budget"] = views.UNLIMITED_ROWS
+    result = annotate(store, kind, term, _dispatch(store, kind, term, **params))
+    if "include_tests" in APPLIES[kind] and kind != "file":
+        dropped = [] if params.get("include_tests") else ["tests"]
+        if kind == "claims" and not params.get("include_library"):
+            dropped.append("library")
+        if dropped:
+            result["default_filters"] = ("dropped by default: %s; pass %s to keep them"
+                                         % (", ".join(dropped), ", ".join("include_" + d for d in dropped)
+                                            .replace("include_tests", "include_tests=true")
+                                            .replace("include_library", "include_library=true")))
+    if as_of_extra:
+        result.setdefault("as_of", {}).update(as_of_extra)
+    if not projected:
+        return result
+    return views.apply(kind, result, view=shape, fmt=fmt, max_tokens=cap, offset=offset or 0,
+                       cfg=query_config, explicit_budget=explicit_budget)

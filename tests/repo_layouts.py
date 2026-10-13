@@ -301,7 +301,9 @@ class Cdp:
         return self.run("refresh", "--quiet", check=check)
 
     def query_json(self, *args: str) -> dict:
-        return json.loads(self.run("query", *args, "--json").stdout)
+        """The full-shape answer (`--view detail`): these tests assert facts, not the default projection."""
+        view = [] if "--view" in args or args[:1] in (("stats",), ("coverage",)) else ["--view", "detail"]
+        return json.loads(self.run("query", *args, "--json", *view).stdout)
 
     def open(self):
         """`(backend, query.Store)` selected exactly as a query selects it."""

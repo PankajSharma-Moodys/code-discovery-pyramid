@@ -114,7 +114,7 @@ class TraceTest(unittest.TestCase):
         self.assertTrue(shallow["hops_exhausted"])
         # And the renderer says so, rather than presenting a bounded walk as a
         # finished one.
-        out = self.run_cli("query", "trace", "/v1/widgets", "--max-hops", "1")
+        out = self.run_cli("query", "trace", "--view", "detail", "/v1/widgets", "--max-hops", "1")
         self.assertIn("the trail continues beyond this list", out)
 
     def test_an_unresolvable_entry_point_says_so(self) -> None:
@@ -126,19 +126,19 @@ class TraceTest(unittest.TestCase):
     # --------------------------------------------------------------- the CLI
 
     def test_cli_renders_and_carries_the_mandatory_footer(self) -> None:
-        out = self.run_cli("query", "trace", "/v1/widgets")
+        out = self.run_cli("query", "trace", "--view", "detail", "/v1/widgets")
         self.assertIn("entry  GET /v1/widgets", out)
         self.assertRegex(out, r"elided: \d+")
         self.assertRegex(out, r"as of \S+@\S+, state v\d+")
 
     def test_cli_json_shape(self) -> None:
-        data = json.loads(self.run_cli("query", "trace", "/v1/widgets", "--json"))
+        data = json.loads(self.run_cli("query", "trace", "--view", "detail", "/v1/widgets", "--json"))
         self.assertEqual(data["query"], "trace")
         self.assertIn("file_count", data)
         self.assertIn("as_of", data)
 
     def test_cli_requires_an_entry_point(self) -> None:
-        self.assertEqual(main(["query", "trace", "--state-dir", str(self.state)]), 2)
+        self.assertEqual(main(["query", "trace", "--view", "detail", "--state-dir", str(self.state)]), 2)
 
 
 if __name__ == "__main__":

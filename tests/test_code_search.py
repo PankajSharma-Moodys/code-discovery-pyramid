@@ -75,7 +75,7 @@ class CodeSearchTest(_OwnHome, unittest.TestCase):
         path.write_text(text, encoding="utf-8")
 
     def q(self, *argv):
-        code, out = run("query", *argv, "--repo", str(self.repo), "--json")
+        code, out = run("query", *argv, "--repo", str(self.repo), "--json", "--view", "detail")
         self.assertIn(code, (0, 1), out)      # 1 = nothing matched
         return json.loads(out)
 
@@ -107,7 +107,7 @@ class CodeSearchTest(_OwnHome, unittest.TestCase):
         self.assertEqual(const["owner"], "a.svc.OrderService.TABLE")
 
     def test_text_output_and_not_searched_wording(self):
-        code, out = run("query", "search", "purge", "--repo", str(self.repo))
+        code, out = run("query", "search", "purge", "--repo", str(self.repo), "--view", "detail")
         self.assertIn("a.svc.OrderService#drop", out)
         data = self.q("search", "nothing-like-this")
         self.assertNotIn("grep", data["not_searched"])
@@ -130,7 +130,7 @@ class CodeSearchTest(_OwnHome, unittest.TestCase):
         self.assertEqual(load["throws"], ["IOException", "IllegalStateException"])
         self.assertEqual(load["literals"], 2)
         self.assertTrue(any(c.endswith("#info") for c in load["calls"]), load["calls"])
-        code, out = run("query", "file", "OrderService.java", "--repo", str(self.repo))
+        code, out = run("query", "file", "OrderService.java", "--repo", str(self.repo), "--view", "detail")
         self.assertIn("throws IOException, IllegalStateException", out)
         self.assertIn("2 string literal(s)", out)
 
@@ -158,7 +158,7 @@ class CodeSearchTest(_OwnHome, unittest.TestCase):
         self.assertEqual(run("scan", "--repo", str(self.repo), "--quiet", "--state-dir",
                              str(Path(self.tmp.name) / "full"))[0], 0)
         code, out = run("query", "search", "carts", "--repo", str(self.repo), "--state-dir",
-                        str(Path(self.tmp.name) / "full"), "--json")
+                        str(Path(self.tmp.name) / "full"), "--json", "--view", "detail")
         self.assertEqual(json.loads(out)["counts"]["code"], 1)
         self.assertEqual(sorted(refreshed["files"]), sorted(self.artifact(Path(self.tmp.name) / "full")["files"]))
         self.assertEqual(refreshed, self.artifact(Path(self.tmp.name) / "full"))
@@ -180,7 +180,7 @@ class CodeSearchTest(_OwnHome, unittest.TestCase):
         data = self.q("search", "dirty-marker")
         self.assertEqual(data["code"][0]["owner"], "a.svc.Other#one")
         self.assertIn("uncommitted edits included", data["as_of"]["code_note"])
-        code, out = run("query", "search", "dirty-marker", "--repo", str(self.repo))
+        code, out = run("query", "search", "dirty-marker", "--repo", str(self.repo), "--view", "detail")
         self.assertIn("note: code text is from the working files", out)
 
     def test_non_source_roles_are_not_in_the_artifact(self):

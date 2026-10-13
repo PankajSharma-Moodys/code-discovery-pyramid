@@ -79,7 +79,11 @@ def handle(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         # fails is a result with isError, so the model sees the message.
         try:
             result = _call(str(params.get("name")), params.get("arguments", {}))
-            return ok({"content": [{"type": "text", "text": json.dumps(result, sort_keys=True)}]})
+            # A `format=text` answer is the tool text itself, not JSON wrapping a string; JSON is compact.
+            text = (result["text"] if isinstance(result, dict) and result.get("format") == "text"
+                    and isinstance(result.get("text"), str)
+                    else json.dumps(result, sort_keys=True, separators=(",", ":")))
+            return ok({"content": [{"type": "text", "text": text}]})
         except (InvalidParams, ArgError) as exc:
             return _error(request_id, -32602, str(exc))
         except Exception as exc:  # noqa: BLE001 -- any failure is reported to the model

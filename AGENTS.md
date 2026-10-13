@@ -31,7 +31,19 @@ to grep but not to `query routes`.
 | "what do we *not* know?" | `query unknowns` |
 | anything else | `query search <text>` |
 
-Add `--json` to any `query` for the full, unabridged result.
+Answers are sized by the question; work like grep, with small calls, and pull more only when needed:
+1. A broad question gets the default `--view list`: one line per row, ending in a repo-relative
+   `file:line` that opens directly with Read.
+2. One row in depth: `--view compact` with that row's name as the term (`--match exact` for exactly it).
+   `trace`, `symbol`, `file` and `paths` answer in compact already.
+3. Read only the cited lines.
+
+- `--view count` gives true numbers only; `--view detail` the full result; `--json` structured output.
+- A cut answer ends with `count`, `shown` and `next:` giving the `--offset` to continue. Page on only if the
+  question needs the rest; otherwise narrow the term. A row too big for the cap names
+  `--offset N --max-tokens 0` for that row alone.
+- `--match regex` is `grep -E` (case-sensitive), also on names: `query routes '^/v1/(servers|pools)' --match regex`.
+- `--max-tokens` sets the cap (default 3000); `.cdp.toml` `[query]` sets this repo's defaults.
 
 ## Rules when answering from CDP
 
@@ -44,6 +56,14 @@ Add `--json` to any `query` for the full, unabridged result.
   handlers, callers, implementations, readers or writers, `elided: N`, or a
   path that stops short), run `query` for each branch to its end first. Never
   answer from the first branch; if you stop early, say which you did not follow.
+- **Noise is off by default.** Tests and third-party `library:` rows are
+  dropped from answers; pass `include_tests` / `include_library` only when the
+  question is about them or cannot be answered without them. Use the kind built
+  for the question (`routes`, `trace`, `module`, `table`, `config`) rather than
+  raw `claims`, which carry full provenance per row.
+- **Know the tool before you query.** The session-start message carries the
+  `cdp_help` digest (kinds, parameters, defaults); read it first, and call
+  `cdp_help` when a kind or flag is still unclear.
 - **If the repo has changed since the last `scan`**, run `query stats` and
   compare its `head` to the current commit; re-`scan` (or `refresh`, if this
   is a git repository) rather than trusting a stale index.

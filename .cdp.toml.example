@@ -2,7 +2,7 @@
 # (`cdp/store/registry.py`). Rename to `.cdp.toml` and edit; CDP never writes
 # this file itself.
 #
-# The only key read is `exclude`. CDP keeps one store per machine, so the old
+# Two things are read: `exclude` and the `[query]` section below. CDP keeps one store per machine, so the old
 # `store`, `backend` and `[postgres]` keys are rejected: put them in
 # `CDP_HOME/config.toml` (default `~/.cdp/config.toml`) instead:
 #
@@ -14,3 +14,36 @@
 # Directory-name segments excluded from every scan of this repo, in addition
 # to (never instead of) CDP's own DEFAULT_EXCLUDES.
 # exclude = [".idea-shared-notes"]
+
+# ---------------------------------------------------------------- [query]
+# Controls how much one `cdp_query` answer may put into the agent's context.
+# These are the repo's defaults: any single call can override them (for
+# example `cdp_query(kind="routes", view="compact")` for that call only).
+#
+# [query]
+#
+# Per-answer size cap, in tokens (about 4 characters each). Rows past the cap
+# are not dropped silently: the answer gives the true count, what was shown,
+# and the exact next call to page on (`offset`). 0 = no cap. Without this key the
+# built-in cap is 3000 tokens (well under Claude Code's 10k-token MCP warning).
+# max_tokens = 3000
+#
+# How much each answer returns. Each level carries the same facts as the next,
+# with less around them:
+#   "count"   -- the numbers only
+#   "list"    -- one line per item: name + file:line
+#   "compact" -- every fact, repetition removed
+#   "detail"  -- the full form, as before this setting existed
+# Built-in default: "list" for broad kinds (routes, claims, table, config,
+# search, module, unknowns), "compact" for focused ones (trace, symbol, file,
+# paths). `default_view` sets one view for all kinds; `view` sets it per kind.
+# default_view = "list"
+# view = { trace = "compact", routes = "list" }
+#
+# How the answer is written: "text" (grep-like lines, fewest tokens) or
+# "json" (structured, easiest to quote exactly). Per view.
+# format = { list = "text", count = "text", compact = "json" }
+#
+# Fields to leave out of a kind's rows. Each answer names what was dropped,
+# so the agent knows it is missing rather than absent.
+# drop_fields = { claims = ["source_nodes"] }

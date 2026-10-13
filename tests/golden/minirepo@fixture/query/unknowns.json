@@ -11,9 +11,10 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "budget": 200,
   "by_node": {},
   "count": 0,
+  "default_filters": "dropped by default: tests; pass include_tests=true to keep them",
   "elided": 0,
+  "match": "all",
   "query": "unknowns"
 }

@@ -146,6 +146,18 @@ def _input_kind(ann: Dict) -> Optional[str]:
     return None
 
 
+def _arg_value(v) -> Tuple[Optional[str], Optional[str]]:
+    """An annotation argument as `(value, ref)`: a literal is its own value; a constant
+    (`{"ref": "ApiConstants.X", "resolved": "..."}`) gives its resolved value and its name, so a
+    default or a name declared through a constant is neither dropped nor misread."""
+    if isinstance(v, str):
+        return v, None
+    if isinstance(v, dict) and isinstance(v.get("ref"), str):
+        resolved = v.get("resolved")
+        return (resolved if isinstance(resolved, str) else None), v["ref"]
+    return None, None
+
+
 def route_inputs(store: Store, handler: str, evidence: Sequence[Dict]) -> List[Dict]:
     """What a route's handler reads from the request: one row per annotated parameter,
     `{name, kind, type, [required], [default]}`, from `@PathVariable`/`@RequestParam`/`@RequestHeader`/
@@ -167,17 +179,25 @@ def route_inputs(store: Store, handler: str, evidence: Sequence[Dict]) -> List[D
             if kind is None:
                 continue
             args = a.get("args") or {}
-            name = args.get("value") if isinstance(args.get("value"), str) else args.get("name")
-            row = {"name": name if isinstance(name, str) else (None if kind == "body" else p["name"]),
+            name, name_ref = _arg_value(args.get("value"))
+            if name is None and name_ref is None:
+                name, name_ref = _arg_value(args.get("name"))
+            row = {"name": name if name is not None else (None if kind == "body" or name_ref else p["name"]),
                    "kind": kind, "type": p.get("type"), "param": p["name"], "at": ann_at(site["file"], a)}
+            if name_ref:
+                row["name_ref"] = name_ref
             if isinstance(args.get("required"), bool):
                 row["required"] = args["required"]
-            default = args.get("defaultValue")
+            default, default_ref = _arg_value(args.get("defaultValue"))
             for d in anns:
-                if (d.get("name") or "") == "DefaultValue" and isinstance((d.get("args") or {}).get("value"), str):
-                    default = d["args"]["value"]
-            if isinstance(default, str):
+                if (d.get("name") or "") == "DefaultValue":
+                    v, ref = _arg_value((d.get("args") or {}).get("value"))
+                    if v is not None or ref:
+                        default, default_ref = v, ref
+            if default is not None:
                 row["default"] = default
+            if default_ref:
+                row["default_ref"] = default_ref
             out.append(row)
             break
     return out
@@ -216,6 +236,36 @@ def _claim_lines(claim: Dict, indent: str = "  ") -> List[str]:
 
 def _matches(text: str, needle: str) -> bool:
     return needle.lower() in str(text).lower()
+
+
+#: Guards for `match=regex`: an over-long pattern is refused, a query that runs past its time budget
+#: stops between files, and lines longer than `REGEX_MAX_LINE` are not searched. Each guard that
+#: fires is named in the answer's `not_searched`, so a partial scan is never silent.
+REGEX_MAX_PATTERN = 200
+REGEX_MAX_LINE = 2000
+REGEX_TIME_BUDGET = 5.0
+
+
+def compile_regex(pattern: str) -> "re.Pattern":
+    """Python `re`, case-sensitive like grep (`(?i)` for insensitive)."""
+    if len(pattern) > REGEX_MAX_PATTERN:
+        raise ValueError("regex is %d characters; the limit is %d" % (len(pattern), REGEX_MAX_PATTERN))
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        raise ValueError("invalid regex %r: %s" % (pattern, exc))
+
+
+def make_matcher(term: str, mode: str = "substring"):
+    """`text -> bool` for `substring` (case-insensitive), `exact` (whole value, case-insensitive) or
+    `regex` (`re.search`, case-sensitive)."""
+    if mode == "regex":
+        rx = compile_regex(term)
+        return lambda text: rx.search(str(text)) is not None
+    low = term.lower()
+    if mode == "exact":
+        return lambda text: str(text).lower() == low
+    return lambda text: low in str(text).lower()
 
 
 _SEARCH_SEGMENT_SPLIT = re.compile(r"[.#:/_]+")

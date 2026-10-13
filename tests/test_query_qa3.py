@@ -173,7 +173,7 @@ class CSharpTraceTest(unittest.TestCase):
         self.assertEqual(q_routes(self.store, "delete /catalog")["count"], 1)
 
     def test_routes_elided_marker_follows_the_rows(self):
-        out = self.cdp.run("query", "routes", "--budget", "1").stdout.splitlines()
+        out = self.cdp.run("query", "routes", "--view", "detail", "--budget", "1").stdout.splitlines()
         marker = [i for i, l in enumerate(out) if "more (elided" in l]
         rows = [i for i, l in enumerate(out) if l.startswith("  ") and "/catalog/Tenant" in l]
         self.assertTrue(marker and rows)
@@ -253,7 +253,7 @@ class QueryOutputTest(unittest.TestCase):
         self.assertEqual(scripts[0]["count"], 5)
         self.assertEqual(scripts[0]["files"], 5)
         self.assertTrue(all(":" in s for s in scripts[0]["sites"]))
-        text = self.cdp.run("query", "table", "pool", "--exact").stdout
+        text = self.cdp.run("query", "table", "--view", "detail", "pool", "--exact").stdout
         self.assertNotIn("sql, sql", text)
         self.assertIn("SQL migration scripts: 5 site(s) in 5 script file(s)", text)
         self.assertIn("V002__insert.sql:1", text)
@@ -278,5 +278,5 @@ class QueryOutputTest(unittest.TestCase):
         self.assertTrue(cut)
         for f in cut:
             self.assertEqual(f["see_all"], "cdp query symbol %s --exact" % f["fqn"])
-        text = self.cdp.run("query", "symbol", "Pool", "--budget", "9").stdout
+        text = self.cdp.run("query", "symbol", "--view", "detail", "Pool", "--budget", "9").stdout
         self.assertIn("all of them: `cdp query symbol ", text)

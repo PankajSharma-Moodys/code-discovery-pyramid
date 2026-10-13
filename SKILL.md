@@ -49,10 +49,21 @@ The text after `/cdp` is the question. Map it with the table, make the call(s) (
 has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. A bare name -> `symbol`
 (then `trace`); a path -> `file`; a URL path -> `trace`. Do not start with grep.
 
+## Answers are sized by the question
+1. Broad question: the default `list` -- one line per row, `name → handler  path/to/File.java:42`. The path is repo-relative and opens directly in Read.
+2. One row in depth: `view=compact` with that row's name as `term` (`match=exact` for exactly it). `trace`, `symbol`, `file` and `paths` answer in compact already.
+3. Read only the cited lines (`offset`/`limit`), never the whole file.
+- Only a number needed (how many, is there any): `view=count`.
+- A cut answer ends with `count`, `shown` and `next: view=... offset=N`. Page on only if the question needs the rest; otherwise narrow the term.
+- A row too big for the cap says so and names `offset=N max_tokens=0` for the whole row: use that for that row only.
+- `match=regex` is `grep -E` (case-sensitive; `(?i)` ignores case), also on names: `routes term=^/v1/(servers|pools)`, `symbol term=Job$`, `config term=^S3_`.
+- `view=detail`, `format=json`, `max_tokens=0`: only when compact is not enough. `.cdp.toml` `[query]` sets this repo's defaults.
+
 ## Rules
 - Quote the citation; Read only the cited ranges.
-- `elided: N` (N>0) means rows were cut: raise `budget` or narrow the term. A kind rejects parameters it
-  does not use; the error says which kind takes them.
+- A cut answer ends with `count`, `shown` and `next` (the offset to continue). `elided: N` (N>0) means rows
+  were left out by a `budget` or a kind's own limit; the answer's note says why and how to get them. A kind
+  rejects parameters it does not use; the error says which kind takes them.
 - Run `coverage` (never budgeted) before saying "there is no X"; below 100% means "not examined".
 - `medium`/`contested` confidence stays as is; `call` edges prove reachability, not invocation.
 - A "not found" answer lists close names; retry with one of them.

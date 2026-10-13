@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Sequence
 
 from .. import codeindex
 from .budget import Budget
-from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, _role_index, _tally, cite, route_inputs
+from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, make_matcher, _role_index, _tally, cite, route_inputs
 from .store import Store
 from ..rules import all_edges
 
@@ -59,7 +59,7 @@ MIN_USES_PER_MATCH = 3
 
 
 def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
-             exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
+             exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
     """Definition sites, used-by, and collisions for a symbol.
 
     A bare name matches by substring (exact last-name matches first); `exact`
@@ -69,9 +69,12 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
     budget = budget or Budget()
     roles = _role_index(store) if exclude_role else {}
     xref = store.xref
-    exact_hit = xref["symbols"].get(name)
+    exact_hit = None if regex else xref["symbols"].get(name)
     via: Dict[str, str] = {}
-    if exact_hit:
+    if regex:
+        rx = make_matcher(name, "regex")
+        keys, mode = [k for k in xref["symbols"] if rx(k)], "regex"
+    elif exact_hit:
         keys, mode = [name], "exact"
     elif "#" in name:
         via = _member_keys(store, name)
@@ -258,13 +261,16 @@ def _short_name(fqn: str) -> str:
 
 
 def q_file(store: Store, path: str, budget: Optional[Budget] = None,
-           exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
+           exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
     """One file's outline. A term matches a path by case-insensitive substring;
     `exact` keeps only the path itself or a path ending in `/<term>`."""
     budget = budget or Budget()
-    mode = "exact" if exact else "substring"
-    hit = (lambda p: p == path or p.endswith("/" + path)) if exact else \
-        (lambda p: p == path or _matches(p, path))
+    mode = "regex" if regex else "exact" if exact else "substring"
+    if regex:
+        hit = make_matcher(path, "regex")
+    else:
+        hit = (lambda p: p == path or p.endswith("/" + path)) if exact else \
+            (lambda p: p == path or _matches(p, path))
     files = [
         f for f in store.inventory["files"]
         if hit(f["path"]) and not (exclude_role and f["role"] in exclude_role)
@@ -312,16 +318,18 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
     return _finish({"query": "file", "path": path, "match": mode, "found": out}, store, budget)
 
 
-def q_module(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
+def q_module(store: Store, name: str, budget: Optional[Budget] = None, match: str = "substring") -> Dict:
     budget = budget or Budget()
-    modules = [m for m in store.inventory["modules"] if m["name"] == name or _matches(m["name"], name)]
+    hit = make_matcher(name, match)
+    modules = [m for m in store.inventory["modules"] if m["name"] == name or hit(m["name"])]
     if not modules:
-        return _finish({"query": "module", "name": name, "found": []}, store, budget)
+        return _finish({"query": "module", "name": name, "match": match, "found": []}, store, budget)
     graph = store.graph
     out = []
     for module in budget.take(modules):
         key = module["name"]
-        claims = [c for c in store.state["claims"] if _claim_module(c, store) == key]
+        claims = [c for c in store.state["claims"] if _claim_module(c, store) == key
+                  and "library:" not in c.get("subject", "")]  # same default as `claims`: import edges are noise
         out.append(
             {
                 "name": key,
@@ -354,12 +362,20 @@ def q_module(store: Store, name: str, budget: Optional[Budget] = None) -> Dict:
                 "claims": budget.take(claims),
             }
         )
-    return _finish({"query": "module", "name": name, "found": out}, store, budget)
+    return _finish({"query": "module", "name": name, "match": match, "found": out}, store, budget)
 
 
-def _route_hit(r: Dict, pattern: str, exact: bool) -> Optional[str]:
+def _route_hit(r: Dict, pattern: str, exact: bool, regex=None) -> Optional[str]:
     """How `pattern` matched a route: `path`, `verb`, `verb+path` (`POST /v1/x`) or
-    `handler` (class, method or `Class#method`, never a package prefix); else None."""
+    `handler` (class, method or `Class#method`, never a package prefix); else None. With `regex`
+    (a compiled-pattern matcher) the pattern is searched in each of those, in that order."""
+    if regex:
+        owner, _, method = r["handler"].partition("#")
+        for how, text in (("path", r["route"]), ("verb", r["verb"]), ("verb+path", "%s %s" % (r["verb"], r["route"])),
+                          ("handler", "%s#%s" % (owner.rsplit(".", 1)[-1], method)), ("handler", r["handler"])):
+            if regex(text):
+                return how
+        return None
     low = pattern.lower().strip()
     same = (lambda a: str(a).lower() == low) if exact else (lambda a: low in str(a).lower())
     if same(r["route"]):
@@ -388,18 +404,19 @@ def _inputs_of(store: Store, route: Dict) -> Dict:
 
 def q_routes(store: Store, pattern: Optional[str] = None,
              budget: Optional[Budget] = None,
-             exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
+             exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
     """The HTTP surface. A pattern matches the route path, the verb, `VERB /path`
     or the handler's class/method; by case-insensitive substring, or with `exact`
     the whole name. Each row says which of those matched."""
     budget = budget or Budget()
-    mode = "exact" if exact else "substring"
+    mode = "regex" if regex else "exact" if exact else "substring"
     routes = store.xref["routes"] + store.xref["unresolved_routes"]
     via: Dict[int, str] = {}
+    rx = make_matcher(pattern, "regex") if (pattern and regex) else None
     if pattern:
         keep = []
         for r in routes:
-            how = _route_hit(r, pattern, exact)
+            how = _route_hit(r, pattern, exact, rx)
             if how:
                 via[id(r)] = how
                 keep.append(r)
@@ -521,7 +538,7 @@ def _entity_users(store: Store, edges: Sequence[Dict], entity_at: Dict[tuple, st
 
 def q_table(store: Store, name: Optional[str] = None,
             budget: Optional[Budget] = None,
-            exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
+            exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
     """Who owns, writes and reads each table.
 
     "What breaks if I change this table" reduces to the union of the three
@@ -533,8 +550,8 @@ def q_table(store: Store, name: Optional[str] = None,
     blast-radius conclusion follows directly from it.
     """
     budget = budget or Budget()
-    mode = "exact" if exact else "substring"
-    same = (lambda t: t.lower() == name.lower()) if exact else (lambda t: _matches(t, name or ""))
+    mode = "regex" if regex else "exact" if exact else "substring"
+    same = make_matcher(name or "", "regex" if regex else "exact" if exact else "substring")
     roles = _role_index(store)
     buckets: Dict[str, Dict[str, List[Dict]]] = {}
     for edge in all_edges(store.extraction):
@@ -610,7 +627,7 @@ def _value_default(store: Store, read: Dict) -> Optional[str]:
 
 def q_config(store: Store, key: Optional[str] = None,
              budget: Optional[Budget] = None,
-             exclude_role: Optional[Sequence[str]] = None, exact: bool = False) -> Dict:
+             exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
     """Config keys and env vars: where declared, every site that reads them.
 
     The budget is spent on citations, not just names: keys are ranked by how
@@ -623,8 +640,8 @@ def q_config(store: Store, key: Optional[str] = None,
     from ..resolve import config_reads
 
     budget = budget or Budget()
-    mode = "exact" if exact else "substring"
-    same = (lambda n: n.lower() == key.lower()) if exact else (lambda n: _matches(n, key or ""))
+    mode = "regex" if regex else "exact" if exact else "substring"
+    same = make_matcher(key or "", "regex" if regex else "exact" if exact else "substring")
     roles = _role_index(store) if exclude_role else {}
     rows: Dict[str, Dict] = {}
 

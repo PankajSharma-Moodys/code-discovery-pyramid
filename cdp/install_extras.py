@@ -51,9 +51,17 @@ def claude_md_block() -> str:
         "4. **Follow every fork before you answer.** When a `cdp_query` answer branches (several handlers, callers, "
         "implementations, readers or writers, `elided: N`, or a path that stops short), query each branch to its end "
         "first. Never answer from the first branch; if you stop early, say which branches you did not follow.",
-        "5. **Confused? Ask CDP.** When unsure which kind, term or flag fits, call `cdp_help` (CLI `cdp help`) "
-        "before falling back to anything else.",
-        "6. **Remember these rules.** Keep a memory note (type feedback) that this repo is CDP-indexed and rules 1-5 "
+        "5. **Noise is off by default.** Tests and third-party `library:` rows are dropped from answers. Pass "
+        "`include_tests` / `include_library` only when the user asks about them or the question cannot be answered "
+        "without them, and say why. Use the kind built for the question (`routes` for endpoints, `trace` for what to "
+        "read, `module`, `table`, `config`) instead of raw `claims`, which carry full provenance per row.",
+        "6. **Know the tool before you query.** The session-start message carries the `cdp_help` digest (every kind, "
+        "its parameters and what it returns): read it before the first query. Work like grep, small calls: a broad "
+        "question gets the default `list` (one line per row, with a repo-relative `file:line` that opens in Read), "
+        "one row in depth gets `view=compact` with its name as `term`, then Read only the cited lines. A cut answer "
+        "ends with `next` (the offset): page on only if the question needs the rest. When a kind, term or flag is "
+        "still unclear, call `cdp_help` (CLI `cdp help`) before falling back to anything else.",
+        "7. **Remember these rules.** Keep a memory note (type feedback) that this repo is CDP-indexed and rules 1-6 "
         "apply, so they hold across sessions; when you notice you broke one, say so and update that note.",
         "",
         "| Question | `kind` |",

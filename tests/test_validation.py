@@ -117,7 +117,8 @@ class ParserRangesTest(unittest.TestCase):
         build_parser().parse_args(["query", "stats", "--budget", "0"])
 
     def test_cli_flags_and_mcp_limits_agree(self):
-        flags = {"budget": ("query", "stats", "--budget"), "max_hops": ("scan", "--max-hops"),
+        flags = {"budget": ("query", "stats", "--budget"), "offset": ("query", "stats", "--offset"),
+                 "max_tokens": ("query", "stats", "--max-tokens"), "max_hops": ("scan", "--max-hops"),
                  "max_leaf_files": ("scan", "--max-leaf-files"), "max_leaf_loc": ("scan", "--max-leaf-loc"),
                  "max_concurrent": ("scan", "--max-concurrent"), "workers": ("scan", "--workers")}
         self.assertEqual(set(flags), set(LIMITS))

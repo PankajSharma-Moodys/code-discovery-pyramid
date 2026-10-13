@@ -12,7 +12,6 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "budget": 200,
   "claims": [
     {
       "anchor_verified_at": "<HEAD>",
@@ -47,8 +46,10 @@
     "symbols": 0,
     "unknowns": 0
   },
+  "default_filters": "dropped by default: tests; pass include_tests=true to keep them",
   "elided": 0,
   "files": [],
+  "match": "substring",
   "not_searched": "source text of files that are not source-role (tests, config, docs, assets), binary, over-size or generated files, and anything that spans two lines",
   "query": "search",
   "searched": "claim subjects and statements, symbol names, constant values, annotations (name, fqn, text), unknown questions, file paths, source text of source-role files (code: case-insensitive substring, one line at a time, cited to the enclosing member)",

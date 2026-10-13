@@ -12,7 +12,7 @@ import argparse
 from typing import Dict, List, Optional
 
 from .guide_commands import COMMANDS, FLAG_HELP, RECIPES
-from .guide_kinds import APPLIES, FLOW, KINDS, PARAMS, ROLES, CLAIM_KINDS  # noqa: F401  (re-exported)
+from .guide_kinds import APPLIES, FLOW, FORMATS, KINDS, MATCHES, PARAMS, ROLES, VIEWS, CLAIM_KINDS  # noqa: F401  (re-exported)
 
 PARTS = ("what", "how", "where")
 
@@ -119,16 +119,58 @@ def flow_table() -> List[str]:
 # ----------------------------------------------------------------- MCP surface
 
 
+#: How to work with answers (CONTEXT_PLAN.md): one text, shown in the session digest and SKILL.md, so the
+#: two cannot drift. Answers are sized by the question; the agent pulls more only when it needs it.
+USAGE = (
+    "How to work with answers -- like grep, small targeted calls, pull more only when needed:",
+    "1. Broad question: the default `list` -- one line per row, `name → handler  path/to/File.java:42`. The path "
+    "is repo-relative and opens directly in Read.",
+    "2. One row in depth: `view=compact` with that row's name as `term` (`match=exact` for exactly it). "
+    "`trace`, `symbol`, `file` and `paths` answer in compact already.",
+    "3. Read only the cited lines (`offset`/`limit`), never the whole file.",
+    "- Only a number needed (how many, is there any): `view=count`.",
+    "- A cut answer ends with `count`, `shown` and `next: view=... offset=N`. Page on only if the question needs "
+    "the rest; otherwise narrow the term.",
+    "- A row too big for the cap says so and names `offset=N max_tokens=0` for the whole row: use that for that "
+    "row only.",
+    "- `match=regex` is `grep -E` (case-sensitive; `(?i)` ignores case), also on names: "
+    "`routes term=^/v1/(servers|pools)`, `symbol term=Job$`, `config term=^S3_`.",
+    "- `view=detail`, `format=json`, `max_tokens=0`: only when compact is not enough. `.cdp.toml` `[query]` "
+    "sets this repo's defaults.",
+)
+
+
 def mcp_query_description() -> str:
     lines = ["Ask the CDP index of a scanned repo a typed question; answers are cited file:line "
              "locations (not code), cheaper and more reliable than grep/find. Use BEFORE grepping, "
              "then Read only the cited lines. `repo` must be scanned (`cdp_scan`); `cdp_help` "
              "gives flags and recipes. Pick `kind`:"]
     lines += ["%s: %s [%s]" % (k, v["summary"], _term_tag(k)) for k, v in KINDS.items()]
-    lines.append("Params apply per kind; passing one a kind does not use is an error. `elided: N` "
-                 "means rows were cut by `budget`; check `coverage` before saying 'no X'. At a fork (several "
+    lines.append("Params apply per kind; passing one a kind does not use is an error. Big answers "
+                 "are cut: `next` gives the offset; check `coverage` before saying 'no X'. At a fork (several "
                  "handlers, callers, implementations, readers or writers, a path that stops) query every "
-                 "branch before answering.")
+                 "branch before answering. Tests and `library:` rows are dropped unless "
+                 "include_tests / include_library; prefer the specific kind over `claims`.")
+    return "\n".join(lines)
+
+
+def session_primer() -> str:
+    """The once-per-session `cdp_help` digest the SessionStart hook injects: every kind with its purpose, the
+    parameters it takes and what it returns, then every parameter's effect. Generated from `KINDS`/`PARAMS`,
+    so it cannot drift from `cdp_help` or the MCP schema."""
+    lines = ["CDP query kinds -- `cdp_query(kind=..., ...)`; pick by what you need, not by habit. Each returns "
+             "cited file:line rows, never code:"]
+    for k, v in KINDS.items():
+        extra = [p for p in v["uses"] if p not in ("term", "budget", "exclude_role", "include_tests")]
+        lines.append("- %s [%s%s]: %s Use: %s" % (
+            k, _term_tag(k), ("; " + ", ".join(extra)) if extra else "", v["summary"].rstrip(".") + ".",
+            v["where"].strip()))
+    lines.append("Parameters (a kind rejects one it does not use):")
+    for name, (_flag, meaning) in PARAMS.items():
+        lines.append("- %s: %s" % (name, meaning))
+    lines.append("Tests and `library:` rows are dropped unless the question is about them; prefer the kind built "
+                 "for the question over `claims`. `cdp_help(topic=<kind>)` has examples, `recipes` worked sequences.")
+    lines.extend(USAGE)
     return "\n".join(lines)
 
 
@@ -154,6 +196,8 @@ def mcp_properties() -> Dict[str, Dict]:
                    "description": PARAMS["budget"][1] + "; not for stats/coverage"},
         "exclude_role": {"type": "array", "items": {"type": "string", "enum": list(ROLES)},
                          "description": PARAMS["exclude_role"][1] + "; not for module/paths/conflicts/stats/coverage"},
+        "include_tests": {"type": "boolean", "description": PARAMS["include_tests"][1]},
+        "include_library": {"type": "boolean", "description": PARAMS["include_library"][1]},
         "claim_kind": {"type": "string", "enum": list(CLAIM_KINDS), "description": PARAMS["claim_kind"][1]},
         "module": {"type": "string", "description": PARAMS["module"][1]},
         "subject": {"type": "string", "description": PARAMS["subject"][1]},
@@ -161,6 +205,11 @@ def mcp_properties() -> Dict[str, Dict]:
         "to": {"type": "string", "description": PARAMS["to"][1]},
         "max_hops": {"type": "integer", "minimum": 0, "description": PARAMS["max_hops"][1]},
         "exact": {"type": "boolean", "description": PARAMS["exact"][1]},
+        "match": {"type": "string", "enum": list(MATCHES), "description": PARAMS["match"][1]},
+        "view": {"type": "string", "enum": list(VIEWS), "description": PARAMS["view"][1]},
+        "format": {"type": "string", "enum": list(FORMATS), "description": PARAMS["format"][1]},
+        "offset": {"type": "integer", "minimum": 0, "description": PARAMS["offset"][1]},
+        "max_tokens": {"type": "integer", "minimum": 0, "description": PARAMS["max_tokens"][1]},
         "as_of": {"type": "string", "description": PARAMS["as_of"][1]},
     }
 
@@ -229,10 +278,14 @@ The text after `/cdp` is the question. Map it with the table, make the call(s) (
 has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. A bare name -> `symbol`
 (then `trace`); a path -> `file`; a URL path -> `trace`. Do not start with grep.
 
+## Answers are sized by the question
+%s
+
 ## Rules
 - Quote the citation; Read only the cited ranges.
-- `elided: N` (N>0) means rows were cut: raise `budget` or narrow the term. A kind rejects parameters it
-  does not use; the error says which kind takes them.
+- A cut answer ends with `count`, `shown` and `next` (the offset to continue). `elided: N` (N>0) means rows
+  were left out by a `budget` or a kind's own limit; the answer's note says why and how to get them. A kind
+  rejects parameters it does not use; the error says which kind takes them.
 - Run `coverage` (never budgeted) before saying "there is no X"; below 100%% means "not examined".
 - `medium`/`contested` confidence stays as is; `call` edges prove reachability, not invocation.
 - A "not found" answer lists close names; retry with one of them.
@@ -241,7 +294,7 @@ has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. 
 
 Full reference (every flag, defaults, examples): `cdp_help` or `run.py help <topic>` / `help reference`
 (source repo: `docs/CDP_REFERENCE.md`).
-""" % "\n".join(flow_table())
+""" % ("\n".join(flow_table()), "\n".join(USAGE[1:]))
 
 
 # ------------------------------------------------------------- CDP_REFERENCE.md

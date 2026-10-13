@@ -173,11 +173,11 @@ class InstallExtrasTest(unittest.TestCase):
             self.assertIn("`%s`" % kind, block)
         rows = [r for r in block.splitlines() if r.startswith("| ") and "`" in r and "Question" not in r]
         self.assertEqual(len(rows), 6)
-        # The six usage rules: CDP first for discovery, no grep first, cited ranges, every fork, help, memory.
+        # The seven usage rules: CDP first, no grep first, cited ranges, every fork, noise off, know the tool, memory.
         for rule in ("MUST use CDP for code discovery", "Do not grep first", "offset`/`limit",
-                     "Follow every fork before you answer", "`cdp_help`", "memory note"):
+                     "Follow every fork before you answer", "Noise is off by default", "`cdp_help`", "memory note"):
             self.assertIn(rule, block)
-        self.assertEqual([r[:2] for r in block.splitlines() if r[:1].isdigit()], ["1.", "2.", "3.", "4.", "5.", "6."])
+        self.assertEqual([r[:2] for r in block.splitlines() if r[:1].isdigit()], ["1.", "2.", "3.", "4.", "5.", "6.", "7."])
         with mock.patch.object(install_extras, "KINDS", {**KINDS, "jobs": {"summary": "scheduled jobs and when they run"}}):
             self.assertIn("`jobs`", install_extras.claude_md_block())
 
@@ -190,6 +190,15 @@ class InstallExtrasTest(unittest.TestCase):
         self.assertIn("Follow every fork before you answer", agents)
         self.assertIn("query every branch before answering", guide.mcp_query_description())
         self.assertNotIn("fork", hook.STANDING_RULE + hook.RECIPE)
+
+    def test_noise_default_rule_is_on_each_once_per_session_surface(self) -> None:
+        from cdp import guide, hook
+        agents = (Path(install_extras.__file__).resolve().parent.parent / "AGENTS.md").read_text(encoding="utf-8")
+        for surface in (install_extras.claude_md_block(), agents):
+            self.assertIn("Noise is off by default", surface)
+            self.assertIn("include_tests", surface)
+        self.assertIn("include_library", guide.mcp_query_description())
+        self.assertNotIn("include_tests", hook.STANDING_RULE + hook.RECIPE)
 
     def test_a_dangling_begin_marker_is_refused_not_clobbered(self) -> None:
         path = self.target / "CLAUDE.md"

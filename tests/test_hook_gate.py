@@ -120,6 +120,15 @@ class SessionStartTextTest(_Indexed, unittest.TestCase):
         self.assertNotIn("model-reviewed coverage", text)
         self.assertIn("cdp_query", text)
 
+    def test_session_start_carries_the_cdp_help_digest(self) -> None:
+        from cdp.guide_kinds import KINDS, PARAMS
+        text = hook_mod.session_start({"cwd": str(self.repo)})
+        for kind in KINDS:
+            self.assertIn("- %s [" % kind, text)
+        for param in PARAMS:
+            self.assertIn("- %s: " % param, text)
+        self.assertLess(len(text), 6000)
+
 
 class NudgeAndMarkerTest(unittest.TestCase):
     def test_nudge_without_a_file_does_not_suggest_a_file_outline(self) -> None:

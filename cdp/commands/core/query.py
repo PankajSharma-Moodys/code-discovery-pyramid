@@ -5,6 +5,8 @@ from __future__ import annotations
 from .._common import Spec, locked, paths_from_args
 from ... import query as query_mod
 from ...query import suggest as suggest_mod
+from ...guide_kinds import FORMATS, MATCHES, PARAMS, VIEWS
+from ...store import registry as registry_mod
 from ...session import apply_as_of, open_store, route_path
 from ...util import CdpError, non_negative_int
 
@@ -29,8 +31,18 @@ def register(add) -> None:
                    help="drop rows whose file has this role (test, build, ci, "
                         "config, docs, asset, schema, source); repeatable. "
                         "Not supported for `stats`/`coverage`.")
-    q.add_argument("--exact", action="store_true",
-                   help="`symbol`/`file`/`routes`/`table`/`config`: match the whole name, not a substring")
+    q.add_argument("--include-tests", action="store_true",
+                   help="keep test-role files, which list kinds drop by default")
+    q.add_argument("--include-library", action="store_true",
+                   help="`claims`: keep third-party `library:` subjects, dropped by default")
+    q.add_argument("--exact", action="store_true", help=PARAMS["exact"][1])
+    q.add_argument("--match", choices=MATCHES, default=None, help=PARAMS["match"][1])
+    q.add_argument("--view", choices=VIEWS, default=None, help=PARAMS["view"][1])
+    q.add_argument("--format", choices=FORMATS, default=None,
+                   help=PARAMS["format"][1] + ". `--json` is `--format json`")
+    q.add_argument("--offset", type=non_negative_int, default=None, help=PARAMS["offset"][1])
+    q.add_argument("--max-tokens", dest="max_tokens", type=non_negative_int, default=None,
+                   help=PARAMS["max_tokens"][1])
     q.add_argument("--from", dest="frm", default=None)
     q.add_argument("--to", dest="to", default=None)
     # One knob, not seven. `--limit` used to sit beside eleven unrelated
@@ -57,6 +69,10 @@ def cmd_query(args) -> int:
     store = query_mod.Store(open_store(paths))
     if getattr(args, "as_of", None):
         apply_as_of(store, args.as_of)
+    # `--view detail` without `--json` is the long-standing human rendering of the full answer; every
+    # other combination is a projection written as `--format` (text unless `--json`).
+    legacy = args.view == "detail" and not args.json and args.format is None
+    fmt = "json" if (args.json or legacy) else args.format or "text"
     # Dispatch itself lives in `query.dispatch` -- shared with `mcp_server`'s
     # `cdp_query` tool (Phase 9, 7.1) so both answer from one `if` ladder.
     try:
@@ -65,13 +81,18 @@ def cmd_query(args) -> int:
             claim_kind=args.claim_kind, module=args.module, subject=args.subject,
             frm=args.frm, to=args.to, max_hops=args.max_hops,
             exclude_role=args.exclude_role, exact=args.exact,
+            include_tests=args.include_tests, include_library=args.include_library,
+            match=args.match, view=args.view, format=fmt if args.kind not in ("stats", "coverage") else None,
+            offset=args.offset, max_tokens=args.max_tokens,
+            query_config=registry_mod.team_query_config(paths.repo),
+            as_of_extra={"routed": routed} if routed else None,
         )
     except ValueError as exc:
         raise CdpError(str(exc))
 
-    if routed:
-        result.setdefault("as_of", {})["routed"] = routed
-    if args.json:
+    if result.get("format") == "text":
+        print(result["text"])
+    elif args.json or args.format == "json":  # `render()` below reads only the detail shape
         print(__import__("json").dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     else:
         print(query_mod.render(result))

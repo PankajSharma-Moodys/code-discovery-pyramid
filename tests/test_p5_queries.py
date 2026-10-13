@@ -201,7 +201,7 @@ class P5QueryTest(unittest.TestCase):
 
     def q(self, *args):
         import json
-        return json.loads(self.cdp.run("query", *args, "--json", check=False).stdout)
+        return json.loads(self.cdp.run("query", *args, "--json", *([] if args[0] in ("stats", "coverage") else ["--view", "detail"]), check=False).stdout)
 
     def test_h4_table_exact_returns_one_table_and_states_the_mode(self):
         loose = self.q("table", "server")
@@ -210,7 +210,7 @@ class P5QueryTest(unittest.TestCase):
         exact = self.q("table", "server", "--exact")
         self.assertEqual((exact["match"], exact["count"]), ("exact", 1))
         self.assertEqual(exact["tables"][0]["table"], "server")
-        text = self.cdp.run("query", "table", "server").stdout
+        text = self.cdp.run("query", "table", "--view", "detail", "server").stdout
         self.assertIn("substring match", text)
 
     def test_h4_file_and_routes_state_their_mode_and_take_exact(self):
@@ -223,7 +223,7 @@ class P5QueryTest(unittest.TestCase):
         self.assertEqual(self.q("routes", "/v1")["match"], "substring")
         self.assertEqual(self.q("routes", "/v1", "--exact")["count"], 0)
         self.assertEqual(self.q("routes", "/unified-store/svc/v1/servers", "--exact")["count"], 1)
-        self.assertIn("route path or verb", self.cdp.run("query", "routes", "/v1").stdout)
+        self.assertIn("route path or verb", self.cdp.run("query", "routes", "--view", "detail", "/v1").stdout)
 
     def test_h2_paths_match_any_node_on_the_path(self):
         end = self.q("paths", "--from", "ServerResource")
@@ -243,16 +243,18 @@ class P5QueryTest(unittest.TestCase):
         self.assertIn("MAGIC_HEADER", hit["constants"][0])
         miss = self.q("search", "zzz-not-there")
         self.assertIn("source text", miss["not_searched"])
-        text = self.cdp.run("query", "search", "zzz-not-there", check=False).stdout
+        text = self.cdp.run("query", "search", "--view", "detail", "zzz-not-there", check=False).stdout
         self.assertIn("Not searched: source text of files that are not source-role", text)
 
     def test_h3_exclude_role_filters_used_by_and_rejects_unknown_roles(self):
-        full = self.q("symbol", "ServerService#register")["found"][0]
+        full = self.q("symbol", "ServerService#register", "--include-tests")["found"][0]
         self.assertTrue(any("src/test" in u["at"] for u in full["used_by"]), full["used_by"])
+        default = self.q("symbol", "ServerService#register")["found"][0]  # tests are dropped unless asked for
+        self.assertFalse(any("src/test" in u["at"] for u in default["used_by"]))
         kept = self.q("symbol", "ServerService#register", "--exclude-role", "test")["found"][0]
         self.assertEqual(kept["used_by_count"], full["used_by_count"] - 1)
         self.assertFalse(any("src/test" in u["at"] for u in kept["used_by"]))
-        bad = self.cdp.run("query", "symbol", "register", "--exclude-role", "bogusrole", check=False)
+        bad = self.cdp.run("query", "symbol", "--view", "detail", "register", "--exclude-role", "bogusrole", check=False)
         self.assertNotEqual(bad.returncode, 0)
         self.assertIn("unknown role", bad.stdout + bad.stderr)
 

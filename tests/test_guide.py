@@ -222,11 +222,11 @@ class RejectsParametersAKindIgnores(unittest.TestCase):
 
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = main(["query", "symbol", "OrderServce", "--repo", str(self.repo)])
+            rc = main(["query", "symbol", "--view", "detail", "OrderServce", "--repo", str(self.repo)])
         self.assertEqual(rc, 1)
         self.assertIn("did you mean: OrderService", out.getvalue())
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(main(["query", "symbol", "OrderService", "--repo", str(self.repo)]), 0)
+            self.assertEqual(main(["query", "symbol", "--view", "detail", "OrderService", "--repo", str(self.repo)]), 0)
 
 
 if __name__ == "__main__":

@@ -21,21 +21,30 @@ CLAIM_KINDS = ("entrypoint", "public_api", "data_model", "config", "side_effect"
                "dependency")
 DEFAULT_BUDGET = 200
 DEFAULT_MAX_HOPS = 8
+VIEWS = ("count", "list", "compact", "detail")
+FORMATS = ("text", "json")
+MATCHES = ("substring", "exact", "regex")
 
 #: MCP parameter -> (CLI flag, one-line meaning). `term` is per kind (`KINDS[k]["term"]`).
 PARAMS: Dict[str, Tuple[str, str]] = {
     "term": ("<term>", "the name this kind looks up (see each kind)"),
-    "budget": ("--budget", "row cap across every list in the answer (default %d); "
-                           "`elided: N` reports what was dropped" % DEFAULT_BUDGET),
-    "exclude_role": ("--exclude-role", "drop rows whose file has these roles (%s); repeatable"
+    "budget": ("--budget", "row cap, none by default (max_tokens pages); 0 = no rows, not unlimited"),
+    "exclude_role": ("--exclude-role", "drop rows whose file has these roles (%s)"
                                        % ", ".join(ROLES)),
+    "include_tests": ("--include-tests", "keep test-role files (dropped by default)"),
+    "include_library": ("--include-library", "`claims`: keep third-party `library:` subjects (dropped by default)"),
     "claim_kind": ("--kind", "`claims`: only claims of this kind"),
     "module": ("--module", "`claims`: only claims whose module contains this text"),
     "subject": ("--subject", "`claims`: only claims whose subject contains this text"),
     "frm": ("--from", "`paths`: paths through any node containing this text (with `to`, it must come first)"),
     "to": ("--to", "`paths`: paths through any node containing this text (with `frm`, it must come after)"),
-    "exact": ("--exact", "`symbol`/`file`/`routes`/`table`/`config`: match the whole name instead of "
-                         "a case-insensitive substring; the answer's `match` says which was used"),
+    "exact": ("--exact", "alias for `match=exact`"),
+    "match": ("--match", "`substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)"),
+    "view": ("--view", "`count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` "
+                       "(full); default list for broad kinds, compact for focused"),
+    "format": ("--format", "`text` (default for count/list) or `json`"),
+    "offset": ("--offset", "skip N rows (see a cut answer's `next`)"),
+    "max_tokens": ("--max-tokens", "token cap (default 3000; 0 none); a cut answer reports count, shown, next"),
     "max_hops": ("--max-hops", "`trace`: how many edges to walk (default %d)" % DEFAULT_MAX_HOPS),
     "as_of": ("--as-of", "replay the claim log up to this commit (sha); "
                          "structure stays current"),
@@ -44,7 +53,7 @@ PARAMS: Dict[str, Tuple[str, str]] = {
 #: Parameters every kind accepts.
 ALWAYS = ("as_of",)
 
-_B = ("budget", "exclude_role")
+_B = ("budget", "exclude_role", "include_tests")
 
 KINDS: Dict[str, Dict] = {
     "trace": {
@@ -256,7 +265,7 @@ KINDS: Dict[str, Dict] = {
                 "concurrency from the annotation arguments.",
         "term": "OPTIONAL shorthand for `claim_kind`; do not combine with a different "
                 "`claim_kind`.",
-        "uses": ("term", "claim_kind", "module", "subject") + _B,
+        "uses": ("term", "claim_kind", "module", "subject") + _B + ("include_library",),
         "required": (),
         "examples": ["query claims --kind entrypoint", "query claims --subject <symbol>"],
         "where": "'What do we claim about X / list all entrypoints/dependencies'.",
@@ -316,6 +325,13 @@ KINDS: Dict[str, Dict] = {
 }
 
 #: kind -> parameters it accepts (plus `ALWAYS`); everything else is rejected.
+# Every projected kind takes the answer-size parameters; `match` goes wherever a term or text filter
+# (`frm`/`to`, `subject`, `module`) is matched. `stats`/`coverage` are never projected.
+for _kind, _spec in KINDS.items():
+    if _kind not in ("stats", "coverage"):
+        _spec["uses"] = tuple(_spec["uses"]) + ("view", "format", "max_tokens", "offset") + (
+            ("match",) if set(_spec["uses"]) & {"term", "frm", "to", "subject", "module"} else ())
+
 APPLIES: Dict[str, Tuple[str, ...]] = {k: tuple(v["uses"]) + ALWAYS for k, v in KINDS.items()}
 
 #: Question -> kind, the decision table SKILL.md and the MCP description share.

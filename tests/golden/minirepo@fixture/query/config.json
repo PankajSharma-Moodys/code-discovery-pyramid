@@ -11,8 +11,8 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "budget": 200,
   "count": 1,
+  "default_filters": "dropped by default: tests; pass include_tests=true to keep them",
   "elided": 0,
   "keys": [
     {

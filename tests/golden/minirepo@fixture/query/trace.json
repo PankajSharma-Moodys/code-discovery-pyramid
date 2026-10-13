@@ -11,8 +11,8 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "budget": 200,
   "caveat": "This is a reading list, not an answer. CDP has no parameter or branch model: it collapses a wide grep into a small cited read whose completeness is stated by the `elided` count below — zero means the list is complete, anything else means it is qualified. Hops marked `medium` come from the import table: an import proves that a file *can* reach a symbol, not that it does.",
+  "default_filters": "dropped by default: tests; pass include_tests=true to keep them",
   "elided": 0,
   "entry": "/v1/widgets",
   "file_count": 6,
@@ -28,14 +28,6 @@
       "at": "core/src/main/java/COM/Example/mini/core/Widget.java:6",
       "confidence": "high",
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
-      "module": "core",
-      "symbol": "com.example.mini.core.Widget",
-      "why": "defines com.example.mini.core.Widget"
-    },
-    {
-      "at": "core/src/test/java/com/example/mini/core/Widget.java:4",
-      "confidence": "high",
-      "file": "core/src/test/java/com/example/mini/core/Widget.java",
       "module": "core",
       "symbol": "com.example.mini.core.Widget",
       "why": "defines com.example.mini.core.Widget"
@@ -86,6 +78,7 @@
   ],
   "found": true,
   "hops_exhausted": false,
+  "match": "substring",
   "max_hops": 8,
   "query": "trace",
   "resolved_as": {

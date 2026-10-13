@@ -208,14 +208,14 @@ class RollbackCliTest(unittest.TestCase):
             )
             state_before = store.read_artifact("state")
             live = subprocess.run(
-                [sys.executable, str(RUN_PY), "query", "claims", "--json",
+                [sys.executable, str(RUN_PY), "query", "claims", "--view", "detail", "--json",
                  "--repo", str(repo), "--state-dir", str(state)],
                 capture_output=True, text=True, check=True,
             )
             self.assertIn("bogus.claim", live.stdout)
 
             past = subprocess.run(
-                [sys.executable, str(RUN_PY), "query", "claims", "--json",
+                [sys.executable, str(RUN_PY), "query", "claims", "--view", "detail", "--json",
                  "--as-of", root_run_id, "--repo", str(repo), "--state-dir", str(state)],
                 capture_output=True, text=True, check=True,
             )

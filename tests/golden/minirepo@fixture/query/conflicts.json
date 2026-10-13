@@ -11,7 +11,6 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "budget": 200,
   "conflicts": [],
   "count": 0,
   "elided": 0,

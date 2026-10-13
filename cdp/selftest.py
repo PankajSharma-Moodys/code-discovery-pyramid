@@ -291,8 +291,9 @@ def collect_artifacts(repo: Path) -> Tuple[Dict[str, str], Optional[str]]:
         terms = golden_terms(store)
         artifacts["query/_terms.json"] = golden_mod.canonical(terms)
         for kind in sorted(query_mod.QUERIES):
+            # The baseline is the full shape: it pins every fact, whatever the default view is.
             argv = ["query", kind, "--json", "--repo", str(repo),
-                    "--state-dir", str(state)]
+                    "--state-dir", str(state)] + ([] if kind in ("stats", "coverage") else ["--view", "detail"])
             term = terms.get(kind)
             if kind in ("symbol", "file", "module", "search", "trace"):
                 if not term:

@@ -387,7 +387,7 @@ def _query(repo: Path, args: List[str]) -> Optional[Dict]:
     run_py = Path(__file__).resolve().parent.parent / "run.py"
     try:
         proc = subprocess.run(
-            [sys.executable, str(run_py), "query"] + args + ["--repo", str(repo), "--json"],
+            [sys.executable, str(run_py), "query"] + args + ["--repo", str(repo), "--json", "--view", "detail"],
             capture_output=True, text=True, timeout=LOOKUP_TIMEOUT, check=False)
         data = json.loads(proc.stdout)
     except Exception:  # noqa: BLE001 -- fail open

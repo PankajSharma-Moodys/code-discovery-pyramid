@@ -26,7 +26,7 @@ from helpers import make_repo  # noqa: E402
 
 from cdp import query as query_mod  # noqa: E402
 from cdp.cli import main  # noqa: E402
-from cdp.guide_kinds import APPLIES, KINDS, PARAMS, ROLES  # noqa: E402
+from cdp.guide_kinds import APPLIES, KINDS, PARAMS, ROLES, VIEWS  # noqa: E402
 from mcp_server import server as server_mod, tools  # noqa: E402
 from mcp_server.schemas import TOOL_SCHEMAS  # noqa: E402
 
@@ -90,17 +90,35 @@ class AgainstARealScan(unittest.TestCase):
         everything = tools.cdp_query(str(self.repo), "symbol", "OrderService", exclude_role=list(ROLES))
         self.assertEqual(everything["found"], [])
 
+    def test_tests_and_library_are_dropped_unless_asked_for(self) -> None:
+        default = tools.cdp_query(str(self.repo), "claims", view="detail")
+        self.assertIn("dropped by default: tests, library", default["default_filters"])
+        self.assertFalse([c for c in default["claims"] if "library:" in c.get("subject", "")])
+        kept = tools.cdp_query(str(self.repo), "claims", include_tests=True, include_library=True, view="detail")
+        self.assertNotIn("default_filters", kept)
+        self.assertGreaterEqual(kept["count"], default["count"])
+        same = tools.cdp_query(str(self.repo), "symbol", "OrderService", exclude_role=["test"])
+        self.assertEqual(same["found"], tools.cdp_query(str(self.repo), "symbol", "OrderService")["found"])
+        with self.assertRaises(ValueError):  # include_library is a `claims` parameter only
+            tools.cdp_query(str(self.repo), "symbol", "OrderService", include_library=True)
+
     def test_every_kind_answers_identically_over_both_channels(self) -> None:
         asks = {"trace": ("/orders",), "symbol": ("OrderService",), "file": ("OrderResource",),
                 "module": ("root",), "routes": (), "table": ("orders",), "config": (),
                 "search": ("order",), "claims": (), "unknowns": (), "conflicts": (),
                 "stats": (), "coverage": ()}
         for kind, args in asks.items():
-            rc, cli = self._cli(kind, *args)
-            mcp = tools.cdp_query(str(self.repo), kind, *args)
-            self.assertEqual(mcp, cli, kind)
+            for view in ((None,) if kind in ("stats", "coverage") else tuple(VIEWS)):
+                rc, cli = self._cli(kind, *args, *(("--view", view) if view else ()))
+                mcp = tools.cdp_query(str(self.repo), kind, *args, **({"view": view, "format": "json"} if view else {}))
+                self.assertEqual(mcp, cli, "%s/%s" % (kind, view))
         rc, cli = self._cli("paths", "--from", "/orders")
-        self.assertEqual(tools.cdp_query(str(self.repo), "paths", frm="/orders"), cli)
+        self.assertEqual(tools.cdp_query(str(self.repo), "paths", frm="/orders", format="json"), cli)
+        # the text channel: the MCP tool text is the CLI text
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            main(["query", "routes", "--repo", str(self.repo)])
+        self.assertEqual(tools.cdp_query(str(self.repo), "routes")["text"], out.getvalue().rstrip("\n"))
 
     def test_same_rejections_over_both_channels(self) -> None:
         with self.assertRaises(ValueError) as mcp:

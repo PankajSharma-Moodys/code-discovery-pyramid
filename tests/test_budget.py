@@ -192,7 +192,7 @@ class BudgetedQueryTest(unittest.TestCase):
         for kind in sorted(query_mod.QUERIES):
             term = {"symbol": "Widget", "file": "Widget.java", "module": "core",
                     "search": "widget", "trace": "/v1/widgets"}.get(kind)
-            argv = ["query", kind] + ([term] if term else [])
+            argv = ["query", kind] + ([] if kind in ("stats", "coverage") else ["--view", "detail"]) + ([term] if term else [])
             out = self.run_cli(*argv)
             self.assertRegex(out, r"elided: \d+", kind)
             self.assertRegex(out, r"as of \S+@\S+, state v\d+", kind)
@@ -202,19 +202,19 @@ class BudgetedQueryTest(unittest.TestCase):
         and neither said so."""
         import json
 
-        data = json.loads(self.run_cli("query", "claims", "--json", "--budget", "3"))
-        text = self.run_cli("query", "claims", "--budget", "3")
+        data = json.loads(self.run_cli("query", "claims", "--view", "detail", "--json", "--budget", "3"))
+        text = self.run_cli("query", "claims", "--view", "detail", "--budget", "3")
         self.assertEqual(len(data["claims"]), 3)
         self.assertEqual(data["elided"], data["count"] - 3)
         self.assertIn("... %d more" % data["elided"], text)
 
     def test_a_bound_budget_states_the_count(self) -> None:
-        out = self.run_cli("query", "claims", "--budget", "2")
+        out = self.run_cli("query", "claims", "--view", "detail", "--budget", "2")
         self.assertIn("elided: ", out)
         self.assertNotIn("elided: 0", out)
 
     def test_budget_smaller_than_one_row(self) -> None:
-        out = self.run_cli("query", "claims", "--budget", "0")
+        out = self.run_cli("query", "claims", "--view", "detail", "--budget", "0")
         self.assertIn("admits no rows", out)
         self.assertNotIn("elided: 0\n", out)
 
@@ -240,7 +240,7 @@ class BudgetedQueryTest(unittest.TestCase):
         otherwise the elision is stated but the scale of it is not."""
         import json
 
-        data = json.loads(self.run_cli("query", "claims", "--json", "--budget", "1"))
+        data = json.loads(self.run_cli("query", "claims", "--view", "detail", "--json", "--budget", "1"))
         self.assertGreater(data["count"], len(data["claims"]))
 
 

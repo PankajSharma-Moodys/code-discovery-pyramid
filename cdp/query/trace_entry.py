@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-from .common import _matches, cite
+from .common import _matches, cite, make_matcher
 from .store import Store
 
 CLASS_KINDS = ("class", "interface", "enum", "record", "struct")
@@ -20,23 +20,39 @@ VERB_PREFIX = re.compile(r"^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(\S.*)$",
 MAX_CLASSES = 4
 
 
-def resolve_entry(store: Store, entry: str, adjacency: Dict[str, List[Dict]]) -> Optional[Dict]:
-    """Route path (+ optional verb), exact source, exact class name, other source, symbol."""
-    for found in (_route(store, entry), _source(store, entry, exact=True),
-                  _class(store, entry, adjacency), _source(store, entry, exact=False)):
+def resolve_entry(store: Store, entry: str, adjacency: Dict[str, List[Dict]],
+                  match: str = "substring") -> Optional[Dict]:
+    """Route path (+ optional verb), exact source, exact class name, other source, symbol.
+
+    `match=exact` keeps only whole-name tiers; `match=regex` searches the pattern in route paths, source
+    nodes/triggers, class names and symbol names. A regex that matches several entries traces the first
+    and lists the rest under `also_matched`, so a second endpoint is never silently dropped."""
+    rx = make_matcher(entry, "regex") if match == "regex" else None
+    if match == "substring":
+        ladder = (lambda: _route(store, entry), lambda: _source(store, entry, exact=True),
+                  lambda: _class(store, entry, adjacency), lambda: _source(store, entry, exact=False))
+    else:
+        ladder = (lambda: _route(store, entry, match, rx), lambda: _source(store, entry, True, rx),
+                  lambda: _class(store, entry, adjacency, rx))
+    for step in ladder:
+        found = step()
         if found:
             return found
-    return _symbol(store, entry)
+    return _symbol(store, entry, match, rx)
 
 
-def _route(store: Store, entry: str) -> Optional[Dict]:
-    m = VERB_PREFIX.match(entry.strip())
+def _route(store: Store, entry: str, match: str = "substring", rx=None) -> Optional[Dict]:
+    m = VERB_PREFIX.match(entry.strip()) if match != "regex" else None
     verb, path = (m.group(1).upper(), m.group(2).strip()) if m else (None, entry)
     routes = [r for r in store.xref["routes"] + store.xref["unresolved_routes"]
               if (verb is None or r["verb"].upper() == verb)]
-    hits = [r for r in routes if r["route"] == path] \
-        or [r for r in routes if r["route"].lower() == path.lower()] \
-        or [r for r in routes if _matches(r["route"], path)]
+    if rx:
+        hits = sorted((r for r in routes if rx(r["route"]) or rx("%s %s" % (r["verb"], r["route"]))),
+                      key=lambda r: (r["route"], r["verb"], r["handler"]))
+    else:
+        hits = [r for r in routes if r["route"] == path] \
+            or [r for r in routes if r["route"].lower() == path.lower()] \
+            or ([] if match == "exact" else [r for r in routes if _matches(r["route"], path)])
     if not hits:
         return None
     # Every verb that shares the first matching path; a path that merely contains the term
@@ -47,7 +63,9 @@ def _route(store: Store, entry: str) -> Optional[Dict]:
     first = group[0]
     node = files.get(first["file"], {}).get("primary") or first["handler"].split("#", 1)[0]
     verbs = sorted({r["verb"] for r in group})
+    others = sorted({"%s %s" % (r["verb"], r["route"]) for r in hits if r["route"] != first["route"]}) if rx else []
     return {
+        **({"also_matched": others} if others else {}),
         "kind": "route",
         "node": node,
         "handler": first["handler"],
@@ -64,9 +82,10 @@ def _route(store: Store, entry: str) -> Optional[Dict]:
     }
 
 
-def _source(store: Store, entry: str, exact: bool) -> Optional[Dict]:
+def _source(store: Store, entry: str, exact: bool, rx=None) -> Optional[Dict]:
     for source in store.dataflow.get("sources", []):
-        if (source["node"] == entry or source["trigger"] == entry) if exact \
+        if (rx(source["node"]) or rx(source["trigger"])) if rx else \
+                (source["node"] == entry or source["trigger"] == entry) if exact \
                 else _matches(source["node"], entry):
             return {
                 "kind": "source",
@@ -79,11 +98,12 @@ def _source(store: Store, entry: str, exact: bool) -> Optional[Dict]:
     return None
 
 
-def _class(store: Store, entry: str, adjacency: Dict[str, List[Dict]]) -> Optional[Dict]:
+def _class(store: Store, entry: str, adjacency: Dict[str, List[Dict]], rx=None) -> Optional[Dict]:
     """A class term: every class with that name, and the public members with outgoing edges."""
     symbols = store.xref["symbols"]
     keys = sorted((k for k, v in symbols.items() if v["kind"] in CLASS_KINDS
-                   and (k == entry or k.rsplit(".", 1)[-1] == entry)), key=lambda k: (len(k), k))
+                   and (rx(k) if rx else (k == entry or k.rsplit(".", 1)[-1] == entry))),
+                  key=lambda k: (len(k), k))
     if not keys:
         return None
     # A test double with the same name as the class under study is not the class.
@@ -110,15 +130,18 @@ def _class(store: Store, entry: str, adjacency: Dict[str, List[Dict]]) -> Option
     }
 
 
-def _symbol(store: Store, entry: str) -> Optional[Dict]:
+def _symbol(store: Store, entry: str, match: str = "substring", rx=None) -> Optional[Dict]:
     symbols = store.xref["symbols"]
-    keys = [k for k in symbols if k == entry or k.rsplit(".", 1)[-1] == entry]
-    keys = keys or [k for k in symbols if _matches(k, entry)]
+    keys = [k for k in symbols if (rx(k) if rx else k == entry or k.rsplit(".", 1)[-1] == entry)]
+    if not rx and match != "exact":
+        keys = keys or [k for k in symbols if _matches(k, entry)]
     if not keys:
         return None
-    key = sorted(keys, key=lambda k: (len(k), k))[0]
+    ordered = sorted(keys, key=lambda k: (len(k), k))
+    key = ordered[0]
     sites = symbols[key]["sites"]
     return {
+        **({"also_matched": ordered[1:21]} if rx and len(ordered) > 1 else {}),
         "kind": "symbol",
         "node": key,
         "label": key,

@@ -324,3 +324,45 @@ def team_excludes(repo: Path) -> List[str]:
     """
     exclude = _read_team_config(repo).get("exclude")
     return [str(x) for x in exclude] if isinstance(exclude, list) else []
+
+
+from ..guide_kinds import FORMATS as QUERY_FORMATS, VIEWS as QUERY_VIEWS  # noqa: E402  (pure data module)
+
+
+def team_query_config(repo: Path) -> Dict:
+    """`.cdp.toml`'s `[query]` section, validated: `max_tokens`, `default_view`, `view` (per kind),
+    `format` (per view) and `drop_fields` (per kind). A bad value is an error, not a silent default:
+    the team believes the dial is set."""
+    raw = _read_team_config(repo).get("query")
+    if raw is None:
+        return {}
+    where = "%s [query]" % TEAM_CONFIG_FILE
+    if not isinstance(raw, dict):
+        raise CdpError("%s must be a table" % where)
+    known = ("max_tokens", "default_view", "view", "format", "drop_fields")
+    extra = [k for k in raw if k not in known]
+    if extra:
+        raise CdpError("%s: unknown key(s) %s (known: %s)" % (where, ", ".join(extra), ", ".join(known)))
+    out: Dict = {}
+    if "max_tokens" in raw:
+        n = raw["max_tokens"]
+        if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+            raise CdpError("%s: max_tokens must be a non-negative integer (0 = no cap)" % where)
+        out["max_tokens"] = n
+    if "default_view" in raw:
+        if raw["default_view"] not in QUERY_VIEWS:
+            raise CdpError("%s: default_view must be one of %s" % (where, ", ".join(QUERY_VIEWS)))
+        out["default_view"] = raw["default_view"]
+    for key, allowed in (("view", QUERY_VIEWS), ("format", QUERY_FORMATS)):
+        if key in raw:
+            table = raw[key]
+            if not isinstance(table, dict) or not all(isinstance(v, str) and v in allowed for v in table.values()):
+                raise CdpError("%s: %s must map a name to one of %s" % (where, key, ", ".join(allowed)))
+            out[key] = dict(table)
+    if "drop_fields" in raw:
+        table = raw["drop_fields"]
+        if not isinstance(table, dict) or not all(
+                isinstance(v, list) and all(isinstance(f, str) for f in v) for v in table.values()):
+            raise CdpError("%s: drop_fields must map a kind to a list of field names" % where)
+        out["drop_fields"] = {k: list(v) for k, v in table.items()}
+    return out

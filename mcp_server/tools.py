@@ -26,6 +26,7 @@ from cdp.store import registry as registry_mod
 from cdp import lock as lock_mod
 from cdp import refresh as refresh_mod
 from cdp import linkview as linkview_mod
+from cdp.guide_kinds import FORMATS, MATCHES, VIEWS
 from cdp.util import ArgError, check_enum, check_limit, check_str
 
 
@@ -54,12 +55,22 @@ def cdp_query(
     as_of: Optional[str] = None,
     exclude_role: Optional[list] = None,
     exact: bool = False,
+    include_tests: bool = False,
+    include_library: bool = False,
+    match: Optional[str] = None,
+    view: Optional[str] = None,
+    format: Optional[str] = None,
+    offset: Optional[int] = None,
+    max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """One typed tool, not thirteen (`phase_9_plan.md` 7.1) -- `kind` is the
     same closed vocabulary `query.QUERIES` already enforces for the CLI."""
-    for arg, value in (("budget", budget), ("max_hops", max_hops)):
+    for arg, value in (("budget", budget), ("max_hops", max_hops), ("offset", offset), ("max_tokens", max_tokens)):
         if value is not None:
             check_limit(arg, value)
+    for arg, value in (("match", match), ("view", view), ("format", format)):
+        if value is not None:
+            check_enum(value, arg, {"match": MATCHES, "view": VIEWS, "format": FORMATS}[arg])
     for arg, value in (("term", term), ("claim_kind", claim_kind), ("module", module), ("subject", subject),
                        ("frm", frm), ("to", to), ("as_of", as_of), ("repo", repo), ("kind", kind)):
         if value is not None and not isinstance(value, str):
@@ -67,8 +78,9 @@ def cdp_query(
     if exclude_role is not None and (not isinstance(exclude_role, list)
                                      or not all(isinstance(r, str) for r in exclude_role)):
         raise ArgError("exclude_role must be a list of strings")
-    if not isinstance(exact, bool):
-        raise ArgError("exact must be true or false, got %s" % type(exact).__name__)
+    for arg, value in (("exact", exact), ("include_tests", include_tests), ("include_library", include_library)):
+        if not isinstance(value, bool):
+            raise ArgError("%s must be true or false, got %s" % (arg, type(value).__name__))
     if kind not in query_mod.QUERIES:
         raise ValueError("unknown query kind %r -- one of %s" % (kind, sorted(query_mod.QUERIES)))
     paths, term, routed = _paths(repo), term, None
@@ -81,10 +93,11 @@ def cdp_query(
         result = query_mod.dispatch(
             store, kind, term, budget=budget, claim_kind=claim_kind, module=module,
             subject=subject, frm=frm, to=to, max_hops=max_hops, exclude_role=exclude_role,
-            exact=exact,
+            exact=exact, include_tests=include_tests, include_library=include_library,
+            match=match, view=view, format=format, offset=offset, max_tokens=max_tokens,
+            query_config=registry_mod.team_query_config(paths.repo),
+            as_of_extra={"routed": routed} if routed else None,
         )
-        if routed:
-            result.setdefault("as_of", {})["routed"] = routed
         return result
     finally:
         store.close()

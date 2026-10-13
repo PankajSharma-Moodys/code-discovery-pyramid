@@ -697,13 +697,13 @@ def session_start(event: Dict) -> Optional[str]:
     dirty = status.get("dirty_files") or []
     caveat = ((" The index includes uncommitted changes in %d file(s)." if status.get("snapshot_uncommitted")
                else " Uncommitted changes in %d file(s) are not in the index.") % len(dirty)) if dirty else ""
-    return ("CDP index for this repo is ready: commit %s, %s.%s The MCP tool `cdp_query` "
-            "returns cited file:line locations, so code can be located without grep/find and "
-            "only the cited line ranges need reading: kind `trace` (term = route or symbol) is "
-            "the reading list for an entry point, `symbol` gives definition and callers, `table`, "
-            "`config`, `routes`, `paths`, `file`, `module` cover the rest. `cdp_help` gives flags "
-            "and recipes; kind `coverage` says what the index did not examine."
-            % (indexed, depth, caveat))
+    from .guide import session_primer
+
+    # The `cdp_help` digest rides along once per session, so the model starts knowing every kind, parameter
+    # and default instead of guessing and paying for raw `claims` dumps.
+    return ("CDP index for this repo is ready: commit %s, %s.%s The MCP tool `cdp_query` returns cited "
+            "file:line locations, so code can be located without grep/find and only the cited line ranges "
+            "need reading. Read this once (it is `cdp_help`):\n%s" % (indexed, depth, caveat, session_primer()))
 
 
 def _first_line(text: str) -> str:
@@ -721,7 +721,7 @@ STANDING_RULE = ("CDP rule: if this request involves reading or locating code, c
                  "kind `coverage` says so, and Read only cited line ranges.")
 RECIPE_KINDS = ("trace", "symbol", "file", "routes", "table", "config", "module", "paths", "search", "coverage")
 RECIPE = (
-    "cdp_query(kind=..., term=...) recipes (term is a substring, case-insensitive; exact=true for a whole name):\n"
+    "cdp_query(kind=..., term=...) recipes (term: substring; match=exact|regex for whole name or grep -E):\n"
     "- how does X work / what to read: kind=trace, term=route (`/orders`, `POST /orders`), class or `Class#method`\n"
     "- where is X defined / who calls it: kind=symbol, term=`OrderService` or `Class#method`\n"
     "- what is in this file: kind=file, term=path or path fragment (outline, with line extents)\n"
@@ -730,7 +730,8 @@ RECIPE = (
     "- A to B dataflow: kind=paths, frm=..., to=...; job classes by name: kind=search, term=`Job`/`Quartz`\n"
     "- schedules, annotation values (intervals, cron): kind=search, term=`@Every`/`60s`, then kind=file, term=<Class>\n"
     "- empty or surprising result: kind=coverage (what was not examined) before concluding 'absent'\n"
-    "Narrow with budget=N, exclude_role=[\"test\"], max_hops=N (trace); `cdp_help` lists every flag.")
+    "Broad kinds answer in list (one line, file:line opens in Read); view=compact term=<row> for one row; a cut "
+    "answer's next gives the offset. `cdp_help` lists every flag.")
 
 
 def prompt_submit(event: Dict) -> Optional[str]:

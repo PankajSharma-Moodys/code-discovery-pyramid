@@ -72,9 +72,9 @@ class WhichSnapshotAnswersTest(Case):
         cdp.scan()
         repo.write(ALPHA, repo.read(ALPHA).replace("go()", "dirtyB()"))
         cdp.scan()
-        self.assertIn("dirtyB", cdp.run("query", "symbol", "dirtyB").stdout)
+        self.assertIn("dirtyB", cdp.run("query", "symbol", "--view", "detail", "dirtyB").stdout)
         repo.git("checkout", "--", ALPHA)
-        self.assertNotIn("com.example.a.Alpha#dirtyB", cdp.run("query", "symbol", "dirtyB", check=False).stdout)
+        self.assertNotIn("com.example.a.Alpha#dirtyB", cdp.run("query", "symbol", "--view", "detail", "dirtyB", check=False).stdout)
         self.assertEqual(self.status(cdp)["head"], repo.head())
 
     def test_a9_status_shows_the_new_head_and_behind_after_a_commit(self):
@@ -172,7 +172,7 @@ class AnswersCarryTheirFreshnessTest(Case):
         use = result["found"][0]["used_by"][0]
         self.assertTrue(use["changed_since"])
         self.assertEqual(result["as_of"]["changed_since"], [CHILD])
-        self.assertIn("cited files changed since: " + CHILD, cdp.run("query", "symbol", "inherited").stdout)
+        self.assertIn("cited files changed since: " + CHILD, cdp.run("query", "symbol", "--view", "detail", "inherited").stdout)
 
     def test_a7_a_citation_of_an_untouched_file_is_not_flagged(self):
         repo = L.java_inheritance(self.tmp)

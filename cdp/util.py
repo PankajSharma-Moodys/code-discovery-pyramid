@@ -153,7 +153,7 @@ fraction = _arg_type(lambda v, n: check_number(v, n, 0, 1), "fraction")
 #: Bounds of the integer parameters the CLI and the MCP tools share (min, max). The CLI
 #: flags (`--max-hops`, ...) and the tool arguments (`max_hops`, ...) must agree on these.
 LIMITS = {
-    "budget": (0, None), "max_hops": (0, None), "max_leaf_files": (1, None),
+    "budget": (0, None), "max_hops": (0, None), "offset": (0, None), "max_tokens": (0, None), "max_leaf_files": (1, None),
     "max_leaf_loc": (1, None), "max_concurrent": (1, None), "workers": (1, None),
 }
 

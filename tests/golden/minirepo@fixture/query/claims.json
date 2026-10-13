@@ -11,7 +11,6 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "budget": 200,
   "claims": [
     {
       "anchor_verified_at": "<HEAD>",
@@ -301,6 +300,8 @@
     }
   ],
   "count": 13,
+  "default_filters": "dropped by default: tests, library; pass include_tests=true, include_library=true to keep them",
   "elided": 0,
+  "match": "substring",
   "query": "claims"
 }
