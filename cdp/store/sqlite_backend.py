@@ -276,6 +276,38 @@ def connect_raw(db_path, *, check_same_thread: bool = True) -> sqlite3.Connectio
     return conn
 
 
+class _UnbornConn:
+    """Stands in for the connection of a store whose file does not exist yet: reads see an
+    empty, fully migrated in-memory database; the first write creates the real store and
+    runs there."""
+
+    def __init__(self, store: "SqliteStore") -> None:
+        self._store = store
+        self._mem = sqlite3.connect(":memory:", check_same_thread=False)
+        store._migrate_locked(self._mem)
+
+    def _real(self) -> sqlite3.Connection:
+        self._store._materialize()
+        return self._store._conn
+
+    def execute(self, sql, *args):
+        if sql.lstrip()[:6].upper() in ("SELECT", "PRAGMA") or sql.lstrip()[:4].upper() == "WITH":
+            return self._mem.execute(sql, *args)
+        return self._real().execute(sql, *args)
+
+    def executemany(self, sql, *args):
+        return self._real().executemany(sql, *args)
+
+    def executescript(self, script):
+        return self._real().executescript(script)
+
+    def commit(self) -> None:
+        pass
+
+    def rollback(self) -> None:
+        pass
+
+
 class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
     def __init__(self, db_path: Path, inbox_root: "Path | None" = None,
                  readonly: bool = False, busy_timeout_ms: int = 60000) -> None:
@@ -283,12 +315,16 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         schema (the PreToolUse hook): no directory creation, no migration, no
         journal-mode change, and a short `busy_timeout_ms`."""
         self.db_path = Path(db_path)
-        if not readonly:
+        # A missing store is created on the first write, not by opening it: a reader of a
+        # never-scanned state dir answers "scan needed" and leaves nothing behind.
+        self._unborn = not readonly and not self.db_path.exists()
+        if not readonly and not self._unborn:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._busy_timeout_ms = int(busy_timeout_ms)
         self._local, self._opened, self._opened_lock = threading.local(), [], threading.Lock()
         self._closed = False
-        if not readonly:
+        self._unborn_conn: "_UnbornConn | None" = None
+        if not readonly and not self._unborn:
             self._conn.execute("PRAGMA journal_mode = WAL")
             self._migrate()
         # The inbox is a filesystem handoff with the agent session regardless
@@ -302,6 +338,13 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
     @property
     def _conn(self) -> sqlite3.Connection:
         """This thread's connection, opened on first use (a shared one crashes libsqlite3)."""
+        if self._unborn:
+            if self.db_path.exists():
+                self._materialize()
+            else:
+                if self._unborn_conn is None:
+                    self._unborn_conn = _UnbornConn(self)
+                return self._unborn_conn
         conn = getattr(self._local, "conn", None)
         if conn is None:
             if self._closed:
@@ -317,6 +360,16 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
                 self._opened = [(t, c) for t, c in self._opened if t.is_alive()]
                 self._opened.append((threading.current_thread(), conn))
         return conn
+
+    def _materialize(self) -> None:
+        """Create the store (directory, WAL, schema) that `__init__` left unborn."""
+        with self._opened_lock:
+            if not self._unborn:
+                return
+            self._unborn = False
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn.execute("PRAGMA journal_mode = WAL")
+        self._migrate()
 
     def _inbox_dir(self) -> Path:
         return self._inbox_root / "patches" / "inbox"
@@ -731,20 +784,21 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
-    def _migrate_locked(self) -> None:
-        self._conn.execute(
+    def _migrate_locked(self, conn: "sqlite3.Connection | None" = None) -> None:
+        conn = conn or self._conn
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"
         )
-        row = self._conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
+        row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
         current = row[0] if row and row[0] is not None else 0
         for version, script in enumerate(MIGRATIONS, start=1):
             if version <= current:
                 continue
-            self._conn.executescript(script)
+            conn.executescript(script)
             if script is SCHEMA_V11:
-                migrate_archive_snapshot_id(self._conn)
-            self._conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
-        self._conn.commit()
+                migrate_archive_snapshot_id(conn)
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+        conn.commit()
 
     def _snapshot_id(self) -> int:
         """The snapshot `begin_snapshot` selected, or a lazily-created default
@@ -989,6 +1043,9 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         (self._inbox_dir() / (node.replace("/", "__") + ".json")).unlink(missing_ok=True)
 
     def close(self) -> None:
+        if self._unborn_conn is not None:
+            self._unborn_conn._mem.close()
+            self._unborn_conn = None
         with self._opened_lock:
             self._closed = True
             for _, conn in self._opened:

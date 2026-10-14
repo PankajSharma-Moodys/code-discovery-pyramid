@@ -250,6 +250,11 @@ def apply_as_of(store: "query_mod.Store", commit: str) -> None:
     patches = store.backend.load_patches()
     run_id = rollback_mod.resolve_run_id(commit, patches)
     kept, _excluded, found = rollback_mod.patches_up_to_run(patches, run_id)
+    bare = commit.strip()
+    bare = bare[4:] if bare.startswith("cdp-") else bare
+    if found and len(bare) > 12:
+        # run ids hold 12 chars and `resolve_run_id` cuts to them: "<real sha>junk" must not pass
+        found = any(str(s.get("commit_sha") or "").startswith(bare) for s in store.backend.list_snapshots())
     if not found:
         raise CdpError(
             "commit %s never appears in this store's patch log -- `--as-of` "
