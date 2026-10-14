@@ -18,24 +18,22 @@ top findings reproduced). "(unverified)" = reported by a reviewer, not reproduce
 - [x] **Gate tests don't test Scala**: `tests/test_jvm_gates.py` relabels Java extractor output as Scala. Add
       tests that run `ScalaExtractor` rows through `rules.apply` and `schedfacts`.
 
-## 2. Should fix (latent; none occur in workflow-ui)
-- [x] Scala: `@SqlQuery("""..""".stripMargin)` on an annotation yields no `table:` edge (`scala_annotations.py` `_value`
-      ~130-146 returns `{"text"}`; only `scala_emit.py:169` handles `.stripMargin`). 0 of 20 `@Sql*` sites here use it.
-      Fixed: `_value` peels a trailing `.stripMargin`/`.trim`; tests in `tests/test_scala_gates.py`.
-- [x] Scala: a lambda param or `case x:` binder stayed bound after its body (`scala_body.py`). Fixed (`_open_body`);
-      0 rows changed on workflow-service. Open: an unbraced `val g = x => x` still binds to block end.
-- [ ] Scala: nested block comments deeper than 8 levels are not handled (`scala_tokens.py:20-24`).
-- [x] Web: an apostrophe in JSX text (`Don't`) dropped later class members. Fixed (JSX-aware lexer, `web_scan.py:71-124`).
-- [x] Web: `.bind(this, x)` emitted `event:${this}`; literal `.subscribe('ch')` is now emitted (plan B4). Fixed in
-      `web_flow.py`. Open: channel and event names share the `event:` namespace, so equal names could link falsely.
-- [ ] Web (unverified): regex after `return` read as division (`web_scan.py:98`); a wrapper whose parameter has no
-      parentheses isn't learned (`web_flow.py:170`); a reassigned/`+=`/ternary/same-line local drops the call
-      (`web_flow.py:188-204`); namespace/named-object import call targets (`web_flow.py:438`); TS generic arrows and
-      `@Input()` fields; test files emit `ui_route`.
-- [ ] Scala (unverified): `Util("x")` on an `object` becomes `<init>`, not `apply` (`scala_body.py:252`); fields
-      initialised with `new T` lose their type; class-body statements skipped (`scala_decl.py:441`);
-      `val A, B = Value` -> phantom constants (`scala_emit.py:303`); interpolation tokenizer gaps, including
-      exponential backtracking on an unterminated `s"` with many holes (`scala_tokens.py:18-25`).
+## 2. Latent bugs (all grounded 2026-10-14: each reproduced with a snippet through the real extractor)
+Fixed: Scala `.stripMargin` annotations, lambda/`case` scope leak, Web JSX apostrophe, Pusher `.bind(this, x)` +
+literal `.subscribe`, regex after `return`/`typeof`/`case`.., test files emitting `ui_route` (live: 17 -> 16 edges).
+- [ ] Scala **fix now**: `val t = new T(1)` field has no `ftype`, so a later `t.go()` is lost (970 sites / 298 files;
+      calls actually lost: unmeasured).
+- [ ] Scala fix if cheap: `Util("x")` on an `object` emits `<init>`, not `apply` (`scala_body.py` ~252; 2 sites);
+      class-body statements are skipped (`scala_decl.py` ~441; occurrences unmeasured, needs a scope decision).
+- [ ] Scala ignore: `val A, B = Value` gives bogus value/type uses (names are right); unterminated `s"` with many `${}`
+      holes backtracks ~2x per hole (24 holes = 9.7s; only on non-compiling input; guard is one line, `_HOLE`
+      `scala_tokens.py:18-25`); nesting > 8 (0 files); unbraced `val g = x => x` keeps `x` bound (0 sites).
+- [ ] Web ignore (0 occurrences in workflow-ui): paren-less wrapper `path => axios.get(..)` not learned; `+=`,
+      ternary-head and same-line locals drop the call; named-object import drops the object name; generic arrows are
+      `constant` not `method`; `@Input()` fields undeclared.
+- Namespace risk: THEORETICAL. Links pair on an exact string (`link.py:136-163`); only a bare-name `event_publish` could
+  falsely match a Web `event:<name>` (reproduced synthetically); none exists. Before adding a Pusher `trigger`
+  extractor, namespace Web edges (`channel:<n>`, `pusher_event:<n>`).
 
 ## 3. Link grounding (planned: `PLAN_SCALA_WEB.md` Part D)
 - [ ] D1: `validate_task_patch` re-reads the cited line with `anchor.verify_anchor` at the snapshot's `head`.

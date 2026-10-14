@@ -38,6 +38,11 @@ NEST_ROUTE_RE = re.compile(r"""^\s*@(Get|Post|Put|Delete|Patch|Controller)\s*\(\
 ENV_RE = re.compile(r"process\.env\.([A-Za-z_][\w]*)|process\.env\[['\"]([A-Za-z_][\w]*)['\"]\]")
 
 
+def _is_test_path(path: str) -> bool:
+    from . import _TEST_PATTERNS   # lang/__init__ imports this module, so import it lazily
+    return any(p.search(path) for p in _TEST_PATTERNS)
+
+
 class WebExtractor(Extractor):
     language = "javascript"
     extensions = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
@@ -117,7 +122,7 @@ class WebExtractor(Extractor):
             row = mk_use(fqn, anchor, via_import=False, resolved="external")
             row.update({"kind": "call", "from_symbol": call["from"], "speculative": False, "how": "call"})
             facts.uses.append(row)
-        for rt in routes(src):
+        for rt in ([] if _is_test_path(ctx.path) else routes(src)):   # a test's <Route> is not the app's route
             anchor = anchor_at(ctx, rt["line"])
             if anchor:
                 facts.io_edges.append(mk_edge(primary, "ui_route:" + rt["path"], "ui_route", anchor))

@@ -15,6 +15,7 @@ _REGEX_PREV = set("(,=:[!&|?{;+-*%~^")   # no '<': `</Route>` is a JSX close tag
 
 
 _JSX_PREV_WORDS = {"return", "default", "yield", "await", "case", "else"}
+_REGEX_PREV_WORDS = {"return", "typeof", "yield", "await", "case", "delete", "void", "throw", "else", "do", "in", "of"}
 
 
 def scan(lines: List[str]) -> Tuple[List[str], List[Tuple[str, ...]], bool]:
@@ -173,7 +174,7 @@ def _scan(lines: List[str], jsx_on: bool):
             cur.append(ch)
             i += 1
             continue
-        if ch == "/" and (last_sig in _REGEX_PREV or last_sig == ""):
+        if ch == "/" and (last_sig in _REGEX_PREV or last_sig == "" or prev_word in _REGEX_PREV_WORDS):
             j, in_cls = i + 1, False
             while j < n and text[j] != "\n":
                 c = text[j]
