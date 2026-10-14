@@ -159,9 +159,21 @@ def _dispatch(
     return fn(store)
 
 
+def _carried(term: Optional[str], params: Dict) -> Dict[str, str]:
+    """The `term`/`match` a call gave, repeated in a cut answer's `next` so that following it asks the same
+    question (an `exact` flag is carried as `match=exact`)."""
+    out = {}
+    if term:
+        out["term"] = term
+    match = params.get("match") or ("exact" if params.get("exact") else None)
+    if match:
+        out["match"] = match
+    return out
+
+
 def dispatch(store: Store, kind: str, term: Optional[str] = None, *, view: Optional[str] = None,
              format: Optional[str] = None, offset: Optional[int] = None, max_tokens: Optional[int] = None,
-             query_config: Optional[Dict] = None, as_of_extra: Optional[Dict] = None, **params) -> Dict:
+             filter: Optional[str] = None, query_config: Optional[Dict] = None, as_of_extra: Optional[Dict] = None, **params) -> Dict:
     """`_dispatch`, plus `not_found: {term, did_you_mean}` when a name lookup matched nothing (H8), then the
     answer projected to `view`/`format` under the size cap (`views.py`). `query_config` is the repo's
     `.cdp.toml` `[query]`; a call's own `view`, `format` and `max_tokens` override it. `as_of_extra` is
@@ -169,7 +181,15 @@ def dispatch(store: Store, kind: str, term: Optional[str] = None, *, view: Optio
     for name, value in (("offset", offset), ("max_tokens", max_tokens)):
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
             raise ValueError("%s must be a non-negative integer, got %r" % (name, value))
-    _reject_unused(kind, view=view, format=format, offset=offset or None, max_tokens=max_tokens)
+    _reject_unused(kind, view=view, format=format, offset=offset or None, max_tokens=max_tokens,
+                   filter=filter)
+    if filter:
+        if view in ("compact", "detail"):
+            raise ValueError("filter narrows wide list answers; for one row use term=<name> match=exact")
+        view = view or "list"
+        if params.get("budget") is not None:
+            raise ValueError("budget cuts rows before filter, hiding matches; drop budget (max_tokens and offset "
+                             "page a filtered answer)")
     projected = kind not in views.UNPROJECTED
     if projected:
         shape, fmt, cap = views.resolve(kind, view, format, max_tokens, query_config)
@@ -191,4 +211,5 @@ def dispatch(store: Store, kind: str, term: Optional[str] = None, *, view: Optio
     if not projected:
         return result
     return views.apply(kind, result, view=shape, fmt=fmt, max_tokens=cap, offset=offset or 0,
-                       cfg=query_config, explicit_budget=explicit_budget)
+                       cfg=query_config, explicit_budget=explicit_budget, filter=filter or None,
+                       carry=_carried(term, params))

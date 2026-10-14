@@ -41,6 +41,7 @@ def register(add) -> None:
     q.add_argument("--format", choices=FORMATS, default=None,
                    help=PARAMS["format"][1] + ". `--json` is `--format json`")
     q.add_argument("--offset", type=non_negative_int, default=None, help=PARAMS["offset"][1])
+    q.add_argument("--filter", default=None, metavar="REGEX", help=PARAMS["filter"][1])
     q.add_argument("--max-tokens", dest="max_tokens", type=non_negative_int, default=None,
                    help=PARAMS["max_tokens"][1])
     q.add_argument("--from", dest="frm", default=None)
@@ -83,7 +84,7 @@ def cmd_query(args) -> int:
             exclude_role=args.exclude_role, exact=args.exact,
             include_tests=args.include_tests, include_library=args.include_library,
             match=args.match, view=args.view, format=fmt if args.kind not in ("stats", "coverage") else None,
-            offset=args.offset, max_tokens=args.max_tokens,
+            offset=args.offset, max_tokens=args.max_tokens, filter=args.filter,
             query_config=registry_mod.team_query_config(paths.repo),
             as_of_extra={"routed": routed} if routed else None,
         )

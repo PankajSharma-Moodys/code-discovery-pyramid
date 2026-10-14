@@ -28,7 +28,7 @@ MATCHES = ("substring", "exact", "regex")
 #: MCP parameter -> (CLI flag, one-line meaning). `term` is per kind (`KINDS[k]["term"]`).
 PARAMS: Dict[str, Tuple[str, str]] = {
     "term": ("<term>", "the name this kind looks up (see each kind)"),
-    "budget": ("--budget", "row cap, none by default (max_tokens pages); 0 = no rows, not unlimited"),
+    "budget": ("--budget", "row cap, none by default; 0 = no rows"),
     "exclude_role": ("--exclude-role", "drop rows whose file has these roles (%s)"
                                        % ", ".join(ROLES)),
     "include_tests": ("--include-tests", "keep test-role files (dropped by default)"),
@@ -38,13 +38,14 @@ PARAMS: Dict[str, Tuple[str, str]] = {
     "subject": ("--subject", "`claims`: only claims whose subject contains this text"),
     "frm": ("--from", "`paths`: paths through any node containing this text (with `to`, it must come first)"),
     "to": ("--to", "`paths`: paths through any node containing this text (with `frm`, it must come after)"),
-    "exact": ("--exact", "alias for `match=exact`"),
-    "match": ("--match", "`substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)"),
-    "view": ("--view", "`count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` "
-                       "(full); default list for broad kinds, compact for focused"),
+    "exact": ("--exact", "`match=exact`"),
+    "match": ("--match", "`substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)"),
+    "view": ("--view", "`count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); "
+                       "default list if broad, else compact"),
     "format": ("--format", "`text` (default for count/list) or `json`"),
-    "offset": ("--offset", "skip N rows (see a cut answer's `next`)"),
-    "max_tokens": ("--max-tokens", "token cap (default 3000; 0 none); a cut answer reports count, shown, next"),
+    "offset": ("--offset", "skip N rows (see `next`)"),
+    "filter": ("--filter", "wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap"),
+    "max_tokens": ("--max-tokens", "token cap (default 3000; 0 none); a cut answer reports next"),
     "max_hops": ("--max-hops", "`trace`: how many edges to walk (default %d)" % DEFAULT_MAX_HOPS),
     "as_of": ("--as-of", "replay the claim log up to this commit (sha); "
                          "structure stays current"),
@@ -329,7 +330,7 @@ KINDS: Dict[str, Dict] = {
 # (`frm`/`to`, `subject`, `module`) is matched. `stats`/`coverage` are never projected.
 for _kind, _spec in KINDS.items():
     if _kind not in ("stats", "coverage"):
-        _spec["uses"] = tuple(_spec["uses"]) + ("view", "format", "max_tokens", "offset") + (
+        _spec["uses"] = tuple(_spec["uses"]) + ("view", "format", "max_tokens", "offset", "filter") + (
             ("match",) if set(_spec["uses"]) & {"term", "frm", "to", "subject", "module"} else ())
 
 APPLIES: Dict[str, Tuple[str, ...]] = {k: tuple(v["uses"]) + ALWAYS for k, v in KINDS.items()}

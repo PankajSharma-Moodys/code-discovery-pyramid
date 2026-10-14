@@ -27,7 +27,7 @@ Every query kind and command: **What** it answers (and does not), **How** to cal
 | MCP param | CLI flag | Meaning |
 |---|---|---|
 | `term` | `<term>` | the name this kind looks up (see each kind) |
-| `budget` | `--budget` | row cap, none by default (max_tokens pages); 0 = no rows, not unlimited |
+| `budget` | `--budget` | row cap, none by default; 0 = no rows |
 | `exclude_role` | `--exclude-role` | drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source) |
 | `include_tests` | `--include-tests` | keep test-role files (dropped by default) |
 | `include_library` | `--include-library` | `claims`: keep third-party `library:` subjects (dropped by default) |
@@ -36,12 +36,13 @@ Every query kind and command: **What** it answers (and does not), **How** to cal
 | `subject` | `--subject` | `claims`: only claims whose subject contains this text |
 | `frm` | `--from` | `paths`: paths through any node containing this text (with `to`, it must come first) |
 | `to` | `--to` | `paths`: paths through any node containing this text (with `frm`, it must come after) |
-| `exact` | `--exact` | alias for `match=exact` |
-| `match` | `--match` | `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source) |
-| `view` | `--view` | `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused |
+| `exact` | `--exact` | `match=exact` |
+| `match` | `--match` | `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source) |
+| `view` | `--view` | `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact |
 | `format` | `--format` | `text` (default for count/list) or `json` |
-| `offset` | `--offset` | skip N rows (see a cut answer's `next`) |
-| `max_tokens` | `--max-tokens` | token cap (default 3000; 0 none); a cut answer reports count, shown, next |
+| `offset` | `--offset` | skip N rows (see `next`) |
+| `filter` | `--filter` | wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap |
+| `max_tokens` | `--max-tokens` | token cap (default 3000; 0 none); a cut answer reports next |
 | `max_hops` | `--max-hops` | `trace`: how many edges to walk (default 8) |
 | `as_of` | `--as-of` | replay the claim log up to this commit (sha); structure stays current |
 
@@ -49,18 +50,18 @@ Which kinds take which parameter:
 
 | kind | parameters |
 |---|---|
-| `trace` | `term`, `budget`, `exclude_role`, `include_tests`, `max_hops`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `symbol` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `file` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `module` | `term`, `budget`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `routes` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `table` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `config` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `paths` | `frm`, `to`, `budget`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `search` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `claims` | `term`, `claim_kind`, `module`, `subject`, `budget`, `exclude_role`, `include_tests`, `include_library`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `unknowns` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `match`, `as_of` |
-| `conflicts` | `budget`, `view`, `format`, `max_tokens`, `offset`, `as_of` |
+| `trace` | `term`, `budget`, `exclude_role`, `include_tests`, `max_hops`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `symbol` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `file` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `module` | `term`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `routes` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `table` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `config` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `paths` | `frm`, `to`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `search` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `claims` | `term`, `claim_kind`, `module`, `subject`, `budget`, `exclude_role`, `include_tests`, `include_library`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `unknowns` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `conflicts` | `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `as_of` |
 | `stats` | `as_of` |
 | `coverage` | `as_of` |
 
@@ -75,15 +76,16 @@ Which kinds take which parameter:
 
 **How.** `term`: REQUIRED. A route path (`/orders`; all its verbs) or `VERB /path` (`POST /orders`; one), a dataflow source, a class (`OrderResource`: its public members) or a member (`OrderResource#place`); substring, first match wins in that order.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
 - `max_hops` (`--max-hops`): `trace`: how many edges to walk (default 8)
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query trace <route>
@@ -100,15 +102,16 @@ Which kinds take which parameter:
 
 **How.** `term`: REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; case-insensitive substring (exact last-name matches first) unless `exact`; `Class#method` is always exact.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `exact` (`--exact`): alias for `match=exact`
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `exact` (`--exact`): `match=exact`
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query symbol <symbol>
@@ -125,15 +128,16 @@ Which kinds take which parameter:
 
 **How.** `term`: REQUIRED. A repo-relative path or any substring of one (`exact`: the path or a trailing `dir/file`); an absolute path inside another scanned repo is routed to that repo's store.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `exact` (`--exact`): alias for `match=exact`
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `exact` (`--exact`): `match=exact`
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query file <file>
@@ -149,12 +153,13 @@ Which kinds take which parameter:
 
 **How.** `term`: REQUIRED. Module name or substring.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query module <module>
@@ -170,15 +175,16 @@ Which kinds take which parameter:
 
 **How.** `term`: OPTIONAL. Substring of the route path, the verb, `VERB /path` or the handler class/method (`/orders`, `POST`, `OrderResource`; each row's `matched_via` says which); `exact` matches the whole name; omit for all.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `exact` (`--exact`): alias for `match=exact`
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `exact` (`--exact`): `match=exact`
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query routes
@@ -195,15 +201,16 @@ Which kinds take which parameter:
 
 **How.** `term`: OPTIONAL. Substring of the table name (`order` also matches `orders`) unless `exact`; omit for all.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `exact` (`--exact`): alias for `match=exact`
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `exact` (`--exact`): `match=exact`
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query table
@@ -220,15 +227,16 @@ Which kinds take which parameter:
 
 **How.** `term`: OPTIONAL. Substring of the key name (`MINI_DB`, `billing.url`; `exact`: whole key); omit for all keys (most-read first, a few citations each; pass a term to see every site).
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `exact` (`--exact`): alias for `match=exact`
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `exact` (`--exact`): `match=exact`
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query config <config-key>
@@ -246,12 +254,13 @@ Which kinds take which parameter:
 
 - `frm` (`--from`): `paths`: paths through any node containing this text (with `to`, it must come first)
 - `to` (`--to`): `paths`: paths through any node containing this text (with `frm`, it must come after)
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query paths --from <route>
@@ -268,14 +277,15 @@ Which kinds take which parameter:
 
 **How.** `term`: REQUIRED. Any text.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query search <word>
@@ -294,15 +304,16 @@ Which kinds take which parameter:
 - `claim_kind` (`--kind`): `claims`: only claims of this kind
 - `module` (`--module`): `claims`: only claims whose module contains this text
 - `subject` (`--subject`): `claims`: only claims whose subject contains this text
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
 - `include_library` (`--include-library`): `claims`: keep third-party `library:` subjects (dropped by default)
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query claims --kind entrypoint
@@ -319,14 +330,15 @@ Which kinds take which parameter:
 
 **How.** `term`: OPTIONAL. Filter to scope nodes containing this text (`root/web`).
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
-- `match` (`--match`): `substring` (default), `exact` or `regex` (Python re, case-sensitive; `search` greps source)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query unknowns
@@ -343,11 +355,12 @@ Which kinds take which parameter:
 
 **How.** `term`: NOT USED.
 
-- `budget` (`--budget`): row cap, none by default (max_tokens pages); 0 = no rows, not unlimited
-- `view` (`--view`): `count`, `list` (name + file:line per row), `compact` (all facts, no repetition) or `detail` (full); default list for broad kinds, compact for focused
+- `budget` (`--budget`): row cap, none by default; 0 = no rows
+- `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports count, shown, next
-- `offset` (`--offset`): skip N rows (see a cut answer's `next`)
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `offset` (`--offset`): skip N rows (see `next`)
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query conflicts

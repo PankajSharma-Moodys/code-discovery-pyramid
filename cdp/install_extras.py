@@ -58,7 +58,7 @@ def claude_md_block() -> str:
         "6. **Know the tool before you query.** The session-start message carries the `cdp_help` digest (every kind, "
         "its parameters and what it returns): read it before the first query. Work like grep, small calls: a broad "
         "question gets the default `list` (one line per row, with a repo-relative `file:line` that opens in Read), "
-        "one row in depth gets `view=compact` with its name as `term`, then Read only the cited lines. A cut answer "
+        "a wide blind one gets `filter=<regex>`, one row in depth gets `view=compact` with its name as `term`, then Read only the cited lines. A cut answer "
         "ends with `next` (the offset): page on only if the question needs the rest. When a kind, term or flag is "
         "still unclear, call `cdp_help` (CLI `cdp help`) before falling back to anything else.",
         "7. **Remember these rules.** Keep a memory note (type feedback) that this repo is CDP-indexed and rules 1-6 "

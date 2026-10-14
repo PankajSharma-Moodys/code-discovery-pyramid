@@ -433,7 +433,8 @@ class ViewsTest(unittest.TestCase):
                 def present(s):
                     # the text `list` shows names without their package and cites as the shortest unique suffix
                     return s in text or (view == "list" and (s.rsplit("/", 1)[-1] in text or s.rsplit(".", 1)[-1] in text))
-                missing = [s for s in leaves(as_json, skip=("kind",) if view == "list" else ())
+                missing = [s for s in (x.replace(" format=json", "") for x in  # `next` repeats a json format
+                                       leaves(as_json, skip=("kind",) if view == "list" else ()))
                            if len(s) > 1 and not present(s)]  # (`list` shows a row's kind only where kinds differ)
                 self.assertEqual(missing[:3], [], "%s/%s" % (kind, view))
 
@@ -611,6 +612,159 @@ class ViewsTest(unittest.TestCase):
             self.assertEqual(json.loads(run("routes", "--view", view, "--format", "json").stdout)["view"], view)
         self.assertIn("next: view=list offset=", run("routes", "--max-tokens", "100").stdout)
         self.assertEqual(self.cdp.run("query", "stats", "--view", "list", check=False).returncode, 2)
+
+
+
+@unittest.skipUnless(have_git(), "needs git")
+class FilterTest(unittest.TestCase):
+    """`filter` (FILTER_PLAN.md): grep built into wide list/count answers, applied before totals, cap and paging."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.repo = build(cls.tmp.name)
+        cls.cdp = Cdp(cls.tmp.name, cls.repo.path)
+        cls.cdp.scan()
+        cls.backend, cls.store = cls.cdp.open()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.store.close()
+        cls.tmp.cleanup()
+
+    def q(self, kind, term=None, **kw):
+        kw.setdefault("max_tokens", 0)
+        return query_mod.dispatch(self.store, kind, term, **kw)
+
+    def full_lines(self, kind, term=None):
+        """Every row's full-name list line, as `--max-tokens 0 --view list` would print it."""
+        out = self.q(kind, term, format="json", view="list")
+        lines = []
+        for key in views.PRIMARY[kind]:
+            rows = out.get("unknowns" if key == "by_node" else key) or []
+            lines += views._row_lines(rows, short=False)
+        return lines
+
+    def test_rows_equal_grep_on_the_full_lines(self):
+        for kind, term, pat in (("routes", None, r"op1\b"), ("config", None, "_OP2"), ("search", "Resource", "op0")):
+            every = self.full_lines(kind, term)
+            want = [l for l in every if re.search(pat, l)]
+            self.assertTrue(want, kind)
+            self.assertLess(len(want), len(every), kind)
+            got = self.q(kind, term, filter=pat, format="json")
+            have = []
+            for key in views.PRIMARY[kind]:
+                have += views._row_lines(got.get(key) or [], short=False)
+            self.assertEqual(have, want, kind)
+
+    def test_cap_applies_after_the_filter(self):
+        unfiltered = self.q("routes", format="text", view="list", max_tokens=0)
+        every = self.full_lines("routes")
+        pat = re.escape(every[-1].split()[0])  # a row at the very end of the answer
+        want = [l for l in every if re.search(pat, l)]
+        tight = len(unfiltered["text"]) // 40 or 1
+        got = self.q("routes", filter=pat, max_tokens=tight, format="text")
+        self.assertIn("matched: %d of %d rows" % (len(want), len(every)), got["text"])
+        self.assertIn(every[-1].split()[0], got["text"])
+
+    def test_count_reports_matched_totals(self):
+        every = self.full_lines("routes")
+        want = [l for l in every if "op1" in l]
+        out = self.q("routes", view="count", filter="op1", format="json")
+        self.assertEqual(out["counts"], {"routes": len(want)})
+        self.assertEqual(out["matched"], "%d of %d rows" % (len(want), len(every)))
+        self.assertIn("filter=op1", out["next"])
+
+    def test_pages_join_to_the_matched_set_and_next_keeps_the_filter(self):
+        every = self.full_lines("routes")
+        want = [l for l in every if "op" in l]
+        self.assertGreater(len(want), 2)
+        seen, offset = [], 0
+        while True:
+            # a tight cap, so the filtered answer really pages
+            out = self.q("routes", filter="op", format="json", max_tokens=60, offset=offset)
+            page = views._row_lines(out["routes"], short=False)
+            seen += page
+            if not out.get("next"):
+                break
+            self.assertIn("filter=op", out["next"])
+            offset += len(page)
+        self.assertEqual(seen, want)
+
+    def test_anchored_pattern_on_a_displayed_short_name_matches(self):
+        # `search` symbols print `ServerResource`; the full name is `com.acme.web.ServerResource`. The expected
+        # rows are literals, not rebuilt with the code under test.
+        short = self.q("search", "ServerResource", filter="^ServerResource$", format="json")
+        self.assertEqual(short["symbols"], [{"name": "com.acme.web.ServerResource"}])
+        full = self.q("search", "ServerResource", filter=r"^com\.acme\.web\.ServerResource$", format="json")
+        self.assertEqual(full["symbols"], [{"name": "com.acme.web.ServerResource"}])
+        self.assertIn("matched: 1 of", self.q("search", "ServerResource", filter="^ServerResource$")["text"])
+
+    def test_next_quotes_a_pattern_with_spaces_and_newlines(self):
+        out = self.q("routes", filter="GET /v1|op", format="json", max_tokens=60)
+        self.assertIn('filter="GET /v1|op"', out["next"])
+        out = self.q("routes", filter="a\nb|op", format="text", max_tokens=60)
+        self.assertIn('filter="a\\nb|op"', out["next"])
+        self.assertNotIn("filter: a\n", out["text"])
+        self.assertIn("filter=op ", self.q("routes", filter="op", format="json", max_tokens=60)["next"])
+
+    def test_budget_with_filter_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "budget cuts rows before filter"):
+            self.q("routes", filter="op", budget=2)
+
+    def test_next_repeats_term_match_and_format(self):
+        out = self.q("routes", "op", filter="GET", format="json", max_tokens=60)
+        self.assertEqual(out["next"].split()[:5], ["view=list", "filter=GET", "term=op", "format=json", "offset=1"])
+        out = self.q("config", "_OP", match="substring", filter="OP", max_tokens=40)
+        self.assertIn("term=_OP match=substring", out["next"])
+        self.assertEqual(query_mod._carried("x", {"exact": True}), {"term": "x", "match": "exact"})
+        self.assertEqual(query_mod._carried(None, {}), {})
+        self.assertIn("term=op", self.q("routes", "op", view="count", filter="GET", format="json")["next"])
+
+    def test_following_next_returns_the_same_rows(self):
+        first = self.q("routes", "op", match="regex", format="json", max_tokens=60)
+        got = [r["name"] for r in first["routes"]]
+        while first.get("next"):
+            kw = dict(tok.split("=", 1) for tok in first["next"].split())
+            first = self.q("routes", kw["term"], match=kw["match"], view=kw["view"], offset=int(kw["offset"]),
+                           format=kw.get("format", "json"), max_tokens=60)
+            got += [r["name"] for r in first["routes"]]
+        every = self.q("routes", "op", match="regex", format="json", view="list")["routes"]
+        self.assertEqual(got, [r["name"] for r in every])
+
+    def test_filter_implies_list_and_rejects_compact_and_detail(self):
+        self.assertEqual(self.q("trace", "/v1/servers/op0/{id}", filter="op")["view"], "list")
+        for view in ("compact", "detail"):
+            with self.assertRaisesRegex(ValueError, "term=<name> match=exact"):
+                self.q("routes", filter="op", view=view)
+
+    def test_zero_matches_still_says_how_many_rows_there_were(self):
+        every = self.full_lines("routes")
+        out = self.q("routes", filter="no-such-row-xyz", format="json")
+        self.assertEqual(out["matched"], "0 of %d rows" % len(every))
+        self.assertEqual(out["routes"], [])
+        self.assertIn("0 of %d rows" % len(every), self.q("routes", filter="no-such-row-xyz")["text"])
+
+    def test_text_and_json_return_the_same_rows(self):
+        js = self.q("routes", filter="op1", format="json")
+        tx = self.q("routes", filter="op1", format="text")["text"]
+        for line in views._row_lines(js["routes"]):
+            self.assertIn(line, tx)
+        self.assertEqual(len(js["routes"]), len([l for l in tx.splitlines() if "→" in l]))
+
+    def test_guards(self):
+        with self.assertRaisesRegex(ValueError, "limit is"):
+            self.q("routes", filter="a" * (common.REGEX_MAX_PATTERN + 1))
+        with self.assertRaisesRegex(ValueError, "invalid regex"):
+            self.q("routes", filter="(")
+        rows = [("routes", {"verb": "GET", "route": "/x" * 1500, "handler": "a.B#c", "evidence": []})]
+        kept, note = views._filter_rows("routes", rows, "x")
+        self.assertEqual(kept, [])
+        self.assertIn("not matched by filter", note[0])
+
+    def test_unprojected_kinds_reject_filter(self):
+        with self.assertRaises(ValueError):
+            self.q("stats", filter="x")
 
 
 if __name__ == "__main__":

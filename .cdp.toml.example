@@ -28,6 +28,8 @@
 # built-in cap is 3000 tokens (well under Claude Code's 10k-token MCP warning).
 # max_tokens = 3000
 #
+# `filter` (cdp_query / --filter) is per call only: a repo-wide default would hide rows from every answer.
+#
 # How much each answer returns. Each level carries the same facts as the next,
 # with less around them:
 #   "count"   -- the numbers only

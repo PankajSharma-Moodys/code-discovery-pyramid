@@ -62,6 +62,7 @@ def cdp_query(
     format: Optional[str] = None,
     offset: Optional[int] = None,
     max_tokens: Optional[int] = None,
+    filter: Optional[str] = None,
 ) -> Dict[str, Any]:
     """One typed tool, not thirteen (`phase_9_plan.md` 7.1) -- `kind` is the
     same closed vocabulary `query.QUERIES` already enforces for the CLI."""
@@ -72,7 +73,7 @@ def cdp_query(
         if value is not None:
             check_enum(value, arg, {"match": MATCHES, "view": VIEWS, "format": FORMATS}[arg])
     for arg, value in (("term", term), ("claim_kind", claim_kind), ("module", module), ("subject", subject),
-                       ("frm", frm), ("to", to), ("as_of", as_of), ("repo", repo), ("kind", kind)):
+                       ("frm", frm), ("to", to), ("filter", filter), ("as_of", as_of), ("repo", repo), ("kind", kind)):
         if value is not None and not isinstance(value, str):
             raise ArgError("%s must be a string, got %s" % (arg, type(value).__name__))
     if exclude_role is not None and (not isinstance(exclude_role, list)
@@ -95,7 +96,7 @@ def cdp_query(
             subject=subject, frm=frm, to=to, max_hops=max_hops, exclude_role=exclude_role,
             exact=exact, include_tests=include_tests, include_library=include_library,
             match=match, view=view, format=format, offset=offset, max_tokens=max_tokens,
-            query_config=registry_mod.team_query_config(paths.repo),
+            filter=filter, query_config=registry_mod.team_query_config(paths.repo),
             as_of_extra={"routed": routed} if routed else None,
         )
         return result

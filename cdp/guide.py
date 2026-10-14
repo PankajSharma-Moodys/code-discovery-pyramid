@@ -123,18 +123,17 @@ def flow_table() -> List[str]:
 #: two cannot drift. Answers are sized by the question; the agent pulls more only when it needs it.
 USAGE = (
     "How to work with answers -- like grep, small targeted calls, pull more only when needed:",
-    "1. Broad question: the default `list` -- one line per row, `name → handler  path/to/File.java:42`. The path "
-    "is repo-relative and opens directly in Read.",
+    "1. Broad question: the default `list` -- one line per row, `name → handler  path/to/File.java:42` "
+    "(repo-relative, opens in Read).",
     "2. One row in depth: `view=compact` with that row's name as `term` (`match=exact` for exactly it). "
     "`trace`, `symbol`, `file` and `paths` answer in compact already.",
     "3. Read only the cited lines (`offset`/`limit`), never the whole file.",
     "- Only a number needed (how many, is there any): `view=count`.",
-    "- A cut answer ends with `count`, `shown` and `next: view=... offset=N`. Page on only if the question needs "
-    "the rest; otherwise narrow the term.",
-    "- A row too big for the cap says so and names `offset=N max_tokens=0` for the whole row: use that for that "
-    "row only.",
-    "- `match=regex` is `grep -E` (case-sensitive; `(?i)` ignores case), also on names: "
-    "`routes term=^/v1/(servers|pools)`, `symbol term=Job$`, `config term=^S3_`.",
+    "- A cut answer ends with `count`, `shown` and `next: view=... offset=N`: page on only if you need the rest.",
+    "- A row over the cap names `offset=N max_tokens=0` for that whole row; use it for that row only.",
+    "- `match=regex` is `grep -E` (case-sensitive; `(?i)`), also on names: `routes term=^/v1/(servers|pools)`.",
+    "- Wide blind question (many rows, few relevant): `filter=<regex>` greps the list before the cap (full or "
+    "shown name), true `matched: N of M`; not with compact/detail/budget.",
     "- `view=detail`, `format=json`, `max_tokens=0`: only when compact is not enough. `.cdp.toml` `[query]` "
     "sets this repo's defaults.",
 )
@@ -210,6 +209,7 @@ def mcp_properties() -> Dict[str, Dict]:
         "format": {"type": "string", "enum": list(FORMATS), "description": PARAMS["format"][1]},
         "offset": {"type": "integer", "minimum": 0, "description": PARAMS["offset"][1]},
         "max_tokens": {"type": "integer", "minimum": 0, "description": PARAMS["max_tokens"][1]},
+        "filter": {"type": "string", "description": PARAMS["filter"][1]},
         "as_of": {"type": "string", "description": PARAMS["as_of"][1]},
     }
 

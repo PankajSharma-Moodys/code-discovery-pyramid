@@ -43,6 +43,8 @@ Answers are sized by the question; work like grep, with small calls, and pull mo
   question needs the rest; otherwise narrow the term. A row too big for the cap names
   `--offset N --max-tokens 0` for that row alone.
 - `--match regex` is `grep -E` (case-sensitive), also on names: `query routes '^/v1/(servers|pools)' --match regex`.
+- `--filter REGEX` (list/count) keeps matching rows before the cap, with true counts (`matched: N of M`):
+  `query config --filter 'S3_|metadata'`. For one known name use the term instead.
 - `--max-tokens` sets the cap (default 3000); `.cdp.toml` `[query]` sets this repo's defaults.
 
 ## Rules when answering from CDP
