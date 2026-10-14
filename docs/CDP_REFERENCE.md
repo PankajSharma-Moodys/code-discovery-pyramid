@@ -41,8 +41,8 @@ Every query kind and command: **What** it answers (and does not), **How** to cal
 | `view` | `--view` | `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact |
 | `format` | `--format` | `text` (default for count/list) or `json` |
 | `offset` | `--offset` | skip N rows (see `next`) |
-| `filter` | `--filter` | wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap |
-| `max_tokens` | `--max-tokens` | token cap (default 3000; 0 none); a cut answer reports next |
+| `filter` | `--filter` | wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap |
+| `max_tokens` | `--max-tokens` | token cap (default 3000; 0 none) |
 | `max_hops` | `--max-hops` | `trace`: how many edges to walk (default 8) |
 | `as_of` | `--as-of` | replay the claim log up to this commit (sha); structure stays current |
 
@@ -82,9 +82,9 @@ Which kinds take which parameter:
 - `max_hops` (`--max-hops`): `trace`: how many edges to walk (default 8)
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -108,9 +108,9 @@ Which kinds take which parameter:
 - `exact` (`--exact`): `match=exact`
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -134,9 +134,9 @@ Which kinds take which parameter:
 - `exact` (`--exact`): `match=exact`
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -156,9 +156,9 @@ Which kinds take which parameter:
 - `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -181,9 +181,9 @@ Which kinds take which parameter:
 - `exact` (`--exact`): `match=exact`
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -207,9 +207,9 @@ Which kinds take which parameter:
 - `exact` (`--exact`): `match=exact`
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -233,9 +233,9 @@ Which kinds take which parameter:
 - `exact` (`--exact`): `match=exact`
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -257,9 +257,9 @@ Which kinds take which parameter:
 - `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -282,9 +282,9 @@ Which kinds take which parameter:
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -310,9 +310,9 @@ Which kinds take which parameter:
 - `include_library` (`--include-library`): `claims`: keep third-party `library:` subjects (dropped by default)
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -335,9 +335,9 @@ Which kinds take which parameter:
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
@@ -358,9 +358,9 @@ Which kinds take which parameter:
 - `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
-- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none); a cut answer reports next
+- `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
 - `offset` (`--offset`): skip N rows (see `next`)
-- `filter` (`--filter`): wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap
+- `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query conflicts
@@ -415,7 +415,7 @@ Which kinds take which parameter:
 
 **What.** Ask the index a typed question; every answer is cited `file:line` and carries `as_of`. 14 kinds, see `help <kind>`. Read-only.
 
-**How.** `query <kind> [term]`. Parameters apply per kind; passing one a kind does not use is an error. `--budget` caps rows (default 200; `elided: N` reports the cut); `stats` and `coverage` are never budgeted. `--json` prints the full result.
+**How.** `query <kind> [term]`. Parameters apply per kind; passing one a kind does not use is an error. `--budget` caps rows (default 200; `elided: N` reports the cut); `stats` and `coverage` are never budgeted. `--json` prints the full result. Exit 1 when a term, filter or narrowing parameter matched nothing (as grep), else 0; topics: `help views|filter|paging|match`.
 
     $ cdp query stats --json
     $ cdp query symbol <symbol> --as-of <sha>

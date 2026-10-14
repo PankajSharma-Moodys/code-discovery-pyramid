@@ -40,7 +40,8 @@ COMMANDS: Dict[str, Dict] = {
                 "`as_of`. 14 kinds, see `help <kind>`. Read-only.",
         "how": "`query <kind> [term]`. Parameters apply per kind; passing one a kind does not use is "
                "an error. `--budget` caps rows (default 200; `elided: N` reports the cut); `stats` and "
-               "`coverage` are never budgeted. `--json` prints the full result.",
+               "`coverage` are never budgeted. `--json` prints the full result. Exit 1 when a term, filter or "
+               "narrowing parameter matched nothing (as grep), else 0; topics: `help views|filter|paging|match`.",
         "examples": [ex("query stats --json"), ex("query symbol <symbol> --as-of <sha>")],
         "where": "Everything about the code. Pick the kind with `help recipes` or the table in `help`.",
     },

@@ -238,13 +238,32 @@ def _short_names(rows: List[Dict]) -> Dict[str, str]:
     return {next(iter(names)): short for short, names in by_short.items() if len(names) == 1}
 
 
-def _row_lines(rows: List[Dict], short: bool = True) -> List[str]:
+def _mixed(rows: List[Dict]) -> bool:
+    return len({r.get("kind") for r in rows if r.get("kind")}) > 1
+
+
+def is_empty(kind: str, out: Dict) -> bool:
+    """Whether a projected answer matched no rows (the CLI's exit 1, as grep). `stats`/`coverage` always answer."""
+    if kind in UNPROJECTED:
+        return False
+    if out.get("format") == "text":
+        return bool(out.get("empty"))
+    if isinstance(out.get("counts"), dict):
+        return not sum(out["counts"].values())
+    if isinstance(out.get("count"), int):
+        return out["count"] == 0
+    return not any(out.get(k) for k in _bucket_keys(kind))
+
+
+def _row_lines(rows: List[Dict], short: bool = True, mixed: Optional[bool] = None) -> List[str]:
     """Text lines for list rows: short names, `[kind]` only where kinds differ, and the full repo-relative
     `file:line` exactly as grep prints it -- a cite must open directly in Read, and a shortened one
     (`ApiConstants.java`) can name two files (CONTEXT_PLAN `format`). `short=False` keeps full names: the
-    line `filter` matches (FILTER_PLAN.md)."""
+    line `filter` matches (FILTER_PLAN.md). `mixed` says whether the whole answer mixes kinds (the `[kind]`
+    tag is shown then); the default decides from `rows`, which is wrong for a filtered or paged subset."""
     names = _short_names(rows) if short else {}
-    mixed = len({r.get("kind") for r in rows}) > 1
+    if mixed is None:
+        mixed = _mixed(rows)
     lines = []
     for row in rows:
         name = names.get(row.get("name"), row.get("name", ""))
@@ -263,7 +282,12 @@ def _row_lines(rows: List[Dict], short: bool = True) -> List[str]:
 
 # --------------------------------------------------------------------------- filter
 
-def _filter_rows(kind: str, rows: List[Row], pattern: str) -> Tuple[List[Row], List[str]]:
+def _answer_mixed(kind: str, rows: List[Row]) -> bool:
+    """Whether the whole answer (before filter and paging) mixes `kind` tags: one decision for every page."""
+    return _mixed([_list_row(kind, b, r) for b, r in rows])
+
+
+def _filter_rows(kind: str, rows: List[Row], pattern: str, mixed: Optional[bool] = None) -> Tuple[List[Row], List[str]]:
     """The rows whose `list` line (`name → to  path:line  note`) `re.search`es `pattern`, like `grep -E` over
     `--max-tokens 0 --view list`. A row matches on its full-name line or the short-name line the answer
     displays, so a pattern written from either (`^SqlPoolApplication`, `^com\\.acme\\.`) works. Also returns
@@ -273,7 +297,8 @@ def _filter_rows(kind: str, rows: List[Row], pattern: str) -> Tuple[List[Row], L
     for bucket in dict.fromkeys(b for b, _ in rows):
         idx = [i for i, (b, _) in enumerate(rows) if b == bucket]
         made = [_list_row(kind, bucket, rows[i][1]) for i in idx]
-        lines.update(zip(idx, zip(_row_lines(made, short=False), _row_lines(made))))
+        lines.update(zip(idx, zip(_row_lines(made, short=False, mixed=mixed),
+                                  _row_lines(made, short=kind != "config", mixed=mixed))))
     kept, long = [], 0
     for i, row in enumerate(rows):
         full, shown = lines[i]
@@ -368,12 +393,13 @@ def apply(kind: str, result: Dict, *, view: str, fmt: str, max_tokens: int, offs
         return result
     all_rows = _rows_of(kind, result)
     all_rows, gone = _drop_fields(kind, all_rows, cfg)
+    mixed = _answer_mixed(kind, all_rows)
     totals = _totals(kind, result, all_rows)
     total = sum(totals.values())
     unsearched: List[str] = []
     before = total
     if filter:
-        all_rows, unsearched = _filter_rows(kind, all_rows, filter)
+        all_rows, unsearched = _filter_rows(kind, all_rows, filter, mixed)
         totals = {k: sum(1 for b, _ in all_rows if b == k) for k in totals}  # matched, not the stated totals
         total = sum(totals.values())
     if offset > len(all_rows):
@@ -397,7 +423,7 @@ def apply(kind: str, result: Dict, *, view: str, fmt: str, max_tokens: int, offs
                   "next": _next(view, offset + k, filter, carry) if offset + k < len(all_rows) else None} if cut else None
         note = ("cut at about %d tokens (max_tokens; 0 lifts); view=compact term=<name> gives one row's facts"
                 % max_tokens) if k < len(window) and cap else None
-        return _emit(kind, base, window[:k], totals, view, fmt, paging, note, carry)
+        return _emit(kind, base, window[:k], totals, view, fmt, paging, note, carry, mixed)
 
     keep = len(window)
     if cap and _size(emit(keep)) > cap:
@@ -413,13 +439,13 @@ def apply(kind: str, result: Dict, *, view: str, fmt: str, max_tokens: int, offs
     if cap and keep == 1 and window and _size(out) > cap and view in ("compact", "detail"):
         out = _fit_one_row(kind, base, window[0], offset, totals, view, fmt, cap, max_tokens,
                            paging_next=_next(view, offset + 1, filter, carry) if offset + 1 < len(all_rows) else None, carry=carry,
-                           total=total)
+                           total=total, mixed=mixed)
     return out
 
 
 def _fit_one_row(kind: str, base: Dict, row: Row, offset: int, totals: Dict[str, int], view: str, fmt: str,
                  cap: int, max_tokens: int, paging_next: Optional[str], total: int,
-                  carry: Optional[Dict[str, str]] = None) -> Dict:
+                 carry: Optional[Dict[str, str]] = None, mixed: bool = False) -> Dict:
     """One row larger than the cap on its own (a symbol with hundreds of callers): trim its inner lists from
     the end until it fits, and say exactly what was cut and the call that returns the whole row."""
     bucket, raw = row
@@ -444,7 +470,7 @@ def _fit_one_row(kind: str, base: Dict, row: Row, offset: int, totals: Dict[str,
                                            ", ".join("%d %s" % (n, k) for k, n in sorted(cut.items())),
                                            view, offset))
         paging = {"count": total, "shown": "%d-%d" % (offset + 1, offset + 1), "next": paging_next}
-        return _emit(kind, base, [(bucket, trimmed)], totals, view, fmt, paging, note, carry)
+        return _emit(kind, base, [(bucket, trimmed)], totals, view, fmt, paging, note, carry, mixed)
 
     out = build()
     while _size(out) > cap:
@@ -468,7 +494,7 @@ def _next(view: str, at: int, filter: Optional[str] = None, carry: Optional[Dict
 
 def _emit(kind: str, result: Dict, rows: List[Row], totals: Dict[str, int], view: str, fmt: str,
           paging: Optional[Dict] = None, cap_note: Optional[str] = None,
-          carry: Optional[Dict[str, str]] = None) -> Dict:
+          carry: Optional[Dict[str, str]] = None, mixed: Optional[bool] = None) -> Dict:
     shown = _with_rows(kind, result, rows)
     if view in ("count", "list"):
         payload = _brief(kind, shown, rows, totals, view, carry)
@@ -487,8 +513,9 @@ def _emit(kind: str, result: Dict, rows: List[Row], totals: Dict[str, int], view
             payload["capped"] = cap_note
     if fmt == "json":
         return payload
-    return {"format": "text", "text": _text(kind, payload, view), "query": kind, "view": view,
-            **{k: payload[k] for k in ("count", "shown", "next", "as_of", "not_found") if k in payload}}
+    return {"format": "text", "text": _text(kind, payload, view, mixed), "query": kind, "view": view,
+            **{k: payload[k] for k in ("count", "shown", "next", "as_of", "not_found") if k in payload},
+            **({"empty": True} if not sum(totals.values()) else {})}
 
 
 def _brief(kind: str, shown: Dict, rows: List[Row], totals: Dict[str, int], view: str,
@@ -512,7 +539,7 @@ def _brief(kind: str, shown: Dict, rows: List[Row], totals: Dict[str, int], view
     return out
 
 
-def _text(kind: str, payload: Dict, view: str) -> str:
+def _text(kind: str, payload: Dict, view: str, mixed: Optional[bool] = None) -> str:
     lines = []
     count = payload.get("count") if view != "count" else None
     head = "%s %s" % (kind, view)
@@ -538,7 +565,7 @@ def _text(kind: str, payload: Dict, view: str) -> str:
             if len(PRIMARY[kind]) > 1:
                 lines.append("%s (%d):" % (bucket, len(rows)))
             indent = "  " if len(PRIMARY[kind]) > 1 else ""
-            lines += [indent + line for line in _row_lines(rows)]
+            lines += [indent + line for line in _row_lines(rows, short=kind != "config", mixed=mixed)]
     elif view != "count":
         for key in PRIMARY[kind]:
             if key in payload and payload[key] not in ([], {}):
