@@ -9,7 +9,7 @@ One source, four generated surfaces: the MCP `cdp_query`/`cdp_help` schema text
 from __future__ import annotations
 
 import argparse
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .guide_commands import COMMANDS, FLAG_HELP, RECIPES
 from .guide_kinds import APPLIES, FLOW, FORMATS, KINDS, MATCHES, PARAMS, ROLES, VIEWS, CLAIM_KINDS  # noqa: F401  (re-exported)
@@ -131,12 +131,60 @@ USAGE = (
     "- Only a number needed (how many, is there any): `view=count`.",
     "- A cut answer ends with `count`, `shown` and `next: view=... offset=N`: page on only if you need the rest.",
     "- A row over the cap names `offset=N max_tokens=0` for that whole row; use it for that row only.",
-    "- `match=regex` is `grep -E` (case-sensitive; `(?i)`), also on names: `routes term=^/v1/(servers|pools)`.",
+    "- `match=regex` is Python `re` (not POSIX; case-sensitive; `(?i)`), also on names: `routes term=^/v1/(servers|pools)`.",
     "- Wide blind question (many rows, few relevant): `filter=<regex>` greps the list before the cap (full or "
     "shown name), true `matched: N of M`; not with compact/detail/budget.",
     "- `view=detail`, `format=json`, `max_tokens=0`: only when compact is not enough. `.cdp.toml` `[query]` "
     "sets this repo's defaults.",
 )
+
+
+#: `cdp help <topic>` for the answer-shaping parameters (<= 12 lines each). Python `re`, not POSIX `grep -E`.
+QUERY_TOPICS: Dict[str, Tuple[str, ...]] = {
+    "views": (
+        "views: how much of an answer comes back (`view=`, `--view`).",
+        "  count    the true row count per bucket, and how to list them.",
+        "  list     one line per row: name, file:line, note. Default for routes, claims, table, config,",
+        "           search, module, unknowns.",
+        "  compact  every fact, repetition removed. Default for symbol, file, trace, paths, conflicts.",
+        "  detail   the full result. `--json` or `format=json` is the same data as a dict.",
+        "A smaller view is a projection of the larger: nothing is lost, `next` says how to ask for more.",
+        "`[kind]` shows on claims lines when the whole answer mixes kinds (also on filtered or paged rows).",
+        "Config keys are listed in full (`shop.orders.limit`); class names are shortened to `Class#member`.",
+        "stats and coverage are never projected. `.cdp.toml` `[query]` sets per-repo defaults.",
+        "Exit code: 1 when a term, filter or narrowing parameter matched nothing, like grep; 0 otherwise.",
+    ),
+    "filter": (
+        "filter: a regex over the list, applied before totals, the cap and paging (`filter=`, `--filter`).",
+        "  Engine: Python `re.search`, not POSIX `grep -E`: `\\d`, `(?i)` and lookaheads work, `[[:alpha:]]` does not.",
+        "  A row matches when its full-name line OR the line shown matches, so `^com\\.acme\\.` and",
+        "  `^ServerResource` both work. `[kind]` on claims lines is part of the line.",
+        "  The answer states `matched: N of M rows`; N is exact, not the page.",
+        "  Implies view=list (also on count); rejected with compact/detail and with `budget`.",
+        "  Any kind but stats and coverage; made for the wide ones (routes, claims, table, config, unknowns).",
+        "  For one row use `term=<name> match=exact`, not filter.",
+        "  Lines over 2000 characters are skipped, and the answer says how many.",
+    ),
+    "paging": (
+        "paging: every answer is cut by `max_tokens` (default 3000; 0 = no cap) and continued with `offset`.",
+        "  A cut answer ends `count: N`, `shown: a-b` and `next: view=... offset=K`.",
+        "  `next` repeats every parameter that changes the rows (term, match, filter, claim_kind, module,",
+        "  subject, exclude_role, include_tests, include_library, frm, to, max_hops, format), so",
+        "  following it to the end returns exactly the unpaged rows, in the same order.",
+        "  `offset` past the last row is an error. `budget` is a row cap, not a paging control.",
+        "  A single row over the cap is trimmed and names `offset=N max_tokens=0` for the whole row.",
+        "  Add the same non-row settings (view, max_tokens) when you follow `next`.",
+    ),
+    "match": (
+        "match: how `term` (and claims `claim_kind`/`subject`/`module`) is compared (`match=`, `--match`).",
+        "  substring  default; case-insensitive for names. Claims `claim_kind` is a closed vocabulary and",
+        "             is compared whole: an unknown kind is an error listing the valid kinds.",
+        "  exact      the whole name only, case-insensitive (`--exact` is `match=exact`).",
+        "  regex      Python `re.search`, case-sensitive (`(?i)` to fold), also on names:",
+        "             `routes term=^/v1/(servers|pools)`. Patterns over 200 chars or invalid are errors.",
+        "  `search` greps source text in regex mode; for narrowing a list answer see `help filter`.",
+    ),
+}
 
 
 def mcp_query_description() -> str:
@@ -215,7 +263,7 @@ def mcp_properties() -> Dict[str, Dict]:
 
 
 def help_topics() -> List[str]:
-    return sorted(set(COMMANDS) | set(KINDS) | {"recipes", "reference"})
+    return sorted(set(COMMANDS) | set(KINDS) | set(QUERY_TOPICS) | {"recipes", "reference"})
 
 
 MCP_HELP_DESCRIPTION = (
@@ -333,6 +381,8 @@ def reference_md() -> str:
 
 def topic(name: Optional[str]) -> str:
     """Text for a non-parser topic (kind, recipes, reference); None when `name` is not one."""
+    if name in QUERY_TOPICS:
+        return "\n".join(QUERY_TOPICS[name]) + "\n"
     if name in KINDS:
         return render_kind(name)
     if name in ("recipes", "workflows", "workflow"):

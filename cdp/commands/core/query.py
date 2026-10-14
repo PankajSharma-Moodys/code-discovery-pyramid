@@ -103,4 +103,7 @@ def cmd_query(args) -> int:
         if result.get("not_found"):
             print(suggest_mod.describe(result))
     store.close()
-    return 1 if result.get("not_found") else 0
+    # Exit 1 when a question that narrowed (term, filter, kind/module/subject/from/to) matched nothing, for every
+    # kind (grep's convention). An unnarrowed census with no rows (`conflicts` on a clean repo) is an answer: 0.
+    narrowed = any((term, args.filter, args.claim_kind, args.module, args.subject, args.frm, args.to))
+    return 1 if result.get("not_found") or (narrowed and query_mod.views.is_empty(args.kind, result)) else 0

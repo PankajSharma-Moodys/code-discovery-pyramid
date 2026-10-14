@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Optional, Sequence
 
-from ..guide_kinds import APPLIES, MATCHES, PARAMS, ROLES
+from ..guide_kinds import APPLIES, CLAIM_KINDS, MATCHES, PARAMS, ROLES
 from .budget import DEFAULT_BUDGET, UNBUDGETED, Budget
 from .common import _as_of, _fair_split_budget, _role_index, _search_rank_key, cite
 from .lookup import q_config, q_file, q_module, q_routes, q_symbol, q_table
@@ -130,6 +130,10 @@ def _dispatch(
     if kind == "claims" and term and claim_kind and term != claim_kind:
         raise ValueError("`query claims` got term %r and kind %r: pass one (term is shorthand "
                          "for claim_kind)" % (term, claim_kind))
+    wanted = claim_kind or (term if kind == "claims" else None)
+    if wanted and kind == "claims" and mode != "regex" and wanted not in CLAIM_KINDS:
+        raise ValueError("unknown claim kind %r (the term of `query claims` is a claim kind); one of: %s. "
+                         "To search subjects use subject=<text>" % (wanted, ", ".join(CLAIM_KINDS)))
     b = None if unbudgeted else Budget(budget)
 
     if kind in ("symbol", "file", "search"):
@@ -159,15 +163,25 @@ def _dispatch(
     return fn(store)
 
 
+#: Narrowing parameters beyond term/match that change which rows an answer has: `next` repeats them.
+_CARRIED_PARAMS = ("claim_kind", "module", "subject", "frm", "to", "max_hops", "exclude_role",
+                   "include_tests", "include_library")
+
+
 def _carried(term: Optional[str], params: Dict) -> Dict[str, str]:
-    """The `term`/`match` a call gave, repeated in a cut answer's `next` so that following it asks the same
-    question (an `exact` flag is carried as `match=exact`)."""
+    """Every parameter that changes the rows a call gave, repeated in a cut answer's `next` so that following
+    it asks the same question (an `exact` flag is carried as `match=exact`; roles are comma-joined)."""
     out = {}
     if term:
         out["term"] = term
     match = params.get("match") or ("exact" if params.get("exact") else None)
     if match:
         out["match"] = match
+    for name in _CARRIED_PARAMS:
+        value = params.get(name)
+        if value in (None, "", False, [], ()):
+            continue
+        out[name] = ",".join(value) if isinstance(value, (list, tuple)) else "true" if value is True else str(value)
     return out
 
 

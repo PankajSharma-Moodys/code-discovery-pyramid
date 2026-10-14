@@ -44,8 +44,8 @@ PARAMS: Dict[str, Tuple[str, str]] = {
                        "default list if broad, else compact"),
     "format": ("--format", "`text` (default for count/list) or `json`"),
     "offset": ("--offset", "skip N rows (see `next`)"),
-    "filter": ("--filter", "wide `list`/`count`: rows whose line matches (`grep -E`), pre-cap"),
-    "max_tokens": ("--max-tokens", "token cap (default 3000; 0 none); a cut answer reports next"),
+    "filter": ("--filter", "wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap"),
+    "max_tokens": ("--max-tokens", "token cap (default 3000; 0 none)"),
     "max_hops": ("--max-hops", "`trace`: how many edges to walk (default %d)" % DEFAULT_MAX_HOPS),
     "as_of": ("--as-of", "replay the claim log up to this commit (sha); "
                          "structure stays current"),

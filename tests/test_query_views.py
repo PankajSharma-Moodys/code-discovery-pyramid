@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -499,7 +500,8 @@ class ViewsTest(unittest.TestCase):
                                            view="detail")["claims"]}
         self.assertIn("entrypoint", kinds)
         self.assertLessEqual(kinds, {"entrypoint", "naming"})
-        self.assertEqual(self.q("claims", match="exact", claim_kind="entry", view="count")["counts"]["claims"], 0)
+        with self.assertRaisesRegex(ValueError, "unknown claim kind 'entry'"):
+            self.q("claims", match="exact", claim_kind="entry", view="count")
         routes = self.q("claims", match="regex", subject="^route:GET /v1/pools", view="detail")["claims"]
         self.assertEqual(len(routes), 3)
         # unknowns and paths accept it (this repo has none to match)
@@ -765,6 +767,95 @@ class FilterTest(unittest.TestCase):
     def test_unprojected_kinds_reject_filter(self):
         with self.assertRaises(ValueError):
             self.q("stats", filter="x")
+
+
+@unittest.skipUnless(have_git(), "needs git")
+class QuerySurfaceTest(unittest.TestCase):
+    """A6 kind tag on filtered/paged lines, A8 `next` carries every narrowing parameter, B8 config keys in full,
+    B9 unknown claim kind, B10 no-match exit code, B17 help topics."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.repo = build(cls.tmp.name)
+        cls.cdp = Cdp(cls.tmp.name, cls.repo.path)
+        cls.cdp.scan()
+        cls.backend, cls.store = cls.cdp.open()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.store.close()
+        cls.tmp.cleanup()
+
+    def q(self, kind, term=None, **kw):
+        kw.setdefault("max_tokens", 0)
+        return query_mod.dispatch(self.store, kind, term, **kw)
+
+    def test_a6_kind_tag_follows_the_whole_answer_not_the_page(self):
+        kinds = {c["kind"] for c in self.q("claims", view="detail", format="json")["claims"]}
+        self.assertGreater(len(kinds), 1)  # the fixture mixes kinds
+        text = self.q("claims", view="list", filter="entrypoint")["text"]
+        rows = [l for l in text.splitlines() if l.startswith("route:")]
+        self.assertTrue(rows and all("[entrypoint]" in l for l in rows), text)
+
+    def test_a8_next_carries_every_narrowing_parameter(self):
+        got = query_mod._carried("t", {"claim_kind": "naming", "module": "svc", "subject": "x y", "frm": "a",
+                                       "to": "b", "max_hops": 3, "exclude_role": ["docs", "build"],
+                                       "include_tests": True, "include_library": True})
+        self.assertEqual(got, {"term": "t", "claim_kind": "naming", "module": "svc", "subject": "x y", "frm": "a",
+                               "to": "b", "max_hops": "3", "exclude_role": "docs,build",
+                               "include_tests": "true", "include_library": "true"})
+        self.assertEqual(query_mod._carried(None, {"include_tests": False, "exclude_role": []}), {})
+
+    def test_a8_following_next_to_the_end_gives_the_unpaged_rows(self):
+        params = dict(claim_kind="entrypoint", subject="route:GET", module="svc", exclude_role=["docs"],
+                      include_tests=True, include_library=True)
+        every = self.q("claims", format="json", **params)
+        self.assertGreater(every["count"], 3)
+        want = [r["name"] for r in every["claims"]]
+        page = self.q("claims", format="json", max_tokens=60, **params)
+        got = [r["name"] for r in page["claims"]]
+        self.assertTrue(page.get("next"))
+        while page.get("next"):
+            kw = dict(tok.split("=", 1) for tok in shlex.split(page["next"]))
+            call = dict(view=kw.pop("view"), offset=int(kw.pop("offset")), format=kw.pop("format", "json"))
+            self.assertEqual(set(kw) - {"term"}, set(params))  # every narrowing parameter came back
+            kw["exclude_role"] = kw["exclude_role"].split(",")
+            kw["include_tests"] = kw["include_library"] = True
+            page = self.q("claims", kw.pop("term", None), max_tokens=60, **call, **kw)
+            got += [r["name"] for r in page["claims"]]
+        self.assertEqual(got, want)
+
+    def test_b8_config_keys_are_listed_in_full(self):
+        shown = views._text("config", {"query": "config", "count": 1, "as_of": {},
+                                       "keys": [{"name": "shop.orders.limit", "at": "a.yml:1"}]}, "list")
+        self.assertIn("shop.orders.limit  a.yml:1", shown)
+
+    def test_b9_unknown_claim_kind_is_an_error_in_both_forms(self):
+        for call in (lambda: self.q("claims", "health"), lambda: self.q("claims", claim_kind="bogus")):
+            with self.assertRaisesRegex(ValueError, "unknown claim kind.*entrypoint.*public_api"):
+                call()
+        self.assertTrue(self.q("claims", "entrypoint", format="json")["count"])
+
+    def test_b10_no_match_exits_1_for_every_kind(self):
+        calls = (("claims", "--kind", "naming", "--subject", "no-such-xyz"), ("unknowns", "no-such-xyz"),
+                 ("conflicts", "--filter", "no-such-xyz"),
+                 ("paths", "--from", "no-such-xyz", "--to", "also-none"), ("routes", "no-such-xyz"),
+                 ("claims", "--kind", "entrypoint", "--filter", "no-such-xyz"))
+        for call in calls:
+            self.assertEqual(self.cdp.run("query", *call, check=False).returncode, 1, call)
+        self.assertEqual(self.cdp.run("query", "routes").returncode, 0)
+        self.assertEqual(self.cdp.run("query", "stats").returncode, 0)
+        self.assertEqual(self.cdp.run("query", "conflicts").returncode, 0)  # an unnarrowed census may be empty
+
+    def test_b17_help_topics(self):
+        from cdp import helpdoc
+        from cdp.guide_kinds import PARAMS
+        for name in ("views", "filter", "paging", "match"):
+            self.assertLessEqual(len(helpdoc.help_text(name).strip().splitlines()), 12, name)
+        self.assertIn("Python `re", helpdoc.help_text("filter"))
+        self.assertIn("Exit code", helpdoc.help_text("views"))
+        self.assertIn("Python", PARAMS["filter"][1])
 
 
 if __name__ == "__main__":

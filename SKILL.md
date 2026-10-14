@@ -56,7 +56,7 @@ has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. 
 - Only a number needed (how many, is there any): `view=count`.
 - A cut answer ends with `count`, `shown` and `next: view=... offset=N`: page on only if you need the rest.
 - A row over the cap names `offset=N max_tokens=0` for that whole row; use it for that row only.
-- `match=regex` is `grep -E` (case-sensitive; `(?i)`), also on names: `routes term=^/v1/(servers|pools)`.
+- `match=regex` is Python `re` (not POSIX; case-sensitive; `(?i)`), also on names: `routes term=^/v1/(servers|pools)`.
 - Wide blind question (many rows, few relevant): `filter=<regex>` greps the list before the cap (full or shown name), true `matched: N of M`; not with compact/detail/budget.
 - `view=detail`, `format=json`, `max_tokens=0`: only when compact is not enough. `.cdp.toml` `[query]` sets this repo's defaults.
 
