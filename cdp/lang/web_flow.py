@@ -369,21 +369,52 @@ def routes(src: Source) -> List[Dict]:
 
 # ------------------------------------------------------------------- pusher
 
+_THISARG = re.compile(r"(?:this|null|undefined)")
+_REBIND = re.compile(r"([\w$.]+)\s*=\s*\1\s*$")
+
+
+def _is_function_bind(text: str, dot: int, first: str) -> bool:
+    """Function.prototype.bind(thisArg, ..): a `this`/null first arg, or `x = x.bind(..)` rebinding a method."""
+    if _THISARG.fullmatch(first.strip()):
+        return True
+    prefix = text[text.rfind("\n", 0, dot) + 1:dot]
+    return bool(_REBIND.search(prefix))
+
+
+def _enclosing_method(decls: List[Dict], line: int):
+    d = None
+    for c in decls:
+        if c["kind"] == "method" and c["line"] <= line <= c["end"] and \
+                (d is None or c["end"] - c["line"] < d["end"] - d["line"]):
+            d = c
+    return d
+
+
+def _source(primary: str, d) -> str:
+    return primary if d is None else primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
+
+
 def pusher_events(src: Source, decls: List[Dict], primary: str) -> List[Dict]:
     """`.bind('Evt', cb)` on a file that builds a Pusher client: one subscribe edge per bind."""
     if not re.search(r"new\s+Pusher\s*\(", src.text):
         return []
     out = []
+    for m in re.finditer(r"\.\s*subscribe\s*\(", src.text):      # literal channel names only (PLAN B4)
+        args = first_args(src.text, m.end() - 1)
+        lit = re.fullmatch(r"""\s*(?:'([^'$`\\]+)'|"([^"$`\\]+)")\s*""", args[0]) if args else None
+        if not lit:
+            continue
+        line = src.line_of(m.start())
+        d = _enclosing_method(decls, line)
+        out.append({"line": line, "source": _source(primary, d), "event": lit.group(1) or lit.group(2)})
     for m in re.finditer(r"\.\s*bind\s*\(", src.text):
         args = first_args(src.text, m.end() - 1)
         if len(args) < 2 or not args[0].strip():
             continue
+        if _is_function_bind(src.text, m.start(), args[0]):
+            continue
         line = src.line_of(m.start())
-        d = None
-        for c in decls:
-            if c["kind"] == "method" and c["line"] <= line <= c["end"] and \
-                    (d is None or c["end"] - c["line"] < d["end"] - d["line"]):
-                d = c
+        d = _enclosing_method(decls, line)
         env = local_env(src, d["line"], d["end"]) if d else {}
         for c in decls:                                  # top-level string constants
             if c["value"] is not None and c["cls"] is None:
@@ -391,8 +422,7 @@ def pusher_events(src: Source, decls: List[Dict], primary: str) -> List[Dict]:
         name = eval_expr(args[0], env)
         if name == "${}":
             continue
-        source = primary if d is None else primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
-        out.append({"line": line, "source": source, "event": name})
+        out.append({"line": line, "source": _source(primary, d), "event": name})
     return out
 
 

@@ -22,11 +22,12 @@ top findings reproduced). "(unverified)" = reported by a reviewer, not reproduce
 - [x] Scala: `@SqlQuery("""..""".stripMargin)` on an annotation yields no `table:` edge (`scala_annotations.py` `_value`
       ~130-146 returns `{"text"}`; only `scala_emit.py:169` handles `.stripMargin`). 0 of 20 `@Sql*` sites here use it.
       Fixed: `_value` peels a trailing `.stripMargin`/`.trim`; tests in `tests/test_scala_gates.py`.
-- [ ] Scala: a lambda param or `case x:` binder stays bound after its body (`scala_body.py`); a later real `x.m()` is
-      lost or mis-targeted. Nested block comments deeper than 8 levels are not handled (`scala_tokens.py:20-24`).
-- [ ] Web: an apostrophe in JSX text (`Don't`) drops every later class member (`lang/web_scan.py:56-65`). Reproduced.
-- [ ] Web: `.bind(this, x)` in a Pusher file emits `event:${this}` (`lang/web_flow.py:377-395`). Reproduced.
-      `.subscribe('ch')` channels are never emitted.
+- [x] Scala: a lambda param or `case x:` binder stayed bound after its body (`scala_body.py`). Fixed (`_open_body`);
+      0 rows changed on workflow-service. Open: an unbraced `val g = x => x` still binds to block end.
+- [ ] Scala: nested block comments deeper than 8 levels are not handled (`scala_tokens.py:20-24`).
+- [x] Web: an apostrophe in JSX text (`Don't`) dropped later class members. Fixed (JSX-aware lexer, `web_scan.py:71-124`).
+- [x] Web: `.bind(this, x)` emitted `event:${this}`; literal `.subscribe('ch')` is now emitted (plan B4). Fixed in
+      `web_flow.py`. Open: channel and event names share the `event:` namespace, so equal names could link falsely.
 - [ ] Web (unverified): regex after `return` read as division (`web_scan.py:98`); a wrapper whose parameter has no
       parentheses isn't learned (`web_flow.py:170`); a reassigned/`+=`/ternary/same-line local drops the call
       (`web_flow.py:188-204`); namespace/named-object import call targets (`web_flow.py:438`); TS generic arrows and
@@ -42,13 +43,13 @@ top findings reproduced). "(unverified)" = reported by a reviewer, not reproduce
 
 ## 4. Verification still open
 - [ ] C1 false-link risk on a repo that really has `${base}` calls to several services (only a synthetic probe so far).
-- [ ] The 19 UI->Scala links are all `heuristic` and only hand-checked: run `cdp link scan --db` then `cdp link run`
-      to put them through the verdict stage.
-- [ ] Scala `event_subscribe` (12 edges, `*Subscriber.scala`) and 35 Scala `schedule` edges: sampled, not checked
-      against source one by one.
+- [ ] The 19 UI->Scala links are all `heuristic` and only hand-checked. `link prompts` yields 19 tasks; resolving
+      them costs one model call each (`link run --runner-cmd` or leaf agents). Not run.
+- [x] Scala `event_subscribe` 12/12 (class name within 3 lines of the anchor) and the 35 non-library `schedule` edges
+      (each on an annotation/`extends` line) checked against source; 23 more are `library:` import hints, as in Java.
 - [x] Hand-check of Scala routes: all 48 match source (trailing `/` on `/v1/config/`, `/v1/login/` as in Java).
 
 ## 5. Housekeeping
-- [ ] Decide commit and branch (currently `feature/imporvements`); nothing is committed.
-- [ ] Remove lane worktrees/branches in `~/hackathon/cs-lanes/` (scala, web, link, rules, merged) once committed.
+- [x] Committed on `feature/imporvements` as 8aa35ba and a second commit for the step-2 fixes.
+- [x] All scratch worktrees and branches (lane/*, fix/*, fix2/*) removed. Commits: 8aa35ba, then the step-2 fixes.
 - [ ] Headline numbers to quote: links 30 -> 62 distinct (+19 HTTP, +13 persist), not 171 -> 459 rows.

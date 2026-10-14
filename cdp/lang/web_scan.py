@@ -14,7 +14,19 @@ _WORD = re.compile(r"[A-Za-z_$][\w$]*")
 _REGEX_PREV = set("(,=:[!&|?{;+-*%~^")   # no '<': `</Route>` is a JSX close tag, not a regex
 
 
+_JSX_PREV_WORDS = {"return", "default", "yield", "await", "case", "else"}
+
+
 def scan(lines: List[str]) -> Tuple[List[str], List[Tuple[str, ...]], bool]:
+    """Scan with JSX awareness; fall back to a JSX-free scan if an element never closes
+    (e.g. a TS `<T>x` cast read as JSX), so a misread can't swallow the rest of the file."""
+    res = _scan(lines, True)
+    if res[3]:
+        res = _scan(lines, False)
+    return res[0], res[1], res[2]
+
+
+def _scan(lines: List[str], jsx_on: bool):
     """Return (code_lines, stack_at_line_start, balanced).
 
     `code_lines[i]` is line i with comments blanked (string contents kept).
@@ -32,6 +44,7 @@ def scan(lines: List[str]) -> Tuple[List[str], List[Tuple[str, ...]], bool]:
     last_sig = ""        # last significant char in normal state (regex-vs-divide heuristic)
     cur: List[str] = []
     prev_word = ""
+    jsx: List[list] = []  # [stack depth, 'tag'|'text', closing, last non-space char]
     while i < n:
         ch = text[i]
         if ch == "\n":
@@ -81,7 +94,72 @@ def scan(lines: List[str]) -> Tuple[List[str], List[Tuple[str, ...]], bool]:
                 continue
             i += 1
             continue
+        if state in ("ja", "jb"):
+            cur.append(ch)
+            if ch == '"' and state == "ja" or ch == "'" and state == "jb":
+                state = "n"
+            i += 1
+            continue
+        mode = jsx[-1][1] if jsx and jsx[-1][0] == len(stack) else ""
+        if mode == "text":
+            nxt = text[i + 1] if i + 1 < n else ""
+            if ch == "<" and nxt == "/":
+                jsx.append([len(stack), "tag", True, ""])
+                cur.append("</")
+                i += 2
+            elif ch == "<" and (nxt.isalpha() or nxt in "_$>"):
+                jsx.append([len(stack), "tag", False, ""])
+                cur.append(ch)
+                i += 1
+            elif ch == "{":
+                stack.append("{")
+                cur.append(ch)
+                last_sig = "{"
+                i += 1
+            else:
+                cur.append(ch)
+                i += 1
+            continue
+        if mode == "tag":
+            tag = jsx[-1]
+            if ch in "\"'":
+                state = "ja" if ch == '"' else "jb"
+                cur.append(ch)
+            elif ch == "{":
+                stack.append("{")
+                cur.append(ch)
+                last_sig = "{"
+            elif ch == ">":
+                jsx.pop()
+                cur.append(ch)
+                last_sig = "a"
+                if tag[2]:
+                    if jsx and jsx[-1][1] == "text" and jsx[-1][0] == len(stack):
+                        jsx.pop()
+                elif tag[3] != "/" and not text.startswith("(", i + 1):  # `<T>(x)` is a generic
+                    jsx.append([len(stack), "text", False, ""])
+            elif text.startswith("//", i):
+                state = "lc"
+                i += 2
+                continue
+            elif text.startswith("/*", i):
+                state = "bc"
+                i += 2
+                continue
+            else:
+                cur.append(ch)
+                if not ch.isspace():
+                    tag[3] = ch
+            i += 1
+            continue
         # normal state
+        if jsx_on and ch == "<" and i + 1 < n and (text[i + 1].isalpha() or text[i + 1] in "_$>") and (
+                last_sig in _REGEX_PREV or last_sig == "" or prev_word in _JSX_PREV_WORDS
+                or (last_sig == ">" and text[:i].rstrip().endswith("=>"))):
+            jsx.append([len(stack), "tag", False, ""])
+            cur.append(ch)
+            i += 1
+            continue
         if text.startswith("//", i):
             state = "lc"
             i += 2
@@ -150,4 +228,4 @@ def scan(lines: List[str]) -> Tuple[List[str], List[Tuple[str, ...]], bool]:
     out.append("".join(cur))
     while len(stacks) < len(out):
         stacks.append(tuple(stack))
-    return out, stacks[: len(out)], not stack
+    return out, stacks[: len(out)], not stack, bool(jsx)

@@ -204,7 +204,8 @@ class PusherTest(unittest.TestCase):
     def test_bind_is_a_subscription(self):
         f = facts_of("p.js", PUSHER)
         got = sorted((e["source"], e["target"]) for e in edges(f, "event_subscribe"))
-        self.assertEqual(got, [("p.P.literal", "event:Status"), ("p.P.register", "event:${topic}")])
+        self.assertEqual(got, [("p.P.literal", "event:Status"), ("p.P.literal", "event:ch"),
+                               ("p.P.register", "event:${topic}")])
 
     def test_no_pusher_no_edge(self):
         self.assertEqual(edges(facts_of("q.js", "x.bind(this)\n"), "event_subscribe"), [])

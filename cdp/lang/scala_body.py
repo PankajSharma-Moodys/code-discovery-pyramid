@@ -64,8 +64,10 @@ class ScScan(Scan):
         tk = self.tk
         i = a
         while i < b:
-            while self.for_ends and i >= self.for_ends[-1][0]:     # the for expression is over
-                del self.scopes[self.for_ends.pop()[1]:]
+            if self.for_ends and any(i >= e[0] for e in self.for_ends):   # a for / lambda / case body is over
+                depth = min(e[1] for e in self.for_ends if i >= e[0])
+                del self.scopes[depth:]
+                self.for_ends = [e for e in self.for_ends if e[1] < depth]
             if self.due:
                 self._apply_due(i)
             k, t = tk.kind[i], tk.text[i]
@@ -78,6 +80,7 @@ class ScScan(Scan):
                 elif t == "(":
                     c = tk.close(i)
                     if tk.at(c + 1) == "=>" and c < b:
+                        self._open_body(c + 2, i, lambda_=True)
                         self._lambda_params(i + 1, c)
                         i = c + 2
                         continue
@@ -88,6 +91,7 @@ class ScScan(Scan):
                 continue
             nxt = tk.at(i + 1)
             if nxt == "=>" and t not in KEYWORDS:
+                self._open_body(i + 2, i, lambda_=True)
                 self.scopes[-1][t] = None
                 i += 2
                 continue
@@ -206,6 +210,10 @@ class ScScan(Scan):
         the arrow are skipped; the body is scanned by the main loop."""
         tk = self.tk
         j = i + 1
+        while j < b and not (tk.text[j] == "=>" and tk.kind[j] == "op"):     # find the arrow first
+            j = tk.close(j) + 1 if tk.kind[j] == "op" and tk.text[j] in "([{" else j + 1
+        self._open_body(j + 1, i, lambda_=False)
+        j = i + 1
         while j < b and not (tk.text[j] == "=>" and tk.kind[j] == "op"):
             if tk.kind[j] == "op" and tk.text[j] in "([{":
                 for q in range(j + 1, tk.close(j)):
@@ -215,6 +223,28 @@ class ScScan(Scan):
             self._binder(j)
             j += 1
         return j + 1
+
+    def _open_body(self, body: int, at: int, lambda_: bool) -> None:
+        """Binders of a lambda / `case` live in their own scope, popped where the body ends. A lambda
+        written as the first thing in a `{` block already has that block's scope."""
+        tk = self.tk
+        if lambda_ and tk.at(at - 1) == "{" and (at - 1) not in self.nopush:
+            return
+        end, j = body, body
+        while j < tk.n:
+            if tk.kind[j] == "op" and tk.text[j] in "([{":
+                j = tk.close(j) + 1
+                continue
+            if tk.kind[j] == "op" and tk.text[j] in ")]}":
+                break
+            if tk.kind[j] == "op" and tk.text[j] == ";" or (lambda_ and tk.kind[j] == "op" and tk.text[j] == ","):
+                break
+            if not lambda_ and tk.kind[j] == "id" and tk.text[j] == "case" and tk.at(j + 1) not in ("class", "object"):
+                break
+            j += 1
+        end = j
+        self.for_ends.append((end, len(self.scopes)))
+        self.scopes.append({})
 
     def _binder(self, q: int) -> None:
         tk = self.tk
