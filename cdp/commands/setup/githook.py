@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .._common import Spec, paths_from_args
 from ... import githooks as githooks_mod
 
@@ -26,7 +28,11 @@ def cmd_githook(args) -> int:
     PreToolUse nudge into `.claude/settings.json`; this installs real git
     `post-commit`/`post-checkout` hooks that call `cdp refresh`."""
     repo = paths_from_args(args).repo
-    fn = githooks_mod.install if args.action == "install" else githooks_mod.uninstall
-    for line in fn(repo):
+    if args.action == "install":
+        state_dir = getattr(args, "state_dir", None)
+        lines = githooks_mod.install(repo, Path(state_dir).expanduser().resolve() if state_dir else None)
+    else:
+        lines = githooks_mod.uninstall(repo)
+    for line in lines:
         print(line)
     return 0

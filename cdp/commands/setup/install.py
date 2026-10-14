@@ -50,9 +50,9 @@ def register(add) -> None:
     i.add_argument("--priority", action="store_true",
                    help="CDP-first preset = --harness --strict --claude-md --allow-mcp")
     i.add_argument("--remove-harness", action="store_true",
-                   help="remove everything --harness / --hook / --claude-md / --allow-mcp added: hooks, the MCP "
-                        "server entry, the CLAUDE.md block, the permission (only if install added it); copied "
-                        "skill files stay")
+                   help="remove everything --harness / --hook / --claude-md / --allow-mcp / --agents-md added: hooks, the MCP "
+                        "server entry, the CLAUDE.md block, the permission (only if install added it), an "
+                        "AGENTS.md still identical to the one written; copied skill files stay")
     i.add_argument("--block-all", action="store_true", dest="block_all",
                    help="implies --strict, and denies EVERY Grep/Glob and pure grep/rg/find search in an indexed "
                         "source dir, every time, naming the cdp_query to use instead (Reads still run)")
@@ -86,6 +86,9 @@ def cmd_install(args) -> int:
         target = Path(args.target).expanduser().resolve()
     if not target.is_dir():
         raise CdpError("not a directory: %s" % target)
+    if any((target / n).exists() for n in ("index.db", ".migrate", "index.db.migrate")):
+        raise CdpError("%s is a CDP state directory, not a repository; install into the repository "
+                       "(the index store is never a target)" % target)
 
     if getattr(args, "remove_harness", False):
         extra = [f for f, on in (("--hook", args.hook), ("--harness", args.harness), ("--strict", args.strict),

@@ -336,6 +336,16 @@ def _settings_empty(settings: Dict) -> bool:
     return not settings
 
 
+def remove_agents_md(target: Path) -> List[str]:
+    """Delete `<target>/AGENTS.md` only when it is still byte-identical to the copy
+    `--agents-md` wrote; an AGENTS.md the user wrote or edited is left alone."""
+    path, source = target / "AGENTS.md", SKILL_ROOT / "AGENTS.md"
+    if not path.is_file() or not source.is_file() or path.read_bytes() != source.read_bytes():
+        return []
+    path.unlink()
+    return ["removed   %s (the copy --agents-md wrote)" % path]
+
+
 def remove_harness(target: Path) -> List[str]:
     """Undo `install_hook` / `install_session_hook` / `install_mcp`; leaves the
     copied skill files and every non-CDP entry alone. A settings or MCP file that
@@ -363,7 +373,7 @@ def remove_harness(target: Path) -> List[str]:
             else:
                 _write_settings(settings_path, settings)
         notes.append("removed   %d CDP hook(s) from %s" % (removed, settings_path))
-    notes += remove_allow_mcp(target) + remove_claude_md(target)
+    notes += remove_allow_mcp(target) + remove_claude_md(target) + remove_agents_md(target)
     mcp_path = target / ".mcp.json"
     if mcp_path.exists():
         config = _load_json_object(mcp_path, "Fix or move it, then re-run.")
