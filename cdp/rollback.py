@@ -30,6 +30,7 @@ believes").
 
 from __future__ import annotations
 
+import re
 from typing import Dict, FrozenSet, List, Sequence, Set, Tuple
 
 from .util import CdpError, resolve_prefix
@@ -50,9 +51,15 @@ def resolve_run_id(value: str, patches=None) -> str:
         for probe in (value, "cdp-" + bare[:12]):
             if probe in known:
                 return probe
-        hits = sorted(r[4:] for r in known if r.startswith("cdp-" + bare))
-        if hits and len(bare) >= 4:
-            return "cdp-" + resolve_prefix(bare, hits, "run/commit")
+        # Runs of one commit (`cdp-<sha>`, `cdp-<sha>-r2`, ...) are one candidate: the commit.
+        by_commit: Dict[str, List[str]] = {}
+        for r in known:
+            if r.startswith("cdp-" + bare):
+                by_commit.setdefault(re.sub(r"-r\d+$", "", r[4:]), []).append(r)
+        if by_commit and len(bare) >= 4:
+            runs = by_commit[resolve_prefix(bare, sorted(by_commit), "run/commit")]
+            last = {r: max(i for i, p in enumerate(patches) if str(p.get("run_id")) == r) for r in runs}
+            return max(runs, key=last.get)
     if value.startswith("cdp-"):
         return value
     return "cdp-" + value[:12]

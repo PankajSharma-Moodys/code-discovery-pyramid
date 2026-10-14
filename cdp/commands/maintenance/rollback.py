@@ -32,6 +32,25 @@ def register(add) -> None:
     rb.set_defaults(func=cmd_rollback)
 
 
+def _plan(args, patches):
+    """`(kind, target, excluded run ids, patch range)` for `--to-run`/`--to-snapshot`; None when
+    `--to-snapshot` names the most recent run. Raises, changing nothing, on an unknown target."""
+    if args.to_run:
+        target = rollback_mod.resolve_run_id(args.to_run, patches)
+        _kept, new_excluded = rollback_mod.patches_excluding_run(patches, target)
+        if not new_excluded:
+            raise CdpError("no patch in the log is stamped with run %s -- nothing to roll back" % target)
+        return "to_run", target, new_excluded, rollback_mod.patch_numbers(patches, new_excluded)
+    target = rollback_mod.resolve_run_id(args.to_snapshot, patches)
+    _kept, new_excluded, found = rollback_mod.patches_up_to_run(patches, target)
+    if not found:
+        raise CdpError("run %s never appended a patch -- nothing to roll back to" % target)
+    if not new_excluded:
+        return None
+    last = max(i for i, p in enumerate(patches) if str(p.get("run_id")) == target)
+    return "to_snapshot", target, new_excluded, (patches[last]["patch_no"] + 1, max(p["patch_no"] for p in patches))
+
+
 @locked(shared=False)
 def cmd_rollback(args) -> int:
     """M3.7: exclude a run's patches from the fold, without deleting them (R5).
@@ -47,6 +66,16 @@ def cmd_rollback(args) -> int:
     backend = open_store(paths)
     store = query_mod.Store(backend)
     if not args.undo:
+        # Validate the target against the whole log (archive included) first: a failed rollback
+        # must not have un-compacted anything.
+        full = getattr(backend, "load_patches_full", backend.load_patches)()
+        if all(p.get("patch_no") is not None for p in full):
+            full = sorted(full, key=lambda p: p["patch_no"])
+        if _plan(args, full) is None:
+            print("rollback  --to-snapshot %s: already the most recent run, nothing to exclude"
+                  % rollback_mod.resolve_run_id(args.to_snapshot, full))
+            backend.close()
+            return 0
         # A generation `compact` archived is invisible to the fold; excluding a newer run can make
         # it the live one, so it comes back into the log first.
         restored = backend.restore_archived()
@@ -66,25 +95,7 @@ def cmd_rollback(args) -> int:
         backend.close()
         return 0
 
-    if args.to_run:
-        target = rollback_mod.resolve_run_id(args.to_run, patches)
-        kept, new_excluded = rollback_mod.patches_excluding_run(patches, target)
-        if not new_excluded:
-            raise CdpError("no patch in the log is stamped with run %s -- nothing to roll back" % target)
-        kind = "to_run"
-        patch_range = rollback_mod.patch_numbers(patches, new_excluded)
-    else:
-        target = rollback_mod.resolve_run_id(args.to_snapshot, patches)
-        kept, new_excluded, found = rollback_mod.patches_up_to_run(patches, target)
-        if not found:
-            raise CdpError("run %s never appended a patch -- nothing to roll back to" % target)
-        if not new_excluded:
-            print("rollback  --to-snapshot %s: already the most recent run, nothing to exclude" % target)
-            backend.close()
-            return 0
-        kind = "to_snapshot"
-        last = max(i for i, p in enumerate(patches) if str(p.get("run_id")) == target)
-        patch_range = (patches[last]["patch_no"] + 1, max(p["patch_no"] for p in patches))
+    kind, target, new_excluded, patch_range = _plan(args, patches)
 
     reason = args.reason or ("rollback --%s %s" % (kind.replace("_", "-"), target))
     rollback_mod.record_rollback(backend, kind, target, new_excluded, reason, patch_range)
