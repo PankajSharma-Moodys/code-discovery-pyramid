@@ -24,8 +24,12 @@ literal `.subscribe`, regex after `return`/`typeof`/`case`.., test files emittin
 - [x] Scala: an untyped `val x = new T(..)` (field or local) now takes type T (`scala_decl.new_type`, `_dry`). Frozen
       corpus: +108 call rows, 0 removed; 12 rows read against source, all correct. The earlier "970 sites" counted
       every `new T` initializer, mostly locals (43 are class-level). Builder chains (`new B()` + leading `.m()`) stay untyped.
-- [ ] Scala fix if cheap: `Util("x")` on an `object` emits `<init>`, not `apply` (`scala_body.py` ~252; 2 sites);
-      class-body statements are skipped (`scala_decl.py` ~441; occurrences unmeasured, needs a scope decision).
+- [ ] Scala `Util("x")` on a pure `object` resolves to the type, not `apply` (`jtypes.py:201-203`; no `#<init>` define for
+      objects, `scala_decl.py:307`). Grounded: 2 rows move (`StringToMillis` at `AbstractJob.scala:62`, `HeartBeat.scala:21`);
+      26 more hit companions with both `<init>` and `apply` (undecidable by name). Fix ~4 lines, gate on `.scala`. Later.
+- [ ] Scala class/object-body statements emit no calls (`scala_decl.py:487-490`). Grounded: 2640 statements / 380 files, 8
+      in 5 production files (`setShowStacks(false)`, `executorService.submit(..)`), the rest ScalaTest DSL. Simulated fix (~10
+      lines, `<init>`/`<clinit>` owner): +5 production rows but +36k test rows (3x). Gate to non-test files first. Later.
 - [ ] Scala ignore: `val A, B = Value` gives bogus value/type uses (names are right); unterminated `s"` with many `${}`
       holes backtracks ~2x per hole (24 holes = 9.7s; only on non-compiling input; guard is one line, `_HOLE`
       `scala_tokens.py:18-25`); nesting > 8 (0 files); unbraced `val g = x => x` keeps `x` bound (0 sites).
