@@ -1,6 +1,6 @@
 {
   "family": "sql_annotations",
-  "language": "java",
+  "languages": ["java", "scala"],
   "rules": [
     {
       "id": "sql.spring_data.jpql",

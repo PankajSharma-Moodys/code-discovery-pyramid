@@ -64,9 +64,31 @@ _RULE_KEYS = {"id", "match", "aliases", "emit", "vars", "unless", "when", "fallb
 _EMIT_KEYS = {"channel", "target", "signal", "sql", "dialect"}
 
 
+#: Languages whose declarations the rule engine reads (a family lists `languages`; the old single
+#: `"language": "java"` string is still accepted).
+JVM_LANGS = frozenset({"java", "scala"})
+
+_TRIPLE = re.compile(r'"{3,}')
+_MARGIN = re.compile(r"(?m)^[ \t]*\|(?!\|)")
+_STRIP_MARGIN = re.compile(r"\.stripMargin(?:\([^)]*\))?")
+
+
+def _sql_text(text: str) -> str:
+    """Scala SQL literal -> plain SQL: triple-quote delimiters, an `s`/`f` interpolator prefix before
+    them, a `.stripMargin` suffix and the `|` margin of each line are dropped. Java text is unchanged."""
+    if '"""' in text:
+        text = re.sub(r'\b[sf](?="{3})', "", text)
+        text = _TRIPLE.sub(" ", text)
+    if ".stripMargin" in text:
+        text = _STRIP_MARGIN.sub(" ", text)
+    if "|" in text:
+        text = _MARGIN.sub("", text)
+    return text
+
+
 def _native_sql_edges(text: str) -> List[Tuple[str, str]]:
     from .lang.data import sql_edges
-    return sql_edges(text)
+    return sql_edges(_sql_text(text))
 
 
 def _jpql_edges(text: str) -> List[Tuple[str, str]]:
@@ -108,7 +130,11 @@ def _check(rule: Dict, family: Dict) -> Dict:
     if set(emit) - _EMIT_KEYS or not emit.get("channel") or not (emit.get("target") or emit.get("sql")):
         raise RuleError("rule %s: emit needs channel and target (or sql), only %s allowed" % (rid, sorted(_EMIT_KEYS)))
     out = dict(rule)
-    out["language"] = family.get("language", "java")
+    langs = _as_list(family.get("languages")) or _as_list(family.get("language", "java"))
+    if not langs or not all(isinstance(x, str) and x for x in langs):
+        raise RuleError("family %r: languages must be a non-empty list of names" % family.get("family"))
+    out["languages"] = frozenset(langs)
+    out["language"] = langs[0]
     out["family"] = family.get("family", "")
     out["_fqns"] = frozenset(_as_list(match.get("fqn")))
     out["_aliases"] = frozenset(rule.get("aliases") or ())
@@ -170,7 +196,7 @@ class _Index:
     """Rules indexed for one pass, plus the repo facts a rule can need (types, `@interface` rows)."""
 
     def __init__(self, extraction: Dict, rules: Sequence[Dict]) -> None:
-        self.rules = [r for r in rules if r["language"] == "java"]
+        self.rules = [r for r in rules if r["languages"] & JVM_LANGS]
         self.files = extraction.get("files") or {}
         self.types: Dict[str, Dict] = {}
         self.methods: Dict[str, List[Dict]] = {}
@@ -178,7 +204,7 @@ class _Index:
         self.ann_by_simple: Dict[str, List[Dict]] = {}
         self.imports: Dict[str, List[str]] = {}
         for d in extraction.get("defines") or ():
-            if self.lang(d.get("file")) != "java":
+            if self.lang(d.get("file")) not in JVM_LANGS:
                 continue
             if d["kind"] in TYPE_KINDS:
                 self.types.setdefault(d["fqn"], d)
@@ -225,8 +251,10 @@ class _Index:
 
         return resolve
 
-    def direct(self, ann: Dict, on: str):
+    def direct(self, ann: Dict, on: str, lang: Optional[str] = None):
         for rule in self.rules:
+            if lang is not None and lang not in rule["languages"]:
+                continue
             if on in rule["_on"] and ann_matches(ann, rule["_fqns"], rule["_aliases"]):
                 yield rule
 
@@ -234,7 +262,7 @@ class _Index:
         """`(rule, annotation-row-with-args)` pairs for one annotation: its own rules, or, when it
         has none, those of the annotations on its `@interface` (meta-annotations). The use site
         keeps its line; the arguments are the matching annotation's."""
-        rules = list(self.direct(ann, on))
+        rules = list(self.direct(ann, on, self.lang(rel)))
         for rule in rules:
             yield rule, ann
         if rules or depth >= META_DEPTH:
@@ -569,14 +597,14 @@ def apply(extraction: Dict, rules: Optional[Sequence[Dict]] = None, repo: Option
 
     first_type: Dict[str, str] = {}
     for d in extraction.get("defines") or ():
-        if d["kind"] in TYPE_KINDS and idx.lang(d.get("file")) == "java":
+        if d["kind"] in TYPE_KINDS and idx.lang(d.get("file")) in JVM_LANGS:
             cur = first_type.get(d["file"])
             if cur is None or (d["anchor"]["line"], d["fqn"]) < cur[0]:
                 first_type[d["file"]] = ((d["anchor"]["line"], d["fqn"]), d["fqn"])
 
     for d in extraction.get("defines") or ():
         rel = d.get("file")
-        if idx.lang(rel) != "java":
+        if idx.lang(rel) not in JVM_LANGS:
             continue
         owner = _owner_of(d, idx)
         for role, ann, param in _decl_sites(d):
@@ -658,14 +686,14 @@ def _jpql_to_tables(pending: List[Tuple], edges: List[Dict], put) -> None:
 
 def _refresh_counts(extraction: Dict, fired: Dict[str, set], rules: Sequence[Dict]) -> None:
     vocab = {r["emit"]["signal"] for r in [*rules, *builtin_rules()]
-             if r["language"] == "java" and r["emit"].get("signal")}
+             if r["languages"] & JVM_LANGS and r["emit"].get("signal")}
     per_file: Dict[str, int] = {}
     for e in extraction.get("io_edges") or ():
         per_file[e["file"]] = per_file.get(e["file"], 0) + 1
     for e in extraction["rule_edges"]:
         per_file[e["file"]] = per_file.get(e["file"], 0) + 1
     for rel, info in (extraction.get("files") or {}).items():
-        if info.get("language") != "java":
+        if info.get("language") not in JVM_LANGS:
             continue
         sig = (set(info.get("signals") or ()) - vocab) | fired.get(rel, set())
         info["signals"] = sorted(sig)

@@ -1,6 +1,6 @@
 {
   "family": "jaxrs",
-  "language": "java",
+  "languages": ["java", "scala"],
   "rules": [
     {
       "id": "jaxrs.verb",

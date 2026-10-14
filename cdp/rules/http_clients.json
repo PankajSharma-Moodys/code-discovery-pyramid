@@ -1,6 +1,6 @@
 {
   "family": "http_clients",
-  "language": "java",
+  "languages": ["java", "scala"],
   "rules": [
     {
       "id": "http_client.exchange",

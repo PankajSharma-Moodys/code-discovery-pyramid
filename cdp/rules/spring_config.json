@@ -1,6 +1,6 @@
 {
   "family": "spring_config",
-  "language": "java",
+  "languages": ["java", "scala"],
   "rules": [
     {
       "id": "config.value",

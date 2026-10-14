@@ -1,6 +1,6 @@
 {
   "family": "messaging",
-  "language": "java",
+  "languages": ["java", "scala"],
   "rules": [
     {
       "id": "messaging.kafka",

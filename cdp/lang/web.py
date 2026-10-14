@@ -1,11 +1,9 @@
 """JavaScript / TypeScript extractor.
 
-Regex-based, and honest about it: JS has no cheap stdlib parser, and a
-hand-rolled one would be a larger correctness risk than the recall it buys.
-The consequence is stated rather than hidden — this extractor finds top-level
-declarations and framework signals, and will miss symbols declared inside
-closures or produced by higher-order factories. Those become `unknowns[]`
-entries at the leaf, which is the designed outcome for a gap in the detectors.
+Lexical, not a parser (`web_scan`): top-level declarations and members of top-level classes
+(`web_decl`), then framework and body facts (`web_flow`): outbound HTTP through in-file
+wrappers, React Router `ui_route`, Pusher subscriptions, cross-module calls. Symbols declared
+inside closures or produced by factories are not seen.
 """
 
 from __future__ import annotations
@@ -23,26 +21,21 @@ from .base import (
     mk_define,
     mk_edge,
     mk_use,
-    strip_block_comments,
 )
+from .web_decl import declarations
+from .web_flow import Source, http_calls, module_calls, pusher_events, routes
+from .web_scan import scan
 
 IMPORT_RE = re.compile(
     r"""^\s*(?:import\b[\s\S]*?from\s*|export\s+(?:\*|\{[^}]*\})\s*from\s*)['"]([^'"]+)['"]"""
 )
 BARE_IMPORT_RE = re.compile(r"""^\s*import\s*['"]([^'"]+)['"]""")
 REQUIRE_RE = re.compile(r"""require\s*\(\s*['"]([^'"]+)['"]\s*\)""")
-DECL_RE = re.compile(
-    r"^\s*(export\s+(?:default\s+)?)?"
-    r"(?:declare\s+)?(?:abstract\s+)?"
-    r"(class|interface|enum|type|function|const|let|var)\s+"
-    r"([A-Za-z_$][\w$]*)"
-)
 ROUTE_RE = re.compile(
     r"""\b(?:app|router|server|api|fastify)\s*\.\s*(get|post|put|delete|patch|all|use)\s*\(\s*['"`]([^'"`]+)['"`]"""
 )
 NEST_ROUTE_RE = re.compile(r"""^\s*@(Get|Post|Put|Delete|Patch|Controller)\s*\(\s*['"`]?([^'"`)]*)""")
 ENV_RE = re.compile(r"process\.env\.([A-Za-z_][\w]*)|process\.env\[['\"]([A-Za-z_][\w]*)['\"]\]")
-FETCH_RE = re.compile(r"""\b(?:fetch|axios(?:\.\w+)?|got|superagent)\s*\(\s*['"`]([^'"`]*)""")
 
 
 class WebExtractor(Extractor):
@@ -51,12 +44,19 @@ class WebExtractor(Extractor):
 
     def extract(self, ctx: ExtractContext) -> FileFacts:
         lines = ctx.lines
-        code = strip_block_comments(lines)
+        code, stacks, _balanced = scan(lines)
         language = "typescript" if ctx.path.rsplit(".", 1)[-1].startswith(("ts", "mts", "cts")) else "javascript"
         facts = FileFacts(path=ctx.path, language=language, loc=count_loc(lines))
         facts.package = ctx.path.rsplit(".", 1)[0]
         primary = facts.package
         facts.primary = primary
+
+        for d in declarations(code, stacks):
+            anchor = anchor_at(ctx, d["line"])
+            if anchor:
+                fqn = primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
+                facts.defines.append(mk_define(fqn, d["kind"], d["vis"], anchor, value=d["value"],
+                                               end_line=d["end"] + 1))
 
         seen_channels = set()
         controller_base = ""
@@ -68,18 +68,6 @@ class WebExtractor(Extractor):
                     break
             for spec in REQUIRE_RE.findall(line):
                 _add_import(ctx, facts, idx, spec, primary, seen_channels)
-
-            m = DECL_RE.match(line)
-            if m:
-                exported = bool(m.group(1))
-                kind = {"function": "method", "const": "constant", "let": "field",
-                        "var": "field", "type": "class"}.get(m.group(2), m.group(2))
-                anchor = anchor_at(ctx, idx)
-                if anchor:
-                    facts.defines.append(
-                        mk_define(primary + "." + m.group(3), kind,
-                                  "public" if exported else "internal", anchor)
-                    )
 
             m = NEST_ROUTE_RE.match(line)
             if m:
@@ -110,12 +98,34 @@ class WebExtractor(Extractor):
                 if anchor:
                     facts.io_edges.append(mk_edge(primary, "config:" + key, "config_read", anchor))
 
-            for url in FETCH_RE.findall(line):
-                anchor = anchor_at(ctx, idx)
-                if anchor:
-                    facts.io_edges.append(
-                        mk_edge(primary, "http:" + (url or "(dynamic)"), "http_out", anchor)
-                    )
+        src = Source(code, stacks)
+        decls = declarations(code, stacks)
+        for call in http_calls(src, decls, primary):
+            anchor = anchor_at(ctx, call["line"])
+            if anchor:
+                target = "http:%s%s" % (call["verb"] + " " if call["verb"] else "", call["url"])
+                facts.io_edges.append(mk_edge(call["source"], target, "http_out", anchor))
+        for call in module_calls(src, decls, primary, lambda spec: _normalise_relative(ctx.path, spec)):
+            anchor = anchor_at(ctx, call["line"])
+            if not anchor:
+                continue
+            if call["name"] is None:                       # named function import: module.fn
+                fqn = "%s.%s" % (call["module"], call["exported"])
+            else:
+                fqn = "%s.%s#%s" % (call["module"], call["cls"], call["name"]) if call["cls"] \
+                    else "%s.%s" % (call["module"], call["name"])
+            row = mk_use(fqn, anchor, via_import=False, resolved="external")
+            row.update({"kind": "call", "from_symbol": call["from"], "speculative": False, "how": "call"})
+            facts.uses.append(row)
+        for rt in routes(src):
+            anchor = anchor_at(ctx, rt["line"])
+            if anchor:
+                facts.io_edges.append(mk_edge(primary, "ui_route:" + rt["path"], "ui_route", anchor))
+        for ev in pusher_events(src, decls, primary):
+            anchor = anchor_at(ctx, ev["line"])
+            if anchor:
+                facts.io_edges.append(mk_edge(ev["source"], "event:" + ev["event"], "event_subscribe", anchor))
+                facts.signals.append("event_subscriber")
 
         facts.signals = sorted(set(facts.signals))
         facts.io_edges = _dedupe_edges(facts.io_edges)

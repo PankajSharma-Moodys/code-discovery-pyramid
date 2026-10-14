@@ -27,10 +27,10 @@ not a self-link.
 
 `library:`-prefixed targets (`dataflow.py`'s own `LIBRARY_PREFIX`) are excluded
 from matching for the same reason `dataflow.py` excludes them from traversal:
-they name a package, not a place data goes, and today they are the *only*
-targets `event_publish`/`event_subscribe` edges ever carry (no extractor in
-this codebase emits a topic-specific event edge) -- matching them would produce
-links between import statements, not services.
+they name a package, not a place data goes. Most `event_publish`/`event_subscribe`
+edges still carry only a `library:` target, but `java_flow` does emit topic-specific
+ones (`event_publish` -> `event:X`, lang/java_flow.py:155) that do match -- matching
+the `library:` ones would produce links between import statements, not services.
 """
 
 from __future__ import annotations

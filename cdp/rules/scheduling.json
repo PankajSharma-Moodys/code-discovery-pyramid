@@ -1,6 +1,6 @@
 {
   "family": "scheduling",
-  "language": "java",
+  "languages": ["java", "scala"],
   "rules": [
     {
       "id": "schedule.spring",

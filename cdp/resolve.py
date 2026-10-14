@@ -495,7 +495,7 @@ def _resolve_routes(extraction: Dict, constants: Dict[str, Dict]) -> Tuple[List[
             "file": edge["file"],
             "evidence": anchors,
         }
-        ctx = contexts.get(edge["module"]) if edge["file"].endswith(".java") else None
+        ctx = contexts.get(edge["module"]) if edge["file"].endswith((".java", ".scala")) else None
         if ctx and not missing:
             prefix, anchor = ctx
             record["route"] = prefix.rstrip("/") + ("/" + resolved_path.lstrip("/") if resolved_path.strip("/") else "")

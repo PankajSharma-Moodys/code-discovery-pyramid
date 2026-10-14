@@ -61,5 +61,34 @@ class LiteralToParamTest(unittest.TestCase):
                                    ["DELETE /v1/Admin/meta/{t}/sql-instances/{i}"]))
 
 
+class BaseVarSuffixTest(unittest.TestCase):
+    """A `${base}` client path lost its context prefix: one informative segment is enough."""
+
+    ROUTES = ["GET /workflow-service/v1/consumptions", "GET /workflow-service/v3/tenants/{tenantId}",
+              "DELETE /workflow-service/v2/workflows/{workflowId}", "GET /workflow-service/v2/workflows",
+              "POST /workflow-service/v1/login", "GET /workflow-service/v1/health"]
+    BASE = "${this.baseUrl}"
+
+    def test_single_informative_segment_links_as_heuristic(self):
+        for call, node in [("GET %s/v1/consumptions?${q}" % self.BASE, "r0"),
+                           ("GET %s/v3/tenants/${id}" % self.BASE, "r1"),
+                           ("DELETE %s/v2/workflows/${id}" % self.BASE, "r2"),
+                           ("GET %s/v2/workflows?batchId=${id}" % self.BASE, "r3"),
+                           ("POST %s/v1/login" % self.BASE, "r4")]:
+            self.assertEqual([("c0", node, "heuristic")], links([call], self.ROUTES), call)
+
+    def test_no_route_with_that_tail_stays_unlinked(self):
+        for call in ["GET %s/v2/workflows/${id}/graph" % self.BASE, "GET %s/v1/nothing" % self.BASE]:
+            self.assertEqual([], links([call], self.ROUTES), call)
+
+    def test_leading_param_boundary_stays_unlinked(self):
+        routes = ["GET /svc/{t}/notifications"]
+        self.assertEqual([], links(["GET %s/{x}/notifications" % self.BASE], routes))
+
+    def test_plain_path_without_base_variable_keeps_two_segment_rule(self):
+        self.assertEqual([], links(["POST /v1/login"], ["POST /workflow-service/v1/login"]))
+        self.assertEqual([], links(["GET /v3/tenants/{id}"], ["GET /workflow-service/v3/tenants/{tenantId}"]))
+
+
 if __name__ == "__main__":
     unittest.main()

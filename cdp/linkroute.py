@@ -4,7 +4,9 @@ Params become `*` whatever the syntax -- Flask `<int:uid>`/`<x>`, `{x}`, `{id:in
 JS template `${x}`, Refit `{x}`. Query strings are dropped, the verb is compared only when both
 sides state one, and a client path that lacks the server's context prefix (Refit
 `/sql-pool/v1/reservations` vs Dropwizard `/unified-store/sql-pool/v1/reservations`) matches as a
-trailing-segment suffix when the shorter side carries at least two informative segments.
+trailing-segment suffix when the shorter side carries at least two informative segments -- or one,
+when the client path began with a `${base}` variable (`${this.baseUrl}/v1/login`): the variable is the
+unknown context prefix, so a single literal (`login`) after it is the evidence. Still `heuristic`.
 """
 
 from __future__ import annotations
@@ -32,6 +34,16 @@ def verb_of(channel: str, target: str) -> Optional[str]:
     return m.group(1) if m and m.group(1) != "ANY" else None
 
 
+class BasePath(str):
+    """A path whose stripped host was a `${base}` variable: the client's context prefix is unknown."""
+    base_var = True
+
+
+class Segs(tuple):
+    """`segments()` result; `base_var` is true when the path began with a `${base}` variable."""
+    base_var = False
+
+
 def path_of(channel: str, target: str) -> str:
     """The bare path/table a raw edge target names, verb/scheme/host/query stripped."""
     if channel == "http_in":
@@ -41,22 +53,25 @@ def path_of(channel: str, target: str) -> str:
     elif channel == "http_out":
         raw = target[len("http:"):] if target.startswith("http:") else target
         raw = _VERB_PREFIX_RE.sub("", raw)
+        base_var = False
         if raw.startswith("${") and "}" in raw:  # `${billing.url}/v1/x`: the host is a config key
             raw = raw.split("}", 1)[1] or "/"
+            base_var = True
         m = _URL_PATH_RE.match(raw)
         path = (m.group(1) or "/") if m else raw
     else:
         path = target
     if channel in ("http_in", "http_out"):
         path = path.split("?", 1)[0].split("#", 1)[0]
-        return path
+        return BasePath(path) if channel == "http_out" and base_var else path
     return path.lower() if channel in ("persist", "schema_own") else path
 
 
 def segments(path: str) -> Tuple[str, ...]:
     """Lower-cased path segments, every param spelling replaced by `*`."""
-    path = _PARAM_RE.sub("*", path)
-    return tuple(s.lower() for s in path.split("/") if s)
+    out = Segs(s.lower() for s in _PARAM_RE.sub("*", path).split("/") if s)
+    out.base_var = getattr(path, "base_var", False)
+    return out
 
 
 def informative(segs: Tuple[str, ...]) -> int:
@@ -71,10 +86,10 @@ def verbs_compatible(a: Optional[str], b: Optional[str]) -> bool:
     return a is None or b is None or a == b
 
 
-def _suffixes(segs: Tuple[str, ...]):
+def _suffixes(segs: Tuple[str, ...], need: int = 2):
     for i in range(1, len(segs) - 1):  # proper suffixes of at least two segments
         tail = segs[i:]
-        if len(tail) >= 2 and informative(tail) >= 2:
+        if len(tail) >= 2 and informative(tail) >= need:
             yield tail
 
 
@@ -115,18 +130,18 @@ class _Trie:
             node = nxt
         node.items.append(entry)
 
-    def match(self, segs: Tuple[str, ...], suffix: bool = False) -> List[Tuple[int, object]]:
+    def match(self, segs: Tuple[str, ...], suffix: bool = False, need: int = 2) -> List[Tuple[int, object]]:
         """Every route matching `segs` segment by segment. A route that needs no param to match
         beats one that does; among the rest the fewest param-matched segments win. A param match
         must still share one informative literal segment with the query, so `/v1/{x}` never
         swallows every `/v1/...` call. In a `suffix` match (a dropped context prefix) the first segment, the boundary,
         must be equal, never a param standing in for a literal, and two informative literals must
-        agree rather than one: `/{t}/card/{e}/artifact/bulk` is not `/{t}/Card/{e}/bulk`."""
+        agree rather than one (`need`; one for a `${base}` client path): `/{t}/card/{e}/artifact/bulk` is not `/{t}/Card/{e}/bulk`."""
         found: List[Tuple[int, int, Tuple[int, object]]] = []
 
         def walk(node: _Node, i: int, wild: int, shared: int) -> None:
             if i == len(segs):
-                if wild == 0 or shared >= (2 if suffix else 1):
+                if wild == 0 or shared >= (need if suffix else 1):
                     found.extend((wild, shared, e) for e in node.items)
                 return
             seg = segs[i]
@@ -162,7 +177,7 @@ class RouteIndex:
         entry = (self._n, item)
         self._n += 1
         self.exact.add(segs, entry)
-        for tail in _suffixes(segs):
+        for tail in _suffixes(segs, 1):  # lookup applies the threshold; a `${base}` client needs 1
             self.suffix.add(tail, entry)
 
     def lookup(self, segs: Tuple[str, ...]) -> List:
@@ -176,9 +191,11 @@ class RouteIndex:
                     seen.add(n)
                     out.append(it)
 
+        # a `${base}` prefix is the dropped context; its boundary segment must be a literal
+        need = 1 if getattr(segs, "base_var", False) and segs and "*" not in segs[0] else 2
         take(self.exact.match(segs))
-        if len(segs) >= 2 and informative(segs) >= 2:
-            take(self.suffix.match(segs, True))
+        if len(segs) >= 2 and informative(segs) >= need:
+            take(self.suffix.match(segs, True, need))
         for tail in _suffixes(segs):
             take(self.exact.match(tail, True))
         return out

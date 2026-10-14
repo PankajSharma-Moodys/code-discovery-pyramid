@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence
 
 from .anchor import build_anchor, verify_anchor
-from .rules import ON_KINDS, TYPE_KINDS, _Index, _decl_sites, _flatten, _on_for, _owner_of, _source, builtin_rules
+from .rules import JVM_LANGS, ON_KINDS, TYPE_KINDS, _Index, _decl_sites, _flatten, _on_for, _owner_of, _source, builtin_rules
 from .util import normalise_ws, read_lines
 
 MAX_CHUNK_LINES = 4
@@ -126,13 +126,13 @@ def schedule_sources(extraction: Dict) -> List[Dict]:
     out: Dict[str, Dict] = {}
     for d in extraction.get("defines") or ():
         rel = d.get("file")
-        if idx.lang(rel) != "java":
+        if idx.lang(rel) not in JVM_LANGS:
             continue
         owner = _owner_of(d, idx)
         for role, ann, _param in _decl_sites(d):
             if role != "decl":
                 continue
-            for rule in idx.direct(ann, _on_for(d, role)):
+            for rule in idx.direct(ann, _on_for(d, role), idx.lang(rel)):
                 source = _source(d, owner)
                 row = out.setdefault(source, {"source": source, "file": rel, "module": d.get("module"), "decl": d,
                                               "owner": owner, "items": []})
