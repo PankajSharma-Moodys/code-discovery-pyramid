@@ -779,10 +779,14 @@ def summarise_refresh(report: Dict) -> List[str]:
 
 def summarise(report: Dict, names: Optional[Dict[str, Dict]] = None) -> List[str]:
     t = report["totals"]
+    selfs = sum(1 for l in report["links"] if l["self_link"])
     lines = [
         "link      %d snapshot(s), %d module(s), %d link(s) (%d exact, %d heuristic), %d unmatched"
         % (t["snapshots"], t["modules"], t["links"], t["exact"], t["heuristic"], t["unmatched"])
     ]
+    if selfs:
+        lines.append("          %d of those are `self` links (both ends in the same module: not cross-module); "
+                     "%d cross-module" % (selfs, t["links"] - selfs))
     for link in report["links"]:
         caller, callee = link["caller"], link["callee"]
         lines.append("  %-6s caller [%s:%s] %s %s -> callee [%s:%s] %s %s [%s]"

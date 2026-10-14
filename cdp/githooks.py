@@ -27,6 +27,7 @@ apply here).
 
 from __future__ import annotations
 
+import shlex
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -58,10 +59,13 @@ def hooks_dir(repo: Path) -> Optional[Path]:
 RUN_PY = Path(__file__).resolve().parent.parent / "run.py"
 
 
-def _script(name: str, python: str, repo: Optional[Path] = None) -> str:
+def _script(name: str, python: str, repo: Optional[Path] = None, state_dir: Optional[Path] = None) -> str:
     """The hook script. `repo` is accepted for older callers and ignored: the
-    worktree is resolved when the hook fires, never at install time."""
+    worktree is resolved when the hook fires, never at install time. `state_dir`
+    (an install-time `--state-dir`) is baked in so a commit refreshes that store."""
     call = '"$py" "%s" refresh --repo "$root" --quiet' % RUN_PY
+    if state_dir is not None:
+        call += " --state-dir %s" % shlex.quote(str(state_dir))
     guard = ""
     if name == "post-checkout":
         # git's own contract: $3 is 1 for a branch/ref checkout, 0 for a
@@ -77,7 +81,7 @@ def _script(name: str, python: str, repo: Optional[Path] = None) -> str:
     return "#!/bin/sh\n%s\n%sexit 0\n" % (MARKER, body)
 
 
-def install(repo: Path) -> List[str]:
+def install(repo: Path, state_dir: Optional[Path] = None) -> List[str]:
     if not is_git_repo(repo):
         raise CdpError("not a git repository: %s" % repo)
     hdir = hooks_dir(repo)
@@ -100,7 +104,7 @@ def install(repo: Path) -> List[str]:
     for name in HOOK_NAMES:
         target = hdir / name
         temp = hdir / (".%s.cdp-tmp" % name)
-        temp.write_text(_script(name, sys.executable))
+        temp.write_text(_script(name, sys.executable, state_dir=state_dir))
         temp.chmod(0o755)
         temp.replace(target)
         lines.append("installed %s" % target)
