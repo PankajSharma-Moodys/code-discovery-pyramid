@@ -403,7 +403,7 @@ def render(result: Dict) -> str:
             "confidence  %s" % ", ".join("%s %d" % kv for kv in result["claims_by_confidence"].items()),
             "unknowns    %d" % result["unknowns"],
             "conflicts   %d" % result["conflicts"],
-            "coverage    %.1f%% of tracked files in complete scopes%s"
+            "coverage    %.1f%% of tracked files in model-reviewed scopes%s"
             % (100 * result["coverage"].get("fraction", 0),
                "" if result["coverage"].get("fraction", 0) else " -- 0.0% " + NO_REVIEW_NOTE),
             "graph       declared %d / observed %d inter-module edges"
@@ -425,7 +425,9 @@ def render(result: Dict) -> str:
         if result["warning"]:
             lines.append(result["warning"])
         for node in cov.get("incomplete_nodes", []):
-            lines.append("  incomplete: %s (%s)" % (node, result["nodes"].get(node, "not run")))
+            st = result["nodes"].get(node, "not run")
+            lines.append("  not model-reviewed: %s (%s)" % (
+                node, "node status complete, but answers only -- no scope review" if st == "complete" else st))
         for row in result.get("skipped", []):
             lines.append("  skipped:    %s (%s%s)" % (row["path"], row["reason"].replace("_", " "),
                          ", %d bytes" % row["bytes"] if "bytes" in row else ""))

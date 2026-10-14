@@ -257,15 +257,25 @@ def _overview(inventory: Dict, extraction: Dict, graph: Dict, xref: Dict,
             lines.append("- **`%s`** (%s) — %s" % (c["subject"], c["kind"], c["resolved_by"] or "**contested**"))
         lines.append("")
 
+    sym, tbl = _example_names(xref, extraction)
     lines += ["## Where to go next", "",
               "- [`unknowns.md`](unknowns.md) — what this run could not establish. Read it before "
               "trusting anything above.",
               "- [`dataflow.md`](dataflow.md) — how a record actually travels, including edges no "
               "import expresses.",
-              "- `cdp query` — the same state, queryable. `query symbol DServer`, "
-              "`query table server`, `query routes`, `query paths --to table:server`.",
+              "- `cdp query` — the same state, queryable. `query symbol %s`, "
+              "`query table %s`, `query routes`, `query paths --to table:%s`." % (sym, tbl, tbl),
               ""]
     return "\n".join(lines)
+
+
+def _example_names(xref: Dict, extraction: Dict) -> tuple:
+    """A symbol and a table from this repo's own data for the `query` examples; placeholders if none."""
+    hot = sorted(xref["used_by"].items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    symbol = next((fqn for fqn, _ in hot if not _synthetic(fqn)), "<symbol>")
+    table = next((e["target"][len("table:"):] for e in sorted(all_edges(extraction), key=lambda e: e["target"])
+                  if e["target"].startswith("table:")), "<table>")
+    return symbol, table
 
 
 def _synthetic(fqn: str) -> bool:
@@ -420,8 +430,8 @@ def _dataflow(dataflow: Dict, xref: Dict, state: Dict) -> str:
     if chains:
         lines += ["## Representation chains", "",
                   "Where one record exists under several names. Each hop is a mapper; the chain is "
-                  "what a reader has to know before `EServer`, `DServer` and `Server` stop looking "
-                  "like three different things.", ""]
+                  "what a reader has to know before the names in a chain stop looking "
+                  "like different things.", ""]
         seen = set()
         for path in chains[:40]:
             key = tuple(path["representation_chain"])
@@ -619,14 +629,15 @@ def _claude_md(inventory: Dict, graph: Dict, xref: Dict, state: Dict, extraction
             lines.append("- `%s` — %d references" % (fqn, len(users)))
         lines.append("")
 
+    sym, tbl = _example_names(xref, extraction)
     lines += ["## Querying this instead of grepping", "",
               "```bash",
               "cdp query stats",
-              "cdp query symbol DServer          # definitions + every use, with citations",
-              "cdp query table server            # schema owner, writers, readers",
+              "cdp query symbol %s          # definitions + every use, with citations" % sym,
+              "cdp query table %s            # schema owner, writers, readers" % tbl,
               "cdp query routes                  # HTTP surface, constants resolved",
               "cdp query module <name>           # purpose, deps, entrypoints, claims",
-              "cdp query paths --to table:server # how data reaches a sink",
+              "cdp query paths --to table:%s # how data reaches a sink" % tbl,
               "cdp query unknowns                # what is NOT known",
               "```",
               "",
