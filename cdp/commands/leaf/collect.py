@@ -57,4 +57,7 @@ def cmd_collect(args) -> int:
               % stats["escalation_rate"])
     if accepted:
         print("next      cdp fold --check")
+    if rejected:
+        print("rejected  %d patch(es) rejected: fix them and re-drop into the inbox (exit 1)" % len(rejected))
+        return 1
     return 0

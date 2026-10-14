@@ -13,7 +13,7 @@ from pathlib import Path
 
 SPEC = Spec(
     group='core',
-    usage='diff <old_state> <new_state> | diff --old-sha A --new-sha B',
+    usage='diff [<old_state> <new_state> | --old-sha A --new-sha B]',
     what='Typed structural deltas between two scanned snapshots (an omitted side defaults to the current snapshot; git changes not yet re-scanned do not appear).',
     next='tip: `query symbol`/`query table <name>` for full context on a changed item.',
 )
@@ -60,8 +60,6 @@ def cmd_diff(args) -> int:
             old.close()
             new.close()
     else:
-        if not sha_mode:
-            raise CdpError("need either two state directories, or --old-sha/--new-sha")
         paths = paths_from_args(args)
         backend = open_store(paths)
         try:

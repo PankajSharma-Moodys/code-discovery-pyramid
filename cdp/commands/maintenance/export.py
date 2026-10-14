@@ -38,6 +38,8 @@ def cmd_export(args) -> int:
     paths = paths_from_args(args)
     store = SqliteStore(Path(args.db).expanduser().resolve()) if args.db else open_store(paths)
     try:
+        if not store.has_artifact("state"):
+            raise CdpError("nothing to export (scan needed: run `cdp scan` first)")
         if args.format == "json":
             written = export_mod.export_json(store, dest)
             print("export    json      %d artifact(s)/report(s) -> %s" % (len(written), dest))
