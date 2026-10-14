@@ -282,7 +282,9 @@ class ScScan(Scan):
             self.scopes[-1][name] = None
             return j
         if tk.at(j) == "=":
-            self.scopes[-1][name] = self._dry(j + 1)
+            nt = self.fi.parser.new_type(j + 1, tk.n)
+            self.scopes[-1][name] = ((self.fi.norm_scala(nt, self.tvars), ()) if nt
+                                     else self._dry(j + 1))
         else:
             self.scopes[-1][name] = None
         return j
@@ -306,6 +308,8 @@ class ScScan(Scan):
     def _dry(self, i: int) -> Optional[TExpr]:
         end, te = self.chain(i, False)
         tk = self.tk
+        if tk.at(end) == ".":                        # a leading-dot line continues the chain (`new B()\n  .build()`)
+            return None
         if end >= tk.n or tk.line[end] > tk.line[end - 1] or tk.at(end) in (";", ")", "}", ",", "match"):
             return te
         return None

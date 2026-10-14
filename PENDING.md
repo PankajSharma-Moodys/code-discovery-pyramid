@@ -21,8 +21,9 @@ top findings reproduced). "(unverified)" = reported by a reviewer, not reproduce
 ## 2. Latent bugs (all grounded 2026-10-14: each reproduced with a snippet through the real extractor)
 Fixed: Scala `.stripMargin` annotations, lambda/`case` scope leak, Web JSX apostrophe, Pusher `.bind(this, x)` +
 literal `.subscribe`, regex after `return`/`typeof`/`case`.., test files emitting `ui_route` (live: 17 -> 16 edges).
-- [ ] Scala **fix now**: `val t = new T(1)` field has no `ftype`, so a later `t.go()` is lost (970 sites / 298 files;
-      calls actually lost: unmeasured).
+- [x] Scala: an untyped `val x = new T(..)` (field or local) now takes type T (`scala_decl.new_type`, `_dry`). Frozen
+      corpus: +108 call rows, 0 removed; 12 rows read against source, all correct. The earlier "970 sites" counted
+      every `new T` initializer, mostly locals (43 are class-level). Builder chains (`new B()` + leading `.m()`) stay untyped.
 - [ ] Scala fix if cheap: `Util("x")` on an `object` emits `<init>`, not `apply` (`scala_body.py` ~252; 2 sites);
       class-body statements are skipped (`scala_decl.py` ~441; occurrences unmeasured, needs a scope decision).
 - [ ] Scala ignore: `val A, B = Value` gives bogus value/type uses (names are right); unterminated `s"` with many `${}`

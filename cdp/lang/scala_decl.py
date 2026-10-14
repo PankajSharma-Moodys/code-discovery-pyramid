@@ -335,6 +335,27 @@ class ScalaDeclParser:
             break
         return j, join_tokens(tk, start, j)
 
+    def new_type(self, i: int, stop: int) -> Optional[str]:
+        """Scala type text T of an initializer that is exactly `new T`, `new T(..)`, `new T[..](..)` or the
+        anonymous `new T(..) { .. }` starting at `i` (token `new`); None for anything chained or compound."""
+        tk = self.tk
+        if tk.at(i) != "new":
+            return None
+        r = self._parse_type(i + 1)
+        if r is None:
+            return None
+        e, k = r[0], r[0]
+        if tk.at(k) == "(":
+            k = tk.close(k) + 1
+        if tk.at(k) == "{":
+            k = tk.close(k) + 1
+
+        def done(x: int) -> bool:
+            # a line break ends the initializer unless the next line continues it with `.method` (builder chains)
+            return x >= stop or x >= tk.n or (tk.line[x] > tk.line[x - 1] and tk.at(x) != ".") \
+                or tk.at(x) in (";", ")", "}", ",")
+        return r[1] if done(k) and (k > e or done(e)) else None
+
     # ------------------------------------------------------- ctor and params
 
     def _params(self, a: int, b: int) -> List[Tuple[str, str, int, Set[str], List[Ann], Tuple[int, int]]]:
@@ -547,6 +568,10 @@ class ScalaDeclParser:
         init = None
         if j < stop and tk.at(j) == "=":
             init = (j + 1, stop)
+            if not ftype:                           # `val t = new T(..)`: the field is a T
+                nt = self.new_type(j + 1, stop)
+                if nt:
+                    ftype = scala_type_text(nt)
         for n in names:
             m = ScMember("field", tk.text[n], jt)
             m.mods, m.anns, m.ftype, m.is_var = set(mods), anns, ftype, is_var
