@@ -65,6 +65,7 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
     accepted: List[Dict] = []
     rejected: List[Dict] = []
     rejected_claims: List[Dict] = []
+    marked_invalid = False
 
     for name, patch in inbox:
         if isinstance(patch, ValueError):
@@ -103,16 +104,18 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
         if errors:
             rejected.append({"file": name, "node": node, "errors": errors[:12]})
             backend.reject_inbox(name)
-            backend.append_patch(
-                {
-                    "schema_version": "1.0.0",
-                    "node": node or Path(name).stem,
-                    "run_id": str(patch.get("run_id", store.manifest.get("run_id", "cdp"))),
-                    "status": "invalid",
-                    "error": "; ".join(errors[:6]),
-                },
-                (node or Path(name).stem) + "-invalid",
-            )
+            if node in scope_nodes:  # a marker for a non-scope would fold into a junk unknown
+                backend.append_patch(
+                    {
+                        "schema_version": "1.0.0",
+                        "node": node,
+                        "run_id": str(patch.get("run_id", store.manifest.get("run_id", "cdp"))),
+                        "status": "invalid",
+                        "error": "; ".join(errors[:6]),
+                    },
+                    node + "-invalid",
+                )
+                marked_invalid = True
             continue
         accepted.append(patch)
 
@@ -162,10 +165,14 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
 
     if marker_used:
         backend.write_report("rereview", rereview_marker)
-    folded = fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=mode)
-    stats = folded["verification"]
-    stats["escalation_rate"] = escalation_rate(accepted)
-    backend.write_report("verify", stats)
+    if accepted or marked_invalid or marker_used:
+        folded = fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=mode)
+        stats = folded["verification"]
+        stats["escalation_rate"] = escalation_rate(accepted)
+        backend.write_report("verify", stats)
+    else:  # nothing entered the log: leave state (and its version) alone
+        folded = store.state
+        stats = dict(folded["verification"], escalation_rate=None)
     backend.write_report("rejected", {"rejected": rejected})
     backend.write_report("unknown_gates", {"rejected": unknown_rejections})
 
