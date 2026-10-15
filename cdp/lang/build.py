@@ -26,6 +26,12 @@ MANIFEST_NAMES = (
 )
 
 GRADLE_PROJECT_RE = re.compile(r"""project\s*\(\s*['"]:([^'"]+)['"]""")
+GRADLE_PLATFORM_RE = re.compile(r"""(?:enforcedP|p)latform\s*\(\s*$""")
+# `api project(':x')`, `api(project(':x'))`, `testImplementation(project(..))`
+GRADLE_DEP_CONF_RE = re.compile(
+    r"^\s*\w*(implementation|api|compile|runtime|testImplementation|annotationProcessor)\w*\s*[\s(]", re.I)
+#: a `declared_deps` entry for `platform(project(':bom'))`: the module supplies versions, not code
+PLATFORM_PREFIX = "platform:"
 GRADLE_INCLUDE_RE = re.compile(r"""^\s*include\s*\(?\s*['"]:?([^'"]+)['"]""")
 GRADLE_ROOTNAME_RE = re.compile(r"""rootProject\.name\s*=\s*['"]([^'"]+)['"]""")
 POM_MODULE_RE = re.compile(r"<module>\s*([^<]+?)\s*</module>")
@@ -91,13 +97,15 @@ def _settings_gradle(ctx: ExtractContext, facts: FileFacts) -> None:
 def _build_gradle(ctx: ExtractContext, facts: FileFacts) -> None:
     for idx, line in enumerate(ctx.lines):
         stripped = line.strip()
-        for dep in GRADLE_PROJECT_RE.findall(line):
+        for m in GRADLE_PROJECT_RE.finditer(line):
             # Only dependency declarations are edges. `project(':x').buildDir`
             # inside a task configuration is a path reference, not a dependency,
             # and counting it would inflate the declared arm that §5.2 is
             # measuring against the observed one.
-            if re.match(r"^\s*\w*(implementation|api|compile|runtime|testImplementation|annotationProcessor)\w*\s", line, re.I):
-                facts.declared_deps.append(dep.replace(":", "/"))
+            if GRADLE_DEP_CONF_RE.match(line):
+                dep = m.group(1).replace(":", "/")
+                platform = GRADLE_PLATFORM_RE.search(line[:m.start()])
+                facts.declared_deps.append(PLATFORM_PREFIX + dep if platform else dep)
         if stripped.startswith("rootProject.name"):
             m = GRADLE_ROOTNAME_RE.search(line)
             if m:

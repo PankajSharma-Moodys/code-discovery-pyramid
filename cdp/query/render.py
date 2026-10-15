@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
+from .. import sigs
 from ..util import NO_REVIEW_NOTE, truncate
 from .common import AS_OF_NOTE, INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line
 
@@ -121,11 +122,15 @@ def render(result: Dict) -> str:
             if entry.get("value") is not None:
                 lines.append("  value: %r" % entry["value"])
             lines.append("  defined in %s at %s" % (", ".join(entry["modules"]), ", ".join(entry["defined_at"])))
+            if entry.get("overloads"):
+                lines.append("  overloads: %d (one signature each; see the body rows)" % entry["overloads"])
             if entry["collision"]:
                 lines.append("  ! declared at more than one site; no winner is picked (§6.4)")
             lines.extend(_annotation_lines("  ", entry))
             for b in entry.get("body", []):
-                lines.extend(_body_line("  %s: " % b["at"], b))
+                # an overload is told apart by its signature (cdp/sigs.py)
+                head = "  %s%s: " % (b["at"], " " + sigs.short(b["sig"]) if b.get("sig") else "")
+                lines.extend(_body_line(head, b) or ([head.rstrip(": ")] if b.get("sig") else []))
             lines.append("  used by %d site(s)" % entry["used_by_count"])
             for use in entry["used_by"]:
                 lines.append("    %-24s %s" % (use["module"], use["at"]))
@@ -159,7 +164,7 @@ def render(result: Dict) -> str:
                         end = d.get("end_line")
                         span = "%s-%s" % (d["line"], end) if end and end != d["line"] else str(d["line"])
                         lines.append("    L%-9s %-9s %-9s %s" % (
-                            span, d.get("visibility") or "", d["kind"], d["name"]))
+                            span, d.get("visibility") or "", d["kind"], sigs.short(d["sig"]) if d.get("sig") else d["name"]))
                     else:
                         lines.append("    %-9s %-60s %s" % (d["kind"], truncate(d["fqn"], 60), d["at"]))
                     lines.extend(_annotation_lines("        ", d))
@@ -192,6 +197,8 @@ def render(result: Dict) -> str:
                 lines.append("  ! declared but never imported: %s" % ", ".join(entry["declared_only"]))
             if entry["observed_only"]:
                 lines.append("  ! imported but not declared: %s" % ", ".join(entry["observed_only"]))
+            if entry.get("version_platforms"):
+                lines.append("  uses version platform: %s" % ", ".join(entry["version_platforms"]))
             lines.append("  scopes: %s" % ", ".join(entry["scopes"]))
             lines.append("  claims: %s" % ", ".join("%s %d" % kv for kv in entry["claims_by_kind"].items()))
             for claim in entry["claims"]:
@@ -403,6 +410,8 @@ def render(result: Dict) -> str:
                 if result.get("build_name") else ""),
             "census      %d tracked / %d on disk (%.1fx) [%s]"
             % (c["tracked"], c["on_disk"], c["ratio"], result["inventory_source"]),
+            "languages   %s  (files)" % (", ".join("%s %d" % kv for kv in sorted(
+                (result.get("languages") or {}).items(), key=lambda kv: (-kv[1], kv[0]))) or "-"),
             "modules     %d in %d scopes" % (result["modules"], result["scopes"]),
             "symbols     %d" % result["symbols"],
             "routes      %d" % result["routes"],

@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Set, Tuple
 
+from .. import sigs
 from .base import ExtractContext, FileFacts, anchor_at, is_third_party, mk_use
 from .csharp_decl import NOT_TYPE, CMember, CType, parse_type, skip_angle
 from .csharp_interp import holes
@@ -66,6 +67,8 @@ class Scan:
         self.cls_type = jt.fqn
         self.line_of = None                          # interpolation holes: the line of the string token
         self.init_braces: Set[int] = set()           # `{` of object initializers: `Name = new()` is not an assignment
+        self.caller_sig: Optional[str] = None        # the enclosing overload's sig (cdp/sigs.py), if any
+        self._argo: Optional[int] = None             # `(` of the call being emitted, for `argt`
 
     # ------------------------------------------------------------ entry
 
@@ -247,6 +250,7 @@ class Scan:
             if not sub.n:
                 continue
             inner = Scan(self.fi, self.jt, self.caller, self.tvars, sub)
+            inner.caller_sig = self.caller_sig
             inner.scopes = self.scopes
             inner.line_of = self.tk.line[i] + nl
             inner.run(0, sub.n)
@@ -419,8 +423,10 @@ class Scan:
                 else:
                     if emit:
                         alts = tuple(o + "#" + t for o in fi.static_types)
+                        self._argo = j
                         self.emit(self.cls_type, t, tk.line[i], "invoke", (), alts=alts,
                                   strict=True, targs=targs, argc=self._argc(j))
+                        self._argo = None
                         self._lambdas((self.cls_type, ()), t, j)
                         self.consumed.add(i)
                     step = "m:" + t + ("<%s>" % ",".join(targs) if targs else "")
@@ -566,7 +572,9 @@ class Scan:
             self._type_use(ttext, j, emit)
         te: Optional[TExpr] = (norm, ()) if not steps else None
         if emit:
+            self._argo = e
             self.emit(split_type(norm)[0], "<init>", tk.line[i], "new", steps, strict=False)
+            self._argo = None
         if tk.at(e) == "{":
             self.init_braces.add(e)
             self._init_news(e, norm)
@@ -631,8 +639,10 @@ class Scan:
     def _hop(self, recv: Optional[TExpr], name: str, name_i: int, emit: bool, targs: List[str], open_i: int,
              static: bool) -> Optional[TExpr]:
         if emit and recv is not None:
+            self._argo = open_i
             self.emit(recv[0], name, self.tk.line[name_i], "invoke", recv[1], strict=True, targs=targs,
                       static=static, argc=self._argc(open_i))
+            self._argo = None
         if targs and name in GENERIC_FACTORY and (recv is None or not recv[1]):
             if recv is None or is_bcl(recv[0]) or split_type(recv[0])[0] not in self.fi.types:
                 if name not in ("Get", "Parse", "As") or recv is None or not is_bcl(recv[0]):
@@ -689,7 +699,24 @@ class Scan:
             row["targs"] = targs
         if argc is not None:
             row["argc"] = argc
+        self._overload_facts(row)
         fi.facts.uses.append(row)
+
+    def _overload_facts(self, row: Dict) -> None:
+        """`from_sig` (the overload this body is) and `argt` (argument types `resolve` picks an overload
+        of the target by), plus `argc` where the row had none (`new X(..)`): cdp/sigs.py."""
+        if self.caller_sig:
+            row["from_sig"] = self.caller_sig
+        if self._argo is None:
+            return
+        n, argt = sigs.call_args(self.tk, self._argo, self._arg_type, lambda j: skip_angle(self.tk, j))
+        if "argc" not in row and n is not None:
+            row["argc"] = n
+        if argt:
+            row["argt"] = argt
+
+    def _arg_type(self, a: int, b: int) -> Optional[str]:
+        return sigs.simple_arg(self.tk, a, b, self.lookup, self.cls_type)
 
     # ----------------------------------------------------------- lambdas
 
@@ -752,6 +779,7 @@ def emit_bodies(ctx, facts, tk, parser, types, resolver, statics, ns) -> None:
                 continue
             mtv = tv | set(m.tparams)
             scan = Scan(fi, jt, m.symbol, mtv)
+            scan.caller_sig = m.sig
             scan.declare_params(m.params)
             scan.expect = fi.norm(m.ret, mtv) if m.kind == "method" and m.ret and m.ret not in ("void",) else None
             awaited = bcl_step(scan.expect, "w") if scan.expect else None
@@ -762,7 +790,9 @@ def emit_bodies(ctx, facts, tk, parser, types, resolver, statics, ns) -> None:
                 target = jt.fqn if which == "this" else (fi.norm(jt.extends[0], tv).split("<", 1)[0]
                                                          if jt.extends else "")
                 if target:
+                    scan._argo = a - 1
                     scan.emit(target, "<init>", tk.line[a - 2], "ctor", ())
+                    scan._argo = None
                 scan.run(a, b)
             if m.body:
                 _seed(scan, tk, m.body[0])

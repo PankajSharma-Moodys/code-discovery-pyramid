@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from . import sigs
 from .rules import all_edges
 from .graph import build_symbol_index, owners_of
 from .cfgwrap import wrapped_reads
@@ -92,7 +93,7 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
         }
         if row.get("end_line"):
             site["end_line"] = row["end_line"]
-        for key in ("annotations", "params", "supertypes"):   # per declaration: overloads differ
+        for key in ("annotations", "params", "supertypes", "sig", "arity"):   # per declaration: overloads differ
             if row.get(key):
                 site[key] = row[key]
         entry["sites"].append(site)
@@ -115,7 +116,10 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
                 entry.pop(key, None)
         entry["modules"].sort()
         entry["sites"].sort(key=lambda s: (s["file"], s["anchor"]["line"]))
-        if len(entry["sites"]) > 1:
+        clash, overloads = sigs.collision(entry["sites"])
+        if overloads:
+            entry["overloads"] = overloads
+        if clash:
             entry["collision"] = True
             collisions.append(
                 {
@@ -365,6 +369,10 @@ def _resolve_uses(
         if kind:
             record["kind"] = kind
             record["from_symbol"] = row.get("from_symbol")
+            if row.get("from_sig"):
+                record["from_sig"] = row["from_sig"]
+            if kind == "call" and entry and entry.get("kind") == "method" and len(entry["sites"]) > 1:
+                _overload(record, entry["sites"], row)
         if target_modules:
             record["to_modules"] = target_modules
         if candidates:
@@ -375,6 +383,16 @@ def _resolve_uses(
 
     out.sort(key=lambda r: (r["fqn"], r["from_file"], r["anchor"]["line"]))
     return out, counts
+
+
+def _overload(record: Dict, sites: List[Dict], row: Dict) -> None:
+    """A call to an overloaded name: `sig` + `sig_by` (`arity`/`type`) for the one overload it can be,
+    else `sig_candidates` -- every overload still possible, never a guess (cdp/sigs.py)."""
+    sig, how, candidates = sigs.resolve(sites, row.get("argc"), row.get("argt"))
+    if sig:
+        record["sig"], record["sig_by"] = sig, how
+    elif candidates:
+        record["sig_candidates"] = candidates
 
 
 def _member_target(fqn: str, alts, symbols: Dict[str, Dict]):

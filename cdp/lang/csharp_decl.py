@@ -34,10 +34,11 @@ OPS = frozenset(["+", "-", "*", "/", "%", "&", "|", "^", "!", "~", "<", ">", "="
 
 
 class CMember(JMember):
-    __slots__ = ("prop", "bodies", "ctor_init", "ext", "explicit", "nodef")
+    __slots__ = ("prop", "bodies", "ctor_init", "ext", "explicit", "nodef", "pnull")
 
     def __init__(self, kind: str, name: str, owner: "CType") -> None:
         super().__init__(kind, name, owner)
+        self.pnull: Optional[List[bool]] = None   # per parameter: declared `T?` (cdp/sigs.py)
         self.prop = False
         self.bodies: List[Tuple[int, int]] = []
         self.ctor_init: Optional[Tuple[int, int, str]] = None   # args span, "base"/"this"
@@ -64,7 +65,7 @@ class CMember(JMember):
 
 
 class CType(JType):
-    __slots__ = ("ns", "pparams", "bases", "partial", "delegate_params", "primary_line")
+    __slots__ = ("ns", "pparams", "bases", "partial", "delegate_params", "primary_line", "primary_sig")
 
     def __init__(self, kind: str, name: str, fqn: str, outer: Optional["CType"]) -> None:
         super().__init__(kind, name, fqn, outer)
@@ -73,6 +74,7 @@ class CType(JType):
         self.bases: List[str] = []
         self.partial = False
         self.primary_line = 0
+        self.primary_sig: Optional[str] = None     # the primary constructor's sig when `<init>` is overloaded
 
     @property
     def visibility(self) -> str:
@@ -641,6 +643,7 @@ class DeclParser:
     def _params(self, a: int, b: int) -> List[Tuple[str, str]]:
         tk = self.tk
         out: List[Tuple[str, str]] = []
+        self.pnull: List[bool] = []        # per parameter: declared nullable (`long?`), which `parse_type` drops
         i = a
         while i < b:
             anns: List = []
@@ -652,6 +655,7 @@ class DeclParser:
             if r is not None and r[0] < b + 1 and tk.is_id(r[0]) and r[0] < b:
                 j, ptype = r
                 out.append((ptype, tk.text[j]))
+                self.pnull.append(tk.at(j - 1) == "?")
                 i = j + 1
             else:
                 # a record component without a name or a malformed list: skip the segment
@@ -666,6 +670,34 @@ class DeclParser:
                 i += 1
             i += 1
         return out
+
+    def _arity(self, m: CMember, a: int, b: int) -> None:
+        """`m.varargs` for a trailing `params T[]`; `m.arity` (min, max) when optional parameters, `params`
+        or an extension receiver (`this T x`, not an argument at an `x.M()` call) make it differ from the
+        parameter count (cdp/sigs.py)."""
+        tk = self.tk
+        n = len(m.params)
+        if not n:
+            return
+        defaults, params_kw, seg_default = 0, False, False
+        i = a
+        while i <= b:
+            if i == b or (tk.text[i] == "," and tk.kind[i] == "op"):
+                defaults += seg_default          # a `,` inside `<..>` only splits a segment with no `=`
+                seg_default = False
+            elif tk.kind[i] == "op" and tk.text[i] in "([{":
+                i = tk.close(i)
+            elif tk.kind[i] == "id" and tk.text[i] == "params":
+                params_kw = True
+            elif tk.kind[i] == "op" and tk.text[i] == "=":
+                seg_default = True
+            i += 1
+        m.varargs = params_kw
+        lo = n - defaults - (1 if params_kw else 0)
+        hi: Optional[int] = None if params_kw else n
+        if m.ext:
+            lo, hi = max(lo - 1, 0), (None if hi is None else hi - 1)
+        m.arity = (lo, hi)
 
     def _constraints(self, j: int, end: int) -> int:
         tk = self.tk
@@ -688,8 +720,10 @@ class DeclParser:
         pc = tk.close(po)
         plist = self._params(po + 1, pc)
         m.params = plist
+        m.pnull = self.pnull
         if any(tk.text[q] == "this" and tk.kind[q] == "id" for q in range(po + 1, min(pc, po + 3))) and plist:
             m.ext = plist[0][0]
+        self._arity(m, po + 1, pc)
         j = pc + 1
         if kind == "ctor" and tk.at(j) == ":" and tk.at(j + 1) in ("base", "this") and tk.at(j + 2) == "(":
             c = tk.close(j + 2)

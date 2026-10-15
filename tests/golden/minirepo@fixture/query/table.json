@@ -19,6 +19,7 @@
   "query": "table",
   "tables": [
     {
+      "at": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8",
       "entity_users": [],
       "evidence": [
         "core/src/main/java/COM/Example/mini/core/WidgetEntity.java:8"

@@ -11,7 +11,7 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "default_filters": "dropped by default: tests; pass include_tests=true to keep them",
+  "default_filters": "dropped by default: tests, library; pass include_tests=true, include_library=true to keep them",
   "elided": 0,
   "found": [
     {

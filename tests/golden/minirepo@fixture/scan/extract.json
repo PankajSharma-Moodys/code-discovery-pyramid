@@ -1047,6 +1047,7 @@
         "file": "core/src/test/java/com/example/mini/core/Widget.java",
         "line": 7
       },
+      "argc": 0,
       "file": "core/src/test/java/com/example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget#<init>",
       "from_symbol": "com.example.mini.core.Widget#stub",
@@ -1064,6 +1065,10 @@
         "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
         "line": 27
       },
+      "argc": 1,
+      "argt": [
+        "String"
+      ],
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.core.Widget#<init>",
       "from_symbol": "com.example.mini.web.WidgetResource#get",
@@ -1158,6 +1163,10 @@
         "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
         "line": 6
       },
+      "argc": 1,
+      "argt": [
+        "String"
+      ],
       "chain": [
         "f:out"
       ],

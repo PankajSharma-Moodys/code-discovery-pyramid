@@ -30,7 +30,8 @@ TYPE_KEYWORDS = ("class", "interface", "enum")
 
 class JMember:
     __slots__ = ("kind", "name", "mods", "anns", "ret", "params", "tparams", "line", "start_line",
-                 "end_line", "body", "init", "owner", "static", "ftype", "varargs", "param_anns", "throws")
+                 "end_line", "body", "init", "owner", "static", "ftype", "varargs", "param_anns", "throws",
+                 "sig", "arity")
 
     def __init__(self, kind: str, name: str, owner: "JType") -> None:
         self.kind, self.name, self.owner = kind, name, owner
@@ -47,6 +48,8 @@ class JMember:
         self.static = False
         self.varargs = False
         self.throws: List[str] = []                   # declared `throws` types, as written
+        self.sig: Optional[str] = None                # `Owner#name(T,..)` when overloaded (cdp/sigs.py)
+        self.arity = None                             # (min, max) when not exactly len(params)
 
     @property
     def symbol(self) -> str:

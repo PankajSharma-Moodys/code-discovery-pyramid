@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from .. import sigs
+from ..dataflow import adjacency_of
 from .budget import Budget
 from .common import _finish, annotations_of, _matches, _role_index, cite, make_matcher
 from .store import Store
@@ -41,8 +43,8 @@ def q_paths(
                     "confidence": p["min_confidence"],
                     "hops": [
                         {
-                            "from": h["from"].rsplit(".", 1)[-1],
-                            "to": h["to"].rsplit(".", 1)[-1],
+                            "from": sigs.short(h["from"]),
+                            "to": sigs.short(h["to"]),
                             "channel": h["channel"],
                             "at": cite(h["anchor"]),
                         }
@@ -67,7 +69,7 @@ def _nodes(path: Dict) -> List[str]:
 
 def _node_hit(node: str, needle: str, hit=None, match: str = "substring") -> bool:
     hit = hit or make_matcher(needle, match)
-    if hit(node):
+    if hit(node) or (sigs.is_sig(node) and hit(sigs.name_of(node))):   # `A#m` matches each `A#m(..)`
         return True
     if match == "regex":  # `Class#member` -> class is a substring/exact notion; a pattern states what it means
         return False
@@ -94,8 +96,8 @@ def _through(path: Dict, frm: Optional[str], to: Optional[str], hit: Optional[Di
 TRACE_CAVEAT = (
     "This is a reading list, not an answer. CDP has no parameter or branch model: "
     "it collapses a wide grep into a small cited read whose completeness is stated "
-    "by the `elided` count below — zero means the list is complete, anything else "
-    "means it is qualified. Hops marked `medium` come from the import table: an "
+    "by the `elided` count below — zero means nothing was cut (a paged answer is "
+    "complete across its pages), anything else means it is qualified. Hops marked `medium` come from the import table: an "
     "import proves that a file *can* reach a symbol, not that it does."
 )
 
@@ -133,9 +135,7 @@ def q_trace(
     member's calls justify, come last and are tagged as class-level.
     """
     budget = budget or Budget()
-    adjacency: Dict[str, List[Dict]] = {}
-    for edge in store.dataflow["edges"]:
-        adjacency.setdefault(edge["source"], []).append(edge)
+    adjacency = adjacency_of(store.dataflow["edges"])
     resolved = resolve_entry(store, entry, adjacency, match)
     if not resolved:
         return _finish(
@@ -250,16 +250,25 @@ def _walks(resolved: Dict, adjacency: Dict[str, List[Dict]], max_hops: int) -> L
     member of a class, then the class-level walk (tag None) from the file's primary symbol."""
     starts: List[Tuple[Optional[str], str]] = []
     for h in resolved.get("handlers", ()):
-        if h["handler"] in adjacency:
-            starts.append((h["verb"], h["handler"]))
+        for node in overload_nodes(h["handler"], adjacency):
+            starts.append((h["verb"], node))
     for member in resolved.get("members", ()):
         starts.append((member.rsplit("#", 1)[-1], member))
-    starts.append((None, resolved["node"]))
+    starts += [(None, node) for node in overload_nodes(resolved["node"], adjacency) or [resolved["node"]]]
     out = []
     for tag, node in starts:
         got, exhausted = _walk(node, adjacency, max_hops)
         out.append((tag, got, exhausted))
     return out
+
+
+def overload_nodes(name: str, adjacency: Dict[str, List[Dict]]) -> List[str]:
+    """The graph nodes of a name: itself, or -- an overloaded method -- each overload's `name(..)` node
+    (cdp/sigs.py) that has edges."""
+    if name in adjacency:
+        return [name]
+    prefix = name + "("
+    return sorted(k for k in adjacency if k.startswith(prefix) and sigs.is_sig(k))
 
 
 def _pivot(store: Store, resolved: Dict, adjacency: Dict[str, List[Dict]]) -> None:
@@ -270,7 +279,7 @@ def _pivot(store: Store, resolved: Dict, adjacency: Dict[str, List[Dict]]) -> No
     rather than silently substituting a different subject.
     """
     node = resolved["node"]
-    if node in adjacency:
+    if overload_nodes(node, adjacency):
         return
     candidates: List[str] = []
     if "#" in node:
@@ -298,8 +307,10 @@ def _walk(
     reached: Dict[str, Dict] = {}
     frontier = [start]
     seen = {start}
+    counted = {start: 0}        # hops toward `max_hops`: one overload calling another is not counted
     hops = 0
-    while frontier and hops < max_hops:
+    cut = False
+    while frontier:
         hops += 1
         nxt: List[str] = []
         for node in frontier:
@@ -310,11 +321,17 @@ def _walk(
                 target = edge["target"]
                 if target in seen:
                     continue
+                cost = counted[node] + (0 if sigs.same_method(node, target) else 1)
+                if cost > max_hops:
+                    cut = True
+                    continue
                 seen.add(target)
-                reached[target] = dict(edge, hop=hops)
+                counted[target] = cost
+                reached[target] = dict(edge, hop=hops) if edge["source"] == node else \
+                    dict(edge, hop=hops, walked_from=node)     # an edge out of several overloads
                 nxt.append(target)
         frontier = nxt
-    return reached, bool(frontier)
+    return reached, cut
 
 
 _ACCESSOR = re.compile(r"#(?:get|set|is|has)[A-Z]\w*$|#(?:toString|equals|hashCode|builder|build|<init>)$")
@@ -324,6 +341,7 @@ _ACCESSOR_MAX_LINES = 3
 def _is_boilerplate(store: Store, target: str) -> bool:
     """A getter, setter or `toString`: named like one and no longer than a few
     lines. Extent matters because `getInstance` or `getConnection` carry logic."""
+    target = sigs.name_of(target)
     if not _ACCESSOR.search(target):
         return False
     for site in store.xref["symbols"].get(target, {}).get("sites", [])[:1]:
@@ -352,18 +370,22 @@ def _edge_rows(store: Store, reached: Dict[str, Dict]) -> List[Dict]:
     order = sorted(reached, key=lambda t: (_is_boilerplate(store, t), reached[t].get("hop", 0), t))
     for target in order:
         edge = reached[target]
+        src = edge.get("walked_from") or edge["source"]
         add(edge["anchor"]["file"], edge.get("module"),
-            "%s --%s--> %s" % (edge["source"].rsplit(".", 1)[-1], edge["channel"],
-                               target.rsplit(".", 1)[-1]),
+            "%s --%s--> %s" % (sigs.short(src), edge["channel"], sigs.short(target)),
             cite(edge["anchor"]), edge.get("confidence", "medium"))
-        for site in store.xref["symbols"].get(target, {}).get("sites", []):
+        name = sigs.name_of(target)
+        # an overload's own definition site; the name's every site otherwise
+        sites = store.xref["symbols"].get(name, {}).get("sites", [])
+        if name != target:
+            sites = [s for s in sites if s.get("sig") == target] or sites
+        for site in sites:
             why = "defines %s" % target
             if edge["channel"] == "event":
                 # The subscriber is reached through the event type it handles, not by a call.
                 why = "%s --event--> %s (subscribes to an event %s posts)" % (
-                    edge["source"].rsplit(".", 1)[-1], target.rsplit(".", 1)[-1],
-                    edge["source"].rsplit(".", 1)[-1])
-            add(site["file"], site["module"], why, cite(site["anchor"]), "high", target)
+                    sigs.short(src), sigs.short(target), sigs.short(src))
+            add(site["file"], site["module"], why, cite(site["anchor"]), "high", name)
     return rows
 
 

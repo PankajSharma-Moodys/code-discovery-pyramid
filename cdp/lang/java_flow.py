@@ -114,10 +114,11 @@ def emit_flow(ctx: ExtractContext, facts: FileFacts, code: List[str], tk: Tokens
                     scan = Scan(fi, jt, m.symbol, mtv,
                                 bounds=dict(jt.all_bounds(), **getattr(m.tparams, "bounds", {})))
                     scan.declare_params(m.params)
+                    scan.caller_sig = m.sig
                     if m.kind == "ctor" and jt.extends and not _calls_ctor(tk, m.body[0]):
                         # javac's implicit `super();` at the top of a constructor
                         sup = fi.norm(jt.extends[0], tv)
-                        scan.emit(sup.split("<", 1)[0], "<init>", tk.line[m.body[0] - 1], "ctor", ())
+                        scan.emit(sup.split("<", 1)[0], "<init>", tk.line[m.body[0] - 1], "ctor", (), argc=0)
                     scan.run(*m.body)
                     names = [n for _, n in m.params]
                     emit_config(ctx, facts, tk, m.body[0], m.body[1], m.symbol, constants, static_imports, own,

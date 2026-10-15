@@ -11,7 +11,7 @@
     "snapshot_uncommitted": false,
     "state_version": 1
   },
-  "caveat": "This is a reading list, not an answer. CDP has no parameter or branch model: it collapses a wide grep into a small cited read whose completeness is stated by the `elided` count below — zero means the list is complete, anything else means it is qualified. Hops marked `medium` come from the import table: an import proves that a file *can* reach a symbol, not that it does.",
+  "caveat": "This is a reading list, not an answer. CDP has no parameter or branch model: it collapses a wide grep into a small cited read whose completeness is stated by the `elided` count below — zero means nothing was cut (a paged answer is complete across its pages), anything else means it is qualified. Hops marked `medium` come from the import table: an import proves that a file *can* reach a symbol, not that it does.",
   "default_filters": "dropped by default: tests; pass include_tests=true to keep them",
   "elided": 0,
   "entry": "/v1/widgets",

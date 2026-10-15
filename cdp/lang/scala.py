@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from .. import sigs
+from .java_types import norm_type, resolve_name
 from .base import (
     ExtractContext,
     Extractor,
@@ -45,6 +47,7 @@ class ScalaExtractor(Extractor):
         imports, simple_to_fqn, wildcards = read_imports(ctx, tk, facts)
         resolver = ScResolver(pkg, simple_to_fqn, wildcards)
         resolver.local_types = {t.name: t.fqn for t in types}
+        sigs.assign(types, lambda t, tv: norm_type(t, lambda n: resolve_name(resolver, n), tv) or t)
         decls = declarations(ctx, facts, tk, types, resolver)
 
         # Mirror Java: primary is the first top-level type. A companion object has no define row of its

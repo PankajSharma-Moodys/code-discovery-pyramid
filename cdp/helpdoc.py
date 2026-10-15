@@ -125,7 +125,8 @@ GUIDANCE: Dict[str, List[str]] = {
     "asking questions": ["%-64s query %s" % (q, k) for q, k in FLOW],
     "reading an answer honestly": [
         "Every answer ends with `elided: N` and `as of <repo>@<sha>, state vN`.",
-        "elided: 0    the list is complete.",
+        "elided: 0    nothing was dropped; the list is complete once every page is",
+        "             read (a paged answer says `shown 1-57` of its rows: follow `next`).",
         "elided: N>0  N rows were dropped to stay inside --budget. Raise it, or",
         "             narrow the question. Absence from a budgeted list is not",
         "             absence from the repository.",

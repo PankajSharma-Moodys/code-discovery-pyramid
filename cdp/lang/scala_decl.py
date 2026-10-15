@@ -81,6 +81,18 @@ def scala_type_text(text: str) -> str:
     return t + ("[]" if star else "")
 
 
+def _first_list_arity(m: "ScMember", plist) -> None:
+    """A call's argument count is its first argument list's, so the arity range a call is matched
+    against (cdp/sigs.py) is the first parameter list's: defaults lower the minimum, `T*` lifts the
+    maximum (`define_fields` drops it when it is just the parameter count); `m.varargs` marks `T*`, and
+    is cleared again when more parameter lists follow (the repeated parameter is then not the last)."""
+    n = len(plist)
+    star = bool(plist) and "*" in plist[-1][3]
+    m.varargs = star
+    lo = sum(1 for p in plist if p[5] == (0, 0)) - (1 if star else 0)
+    m.arity = (lo, None if star else n)
+
+
 class ScalaDeclParser:
     def __init__(self, tk: ScTokens, lines: List[str]) -> None:
         self.tk = tk
@@ -391,7 +403,10 @@ class ScalaDeclParser:
                 if tk.text[d] == "=" and tk.kind[d] == "op":
                     break
                 d += 1
-            text = scala_type_text(join_tokens(tk, ti, d))
+            raw = join_tokens(tk, ti, d)
+            text = scala_type_text(raw)
+            if raw.strip().endswith("*"):
+                mods.add("*")                        # a repeated parameter (`xs: T*`)
             out.append((text, name, line, mods, anns, (d + 1, e) if d < e else (0, 0)))
         return out
 
@@ -416,11 +431,15 @@ class ScalaDeclParser:
         m.end_line = end_row
         params = []
         pa = []
-        for a, b in clauses:
-            for ptype, pname, _, _, panns, _ in self._params(a, b):
+        for k, (a, b) in enumerate(clauses):
+            plist = self._params(a, b)
+            if k == 0:
+                _first_list_arity(m, plist)
+            for ptype, pname, _, _, panns, _ in plist:
                 params.append((ptype, pname))
                 pa.append(panns)
         m.params, m.param_anns = params, pa
+        m.varargs = m.varargs and len(clauses) == 1
         # the constructor takes the annotations that sat before the parameter list, not the class's
         jt.members.append(m)
 
@@ -506,15 +525,21 @@ class ScalaDeclParser:
             j = c + 1
         params: List[Tuple[str, str]] = []
         pann: List[List[Ann]] = []
+        lists = 0
         while tk.at(j) == "(":
             if tk.line[j] > tk.line[j - 1] and self._indent(tk.line[j]) <= self._indent(tk.line[start]):
                 break
             c = tk.close(j)
-            for ptype, pname, _, _, panns, _ in self._params(j + 1, c):
+            plist = self._params(j + 1, c)
+            if not lists:
+                _first_list_arity(m, plist)
+            lists += 1
+            for ptype, pname, _, _, panns, _ in plist:
                 params.append((ptype, pname))
                 pann.append(panns)
             j = c + 1
         m.params, m.param_anns = params, pann
+        m.varargs = m.varargs and lists == 1
         stop = self._stmt_end(start, j, end)
         if tk.at(j) == ":" and j < stop:
             d = j + 1

@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .inventory import ROOT_MODULE
+from .lang.build import PLATFORM_PREFIX
 
 SYMBOL_KINDS = frozenset(["class", "interface", "enum", "record", "annotation"])
 
@@ -35,6 +36,9 @@ def build_graph(inventory: Dict, extraction: Dict) -> Dict:
 
     observed_pairs = {(e["from"], e["to"]) for e in observed}
     declared_pairs = {(e["from"], e["to"]) for e in declared}
+    # `platform(project(':bom'))` is a declared edge, but to a module that supplies versions and no
+    # code: nothing imports it, so it is never "declared but never imported"
+    code_pairs = {(e["from"], e["to"]) for e in declared if e.get("uses") != "version platform"}
 
     levels, cycles = _layer(modules, observed_pairs)
 
@@ -48,7 +52,7 @@ def build_graph(inventory: Dict, extraction: Dict) -> Dict:
                 {"from": a, "to": b} for a, b in sorted(observed_pairs - declared_pairs)
             ],
             "declared_not_observed": [
-                {"from": a, "to": b} for a, b in sorted(declared_pairs - observed_pairs)
+                {"from": a, "to": b} for a, b in sorted(code_pairs - observed_pairs)
             ],
             "declared_edges": len(declared_pairs),
             "observed_edges": len(observed_pairs),
@@ -208,20 +212,32 @@ def _declared_edges(
     by_basename: Dict[str, List[str]] = {}
     for module in sorted(module_set):
         by_basename.setdefault(module.rsplit("/", 1)[-1], []).append(module)
+    # A Gradle project path (`:api:api-common`) is relative to the build's own settings file, which in a
+    # repository of several builds is not at the root: `svc/settings.gradle` puts it at `svc/api/api-common`.
+    settings_dirs = sorted({f.rpartition("/")[0] for f in extraction.get("files") or ()
+                            if f.rpartition("/")[2] in ("settings.gradle", "settings.gradle.kts")},
+                           key=len, reverse=True)
 
     edges: List[Dict] = []
     ambiguous: List[Dict] = []
     for src, deps in sorted(extraction["declared_deps"].items()):
-        for dep in sorted(set(deps)):
-            if dep in module_set:
+        root = next((d for d in settings_dirs if d and (src == d or src.startswith(d + "/"))), "")
+        for raw in sorted(set(deps)):
+            platform = raw.startswith(PLATFORM_PREFIX)
+            dep = raw[len(PLATFORM_PREFIX):] if platform else raw
+            if root and root + "/" + dep in module_set:
+                candidates = [root + "/" + dep]
+            elif dep in module_set:
                 candidates = [dep]
             else:
                 candidates = by_basename.get(dep, [])
             candidates = [c for c in candidates if c != src]
             if len(candidates) == 1:
-                edges.append({"from": src, "to": candidates[0]})
+                edges.append(dict({"from": src, "to": candidates[0]}, **({"uses": "version platform"} if platform else {})))
             elif len(candidates) > 1:
                 ambiguous.append({"from": src, "dep": dep, "candidates": candidates})
+    code = {(e["from"], e["to"]) for e in edges if "uses" not in e}
+    edges = [e for e in edges if "uses" not in e or (e["from"], e["to"]) not in code]
     return (
         sorted(edges, key=lambda e: (e["from"], e["to"])),
         sorted(ambiguous, key=lambda a: (a["from"], a["dep"])),

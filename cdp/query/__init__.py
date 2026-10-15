@@ -123,7 +123,8 @@ def _dispatch(
                    include_tests=include_tests or None, include_library=include_library or None, match=match)
     mode = "exact" if exact or match == "exact" else match or "substring"
     exact, regex = mode == "exact", mode == "regex"
-    # Noise is off by default: test files (and, for claims, third-party `library:` subjects) are dropped
+    # Noise is off by default: test files (and, for claims and the claims `symbol` embeds, third-party
+    # `library:` subjects) are dropped
     # unless the caller opts in. `file` is an explicit path lookup, so it is never filtered by default.
     if "include_tests" in APPLIES[kind] and not include_tests and kind != "file":
         exclude_role = list(dict.fromkeys(list(exclude_role or ()) + ["test"]))
@@ -141,6 +142,9 @@ def _dispatch(
             raise ValueError("`query %s` needs a term" % kind)
         if kind == "search":
             return fn(store, term, budget=b, exclude_role=exclude_role, regex=regex)
+        if kind == "symbol":
+            return fn(store, term, budget=b, exclude_role=exclude_role, exact=exact, regex=regex,
+                      include_library=include_library)
         return fn(store, term, budget=b, exclude_role=exclude_role, exact=exact, regex=regex)
     if kind == "module":
         if not term:
@@ -213,7 +217,7 @@ def dispatch(store: Store, kind: str, term: Optional[str] = None, *, view: Optio
     result = annotate(store, kind, term, _dispatch(store, kind, term, **params))
     if "include_tests" in APPLIES[kind] and kind != "file":
         dropped = [] if params.get("include_tests") else ["tests"]
-        if kind == "claims" and not params.get("include_library"):
+        if kind in ("claims", "symbol") and not params.get("include_library"):
             dropped.append("library")
         if dropped:
             result["default_filters"] = ("dropped by default: %s; pass %s to keep them"

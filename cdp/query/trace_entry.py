@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
+from .. import sigs
 from .common import _matches, cite, make_matcher
 from .store import Store
 
@@ -113,9 +114,10 @@ def _class(store: Store, entry: str, adjacency: Dict[str, List[Dict]], rx=None) 
     for key in keys:
         for mk in sorted(k for k in symbols if k.startswith(key + "#")):
             info = symbols[mk]
-            if info["kind"] == "method" and info["visibility"] == "public" and not mk.endswith("#<init>") \
-                    and mk in adjacency:
-                members.append(mk)
+            if info["kind"] == "method" and info["visibility"] == "public" and not mk.endswith("#<init>"):
+                # an overloaded member is one walk per overload (`m(int)`, `m(String)`: cdp/sigs.py)
+                members += [mk] if mk in adjacency else \
+                    sorted(k for k in adjacency if k.startswith(mk + "(") and sigs.is_sig(k))
     sites = symbols[keys[0]]["sites"]
     return {
         "kind": "symbol",

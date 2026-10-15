@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .. import codeindex
+from .. import codeindex, sigs
 from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, make_matcher, _role_index, _tally, cite, route_inputs
 from .store import Store
@@ -59,12 +59,15 @@ MIN_USES_PER_MATCH = 3
 
 
 def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
-             exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
+             exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False,
+             include_library: bool = True) -> Dict:
     """Definition sites, used-by, and collisions for a symbol.
 
     A bare name matches by substring (exact last-name matches first); `exact`
     keeps only exact names. `Class#method` is always exact: the method on the
     class, or the superclass/interface that declares what the class inherits.
+    The embedded claims get the same filters as `q_claims`: `library:` subjects unless
+    `include_library`, and claims whose every evidence anchor is an excluded role.
     """
     budget = budget or Budget()
     roles = _role_index(store) if exclude_role else {}
@@ -123,6 +126,11 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
         if exclude_role:
             users = [u for u in users if roles.get(u.get("file")) not in exclude_role]
         claims = [c for c in store.state["claims"] if c.get("subject") == key or _matches(c.get("statement", ""), key.rsplit(".", 1)[-1])]
+        if not include_library:
+            claims = [c for c in claims if "library:" not in c.get("subject", "")]
+        if exclude_role:
+            claims = [c for c in claims
+                      if any(roles.get(a.get("file")) not in exclude_role for a in c.get("evidence", []))]
         pending.append((key, entry, sites, users, claims))
 
     # One allowance, shared fairly: with several matches the first must not spend
@@ -138,6 +146,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
         room -= cost
         chosen.append(item)
     budget.elided += len(pending) - len(chosen)
+    budget.items = ("match", len(pending), len(pending) - len(chosen))  # a dropped match's uses go uncounted
     budget.spent += len(chosen)
     pending = chosen
     shares = _fair_split_budget(budget.limit - budget.spent, [len(u) + len(c) for _, _, _, u, c in pending])
@@ -165,7 +174,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                                          if s.get("end_line") and s["end_line"] != s["anchor"]["line"] else "")
                     for s in sites
                 ],
-                "collision": bool(entry.get("collision")),
+                **_collision(entry),
                 **annotations_of(store, key),
                 **_symbol_body(store, key, entry, sites),
                 # The true total, kept alongside the budgeted list, so the
@@ -192,18 +201,77 @@ def _memo(store: Store, key: str, build):
 
 
 def _call_index(store: Store) -> Dict:
-    """`(file, from_symbol) -> [callee, ...]` (deduped, in source order) from `uses` rows of kind
-    `call`; built once per query."""
+    """`(file, from_sig or from_symbol) -> [call row, ...]` (in source order) from `uses` rows of kind
+    `call`: an overload's calls are keyed by its own sig (cdp/sigs.py); built once per query. The rows
+    themselves, not a tuple per row: allocating 100k+ tuples on a loaded store costs ~0.3 s in GC."""
     def build() -> Dict:
         seen: Dict = {}
         for u in sorted((u for u in store.extraction["uses"] if u.get("kind") == "call" and u.get("from_symbol")),
                         key=lambda u: (u["file"], u["anchor"]["line"])):
-            rows = seen.setdefault((u["file"], u["from_symbol"]), [])
-            if u["fqn"] not in rows:
-                rows.append(u["fqn"])
+            seen.setdefault((u["file"], u.get("from_sig") or u["from_symbol"]), []).append(u)
         return seen
 
     return _memo(store, "_call_index", build)
+
+
+def _defines_per_name(store: Store) -> Dict:
+    """`(file, fqn) -> how many method definitions` -- more than one is an overload."""
+    def build() -> Dict:
+        n: Dict = {}
+        for d in store.extraction["defines"]:
+            if d["kind"] in ("method", "function"):
+                n[(d["file"], d["fqn"])] = n.get((d["file"], d["fqn"]), 0) + 1
+        return n
+
+    return _memo(store, "_defines_per_name", build)
+
+
+def _calls_of(store: Store, rel: str, fqn: str, d: Dict) -> List[str]:
+    """The members one definition's body calls, deduped. An overload reads its own `from_sig` rows. A
+    store scanned before overloads had sigs pools every overload's calls under the name, so there the
+    calls are cut to the ones inside this definition's lines. Calls under the name but outside every
+    overload (a field initialiser, which runs in every constructor) belong to each overload, as in the graph."""
+    index = _call_index(store)
+    rows = index.get((rel, d.get("sig") or fqn), [])
+    if d.get("sig") and (rel, fqn) in index:
+        rows = sorted(rows + index[(rel, fqn)], key=lambda r: r["anchor"]["line"])
+    if not d.get("sig") and _defines_per_name(store).get((rel, fqn), 0) > 1:
+        lo = d["anchor"]["line"]
+        hi = d.get("end_line") or lo
+        rows = [r for r in rows if lo <= r["anchor"]["line"] <= hi]
+    out: List[str] = []
+    for r in rows:
+        fqn = _resolved_target(store, r) if r.get("chain") or r.get("strict") else r["fqn"]
+        if fqn and fqn not in out:
+            out.append(fqn)
+    return out
+
+
+def _collision(entry: Dict) -> Dict:
+    """`collision` and `overloads` for one symbol (the rule is `sigs.collision`, shared with the scan)."""
+    clash, overloads = sigs.collision(entry["sites"])
+    return {"collision": clash, "overloads": overloads} if overloads else {"collision": clash}
+
+
+def _resolved_target(store: Store, row: Dict) -> Optional[str]:
+    """The callee of a chained or strict call row as resolve settled it, or None where resolve dropped
+    it. The row's own `fqn` is only the extractor's guess: a chain's *base* type (`logger.info` in a
+    `StrictLogging` class: `Svc#info`), or for a bare call the enclosing class (`when(..)` from a
+    Mockito static import: `SvcTest#when`) -- either credits the call to a class that does not declare
+    it. Matched by file, line, caller and method name (two same-named calls on one line share one)."""
+    def build() -> Dict:
+        # rows grouped by file, not one tuple key per row: 50k+ allocations on a loaded store cost ~0.3 s in GC
+        out: Dict = {}
+        for u in store.xref["uses"]:
+            if u.get("kind") == "call":
+                out.setdefault(u["from_file"], []).append(u)
+        return out
+
+    line, caller, tail = row["anchor"]["line"], row.get("from_symbol"), "#" + row["fqn"].rpartition("#")[2]
+    for u in _memo(store, "_resolved_calls", build).get(row["file"], ()):
+        if u["anchor"]["line"] == line and u.get("from_symbol") == caller and u["fqn"].endswith(tail):
+            return u["fqn"]
+    return None
 
 
 def _body_facts(store: Store, rel: str, fqn: str, d: Dict) -> Dict:
@@ -213,7 +281,7 @@ def _body_facts(store: Store, rel: str, fqn: str, d: Dict) -> Dict:
     if d.get("kind") not in ("method", "function"):
         return {}
     out: Dict = {}
-    calls = _call_index(store).get((rel, fqn), [])
+    calls = _calls_of(store, rel, fqn, d)
     if calls:
         out["calls"] = [_short_name(c) for c in calls]
     if d.get("throws"):
@@ -249,8 +317,8 @@ def _symbol_body(store: Store, key: str, entry: Dict, sites: List[Dict]) -> Dict
     for s in sites:
         d = rows.get((key, s["file"], s["anchor"]["line"]))
         facts = _body_facts(store, s["file"], key, d) if d else {}
-        if facts:
-            body.append({"at": cite(s["anchor"]), **facts})
+        if facts or s.get("sig"):
+            body.append({"at": cite(s["anchor"]), **({"sig": s["sig"]} if s.get("sig") else {}), **facts})
     return {"body": body} if body else {}
 
 
@@ -304,6 +372,7 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
                     {"fqn": d["fqn"], "kind": d["kind"], "at": cite(d["anchor"]),
                      "name": _short_name(d["fqn"]), "visibility": d.get("visibility"),
                      "line": d["anchor"]["line"], "end_line": d.get("end_line"),
+                     **({"sig": d["sig"]} if d.get("sig") else {}),
                      **_define_annotations(rel, d), **_body_facts(store, rel, d["fqn"], d)}
                     for d in budget.take(defines)
                 ],
@@ -326,7 +395,7 @@ def q_module(store: Store, name: str, budget: Optional[Budget] = None, match: st
         return _finish({"query": "module", "name": name, "match": match, "found": []}, store, budget)
     graph = store.graph
     out = []
-    for module in budget.take(modules):
+    for module in budget.take_items(modules, "module"):
         key = module["name"]
         claims = [c for c in store.state["claims"] if _claim_module(c, store) == key
                   and "library:" not in c.get("subject", "")]  # same default as `claims`: import edges are noise
@@ -354,6 +423,9 @@ def q_module(store: Store, name: str, budget: Optional[Budget] = None, match: st
                 "observed_only": [
                     e["to"] for e in graph["divergence"]["observed_not_declared"] if e["from"] == key
                 ],
+                "version_platforms": [
+                    e["to"] for e in graph.get("declared", ()) if e["from"] == key and e.get("uses") == "version platform"
+                ],
                 "scopes": [s["node"] for s in store.partition["scopes"] if s["module"] == key],
                 # The tally is over *every* claim, not the budgeted list: a
                 # count that shrinks with the budget would understate the module.
@@ -362,7 +434,8 @@ def q_module(store: Store, name: str, budget: Optional[Budget] = None, match: st
                 "claims": budget.take(claims),
             }
         )
-    return _finish({"query": "module", "name": name, "match": match, "found": out}, store, budget)
+    return _finish({"query": "module", "name": name, "match": match, "found": out, "found_count": len(modules)},
+                   store, budget)
 
 
 def _route_hit(r: Dict, pattern: str, exact: bool, regex=None) -> Optional[str]:
@@ -723,7 +796,7 @@ def q_table(store: Store, name: Optional[str] = None,
     entity_at = _entity_index(store)
     relations: Optional[List[Dict]] = None
     out = []
-    for table in budget.take(sorted(buckets)):
+    for table in budget.take_items(sorted(buckets), "table"):
         slot = buckets[table]
         evidence = _dedupe_cites(slot["persist"] + slot["read"])
         writers = _site_groups(store, slot["persist"])
@@ -737,6 +810,8 @@ def q_table(store: Store, name: Optional[str] = None,
         out.append(
             {
                 "table": table,
+                # one citation the budget never cuts: a listed table always says where it is
+                "at": evidence[0] if evidence else (cite(slot["schema_own"][0]["anchor"]) if slot["schema_own"] else None),
                 "schema_owned_by": sorted({e["module"] for e in slot["schema_own"]}),
                 "migration_count": len(slot["schema_own"]),
                 "migrations": [cite(e["anchor"]) for e in budget.take(slot["schema_own"])],

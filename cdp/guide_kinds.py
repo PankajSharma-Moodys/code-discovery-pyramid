@@ -32,7 +32,7 @@ PARAMS: Dict[str, Tuple[str, str]] = {
     "exclude_role": ("--exclude-role", "drop rows whose file has these roles (%s)"
                                        % ", ".join(ROLES)),
     "include_tests": ("--include-tests", "keep test-role files (dropped by default)"),
-    "include_library": ("--include-library", "`claims`: keep third-party `library:` subjects (dropped by default)"),
+    "include_library": ("--include-library", "`claims`, `symbol`: keep third-party `library:` subjects (dropped by default)"),
     "claim_kind": ("--kind", "`claims`: only claims of this kind"),
     "module": ("--module", "`claims`: only claims whose module contains this text"),
     "subject": ("--subject", "`claims`: only claims whose subject contains this text"),
@@ -70,7 +70,8 @@ KINDS: Dict[str, Dict] = {
                "member or a route for a whole chain.",
         "read": "`resolved_as` says what the term matched (route, source or symbol); `files` are "
                 "the reading list in walk order; `hops_exhausted` true means raise --max-hops; "
-                "`elided: 0` means the list is complete. A route path shared by several verbs is traced "
+                "`elided: 0` means nothing was cut (a paged answer is complete only across its pages: "
+                "follow `next`). A route path shared by several verbs is traced "
                 "for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`). "
                 "The entry point (`resolved_as`) and each hop row that cites one definition (`defines X`) carry "
                 "that symbol's annotations (verbatim text + `file:line`), annotated parameters and owner-class "
@@ -96,25 +97,32 @@ KINDS: Dict[str, Dict] = {
                "declared bound(s) only; an inferred generic method result (`<T> T pick()`) stays untyped. "
                "C#: `x.M()`, `new X(..)`, `new(..)`, `: base(..)`, method groups and extension methods resolve through "
                "declared types, `var`, `await`, collections/LINQ and explicit `M<T>()` arguments; a lambda parameter is "
-               "typed only for LINQ-style stages and Moq `Setup`/`Verify`; overloads share one symbol and are told apart "
-               "only by argument count (an interface method can win over an extension of the same name), and a "
-               "NuGet-typed receiver leaves no edge. "
+               "typed only for LINQ-style stages and Moq `Setup`/`Verify`; an interface method can win over an extension "
+               "of the same name by argument count, and a NuGet-typed receiver leaves no edge. "
+               "Overloads (Java, Scala, C#) share one name -- `symbol Class#m` returns all of them, and `used_by` is "
+               "the name's -- but each also has a signature id `Class#m(T1,T2)` (generic arguments erased, varargs "
+               "`T...`): a call is resolved to one overload by argument count, then by argument types where they are "
+               "known (literals, typed locals/fields); one it cannot tell apart is never guessed. "
                "Python: calls, references, decorators and `from x import f` resolve for `f()`, `self.m()`, `mod.f()`, "
                "`Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, "
                "`x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, "
                "`getattr`, dispatch through a list of modules and decorator-built wrappers are not found.",
         "read": "`defined_range` is `file:start-end` (read exactly that); `used_by_count` is the "
                 "true total even when the list is budgeted (several matches split the budget evenly, "
-                "and a cut one gives `see_all`, the exact command for every use); `collision` true means "
-                "several definitions share the name. "
+                "and a cut one gives `see_all`, the exact command for every use); `overloads: N` counts a "
+                "method's distinct signatures (not a collision); `collision` true means one declaration "
+                "is at more than one site (same signature twice, or a class in two files). "
+                "Embedded `claims` get the `claims` defaults (tests and `library:` subjects dropped). "
                 "Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters "
                 "and the owner class's annotations (Java). "
-                "A method's `body` row (one per overload) lists the members it `calls`, the exceptions it declares "
-                "(`throws`, Java) and its string-literal count (`literals`, from the code text).",
+                "A method's `body` row (one per overload, with its `sig` `Class#m(T1,T2)`) lists the members that "
+                "overload's own body `calls`, the exceptions it declares (`throws`, Java) and its string-literal "
+                "count (`literals`, from the code text). `trace`/`paths` walk overloads as separate nodes "
+                "(`Class#m(T1,T2)`); a call that could be any of several overloads reaches each at `medium`.",
         "term": "REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; "
                 "case-insensitive substring (exact last-name matches first) unless `exact`; "
                 "`Class#method` is always exact.",
-        "uses": ("term",) + _B + ("exact",),
+        "uses": ("term",) + _B + ("exact", "include_library"),
         "required": ("term",),
         "examples": ["query symbol <symbol>", "query symbol <method> --exclude-role test"],
         "where": "'Where is X defined / who calls X / who uses X'. Prefer over grep.",
@@ -145,7 +153,9 @@ KINDS: Dict[str, Dict] = {
                 "depends on it (observed vs declared), its scopes and claim tally.",
         "not": "Not per-file detail (use `file`). `exclude_role` does not apply.",
         "read": "`declared_only` = in the build file but never imported; `observed_only` = "
-                "imported but undeclared.",
+                "imported but undeclared; `version_platforms` = Gradle `platform(project(..))` (a BOM: "
+                "versions, no code, so never an anomaly). Gradle project paths resolve against the "
+                "nearest enclosing settings.gradle.",
         "term": "REQUIRED. Module name or substring.",
         "uses": ("term", "budget"),
         "required": ("term",),

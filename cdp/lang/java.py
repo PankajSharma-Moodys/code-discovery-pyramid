@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Tuple
 
+from .. import sigs
 from .java_decl import DeclParser, JMember, JType, join_tokens, skip_annotation
 from .java_flow import emit_flow, use_row
 from .java_tokens import Tokens
@@ -110,6 +111,19 @@ class JavaExtractor(Extractor):
         types = parser.types
         resolver = _Resolver(pkg, simple_to_fqn, wildcards)
         resolver.local_types = {t.name: t.fqn for t in types}
+        statics: Dict[str, str] = {}
+        static_wild: List[str] = []
+        for r in imports:
+            if r["static"]:
+                if r["fqn"].endswith(".*"):
+                    static_wild.append(r["fqn"][:-2])
+                else:
+                    owner, _, member = r["fqn"].rpartition(".")
+                    statics.setdefault(member, owner)
+        resolver.static_members = statics
+        if len(static_wild) == 1:     # `import static a.B.*`: the one owner a bare name can come from
+            resolver.static_members = dict(statics, **{"*": static_wild[0]})
+        sigs.assign(types, lambda t, tv: norm_type(t, lambda n: resolve_name(resolver, n), tv) or t)
         decls = _declarations(ctx, facts, tk, types, resolver, imports)
         annotations = _read_annotations(tk, types)
 
@@ -121,15 +135,6 @@ class JavaExtractor(Extractor):
         _emit_repository_edges(ctx, facts, code, annotations, decls, primary, resolver)
         _emit_mapper_edges(ctx, facts, code, annotations, decls, primary, resolver)
         _emit_entrypoints(ctx, facts, code, primary)
-        statics: Dict[str, str] = {}
-        static_wild: List[str] = []
-        for r in imports:
-            if r["static"]:
-                if r["fqn"].endswith(".*"):
-                    static_wild.append(r["fqn"][:-2])
-                else:
-                    owner, _, member = r["fqn"].rpartition(".")
-                    statics.setdefault(member, owner)
         emit_flow(ctx, facts, code, tk, types, resolver, statics, static_wild)
 
         facts.signals = sorted(set(facts.signals))
@@ -234,6 +239,7 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
 
     for jt in types:
         _resolve_annotations(jt, resolver)
+        _qualify_static_refs(jt, resolver.static_members)
     for jt in sorted(types, key=lambda t: (t.line, t.fqn)):
         anchor = anchor_at(ctx, jt.line)
         if anchor is not None:
@@ -268,6 +274,7 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                     row["params"] = [
                         _param_row(pname, norm_type(ptype, lambda n: resolve_name(resolver, n), mtv) or ptype, pa)
                         for (ptype, pname), pa in zip(m.params, m.param_anns)]
+                sigs.define_fields(row, m)
                 facts.defines.append(row)
                 decls.append({"fqn": fqn, "kind": "method", "visibility": vis, "anchor": anchor,
                               "index": m.line, "name": name})
@@ -280,7 +287,7 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
                 fqn = jt.fqn + "." + m.name
                 static_final = "static" in m.mods and "final" in m.mods
                 if static_final and m.init:
-                    value = _constant_value(tk, m, jt, values)
+                    value = _constant_value(tk, m, jt, values, resolver.static_members)
                     values[m.name] = value
                     row = mk_define(fqn, "constant", vis, anchor, value=value, annotations=m.anns)
                     decls.append({"fqn": fqn, "kind": "constant", "visibility": vis, "anchor": anchor,
@@ -320,6 +327,51 @@ def _resolve_annotations(jt: JType, resolver: "_Resolver") -> None:
                 one(ann)
 
 
+def _bare_owner(name: str, jt: JType, statics: Dict[str, str]) -> str:
+    """The class a bare constant name in `jt` belongs to, as the `Owner` of `${Owner.NAME}`:
+    a field of `jt` or an enclosing type keeps `jt`'s own name (as before); otherwise a single
+    `import static a.B.NAME`, or the file's only `import static a.B.*` (key `*`), names `B`, which the
+    resolve phase's constant table is keyed on."""
+    t: Optional[JType] = jt
+    while t is not None:
+        if any(m.name == name and m.kind in ("field", "enum_const") for m in t.members):
+            return jt.name
+        t = t.outer
+    owner = statics.get(name) or statics.get("*")
+    return owner.rsplit(".", 1)[-1] if owner else jt.name
+
+
+def _qualify_static_refs(jt: JType, statics: Dict[str, str]) -> None:
+    """Annotation args of `jt`, its members and their parameters: a bare `{"ref": NAME}` that a
+    static import supplies becomes `{"ref": "B.NAME"}`, so `@Path(EXPOSURE_BUNDLES_PATH)` resolves
+    against `ApiConstants` and not against the annotated class."""
+    if not statics:
+        return
+
+    def fix(v):
+        if isinstance(v, list):
+            return [fix(x) for x in v]
+        if not isinstance(v, dict):
+            return v
+        if "ref" in v and "." not in v["ref"]:
+            owner = _bare_owner(v["ref"], jt, statics)
+            return dict(v, ref=owner + "." + v["ref"]) if owner != jt.name else v
+        if "concat" in v:
+            return dict(v, concat=[fix(p) for p in v["concat"]])
+        if "args" in v and isinstance(v["args"], dict):
+            return dict(v, args={k: fix(x) for k, x in v["args"].items()})
+        return v
+
+    anns = list(jt.anns)
+    for m in jt.members:
+        anns.extend(m.anns)
+        for group in m.param_anns:
+            anns.extend(group)
+    for ann in anns:
+        if getattr(ann, "arg_map", None):
+            ann.arg_map = {k: fix(x) for k, x in ann.arg_map.items()}
+
+
 def _param_row(name: str, ptype: str, anns) -> Dict:
     row = {"name": name, "type": ptype}
     if anns:
@@ -327,7 +379,8 @@ def _param_row(name: str, ptype: str, anns) -> Dict:
     return row
 
 
-def _constant_value(tk: Tokens, m: JMember, jt: JType, values: Dict[str, Optional[str]]) -> str:
+def _constant_value(tk: Tokens, m: JMember, jt: JType, values: Dict[str, Optional[str]],
+                    statics: Dict[str, str]) -> str:
     """A `static final` initialiser as text. A concatenation of string literals
     and constant names becomes one string, with another class's constant kept
     symbolic (`${Owner.NAME}`) for the resolve phase; anything else keeps the old
@@ -348,7 +401,7 @@ def _constant_value(tk: Tokens, m: JMember, jt: JType, values: Dict[str, Optiona
                 j += 2
             known = values.get(names[0]) if len(names) == 1 else None
             parts.append(known if known is not None else "${%s}" % ".".join(
-                [jt.name] + names if len(names) == 1 else names[-2:]))
+                [_bare_owner(names[0], jt, statics)] + names if len(names) == 1 else names[-2:]))
             j += 1
         else:
             ok = False
@@ -430,6 +483,7 @@ class _Resolver:
         self.simple_to_fqn = simple_to_fqn
         self.wildcards = wildcards
         self.local_types: Dict[str, str] = {}
+        self.static_members: Dict[str, str] = {}   # `import static a.B.NAME` -> NAME: a.B
 
     def resolve(self, name: str) -> Tuple[str, str]:
         """Returns (fqn, resolved-state).

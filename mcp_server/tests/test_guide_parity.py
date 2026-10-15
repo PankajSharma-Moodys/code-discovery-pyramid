@@ -99,8 +99,11 @@ class AgainstARealScan(unittest.TestCase):
         self.assertGreaterEqual(kept["count"], default["count"])
         same = tools.cdp_query(str(self.repo), "symbol", "OrderService", exclude_role=["test"])
         self.assertEqual(same["found"], tools.cdp_query(str(self.repo), "symbol", "OrderService")["found"])
-        with self.assertRaises(ValueError):  # include_library is a `claims` parameter only
-            tools.cdp_query(str(self.repo), "symbol", "OrderService", include_library=True)
+        # `symbol` embeds claims, so it takes the same `include_library` as `claims`; `routes` does not
+        lib = tools.cdp_query(str(self.repo), "symbol", "OrderService", include_library=True)
+        self.assertNotIn("library", lib.get("default_filters", ""))
+        with self.assertRaises(ValueError):
+            tools.cdp_query(str(self.repo), "routes", include_library=True)
 
     def test_every_kind_answers_identically_over_both_channels(self) -> None:
         asks = {"trace": ("/orders",), "symbol": ("OrderService",), "file": ("OrderResource",),

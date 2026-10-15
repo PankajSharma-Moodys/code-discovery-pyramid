@@ -22,6 +22,7 @@ reason, and it is still far more than a dependency graph can say.
 from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from . import sigs
 from .rules import all_edges
 
 DEFAULT_MAX_HOPS = 8
@@ -51,13 +52,71 @@ def _is_library(target: str) -> bool:
     return target.startswith(LIBRARY_PREFIX)
 
 
+def nodes_from(edge: Dict) -> List[str]:
+    """The graph node(s) an edge leaves. A call edge names its node in `source` (an overload's sig,
+    cdp/sigs.py); any other edge keeps the method *name* in `source` -- links and their ids read it --
+    and lists the overload(s) it leaves under `from_sigs`."""
+    return edge.get("from_sigs") or [edge["source"]]
+
+
+def adjacency_of(edges: Iterable[Dict]) -> Dict[str, List[Dict]]:
+    adjacency: Dict[str, List[Dict]] = {}
+    for edge in edges:
+        for node in nodes_from(edge):
+            adjacency.setdefault(node, []).append(edge)
+    return adjacency
+
+
+class _Overloads:
+    """Where each overloaded name's definitions are: `name -> [(file, line, end_line, sig)]`."""
+
+    def __init__(self, xref: Dict) -> None:
+        self.sites: Dict[str, List[Tuple[str, int, int, str]]] = {}
+        self.sigs: Dict[str, List[str]] = {}
+        for name, entry in xref["symbols"].items():
+            if entry.get("kind") != "method":
+                continue
+            rows = [(s["file"], s["anchor"]["line"], s.get("end_line") or s["anchor"]["line"], s["sig"])
+                    for s in entry["sites"] if s.get("sig")]
+            if rows:
+                self.sites[name] = rows
+                self.sigs[name] = sorted({r[3] for r in rows})
+
+    def callers(self, name: str, file: str, line: int, from_sig: Optional[str] = None) -> List[str]:
+        """The node(s) a row from `name`'s body at `file:line` leaves: its `from_sig`; else the overload
+        whose extent holds the line (a store or an edge kind that carries no `from_sig`); else -- code
+        outside every overload, such as a field initialiser that runs in each constructor -- every
+        overload in that file. A name that is not overloaded is its own node."""
+        if from_sig:
+            return [from_sig]
+        rows = self.sites.get(name)
+        if not rows:
+            return [name]
+        here = [r for r in rows if r[0] == file]
+        inside = [r[3] for r in here if r[1] <= line <= r[2]]
+        if len(inside) == 1:
+            return inside
+        return sorted({r[3] for r in here}) or [name]
+
+    def members(self, owner: str, method: str, like: str) -> List[Tuple[str, str]]:
+        """`owner#method` as a callee reached through `like` (a node of the base's method): the overload
+        with the same parameter list, else every overload (medium), else the name itself."""
+        name = "%s#%s" % (owner, method)
+        found = self.sigs.get(name)
+        if not found:
+            return [(name, "")]
+        if sigs.is_sig(like):
+            same = name + like[len(sigs.name_of(like)):]
+            if same in found:
+                return [(same, "")]
+        return [(g, "medium") for g in found]
+
+
 def build_dataflow(
     extraction: Dict, xref: Dict, graph: Dict, max_hops: int = DEFAULT_MAX_HOPS
 ) -> Dict:
     edges = _edges(extraction, xref)
-    adjacency: Dict[str, List[Dict]] = {}
-    for edge in edges:
-        adjacency.setdefault(edge["source"], []).append(edge)
+    adjacency = adjacency_of(edges)
     for key in adjacency:
         adjacency[key].sort(key=lambda e: (e["target"], e["channel"], e["anchor"]["file"]))
 
@@ -74,7 +133,7 @@ def build_dataflow(
         "process_boundaries": boundaries,
         "totals": {
             "edges": len(edges),
-            "nodes": len(set([e["source"] for e in edges] + [e["target"] for e in edges])),
+            "nodes": len(set(adjacency) | {e["target"] for e in edges}),
             "sources": len(sources),
             "paths": len(paths),
         },
@@ -90,6 +149,22 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
     labels = {(r["file"], r["handler"], r["evidence"][0]["line"]): "route:%s %s" % (r["verb"], r["route"])
               for r in xref.get("routes", []) if r.get("evidence")}
 
+    overloads = _Overloads(xref)
+    first: Dict[Tuple[str, str, str], Dict] = {}
+
+    def overloaded_from(edge: Dict, row: Dict) -> None:
+        """An edge out of an overloaded method lists the overload(s) it leaves; a duplicate of an edge
+        already kept (the same name, target and channel from another overload) adds its overload to it."""
+        if row["source"] not in overloads.sites:
+            return
+        for node in overloads.callers(row["source"], row["anchor"]["file"], row["anchor"]["line"]):
+            if node != row["source"] and node not in edge.setdefault("from_sigs", []):
+                edge["from_sigs"].append(node)
+        if "from_sigs" in edge:
+            edge["from_sigs"].sort()
+            if not edge["from_sigs"]:
+                del edge["from_sigs"]
+
     for row in all_edges(extraction):
         if row["channel"] == "http_in" and row["target"].startswith("route:"):
             label = labels.get((row["file"], row["source"], row["anchor"]["line"]))
@@ -97,18 +172,21 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
                 row = dict(row, target=label)
         key = (row["source"], row["target"], row["channel"])
         if key in seen:
+            if key in first:
+                overloaded_from(first[key], row)
             continue
         seen.add(key)
-        edges.append(
-            {
-                "source": row["source"],
-                "target": row["target"],
-                "channel": row["channel"],
-                "module": row["module"],
-                "anchor": row["anchor"],
-                "confidence": "high",
-            }
-        )
+        edge = {
+            "source": row["source"],
+            "target": row["target"],
+            "channel": row["channel"],
+            "module": row["module"],
+            "anchor": row["anchor"],
+            "confidence": "high",
+        }
+        overloaded_from(edge, row)
+        first[key] = edge
+        edges.append(edge)
 
     for row in xref.get("config_wrapped", ()):      # reads through a wrapper method (cfgwrap.py)
         from .resolve import expand_placeholders
@@ -116,8 +194,10 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
         key = (row["source"], target, row["channel"])
         if row["source"] and not missing and key not in seen:
             seen.add(key)
-            edges.append({"source": row["source"], "target": target, "channel": row["channel"],
-                          "module": row["module"], "anchor": row["anchor"], "confidence": "high"})
+            edge = {"source": row["source"], "target": target, "channel": row["channel"],
+                    "module": row["module"], "anchor": row["anchor"], "confidence": "high"}
+            overloaded_from(edge, row)
+            edges.append(edge)
 
     # Call edges from the resolved import table: the file's primary symbol can
     # reach the symbol it imports.
@@ -144,7 +224,7 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
             }
         )
 
-    _member_edges(xref, edges, seen)
+    _member_edges(xref, edges, seen, overloads)
     _cite_calls_not_imports(edges)
     _event_edges(edges, seen)
     edges.sort(key=lambda e: (e["source"], e["channel"], e["target"], e["anchor"]["file"]))
@@ -178,7 +258,8 @@ def _edge(source: str, target: str, row: Dict, confidence: str) -> Dict:
     }
 
 
-def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]) -> None:
+def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]],
+                  overloads: Optional["_Overloads"] = None) -> None:
     """Call edges read from method bodies, plus the two Spring wirings that
     no call site states: a repository's entity, and an interface's only
     implementation.
@@ -189,6 +270,7 @@ def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]
     `extends JpaRepository<Entity, ...>` line.
     """
     symbols = xref["symbols"]
+    overloads = overloads or _Overloads(xref)
     rows = [r for r in xref["uses"] if r.get("kind") and r["resolved"] in ("local", "matched", "ambiguous")]
 
     entity_of: Dict[str, Dict] = {}
@@ -249,18 +331,33 @@ def _member_edges(xref: Dict, edges: List[Dict], seen: Set[Tuple[str, str, str]]
             add(_edge(r["from_symbol"], r["fqn"], r, "high"))
         if r["kind"] != "call" or not r.get("from_symbol"):
             continue
-        add(_edge(r["from_symbol"], r["fqn"], r, "high"))
+        # Overloads are nodes of their own (cdp/sigs.py): the caller is the overload whose body holds
+        # the call, the callee the overload the call resolved to -- or, when it could not be told
+        # apart, every candidate at `medium`, never one guess and never none.
+        callers = overloads.callers(r["from_symbol"], r["from_file"], r["anchor"]["line"], r.get("from_sig"))
+        if r.get("sig"):
+            callees = [(r["sig"], "high")]
+        elif r.get("sig_candidates"):
+            callees = [(g, "medium") for g in r["sig_candidates"]]
+        else:
+            callees = [(r["fqn"], "high")]
+        for caller in callers:
+            for callee, conf in callees:
+                add(_edge(caller, callee, r, conf))
         owner, _, method = r["fqn"].partition("#")
-        if owner in entity_of:
-            add(_edge(r["fqn"], entity_of[owner]["fqn"], entity_of[owner], "high"))
-        impl = sole_impl.get(owner)
-        if impl:
-            target = "%s#%s" % (impl["from_symbol"], method)
-            add(_edge(r["fqn"], target, impl, "medium"))
-        # A constructor is not virtual: `new Derived()` runs `Base#<init>` via `: base()`, but
-        # a call of `Base#<init>` never runs a subclass's constructor.
-        for over in () if method == "<init>" else overrides(owner, method):
-            add(_edge(r["fqn"], over["target"], over, "medium"))
+        for callee, _ in callees:
+            if owner in entity_of:
+                add(_edge(callee, entity_of[owner]["fqn"], entity_of[owner], "high"))
+            impl = sole_impl.get(owner)
+            if impl:
+                for target, _ in overloads.members(impl["from_symbol"], method, callee):
+                    add(_edge(callee, target, impl, "medium"))
+            # A constructor is not virtual: `new Derived()` runs `Base#<init>` via `: base()`, but
+            # a call of `Base#<init>` never runs a subclass's constructor.
+            for over in () if method == "<init>" else overrides(owner, method):
+                sub = over["target"].partition("#")[0]
+                for target, _ in overloads.members(sub, method, callee):
+                    add(_edge(callee, target, over, "medium"))
 
 
 def _event_edges(edges: List[Dict], seen: Set[Tuple[str, str, str]]) -> None:
@@ -281,8 +378,8 @@ def _event_edges(edges: List[Dict], seen: Set[Tuple[str, str, str]]) -> None:
     for target in sorted(pubs):
         for pub in pubs[target]:
             for sub in subs.get(target, ()):
-                for src, dst in ((pub["source"], sub["source"]),
-                                 (pub["source"].split("#", 1)[0], sub["source"].split("#", 1)[0])):
+                pairs = [(a, b) for a in nodes_from(pub) for b in nodes_from(sub)]
+                for src, dst in pairs + [(pub["source"].split("#", 1)[0], sub["source"].split("#", 1)[0])]:
                     key = (src, dst, "event")
                     if src == dst or key in seen:
                         continue
@@ -298,20 +395,21 @@ def _sources(edges: Sequence[Dict]) -> List[Dict]:
         if edge["channel"] not in SOURCE_CHANNELS or _is_library(edge["target"]):
             continue
         # An http_in edge points *at* the route; the traversal starts from the
-        # handler, which is the edge's source.
-        entry = (edge["source"], edge["channel"])
-        if entry in seen:
-            continue
-        seen.add(entry)
-        out.append(
-            {
-                "node": edge["source"],
-                "trigger": edge["target"],
-                "channel": edge["channel"],
-                "module": edge["module"],
-                "anchor": edge["anchor"],
-            }
-        )
+        # handler, which is the edge's source (each overload, for an overloaded one).
+        for node in nodes_from(edge):
+            entry = (node, edge["channel"])
+            if entry in seen:
+                continue
+            seen.add(entry)
+            out.append(
+                {
+                    "node": node,
+                    "trigger": edge["target"],
+                    "channel": edge["channel"],
+                    "module": edge["module"],
+                    "anchor": edge["anchor"],
+                }
+            )
     return sorted(out, key=lambda s: (s["channel"], s["trigger"], s["node"]))
 
 
@@ -328,20 +426,23 @@ def _trace(
     truncated = False
 
     for source in sources:
-        frontier: List[Tuple[str, List[Dict], Set[str]]] = [
-            (source["node"], [], {source["node"]})
+        # (node, trail, visited, hops counted): one overload calling another is not counted (sigs.same_method)
+        frontier: List[Tuple[str, List[Dict], Set[str], int]] = [
+            (source["node"], [], {source["node"]}, 0)
         ]
-        hops = 0
-        while frontier and hops < max_hops:
-            hops += 1
-            nxt: List[Tuple[str, List[Dict], Set[str]]] = []
-            for node, walked, visited in frontier:
+        while frontier:
+            nxt: List[Tuple[str, List[Dict], Set[str], int]] = []
+            for node, walked, visited, hops in frontier:
                 for edge in adjacency.get(node, ()):
                     if edge["channel"] not in TRAVERSABLE or _is_library(edge["target"]):
                         continue
                     if edge["target"] in visited:
                         continue
-                    trail = walked + [edge]
+                    cost = hops + (0 if sigs.same_method(node, edge["target"]) else 1)
+                    if cost > max_hops:
+                        continue
+                    # the node walked from: an edge out of several overloads is one hop from each
+                    trail = walked + [edge if edge["source"] == node else dict(edge, source=node)]
                     # Only a real sink terminates a path. An earlier version also
                     # terminated on "no outgoing edges", which turned every leaf
                     # of the import graph into a reported path and saturated the
@@ -353,7 +454,7 @@ def _trace(
                         else:
                             paths.append(_path_record(source, trail))
                     if adjacency.get(edge["target"]):
-                        nxt.append((edge["target"], trail, visited | {edge["target"]}))
+                        nxt.append((edge["target"], trail, visited | {edge["target"]}, cost))
             frontier = nxt
             if len(paths) >= MAX_PATHS:
                 truncated = True

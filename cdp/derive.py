@@ -383,8 +383,14 @@ def _data_models(extraction: Dict, xref: Dict, node_of: Dict[str, str]) -> List[
 
     # Representation chains: each `map` edge is one hop of the transformation
     # topology §6.1 calls invisible to a dependency graph.
+    files = extraction.get("files") or {}
     for edge in all_edges(extraction):
         if edge["channel"] != "map":
+            continue
+        if edge["target"].startswith("library:") and \
+                "mapper" not in (files.get(edge["file"]) or {}).get("signals", ()):
+            # an `org.mapstruct` import alone (a test calling `Mappers.getMapper`) converts
+            # nothing; the claim needs the file's own `@Mapper` marker
             continue
         _add(
             out,

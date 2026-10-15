@@ -19,6 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
+from . import sigs
 from .inventory import ROOT_MODULE
 from .util import human_int, truncate, write_text
 from .rules import all_edges
@@ -441,7 +442,7 @@ def _dataflow(dataflow: Dict, xref: Dict, state: Dict) -> str:
             lines.append("- %s" % " -> ".join(
                 "`%s`" % r.rsplit(".", 1)[-1] for r in path["representation_chain"]))
             lines.append("  - reached from `%s` (%s)"
-                         % (path["source"].rsplit(".", 1)[-1], path["trigger_channel"]))
+                         % (sigs.short(path["source"]), path["trigger_channel"]))
             for hop in path["hops"]:
                 if hop["channel"] == "map":
                     lines.append("  - %s" % _cite(hop["anchor"]))
@@ -467,8 +468,8 @@ def _dataflow(dataflow: Dict, xref: Dict, state: Dict) -> str:
             lines.append("")
             for hop in path["hops"]:
                 lines.append("- `%s` --%s--> `%s` %s"
-                             % (hop["from"].rsplit(".", 1)[-1], hop["channel"],
-                                hop["to"].rsplit(".", 1)[-1], _cite(hop["anchor"])))
+                             % (sigs.short(hop["from"]), hop["channel"],
+                                sigs.short(hop["to"]), _cite(hop["anchor"])))
             lines.append("")
         if len(paths) > 60:
             lines.append("_%d further paths; use `cdp query paths --from X --to Y`._" % (len(paths) - 60))

@@ -51,6 +51,7 @@ class ScFileInfo(FileInfo):
 
 
 class ScScan(Scan):
+    ARG_ANGLES = False      # `<` is only ever an operator in a Scala argument list
     def __init__(self, fi: ScFileInfo, jt: ScType, caller: str, tvars, bounds=None) -> None:
         super().__init__(fi, jt, caller, tvars, bounds=bounds)
         self.localdefs: Set[str] = set()
@@ -371,7 +372,9 @@ class ScScan(Scan):
                     self._type_use(t, i, emit)
                     if emit:
                         self.consumed.add(i)
+                        self._argo = j
                         self.emit(te[0], "<init>", tk.line[i], "new", (), strict=False)
+                        self._argo = None
                     j = self._skip_args(j)
                 else:
                     te = self._bare_call(t, i, j, emit)
@@ -498,7 +501,9 @@ class ScScan(Scan):
             if tk.at(after) == "{" and tk.line[after] == tk.line[close]:
                 return after, None
             if emit:
+                self._argo = e
                 self.emit(split_type(norm)[0], "<init>", tk.line[i], "new", (), strict=False)
+                self._argo = None
             self._type_use(ttext.split("[", 1)[0], i + 1, emit)
             return self._hops(after, te, emit, None)
         if tk.at(e) == "{":                         # `new T { .. }`: anonymous
@@ -528,6 +533,7 @@ def scan_file(ctx: ExtractContext, facts: FileFacts, tk: ScTokens, types: List[S
                 scan = ScScan(fi, jt, m.symbol, mtv, bounds=jt.all_bounds())
                 if m.kind in ("method", "ctor"):
                     scan.declare_params(m.params)
+                    scan.caller_sig = m.sig
                 scan.run(*sp)
     calls = sum(1 for u in facts.uses[before:] if u.get("kind") == "call")
     return {"call_rows": calls}

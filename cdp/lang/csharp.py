@@ -30,6 +30,7 @@ from .base import (
     mk_edge,
     mk_use,
 )
+from .. import sigs
 from .csharp_config import DYNAMIC, config_names, emit_config, key_of
 from .csharp_http import emit_http_clients
 from .csharp_decl import CMember, CType, DeclParser, parse_type
@@ -65,6 +66,7 @@ class CSharpExtractor(Extractor):
         for t in types:
             if t.kind == "delegate":
                 continue
+        sigs.assign(types, lambda t, tv: norm_type(t, lambda n: _resolve(resolver, n), tv) or t)
         _declarations(ctx, facts, tk, types, resolver)
         _emit_import_edges(facts)
         _emit_routes(ctx, facts, types, tk)
@@ -144,8 +146,10 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
         if jt.pparams is not None:
             a2 = anchor_at(ctx, jt.line)
             if a2 is not None:
-                facts.defines.append(mk_define(jt.fqn + "#<init>", "method", "public", a2,
-                                               end_line=jt.line + 1))
+                row = mk_define(jt.fqn + "#<init>", "method", "public", a2, end_line=jt.line + 1)
+                if jt.primary_sig:
+                    row["sig"] = jt.primary_sig
+                facts.defines.append(row)
             if jt.kind == "record":
                 for ptype, pname in jt.pparams:
                     if a2 is not None:
@@ -168,6 +172,7 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                         row["ext"] = norm_type(m.ext, lambda n: _resolve(resolver, n), tv | set(m.tparams))
                     if m.tparams:
                         row["tparams"] = m.tparams
+                sigs.define_fields(row, m)
                 facts.defines.append(row)
             elif m.kind == "enum_const":
                 row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1)

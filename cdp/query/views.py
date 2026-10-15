@@ -56,11 +56,12 @@ PRIMARY: Dict[str, Tuple[str, ...]] = {
 }
 #: bucket -> the result field holding its true total, where the result states one.
 _TOTAL = {"routes": "count", "claims": "count", "tables": "count", "keys": "count", "by_node": "count",
-          "files": "file_count", "conflicts": "count", "near_misses": "near_miss_count"}
+          "files": "file_count", "conflicts": "count", "near_misses": "near_miss_count",
+          "found": "found_count"}
 #: Fields kept in a `count`/`list` answer's header besides scalars.
 _HEADER_KEEP = ("not_found", "not_searched", "default_filters", "budget_note", "dropped_fields")
 _HEADER_DROP = frozenset(("caveat", "searched", "trail", "budget", "count", "counts", "file_count",
-                          "near_miss_count"))
+                          "near_miss_count", "found_count"))
 
 
 def default_view(kind: str) -> str:
@@ -220,7 +221,8 @@ _LIST_ROWS: Dict[Tuple[str, str], Callable[[Any], Dict]] = {
                                      "at": _first(r.get("evidence"))},
     ("claims", "claims"): _claim_row,
     ("search", "claims"): _claim_row,
-    ("table", "tables"): lambda r: {"name": r.get("table"), "at": _first(r.get("evidence")) or _first(r.get("migrations")),
+    ("table", "tables"): lambda r: {"name": r.get("table"),
+                                    "at": r.get("at") or _first(r.get("evidence")) or _first(r.get("migrations")),
                                     "note": "written by %s; read by %s" % (_access(r, "writers", "repository_writes"),
                                                                           _access(r, "readers", "repository_reads"))},
     ("config", "keys"): lambda r: {"name": r.get("key"), "at": _first(r.get("declared")) or _first(r.get("read")),
@@ -582,8 +584,14 @@ def _text(kind: str, payload: Dict, view: str, mixed: Optional[bool] = None) -> 
     if payload.get("match") and payload["match"] != "all":
         head += "  [%s match]" % payload["match"]
     lines.append(head + "  " + _as_of_brief(payload.get("as_of") or {}))
+    paged = count is not None and payload.get("shown") and payload["shown"] != "1-%s" % count
     for k, v in payload.items():
         if k in ("query", "view", "as_of", "count", "counts", "shown", "next", "match", "capped") or k in _bucket_keys(kind):
+            continue
+        if k == "elided" and paged:
+            # `elided` counts rows the budget dropped; a page leaves rows out too, and `elided: 0` alone
+            # would read as "this is everything"
+            lines.append("elided: %s (this page is rows %s of %s; the rest follow `next`)" % (v, payload["shown"], count))
             continue
         lines += _dump({k: _quote(v) if k == "filter" else v})
     if view == "list":

@@ -19,6 +19,7 @@ from .base import (
     mk_define,
     mk_use,
 )
+from .. import sigs
 from .java import _Resolver
 from .java_decl import join_tokens
 from .java_types import norm_type, resolve_name
@@ -290,6 +291,7 @@ def declarations(ctx: ExtractContext, facts: FileFacts, tk: ScTokens, types: Lis
                     row["params"] = [
                         _param_row(pname, norm_type(ptype, lambda n: resolve_name(resolver, n), mtv) or ptype, pa)
                         for (ptype, pname), pa in zip(m.params, m.param_anns)]
+                sigs.define_fields(row, m)
                 facts.defines.append(row)
                 decls.append({"fqn": fqn, "kind": "method", "visibility": vis, "anchor": anchor,
                               "index": m.line, "name": name})

@@ -43,6 +43,9 @@ class Budget:
         self.limit = DEFAULT_BUDGET if rows is None else max(0, int(rows))
         self.spent = 0
         self.elided = 0
+        # `take_items`: the top-level list whose dropped items each count as one row, their own nested
+        # rows uncounted -- so `limit + elided` is then *not* the budget that returns every row
+        self.items: Optional[Tuple[str, int, int]] = None    # (unit, total, dropped)
 
     @property
     def fired(self) -> bool:
@@ -62,6 +65,14 @@ class Budget:
         self.elided += len(rows) - room
         keep = sorted(sorted(range(len(rows)), key=lambda i: _rank(rows[i], i))[:room])
         return [rows[i] for i in keep]
+
+    def take_items(self, rows: Sequence[Any], unit: str) -> List[Any]:
+        """`take` for a list of composite items (a table with its sites): a dropped item is one elided
+        row, and `note` says that its nested rows were not counted. `unit` names an item (`table`)."""
+        rows = list(rows)
+        kept = self.take(rows)
+        self.items = (unit, len(rows), len(rows) - len(kept))
+        return kept
 
     def take_head(self, rows: Sequence[Any]) -> List[Any]:
         """Like `take`, but keeps the first rows in the order given: for lists already ordered
@@ -91,6 +102,13 @@ class Budget:
                 "--budget %d was exhausted before this list. Every row of it was "
                 "elided; this is not evidence that there are none." % self.limit
             )
+        if self.elided and self.items and self.items[2]:
+            # whole items were dropped uncounted inside: `limit + elided` would under-promise
+            unit, total, dropped = self.items
+            return ("--budget %d left out %d row(s): %d of %d %s(s), one row each (their own rows are "
+                    "not counted), and %d nested row(s) of the %d shown. Without --budget every row is "
+                    "returned (paged by `offset`)." % (self.limit, self.elided, dropped, total, unit,
+                                                      self.elided - dropped, total - dropped))
         if self.elided:  # a partial cut: say how to get the rest (a budget cut is not paged by `offset`)
             return "--budget %d left out %d row(s); budget=%d returns every row." % (
                 self.limit, self.elided, self.limit + self.elided)

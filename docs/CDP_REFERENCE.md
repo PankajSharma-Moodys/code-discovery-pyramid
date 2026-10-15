@@ -30,7 +30,7 @@ Every query kind and command: **What** it answers (and does not), **How** to cal
 | `budget` | `--budget` | row cap, none by default; 0 = no rows |
 | `exclude_role` | `--exclude-role` | drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source) |
 | `include_tests` | `--include-tests` | keep test-role files (dropped by default) |
-| `include_library` | `--include-library` | `claims`: keep third-party `library:` subjects (dropped by default) |
+| `include_library` | `--include-library` | `claims`, `symbol`: keep third-party `library:` subjects (dropped by default) |
 | `claim_kind` | `--kind` | `claims`: only claims of this kind |
 | `module` | `--module` | `claims`: only claims whose module contains this text |
 | `subject` | `--subject` | `claims`: only claims whose subject contains this text |
@@ -51,7 +51,7 @@ Which kinds take which parameter:
 | kind | parameters |
 |---|---|
 | `trace` | `term`, `budget`, `exclude_role`, `include_tests`, `max_hops`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
-| `symbol` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `symbol` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `include_library`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
 | `file` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
 | `module` | `term`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
 | `routes` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
@@ -72,7 +72,7 @@ Which kinds take which parameter:
 **What.** The minimal cited file set needed to understand an entry point: the files its call/persist/publish edges reach (including the `@Subscribe` handlers of an EventBus event it posts), each with the edge that put it there.
 
 - Limits: Not logic: no parameters or branches. DI/reflection wiring leaves no edge, so a short trail is not proof of 'calls nothing'. Edges tagged `medium` come from imports or interface/override fan-out (can reach, not does). A class term (`TenantController`) is not one entry point: each public member is walked and the list is capped at 40 files (round-robin, nearest first; the cap and the unlisted count are stated, and `--budget` does not lift it) - trace a member or a route for a whole chain.
-- Reading it: `resolved_as` says what the term matched (route, source or symbol); `files` are the reading list in walk order; `hops_exhausted` true means raise --max-hops; `elided: 0` means the list is complete. A route path shared by several verbs is traced for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`). The entry point (`resolved_as`) and each hop row that cites one definition (`defines X`) carry that symbol's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations; a hop with no single cited symbol shows none.
+- Reading it: `resolved_as` says what the term matched (route, source or symbol); `files` are the reading list in walk order; `hops_exhausted` true means raise --max-hops; `elided: 0` means nothing was cut (a paged answer is complete only across its pages: follow `next`). A route path shared by several verbs is traced for every verb (`verbs`; a file only some verbs reach is tagged `(POST only)`). The entry point (`resolved_as`) and each hop row that cites one definition (`defines X`) carry that symbol's annotations (verbatim text + `file:line`), annotated parameters and owner-class annotations; a hop with no single cited symbol shows none.
 
 **How.** `term`: REQUIRED. A route path (`/orders`; all its verbs) or `VERB /path` (`POST /orders`; one), a dataflow source, a class (`OrderResource`: its public members) or a member (`OrderResource#place`); substring, first match wins in that order.
 
@@ -98,8 +98,8 @@ Which kinds take which parameter:
 
 **What.** Where a class, method or constant is defined (with line extent) and every site that uses it: the transpose of the resolved import and call tables.
 
-- Limits: Not dynamic dispatch, reflection or DI wiring. `used_by` of an interface lists its implementers' callers only where the call resolves. A class's `used_by` includes its `new X(..)` sites (an implicit default constructor counts as the class). Java: a call on a type variable resolves through its declared bound(s) only; an inferred generic method result (`<T> T pick()`) stays untyped. C#: `x.M()`, `new X(..)`, `new(..)`, `: base(..)`, method groups and extension methods resolve through declared types, `var`, `await`, collections/LINQ and explicit `M<T>()` arguments; a lambda parameter is typed only for LINQ-style stages and Moq `Setup`/`Verify`; overloads share one symbol and are told apart only by argument count (an interface method can win over an extension of the same name), and a NuGet-typed receiver leaves no edge. Python: calls, references, decorators and `from x import f` resolve for `f()`, `self.m()`, `mod.f()`, `Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, `x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, `getattr`, dispatch through a list of modules and decorator-built wrappers are not found.
-- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `collision` true means several definitions share the name. Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java). A method's `body` row (one per overload) lists the members it `calls`, the exceptions it declares (`throws`, Java) and its string-literal count (`literals`, from the code text).
+- Limits: Not dynamic dispatch, reflection or DI wiring. `used_by` of an interface lists its implementers' callers only where the call resolves. A class's `used_by` includes its `new X(..)` sites (an implicit default constructor counts as the class). Java: a call on a type variable resolves through its declared bound(s) only; an inferred generic method result (`<T> T pick()`) stays untyped. C#: `x.M()`, `new X(..)`, `new(..)`, `: base(..)`, method groups and extension methods resolve through declared types, `var`, `await`, collections/LINQ and explicit `M<T>()` arguments; a lambda parameter is typed only for LINQ-style stages and Moq `Setup`/`Verify`; an interface method can win over an extension of the same name by argument count, and a NuGet-typed receiver leaves no edge. Overloads (Java, Scala, C#) share one name -- `symbol Class#m` returns all of them, and `used_by` is the name's -- but each also has a signature id `Class#m(T1,T2)` (generic arguments erased, varargs `T...`): a call is resolved to one overload by argument count, then by argument types where they are known (literals, typed locals/fields); one it cannot tell apart is never guessed. Python: calls, references, decorators and `from x import f` resolve for `f()`, `self.m()`, `mod.f()`, `Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, `x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, `getattr`, dispatch through a list of modules and decorator-built wrappers are not found.
+- Reading it: `defined_range` is `file:start-end` (read exactly that); `used_by_count` is the true total even when the list is budgeted (several matches split the budget evenly, and a cut one gives `see_all`, the exact command for every use); `overloads: N` counts a method's distinct signatures (not a collision); `collision` true means one declaration is at more than one site (same signature twice, or a class in two files). Embedded `claims` get the `claims` defaults (tests and `library:` subjects dropped). Each definition also shows its annotations (verbatim text + `file:line`), annotated parameters and the owner class's annotations (Java). A method's `body` row (one per overload, with its `sig` `Class#m(T1,T2)`) lists the members that overload's own body `calls`, the exceptions it declares (`throws`, Java) and its string-literal count (`literals`, from the code text). `trace`/`paths` walk overloads as separate nodes (`Class#m(T1,T2)`); a call that could be any of several overloads reaches each at `medium`.
 
 **How.** `term`: REQUIRED. Fully-qualified name, a suffix (`OrderService`), or `Class#method`; case-insensitive substring (exact last-name matches first) unless `exact`; `Class#method` is always exact.
 
@@ -107,6 +107,7 @@ Which kinds take which parameter:
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
 - `exact` (`--exact`): `match=exact`
+- `include_library` (`--include-library`): `claims`, `symbol`: keep third-party `library:` subjects (dropped by default)
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
 - `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)
@@ -150,7 +151,7 @@ Which kinds take which parameter:
 **What.** A build module's files, LOC, languages, roles, what it depends on and who depends on it (observed vs declared), its scopes and claim tally.
 
 - Limits: Not per-file detail (use `file`). `exclude_role` does not apply.
-- Reading it: `declared_only` = in the build file but never imported; `observed_only` = imported but undeclared.
+- Reading it: `declared_only` = in the build file but never imported; `observed_only` = imported but undeclared; `version_platforms` = Gradle `platform(project(..))` (a BOM: versions, no code, so never an anomaly). Gradle project paths resolve against the nearest enclosing settings.gradle.
 
 **How.** `term`: REQUIRED. Module name or substring.
 
@@ -311,7 +312,7 @@ Which kinds take which parameter:
 - `budget` (`--budget`): row cap, none by default; 0 = no rows
 - `exclude_role` (`--exclude-role`): drop rows whose file has these roles (test, build, ci, config, docs, asset, schema, source)
 - `include_tests` (`--include-tests`): keep test-role files (dropped by default)
-- `include_library` (`--include-library`): `claims`: keep third-party `library:` subjects (dropped by default)
+- `include_library` (`--include-library`): `claims`, `symbol`: keep third-party `library:` subjects (dropped by default)
 - `view` (`--view`): `count`, `list` (name + file:line), `compact` (all facts) or `detail` (full); default list if broad, else compact
 - `format` (`--format`): `text` (default for count/list) or `json`
 - `max_tokens` (`--max-tokens`): token cap (default 3000; 0 none)

@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Set, Tuple
 
+from .. import sigs
 from .base import ExtractContext, FileFacts, anchor_at, is_third_party, mk_use
 from .java_config import call_keys
 from .java_decl import NOT_TYPE, JMember, JType, parse_type
@@ -67,12 +68,17 @@ class FileInfo:
 
 
 class Scan:
+    #: `<` in an argument list may open type arguments (`f(new HashMap<K, V>())`); not in Scala
+    ARG_ANGLES = True
+
     def __init__(self, fi: FileInfo, jt: JType, caller: str, tvars, emit_types: bool = True,
                  bounds: Optional[Dict[str, List[str]]] = None) -> None:
         self.fi, self.tk, self.jt, self.caller, self.tvars = fi, fi.tk, jt, caller, tvars
         self.bounds = bounds or {}
         self.params: Dict[str, int] = {}
         self._open: Optional[int] = None   # token index of the `(` of the call being emitted
+        self._argo: Optional[int] = None   # the same, for a constructor call (`new X(..)`, `this(..)`)
+        self.caller_sig: Optional[str] = None   # the enclosing overload's sig (cdp/sigs.py), if any
         self.scopes: List[Dict[str, Optional[TExpr]]] = [{}]
         self.consumed: Set[int] = set()
         self.hints: Dict[int, List[Optional[TExpr]]] = {}
@@ -286,14 +292,18 @@ class Scan:
         if t == "this":
             if tk.at(j) == "(":
                 if emit:
+                    self._argo = j
                     self.emit(self.cls_type, "<init>", tk.line[i], "ctor", (), strict=False)
+                    self._argo = None
                 return tk.close(j) + 1, None
             te = (self.cls_type, ())
         elif t == "super":
             if tk.at(j) == "(":
                 sup = self._super_type()
                 if emit and sup:
+                    self._argo = j
                     self.emit(sup, "<init>", tk.line[i], "ctor", (), strict=False)
+                    self._argo = None
                 return tk.close(j) + 1, None
             sup = self._super_type()
             te = (sup, ()) if sup else None
@@ -493,7 +503,9 @@ class Scan:
         te: TExpr = (norm, ())
         anonymous = tk.at(close + 1) == "{"
         if emit and not anonymous:
+            self._argo = e
             self.emit(split_type(norm)[0], "<init>", tk.line[i], "new", (), strict=False)
+            self._argo = None
         if anonymous:
             return close + 1, None
         j = close + 1
@@ -557,7 +569,7 @@ class Scan:
 
     def emit(self, base: str, name: str, line: int, how: str, steps: Tuple[str, ...], strict: bool = False,
              alts: Tuple[str, ...] = (), prim_var: Optional[str] = None,
-             _seen: Tuple[str, ...] = ()) -> None:
+             _seen: Tuple[str, ...] = (), argc: Optional[int] = None) -> None:
         fi = self.fi
         if not base:
             return
@@ -615,7 +627,25 @@ class Scan:
             ka = call_keys(self.tk, self._open, fi.constants, fi.static_imports, fi.own, self.params)
             if ka:
                 row["ka"] = ka
+        self.overload_facts(row, argc)
         fi.facts.uses.append(row)
+
+    def overload_facts(self, row: Dict, argc: Optional[int] = None) -> None:
+        """`from_sig` (the overload this body is), `argc`/`argt` (what `resolve` picks an overload of
+        the target by): cdp/sigs.py."""
+        if self.caller_sig:
+            row["from_sig"] = self.caller_sig
+        o = self._open if self._open is not None else self._argo
+        argt = None
+        if o is not None:
+            argc, argt = sigs.call_args(self.tk, o, self._arg_type, self.tk.skip_angle if self.ARG_ANGLES else None)
+        if argc is not None:
+            row["argc"] = argc
+        if argt:
+            row["argt"] = argt
+
+    def _arg_type(self, a: int, b: int) -> Optional[str]:
+        return sigs.simple_arg(self.tk, a, b, self.lookup, self.cls_type)
 
     # ----------------------------------------------------------- lambdas
 
