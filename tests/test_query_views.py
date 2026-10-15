@@ -734,6 +734,27 @@ class FilterTest(unittest.TestCase):
         every = self.q("routes", "op", match="regex", format="json", view="list")["routes"]
         self.assertEqual(got, [r["name"] for r in every])
 
+    def test_paths_list_rows_are_real_and_filterable(self):
+        # the fixture traces no path, so rows are synthetic; they take the real list-row and filter code
+        row = {"confidence": "high", "trigger": "event:com.acme.Changed",
+               "hops": [{"at": "svc/A.java:5", "channel": "call", "from": "A#on", "to": "B#save"},
+                        {"at": "svc/B.java:9", "channel": "persist", "from": "B#save", "to": "table:orders"}]}
+        made = views._list_row("paths", "paths", row)
+        self.assertEqual(made, {"name": "A#on", "to": "table:orders", "at": "svc/A.java:5",
+                                "note": "2 hop(s); event:com.acme.Changed"})
+        kept, _ = views._filter_rows("paths", [("paths", row)], r"table:orders\s+svc/A\.java:5")
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(views._filter_rows("paths", [("paths", row)], "zzz")[0], [])
+        self.assertEqual(views._list_row("paths", "paths", {"confidence": "medium", "hops": []})["note"],
+                         "0 hop(s); medium confidence")
+
+    def test_exclude_role_that_empties_the_answer_exits_1(self):
+        cdp = Cdp(self.tmp.name, self.repo.path)
+        for kind, role, empty in (("routes", "source", True), ("routes", "schema", False),
+                                  ("table", "schema", True), ("table", "source", False)):
+            rc = cdp.run("query", kind, "--exclude-role", role, check=False).returncode
+            self.assertEqual(rc, 1 if empty else 0, "%s --exclude-role %s" % (kind, role))
+
     def test_filter_implies_list_and_rejects_compact_and_detail(self):
         self.assertEqual(self.q("trace", "/v1/servers/op0/{id}", filter="op")["view"], "list")
         for view in ("compact", "detail"):
@@ -803,7 +824,7 @@ class QuerySurfaceTest(unittest.TestCase):
                                        "to": "b", "max_hops": 3, "exclude_role": ["docs", "build"],
                                        "include_tests": True, "include_library": True})
         self.assertEqual(got, {"term": "t", "claim_kind": "naming", "module": "svc", "subject": "x y", "frm": "a",
-                               "to": "b", "max_hops": "3", "exclude_role": "docs,build",
+                               "to": "b", "max_hops": "3", "exclude_role": ["docs", "build"],
                                "include_tests": "true", "include_library": "true"})
         self.assertEqual(query_mod._carried(None, {"include_tests": False, "exclude_role": []}), {})
 
@@ -817,10 +838,12 @@ class QuerySurfaceTest(unittest.TestCase):
         got = [r["name"] for r in page["claims"]]
         self.assertTrue(page.get("next"))
         while page.get("next"):
-            kw = dict(tok.split("=", 1) for tok in shlex.split(page["next"]))
+            # as a client reads it: key=value, a JSON array or JSON string when not bare
+            kw = {k: json.loads(v) if v[:1] in '["' else v
+                  for k, v in re.findall(r'(\w+)=(\[[^\]]*\]|"(?:\\.|[^"\\])*"|\S+)', page["next"])}
             call = dict(view=kw.pop("view"), offset=int(kw.pop("offset")), format=kw.pop("format", "json"))
             self.assertEqual(set(kw) - {"term"}, set(params))  # every narrowing parameter came back
-            kw["exclude_role"] = kw["exclude_role"].split(",")
+            self.assertEqual(kw["exclude_role"], ["docs"])
             kw["include_tests"] = kw["include_library"] = True
             page = self.q("claims", kw.pop("term", None), max_tokens=60, **call, **kw)
             got += [r["name"] for r in page["claims"]]

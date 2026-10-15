@@ -363,5 +363,15 @@ class SearchStarvationTest(unittest.TestCase):
         self.assertEqual(result["elided"], 300 - len(result["claims"]))
 
 
+class PartialCutNoteTest(unittest.TestCase):
+    def test_a_partial_cut_says_how_to_get_every_row(self) -> None:
+        from cdp.query.budget import Budget
+        b = Budget(2)
+        b.take([1, 2, 3])
+        b.take([4, 5])
+        self.assertEqual(b.note(), "--budget 2 left out 3 row(s); budget=5 returns every row.")
+        self.assertIsNone(Budget(5).note())
+
+
 if __name__ == "__main__":
     unittest.main()

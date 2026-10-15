@@ -38,31 +38,39 @@ from .util import CdpError, resolve_prefix
 LEDGER_ARTIFACT = "rollback"
 
 
-def resolve_run_id(value: str, patches=None) -> str:
-    """Accept a `cdp-<sha12>` run id, a commit sha, or (given the patch log) any unique
-    short prefix of one -- the sha `cdp` prints. An ambiguous prefix raises; an empty value
-    names nothing and raises (it must never become "the latest" or an invented run id)."""
+def resolve_run_id(value: str, patches=None, commits: Sequence[str] = ()) -> str:
+    """A run id in the log names exactly that run. A commit -- a unique prefix (4+ hex digits), the 12
+    digits a run id holds, or the full sha -- names its *latest* run, so `patches_up_to_run` gives the
+    commit's whole accumulated state: a `-rN` run re-does only the scopes that changed, and the rest
+    stay in the earlier run's patches. `commits` (full shas the store scanned), when given, must hold
+    a value longer than 12 digits. Junk, an empty value or an ambiguous prefix raises."""
     if not isinstance(value, str) or not value.strip():
         raise CdpError("a run or commit is required: the value is empty")
     value = value.strip()
-    if patches is not None and value:
-        known = {str(p.get("run_id")) for p in patches if p.get("run_id")}
-        bare = value[4:] if value.startswith("cdp-") else value
-        for probe in (value, "cdp-" + bare[:12]):
-            if probe in known:
-                return probe
-        # Runs of one commit (`cdp-<sha>`, `cdp-<sha>-r2`, ...) are one candidate: the commit.
-        by_commit: Dict[str, List[str]] = {}
-        for r in known:
-            if r.startswith("cdp-" + bare):
-                by_commit.setdefault(re.sub(r"-r\d+$", "", r[4:]), []).append(r)
-        if by_commit and len(bare) >= 4:
-            runs = by_commit[resolve_prefix(bare, sorted(by_commit), "run/commit")]
-            last = {r: max(i for i, p in enumerate(patches) if str(p.get("run_id")) == r) for r in runs}
-            return max(runs, key=last.get)
-    if value.startswith("cdp-"):
+    if patches is None:
+        return value if value.startswith("cdp-") else "cdp-" + value[:12]
+    known = {str(p.get("run_id")) for p in patches if p.get("run_id")}
+    if value in known:
         return value
-    return "cdp-" + value[:12]
+    bare = (value[4:] if value.startswith("cdp-") else value).lower()
+    if not re.fullmatch(r"[0-9a-f]{4,64}", bare):
+        raise CdpError("%r is neither a run id in this store's log nor a commit sha" % value)
+    if len(bare) > 12 and commits and not any(str(c).lower().startswith(bare) for c in commits):
+        raise CdpError("commit %s is not one this store scanned" % value)
+    by_commit: Dict[str, List[str]] = {}
+    for r in known:
+        if r.startswith("cdp-" + bare[:12]):
+            by_commit.setdefault(re.sub(r"-r\d+$", "", r[4:]), []).append(r)
+    if not by_commit:
+        return "cdp-" + bare[:12]  # the caller reports that it never appears in the log
+    runs = by_commit[resolve_prefix(bare[:12], sorted(by_commit), "run/commit")]
+    last = {r: max(i for i, p in enumerate(patches) if str(p.get("run_id")) == r) for r in runs}
+    return max(runs, key=last.get)
+
+
+def scanned_commits(backend) -> List[str]:
+    """Full commit shas of the store's snapshots (none on a backend that keeps no snapshot history)."""
+    return [str(s.get("commit_sha")) for s in getattr(backend, "list_snapshots", list)() if s.get("commit_sha")]
 
 
 class Exclusions:
@@ -117,13 +125,14 @@ def patches_excluding_run(patches: Sequence[Dict], run_id: str) -> Tuple[List[Di
     return kept, excluded
 
 
-def patches_up_to_run(patches: Sequence[Dict], run_id: str) -> Tuple[List[Dict], Set[str], bool]:
+def patches_up_to_run(patches: Sequence[Dict], run_id: str, commits: Sequence[str] = ()) -> Tuple[List[Dict], Set[str], bool]:
     """`--to-snapshot` / `--as-of`: keep the log through `run_id`'s last patch.
 
     `run_id` may appear more than once (a scan's root patch plus every leaf
     `collect` patch from examining the same commit all share one run_id, by
-    `_run_id`'s own construction). The cutoff is the *last* index it appears
-    at, so every patch from that run is kept and every later run is excluded.
+    `_run_id`'s own construction). The cutoff is `cut_index`: the run's last
+    leaf patch, so every patch from that run is kept and every later run is
+    excluded; the scan's own patch is always kept.
 
     Returns `(kept, excluded, found)`. `found` distinguishes "this run is
     already the most recent one -- nothing to exclude" (empty `excluded`,
@@ -131,15 +140,45 @@ def patches_up_to_run(patches: Sequence[Dict], run_id: str) -> Tuple[List[Dict],
     (empty `excluded`, `found=False`, which callers must reject rather than
     silently returning the whole log unfiltered).
     """
-    last = None
-    for i, p in enumerate(patches):
-        if str(p.get("run_id")) == run_id:
-            last = i
-    if last is None:
+    cut = cut_index(patches, run_id, commits)
+    if cut is None:
         return list(patches), set(), False
-    kept = list(patches[: last + 1])
-    excluded = {str(p.get("run_id")) for p in patches[last + 1 :]}
+    kept = list(patches[: cut + 1]) + [p for p in patches[cut + 1:] if _structural(p)]
+    excluded = {str(p.get("run_id")) for p in patches[cut + 1:] if not _structural(p)}
     return kept, excluded, True
+
+
+def _structural(patch: Dict) -> bool:
+    """The scan's own patch (slot 0): regenerated for the current tree, never cut or rolled back."""
+    return patch.get("author_kind") == "python"
+
+
+def cut_index(patches: Sequence[Dict], run_id: str, commits: Sequence[str] = ()) -> "int | None":
+    """The last log index that belongs to `run_id`'s state, or None if the run never appears.
+
+    The scan's own patch carries the current commit's run id but sits in slot 0, so it never marks where
+    a run ends. A run with only that patch (the current commit, no leaf run yet) ends after the leaf
+    claims carried from an earlier scanned commit: `carry_leaf_log` copies them, as one block right
+    after slot 0, into a snapshot that has no leaf patch of its own. `commits` (full shas the store
+    scanned) tells a carried patch from a foreign one; without it the block's position alone does."""
+    runs = [(i, str(p.get("run_id")), _structural(p)) for i, p in enumerate(patches)]
+    own = [i for i, r, s in runs if r == run_id and not s]
+    if own:
+        return own[-1]
+    if not any(r == run_id for _, r, _ in runs):
+        return None
+    commit = re.sub(r"-r\d+$", "", run_id)
+    scanned = {str(c)[:12] for c in commits}
+    cut = -1
+    for i, r, s in runs:
+        if s:
+            cut = i
+            continue
+        base = re.sub(r"-r\d+$", "", r)
+        if base == commit or (scanned and base[4:] not in scanned):
+            break  # this commit's own (later) run, or a run of no scanned commit: not carried
+        cut = i
+    return cut
 
 
 def _live_indexes(ledger: Dict) -> List[int]:
@@ -186,4 +225,4 @@ def undo_last_rollback(store, reason: str = "") -> Dict:
     event = {"kind": "undo", "undoes": index, "target_run_id": target.get("target_run_id"),
              "excluded_run_ids": [], "reason": reason or "undo rollback %s" % target.get("target_run_id")}
     store.write_artifact(LEDGER_ARTIFACT, {"events": list(ledger["events"]) + [event]})
-    return event
+    return dict(event, restored_run_ids=list(target.get("excluded_run_ids") or []))  # not in the ledger: derived

@@ -7,8 +7,7 @@ this is one package with sibling entry points (`agent_adapter/langgraph.py`,
 `agent_adapter/adk.py`) rather than two adapters pretending to share a shape.
 
 This module is the shared, SDK-free core: it reuses `mcp_server.tools`'
-three functions (`cdp_scan`/`cdp_query`/`cdp_status` -- already the answer to
-"which CDP surface does an L4 consumer, an RCA or reviewer agent, need") and
+functions (`mcp_server.tools.TOOLS`, the same surface an MCP client gets) and
 pulls each one's description from `cdp help --json` (`cdp/cli.py` `cmd_help`,
 Phase 1 M1.4) rather than hand-writing one, so a tool's description cannot
 drift from the CLI it wraps. `langgraph.py`/`adk.py` are thin: each converts
@@ -34,7 +33,8 @@ from mcp_server import tools as mcp_tools
 #: `mcp_server.tools.TOOLS`' keys are also `cdp help --json`'s command names
 #: for scan/query/status -- no renaming needed between the CLI surface and
 #: the tool surface.
-_HELP_COMMAND_OF_TOOL = {"cdp_scan": "scan", "cdp_query": "query", "cdp_status": "status"}
+_HELP_COMMAND_OF_TOOL = {"cdp_scan": "scan", "cdp_query": "query", "cdp_status": "status",
+                         "cdp_refresh": "refresh", "cdp_help": "help", "cdp_link": "link"}
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ def _command_summaries() -> Dict[str, str]:
 
 
 def tool_specs() -> Dict[str, ToolSpec]:
-    """The three tools, described by the live CLI rather than by hand.
+    """The MCP server's tools, described by the live CLI rather than by hand.
 
     Raises if `cdp help --json`'s command list no longer names `scan`,
     `query` or `status` -- the same "cannot drift silently" guarantee

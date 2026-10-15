@@ -35,14 +35,14 @@ table below is that same guidance, gathered in one place.
 | `query <kind> [term]` | Ask the index a question (`stats coverage symbol file module routes table config paths search claims unknowns conflicts trace`). Never budgeted for `stats`/`coverage` — check those before saying "there is no X". | tip (when rows were elided): `--budget <bigger N>`. Flags: `--json`, `--kind`, `--as-of <sha>`. |
 | `docs [--out DIR]` | Renders `00-overview.md`, `modules/<module>.md`, `dataflow.md`, `unknowns.md`, `CLAUDE.md`. | next: open `<out>/00-overview.md`, or `query stats`. |
 | `status` | Waves, per-node statuses, coverage, freshness, and the current run's task table. | tip (stale/unreviewed scopes exist): `run --stale-only`. next (incomplete tasks): `run --resume`. |
-| `diff <old_state> <new_state> | diff --old-sha A --new-sha B` | Typed structural deltas between two scanned snapshots (an omitted side defaults to the current snapshot; git changes not yet re-scanned do not appear). | tip: `query symbol`/`query table <name>` for full context on a changed item. |
+| `diff [<old_state> <new_state> | --old-sha A --new-sha B]` | Typed structural deltas between two scanned snapshots (an omitted side defaults to the current snapshot; git changes not yet re-scanned do not appear). | tip: `query symbol`/`query table <name>` for full context on a changed item. |
 
 ### Leaf agents
 
 | Command | What it does | Next / useful flags |
 |---|---|---|
 | `prompts` | Writes one leaf prompt per scope for the wave loop. | next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons N`/`--no-lessons`. |
-| `collect` | Validates, verifies and appends leaf patches sitting in the inbox. | next: `fold --check`. |
+| `collect` | Validates, verifies and appends leaf patches sitting in the inbox. Exit 1 when patches were rejected and none accepted. | next: `fold --check`. |
 | `fold [--check]` | Recomputes `state.json` from `patches/` + `xref.json`. `--check` verifies the invariant instead of writing. | next (no `--check`): `query stats`. On `--check` failure: `rollback` the offending run, or `fold` again. |
 | `refresh` | Re-verifies every live claim against HEAD, zero model calls, incremental extraction. | next: `query stats`. Flags: `--quiet`. No-ops cleanly when HEAD is unchanged. |
 | `run --wave N \| --wave-all \| --stale-only \| --scope X` | Dispatch → collect → adjudicate → fold, wave by wave, supervised (leases, retries, resume). | next: `query stats`, or `fold --check`. tip (on partial failure): `run --resume`. Flags: `--runner-cmd`, `--parallel N` (scopes of a wave at once), `--max-attempts`, `--resume`, `--lessons N`/`--no-lessons`. |

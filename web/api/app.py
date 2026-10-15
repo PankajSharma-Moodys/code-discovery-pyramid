@@ -290,7 +290,8 @@ def get_query(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
         return query_mod.dispatch(
-            store, kind, term,
+            store, kind, term,  # the raw dict, as `--json` (dispatch defaults to text; stats/coverage take no format)
+            format=None if kind in ("stats", "coverage") else "json",
             budget=budget, claim_kind=claim_kind, module=module,
             subject=subject, frm=frm, to=to, max_hops=max_hops,
             exclude_role=exclude_role,
@@ -330,7 +331,7 @@ def get_search(
     # end-to-end despite 80 matching symbols existing. Use `q_search`'s own
     # default row budget (200) for the underlying query and apply `limit`
     # only to the flattened symbol+file list this endpoint actually returns.
-    result = query_mod.dispatch(store, "search", q)
+    result = query_mod.dispatch(store, "search", q, view="detail", format="json")  # raw rows, not the text/list views
     results = [
         SearchResultResponse(id=fqn, label=encoding.short_label(fqn), kind="symbol")
         for fqn in result.get("symbols", [])

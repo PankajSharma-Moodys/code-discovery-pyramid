@@ -102,6 +102,12 @@ class WorkspaceStore(ABC):
     def has_artifact(self, name: str) -> bool:
         ...
 
+    def drain_inbox(self, name: str) -> None:
+        """Remove the inbox file `name` once its patch is logged: the file that was read, whatever it
+        is called (`clear_inbox` removes `<node>.json`, which is a different file when the leaf chose
+        another name -- and that file would then be accepted again by every later `collect`)."""
+        (self._inbox_dir() / name).unlink(missing_ok=True)
+
     def reject_inbox(self, name: str) -> None:
         """Move a patch file out of the inbox into `inbox/rejected/`, so a later `collect`
         can never accept what an earlier one (or a failed run) turned down."""

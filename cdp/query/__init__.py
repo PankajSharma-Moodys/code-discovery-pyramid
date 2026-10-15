@@ -28,7 +28,7 @@ invisible, because `coverage` still reads 100%.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence
 
 from ..guide_kinds import APPLIES, CLAIM_KINDS, MATCHES, PARAMS, ROLES
 from .budget import DEFAULT_BUDGET, UNBUDGETED, Budget
@@ -168,9 +168,9 @@ _CARRIED_PARAMS = ("claim_kind", "module", "subject", "frm", "to", "max_hops", "
                    "include_tests", "include_library")
 
 
-def _carried(term: Optional[str], params: Dict) -> Dict[str, str]:
+def _carried(term: Optional[str], params: Dict) -> Dict[str, Any]:
     """Every parameter that changes the rows a call gave, repeated in a cut answer's `next` so that following
-    it asks the same question (an `exact` flag is carried as `match=exact`; roles are comma-joined)."""
+    it asks the same question (an `exact` flag is carried as `match=exact`; a list stays a list, written as JSON)."""
     out = {}
     if term:
         out["term"] = term
@@ -181,7 +181,7 @@ def _carried(term: Optional[str], params: Dict) -> Dict[str, str]:
         value = params.get(name)
         if value in (None, "", False, [], ()):
             continue
-        out[name] = ",".join(value) if isinstance(value, (list, tuple)) else "true" if value is True else str(value)
+        out[name] = list(value) if isinstance(value, (list, tuple)) else "true" if value is True else str(value)
     return out
 
 

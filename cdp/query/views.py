@@ -190,6 +190,15 @@ def _generic_row(r: Any) -> Dict:
     return {"name": name, "at": _first(at) if isinstance(at, list) else _cite(at)}
 
 
+def _path_row(r: Dict) -> Dict:
+    hops = r.get("hops") or []
+    trigger = str(r.get("trigger") or "")
+    return {"name": hops[0].get("from") if hops else trigger, "to": hops[-1].get("to") if hops else None,
+            "at": _cite(hops[0]) if hops else "",
+            "note": "%d hop(s)%s%s" % (len(hops), "; " + trigger if trigger else "",
+                                       "; %s confidence" % r["confidence"] if r.get("confidence") not in (None, "high") else "")}
+
+
 _LIST_ROWS: Dict[Tuple[str, str], Callable[[Any], Dict]] = {
     ("routes", "routes"): lambda r: {"name": "%s %s" % (r.get("verb"), r.get("route")), "to": _short(r.get("handler", "")),
                                      "at": _first(r.get("evidence"))},
@@ -207,6 +216,7 @@ _LIST_ROWS: Dict[Tuple[str, str], Callable[[Any], Dict]] = {
                                     "note": "used by %s, %s claim(s)" % (r.get("used_by_count"), r.get("claims_count"))},
     ("file", "found"): lambda r: {"name": r.get("path"), "to": r.get("role"), "at": r.get("path"),
                                   "note": "%s loc, %s definitions" % (r.get("loc"), r.get("defines_count"))},
+    ("paths", "paths"): _path_row,
     ("trace", "files"): lambda r: {"name": r.get("why"), "at": r.get("at"),
                                    "note": r.get("confidence") if r.get("confidence") != "high" else None},
     ("unknowns", "by_node"): _unknown_row,
@@ -352,14 +362,16 @@ def _as_of_json(as_of: Dict) -> Dict:
     """The provenance a `count`/`list` answer keeps: the commit and state it came from, and any reason to
     doubt it. `detail`/`compact` carry the full `as_of`."""
     keep = {"commit": as_of.get("commit"), "state_version": as_of.get("state_version")}
-    for k in ("behind", "dirty_files", "changed_since", "snapshot_uncommitted", "routed", "code_note"):
-        if as_of.get(k):
+    for k in ("patch_log_as_of", "behind", "dirty_files", "changed_since", "snapshot_uncommitted", "routed", "code_note"):
+        if as_of.get(k):  # `patch_log_as_of`: under --as-of the claims are that run's, `commit` is the structure
             keep[k] = as_of[k]
     return keep
 
 
 def _as_of_brief(as_of: Dict) -> str:
     bits = ["@%s" % str(as_of.get("commit", "?"))[:10], "state %s" % as_of.get("state_version")]
+    if as_of.get("patch_log_as_of"):
+        bits.append("claims as of %s" % as_of["patch_log_as_of"])
     if as_of.get("behind"):
         bits.append("%s commit(s) behind HEAD" % as_of["behind"])
     if as_of.get("dirty_files"):
@@ -488,7 +500,9 @@ def _next(view: str, at: int, filter: Optional[str] = None, carry: Optional[Dict
     bits = ["view=%s" % view]
     if filter:
         bits.append("filter=%s" % _quote(filter))
-    bits += ["%s=%s" % (k, _quote(v)) for k, v in (carry or {}).items()]
+    # a list as a JSON array (`exclude_role=["docs","build"]`), the shape the MCP schema takes
+    bits += ["%s=%s" % (k, json.dumps(v, separators=(",", ":")) if isinstance(v, list) else _quote(v))
+             for k, v in (carry or {}).items()]
     return " ".join(bits + ["offset=%d" % at])
 
 

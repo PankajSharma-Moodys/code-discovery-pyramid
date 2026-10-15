@@ -59,6 +59,12 @@ class QueryEndpointTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), cli)
 
+    def test_stats_query_matches_cli(self) -> None:  # stats takes no `format`: the endpoint must not pass one
+        cli = self._cli_json("stats")
+        resp = self._client().get("/api/query", params=self._params(kind="stats"))
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertEqual(resp.json(), cli)
+
     def test_trace_query_matches_cli(self) -> None:
         # Find a real dataflow source to trace from this fixture's own paths.
         paths = self._cli_json("paths")

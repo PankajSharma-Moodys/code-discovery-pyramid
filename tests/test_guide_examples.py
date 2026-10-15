@@ -111,7 +111,9 @@ class DocumentedExamplesRun(unittest.TestCase):
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 rc = main(argv)
-            self.assertEqual(rc, 0, "%s: `cdp %s` exited %s\n%s%s" % (
+            # A scan alone records no unknowns (leaves do), so a term can match none here: exit 1, as help says.
+            expected = 1 if example.startswith("query unknowns <") else 0
+            self.assertEqual(rc, expected, "%s: `cdp %s` exited %s\n%s%s" % (
                 where, example, rc, out.getvalue()[-300:], err.getvalue()[-300:]))
 
     def test_the_repo_was_not_written_to(self) -> None:

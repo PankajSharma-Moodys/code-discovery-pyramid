@@ -632,14 +632,16 @@ def _claude_md(inventory: Dict, graph: Dict, xref: Dict, state: Dict, extraction
     sym, tbl = _example_names(xref, extraction)
     lines += ["## Querying this instead of grepping", "",
               "```bash",
-              "cdp query stats",
-              "cdp query symbol %s          # definitions + every use, with citations" % sym,
-              "cdp query table %s            # schema owner, writers, readers" % tbl,
-              "cdp query routes                  # HTTP surface, constants resolved",
-              "cdp query module <name>           # purpose, deps, entrypoints, claims",
-              "cdp query paths --to table:%s # how data reaches a sink" % tbl,
-              "cdp query unknowns                # what is NOT known",
-              "```",
+              "cdp query stats"]
+    examples = [("cdp query symbol %s" % sym, "definitions + every use, with citations"),
+                ("cdp query table %s" % tbl, "schema owner, writers, readers"),
+                ("cdp query routes", "HTTP surface, constants resolved"),
+                ("cdp query module <name>", "purpose, deps, entrypoints, claims"),
+                ("cdp query paths --to table:%s" % tbl, "how data reaches a sink"),
+                ("cdp query unknowns", "what is NOT known")]
+    width = max(len(cmd) for cmd, _ in examples) + 1  # the names are the repo's own: align to the longest
+    lines += ["%s# %s" % (cmd.ljust(width), what) for cmd, what in examples]
+    lines += ["```",
               "",
               "## Coverage", "", _coverage_banner(state), ""]
     return "\n".join(lines)

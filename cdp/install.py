@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 
 from . import hook as hook_mod
@@ -150,6 +151,9 @@ def copy_distribution(dest: Path, members: Tuple[str, ...] = DIST_MEMBERS) -> No
     if "tests" not in members:  # a target copy is runtime-only: slim it (cdp/slim.py)
         for path in sorted(dest.rglob("*.py")):
             path.write_text(slim_python(path.read_text(encoding="utf-8")), encoding="utf-8")
+        for path in sorted(dest.rglob("*.json")):  # rule packs and schemas: read only as data, never as text
+            compact = json.dumps(json.loads(path.read_text(encoding="utf-8")), separators=(",", ":"), ensure_ascii=False)
+            path.write_text(compact + "\n", encoding="utf-8")
 
 
 def register_leaf_agent(target: Path, framework: str,
@@ -340,7 +344,9 @@ def remove_agents_md(target: Path) -> List[str]:
     """Delete `<target>/AGENTS.md` only when it is still byte-identical to the copy
     `--agents-md` wrote; an AGENTS.md the user wrote or edited is left alone."""
     path, source = target / "AGENTS.md", SKILL_ROOT / "AGENTS.md"
-    if not path.is_file() or not source.is_file() or path.read_bytes() != source.read_bytes():
+    if not path.is_file() or not source.is_file() or path.resolve() == source.resolve():
+        return []  # never the distribution's own AGENTS.md (a --remove-harness on the skill root)
+    if path.read_bytes() != source.read_bytes():
         return []
     path.unlink()
     return ["removed   %s (the copy --agents-md wrote)" % path]

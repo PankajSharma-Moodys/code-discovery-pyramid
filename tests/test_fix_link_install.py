@@ -68,14 +68,31 @@ class InstallTest(unittest.TestCase):
             self.assertTrue(any("AGENTS.md" in n for n in install_mod.remove_harness(t)))
             self.assertFalse((t / "AGENTS.md").exists())
 
+    def test_remove_harness_on_the_skill_root_keeps_its_agents_md(self):
+        self.assertEqual(install_mod.remove_agents_md(SKILL_ROOT), [])
+        self.assertTrue((SKILL_ROOT / "AGENTS.md").is_file())
+
     def test_install_refuses_a_state_dir_target(self):
-        for marker in ("index.db", ".migrate"):
+        for markers in (("index.db.migrate",), ("index.db", "work/")):
             with tempfile.TemporaryDirectory() as d:
-                (Path(d) / marker).write_text("")
+                for m in markers:
+                    (Path(d) / m).mkdir() if m.endswith("/") else (Path(d) / m).write_text("")
                 code, _, err = _run("install", d, "--framework", "none")
                 self.assertEqual(code, 2)
                 self.assertIn("state directory", err)
                 self.assertFalse((Path(d) / ".claude").exists())
+
+    def test_install_accepts_a_repo_with_its_own_index_db(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "index.db").write_text("")  # the app's own SQLite file
+            code, _, err = _run("install", d, "--framework", "none")
+            self.assertEqual(code, 0, err)
+        with tempfile.TemporaryDirectory() as d:  # ... even beside a work/ folder, in a git checkout
+            for name in (".git", "work"):
+                (Path(d) / name).mkdir()
+            (Path(d) / "index.db").write_text("")
+            code, _, err = _run("install", d, "--framework", "none")
+            self.assertEqual(code, 0, err)
 
 
 if __name__ == "__main__":

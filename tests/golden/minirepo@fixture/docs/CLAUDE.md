@@ -51,12 +51,12 @@ Changing these has the widest blast radius.
 
 ```bash
 cdp query stats
-cdp query symbol DServer          # definitions + every use, with citations
-cdp query table server            # schema owner, writers, readers
-cdp query routes                  # HTTP surface, constants resolved
-cdp query module <name>           # purpose, deps, entrypoints, claims
-cdp query paths --to table:server # how data reaches a sink
-cdp query unknowns                # what is NOT known
+cdp query symbol com.example.mini.core.Widget # definitions + every use, with citations
+cdp query table widget                        # schema owner, writers, readers
+cdp query routes                              # HTTP surface, constants resolved
+cdp query module <name>                       # purpose, deps, entrypoints, claims
+cdp query paths --to table:widget             # how data reaches a sink
+cdp query unknowns                            # what is NOT known
 ```
 
 ## Coverage

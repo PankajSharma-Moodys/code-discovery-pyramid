@@ -317,7 +317,7 @@ Which kinds take which parameter:
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query claims --kind entrypoint
-    $ cdp query claims --subject <symbol>
+    $ cdp query claims --subject <table>
 
 **Where.** 'What do we claim about X / list all entrypoints/dependencies'. Next: `symbol`/`file` for context on a claim's subject.
 
@@ -471,7 +471,7 @@ Which kinds take which parameter:
 
 **What.** Validates, verifies (anchors exist), entails and appends the leaf patches in the inbox.
 
-**How.** Reads `<CDP_HOME>/work/<repo-slug>/patches/inbox/`. `--mode strict` (default) demotes unverifiable claims to unknowns; `lenient` keeps more.
+**How.** Reads `<CDP_HOME>/work/<repo-slug>/patches/inbox/`. `--mode strict` (default) demotes unverifiable claims to unknowns; `lenient` keeps more. Exit 1 when patches were rejected and none accepted; an empty inbox, or a mix, exits 0 (rejections are listed).
 
     $ cdp collect
 

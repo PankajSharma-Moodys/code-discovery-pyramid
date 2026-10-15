@@ -32,23 +32,24 @@ def register(add) -> None:
     rb.set_defaults(func=cmd_rollback)
 
 
-def _plan(args, patches):
+def _plan(args, patches, commits=()):
     """`(kind, target, excluded run ids, patch range)` for `--to-run`/`--to-snapshot`; None when
     `--to-snapshot` names the most recent run. Raises, changing nothing, on an unknown target."""
     if args.to_run:
-        target = rollback_mod.resolve_run_id(args.to_run, patches)
+        target = rollback_mod.resolve_run_id(args.to_run, patches, commits)
         _kept, new_excluded = rollback_mod.patches_excluding_run(patches, target)
         if not new_excluded:
             raise CdpError("no patch in the log is stamped with run %s -- nothing to roll back" % target)
         return "to_run", target, new_excluded, rollback_mod.patch_numbers(patches, new_excluded)
-    target = rollback_mod.resolve_run_id(args.to_snapshot, patches)
-    _kept, new_excluded, found = rollback_mod.patches_up_to_run(patches, target)
+    target = rollback_mod.resolve_run_id(args.to_snapshot, patches, commits)
+    _kept, new_excluded, found = rollback_mod.patches_up_to_run(patches, target, commits)
     if not found:
         raise CdpError("run %s never appended a patch -- nothing to roll back to" % target)
     if not new_excluded:
         return None
-    last = max(i for i, p in enumerate(patches) if str(p.get("run_id")) == target)
-    return "to_snapshot", target, new_excluded, (patches[last]["patch_no"] + 1, max(p["patch_no"] for p in patches))
+    cut = rollback_mod.cut_index(patches, target, commits)
+    lo = patches[cut]["patch_no"] + 1 if cut >= 0 else min(p["patch_no"] for p in patches)
+    return "to_snapshot", target, new_excluded, (lo, max(p["patch_no"] for p in patches))
 
 
 @locked(shared=False)
@@ -71,9 +72,10 @@ def cmd_rollback(args) -> int:
         full = getattr(backend, "load_patches_full", backend.load_patches)()
         if all(p.get("patch_no") is not None for p in full):
             full = sorted(full, key=lambda p: p["patch_no"])
-        if _plan(args, full) is None:
+        commits = rollback_mod.scanned_commits(backend)
+        if _plan(args, full, commits) is None:
             print("rollback  --to-snapshot %s: already the most recent run, nothing to exclude"
-                  % rollback_mod.resolve_run_id(args.to_snapshot, full))
+                  % rollback_mod.resolve_run_id(args.to_snapshot, full, commits))
             backend.close()
             return 0
         # A generation `compact` archived is invisible to the fold; excluding a newer run can make
@@ -89,13 +91,19 @@ def cmd_rollback(args) -> int:
             patches, store.xref, store.partition, repo=paths.repo, mode=args.mode,
             excluded_run_ids=rollback_mod.load_excluded_run_ids(backend), extraction=store.extraction)
         backend.write_artifact("state", folded)
-        print("rollback  undone: %s is live again" % event["target_run_id"])
+        print("rollback  undone (the rollback to %s): %s live again" % (
+            event["target_run_id"], ", ".join(event["restored_run_ids"]) or "no run was excluded; nothing is"))
         print("folded    %d claim(s), %d unknown(s), coverage %.1f%%"
               % (len(folded["claims"]), len(folded["unknowns"]), 100 * folded["coverage"]["fraction"]))
         backend.close()
         return 0
 
-    kind, target, new_excluded, patch_range = _plan(args, patches)
+    plan = _plan(args, patches, rollback_mod.scanned_commits(backend))
+    if plan is None:  # the restored log no longer agrees with the full one validated above
+        backend.close()
+        raise CdpError("rollback: the patch log changed while its archive was restored; nothing was "
+                       "excluded. Run the rollback again.")
+    kind, target, new_excluded, patch_range = plan
 
     reason = args.reason or ("rollback --%s %s" % (kind.replace("_", "-"), target))
     rollback_mod.record_rollback(backend, kind, target, new_excluded, reason, patch_range)

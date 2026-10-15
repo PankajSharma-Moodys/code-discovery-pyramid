@@ -394,7 +394,9 @@ class LenientRunsAndInboxTest(RepoCase):
         cdp.run("prompts")
         inbox = self.inbox(cdp)
         (inbox / "garbage.json").write_text("{not json")
-        out = cdp.run("collect").stdout
+        proc = cdp.run("collect", check=False)
+        self.assertEqual(proc.returncode, 1)  # nothing accepted
+        out = proc.stdout
         self.assertIn("rejected 1", out)
         self.assertFalse((inbox / "garbage.json").exists())
         self.assertTrue((inbox / "rejected" / "garbage.json").exists())

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from . import rereview as rereview_mod, anchor as anchor_mod, claimgate as claimgate_mod, gates as gates_mod, query as query_mod, tiering as tiering_mod
 from .schema import Validator, schema_path, shape_errors, validate_patch
 from .session import Paths, check_repo_matches_manifest, fold_and_write, git_identity, new_run_id, next_generation, open_store, stamp_claims
@@ -34,6 +36,10 @@ def _other_runs(backend, repo_id: str, active: str, current: str) -> Dict[str, s
     return out
 
 
+def _commit_of_run(run_id: str) -> str:
+    return re.sub(r"-r\d+$", "", run_id)
+
+
 def _abandoned_task(backend, run_id: str, scope_hash, node: str) -> List[str]:
     if scope_hash and run_id and backend.supports_run_tracking():
         row = backend.task_states(run_id).get(scope_hash)
@@ -60,9 +66,11 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
     validator = Validator.load(schema_path(SKILL_ROOT))
     scope_nodes = {s["node"] for s in store.partition["scopes"]}
     node_to_hash = {s["node"]: s.get("scope_hash") for s in store.partition["scopes"]}
+    current_run = str(store.manifest.get("run_id") or "")
     other_runs = _other_runs(backend, paths.repo_id, str(store.manifest.get("run_id")), str(store.inventory.get("head")))
     dirty = set(backend.choice.dirty_files)
     accepted: List[Dict] = []
+    accepted_files: List[str] = []  # the inbox file each accepted patch came from, in step with `accepted`
     rejected: List[Dict] = []
     rejected_claims: List[Dict] = []
     marked_invalid = False
@@ -95,6 +103,10 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
                           "the patch describes another snapshot" % (
                               run, other_runs[run][:12], (store.inventory.get("head") or "?")[:12],
                               store.manifest.get("run_id")))
+        elif run and current_run and _commit_of_run(run) != _commit_of_run(current_run):
+            # a run id `--as-of`/`rollback` cannot place in history: only this commit's runs are accepted
+            errors.append("/run_id: %r is not a run of this index's commit; use %s (or a %s-rN run)"
+                          % (run, current_run, _commit_of_run(current_run)))
         errors += _abandoned_task(backend, run, node_to_hash.get(node), node)
         cited = [] if shape_errors(patch) else sorted(
             {str(a.get("file")) for c in patch.get("claims") or [] for a in c.get("evidence") or []} & dirty)
@@ -118,6 +130,7 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
                 marked_invalid = True
             continue
         accepted.append(patch)
+        accepted_files.append(name)
 
     # M4.2: the four unknown gates. Subject/negative-entailment/provenance run
     # here, per-patch, before a patch's `unknowns[]` is appended to the log --
@@ -139,7 +152,7 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
     log_so_far = backend.load_patches()
     rereview_marker = backend.read_report("rereview", {}) or {}
     marker_used = False
-    for patch in accepted:
+    for name, patch in zip(accepted_files, accepted):
         patch.setdefault("author_kind", "llm")
         if mode == LENIENT:
             patch["verify_mode"] = LENIENT
@@ -161,18 +174,18 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
         patch["unknowns"] = kept_unknowns
         unknown_rejections.extend(patch_rejections)
         backend.append_patch(patch, node)
-        backend.clear_inbox(str(patch.get("node", "")))
+        backend.drain_inbox(name)
 
     if marker_used:
         backend.write_report("rereview", rereview_marker)
-    if accepted or marked_invalid or marker_used:
+    if accepted or marked_invalid or marker_used or "coverage" not in store.state:
         folded = fold_and_write(backend, store.xref, store.partition, repo=paths.repo, mode=mode)
         stats = folded["verification"]
         stats["escalation_rate"] = escalation_rate(accepted)
         backend.write_report("verify", stats)
-    else:  # nothing entered the log: leave state (and its version) alone
+    else:  # nothing entered the log: leave state (and its version) alone; this run verified no claim
         folded = store.state
-        stats = dict(folded["verification"], escalation_rate=None)
+        stats = {"claims_in": 0, "escalation_rate": None}
     backend.write_report("rejected", {"rejected": rejected})
     backend.write_report("unknown_gates", {"rejected": unknown_rejections})
 

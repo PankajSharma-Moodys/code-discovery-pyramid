@@ -33,7 +33,8 @@ for f in files:
                    "evidence": [{"file": f, "line": n, "anchor": lines[n - 1]}]})
 with log.open("a") as fh:
     fh.write(json.dumps({"chars": len(text), "files": files, "rereview": "## Re-review" in text}) + chr(10))
-out.write_text(json.dumps({"schema_version": "1.0.0", "node": out.stem.replace("__", "/"), "run_id": "x",
+run_id = re.search(r"cdp-[0-9a-f]{12}(?:-r[0-9]+)?", text).group(0)  # the run its prompt names, as a real leaf
+out.write_text(json.dumps({"schema_version": "1.0.0", "node": out.stem.replace("__", "/"), "run_id": run_id,
                            "status": "complete", "claims": claims, "unknowns": []}))
 '''
 

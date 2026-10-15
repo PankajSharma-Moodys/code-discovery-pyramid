@@ -362,14 +362,23 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         return conn
 
     def _materialize(self) -> None:
-        """Create the store (directory, WAL, schema) that `__init__` left unborn."""
+        """Create the store (directory, WAL, schema) that `__init__` left unborn. Built on a private
+        connection and only then marked born, so no other thread opens a file without its schema."""
         with self._opened_lock:
             if not self._unborn:
                 return
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                conn.execute("PRAGMA journal_mode = WAL")
+                self._migrate(conn)
+                if self._snapshot == 1:  # the default snapshot a reader selected while unborn
+                    conn.execute("INSERT OR IGNORE INTO snapshot_meta (id, ephemeral, created_at) VALUES (1, 1, ?)",
+                                 (_now(),))
+                    conn.commit()
+            finally:
+                conn.close()
             self._unborn = False
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn.execute("PRAGMA journal_mode = WAL")
-        self._migrate()
 
     def _inbox_dir(self) -> Path:
         return self._inbox_root / "patches" / "inbox"
@@ -772,7 +781,7 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
 
     # ---------------------------------------------------------------- schema
 
-    def _migrate(self) -> None:
+    def _migrate(self, conn: "sqlite3.Connection | None" = None) -> None:
         """Bring the schema up to date. Two processes opening a fresh machine
         store at once would both read version 0 and both run migration 2's
         `ALTER TABLE`; the second fails with `duplicate column name`. A lock
@@ -780,7 +789,7 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         with open(str(self.db_path) + ".migrate", "a") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
-                self._migrate_locked()
+                self._migrate_locked(conn)
             finally:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
@@ -808,6 +817,9 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
             raise CdpError(self._missing(""))
         if self._snapshot is not None:
             return self._snapshot
+        if self._unborn and not self.db_path.exists():  # a reader must not create the store: the row waits
+            self._snapshot = 1                            # for the first write (`_materialize`)
+            return 1
         self._conn.execute(
             "INSERT OR IGNORE INTO snapshot_meta (id, ephemeral, created_at) VALUES (1, 1, ?)",
             (_now(),),

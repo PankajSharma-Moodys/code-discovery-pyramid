@@ -64,4 +64,4 @@ Declared and observed graphs agree exactly. That is a good sign about this build
 
 - [`unknowns.md`](unknowns.md) — what this run could not establish. Read it before trusting anything above.
 - [`dataflow.md`](dataflow.md) — how a record actually travels, including edges no import expresses.
-- `cdp query` — the same state, queryable. `query symbol DServer`, `query table server`, `query routes`, `query paths --to table:server`.
+- `cdp query` — the same state, queryable. `query symbol com.example.mini.core.Widget`, `query table widget`, `query routes`, `query paths --to table:widget`.

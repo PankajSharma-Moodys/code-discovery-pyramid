@@ -91,6 +91,9 @@ class Budget:
                 "--budget %d was exhausted before this list. Every row of it was "
                 "elided; this is not evidence that there are none." % self.limit
             )
+        if self.elided:  # a partial cut: say how to get the rest (a budget cut is not paged by `offset`)
+            return "--budget %d left out %d row(s); budget=%d returns every row." % (
+                self.limit, self.elided, self.limit + self.elided)
         return None
 
 

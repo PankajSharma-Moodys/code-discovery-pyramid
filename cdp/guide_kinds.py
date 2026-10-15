@@ -268,7 +268,7 @@ KINDS: Dict[str, Dict] = {
                 "`claim_kind`.",
         "uses": ("term", "claim_kind", "module", "subject") + _B + ("include_library",),
         "required": (),
-        "examples": ["query claims --kind entrypoint", "query claims --subject <symbol>"],
+        "examples": ["query claims --kind entrypoint", "query claims --subject <table>"],
         "where": "'What do we claim about X / list all entrypoints/dependencies'.",
         "next": "`symbol`/`file` for context on a claim's subject.",
     },

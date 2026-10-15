@@ -23,7 +23,7 @@ CDP    := $(PYTHON) -m cdp.cli
 FIXTURE := tests/fixtures/minirepo
 FIXTURE_SLUG := minirepo@fixture
 
-.PHONY: check check-fast check-interfaces selftest distribution determinism fold golden \
+.PHONY: check check-fast check-interfaces test-parallel selftest distribution determinism fold golden \
         bless bless-fixture check-self clean help
 
 ## check: every gate. Green is the contract for every later phase.
@@ -33,6 +33,10 @@ check: selftest determinism fold golden
 
 ## check-fast: everything except the scans. For a tight edit loop.
 check-fast: selftest
+
+## test-parallel: the full pytest suite, one process per file (~3.5 min, not ~18).
+test-parallel:
+	@PYTHON=$(PYTHON) scripts/test_parallel.sh
 
 ## selftest: the bundled suite. Fails below cdp.selftest.MIN_TESTS.
 selftest:

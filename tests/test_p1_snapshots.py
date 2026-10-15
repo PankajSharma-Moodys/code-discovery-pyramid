@@ -112,7 +112,9 @@ class WhichSnapshotAnswersTest(Case):
         patch = {"schema_version": "1.0.0", "node": node, "run_id": first_run, "status": "complete",
                  "claims": [claim("t.stale", "com.example.svc.Child")], "unknowns": []}
         (inbox / (node.replace("/", "__") + ".json")).write_text(json.dumps(patch))
-        out = cdp.run("collect").stdout
+        proc = cdp.run("collect", check=False)
+        self.assertEqual(proc.returncode, 1)  # nothing accepted
+        out = proc.stdout
         self.assertIn("rejected 1", out)
         self.assertIn("the patch describes another snapshot", out)
         self.assertEqual(L.model_claim_ids(cdp.open()[0]), [])
@@ -419,7 +421,9 @@ class AnswersAndPatchesOnADirtyTreeTest(Case):
         dirty_patch = {"schema_version": "1.0.0", "node": node, "run_id": run_id, "status": "complete",
                        "claims": [claim("t.dirty", "com.example.svc.Child")], "unknowns": []}
         (inbox / (node.replace("/", "__") + ".json")).write_text(json.dumps(dirty_patch))
-        out = cdp.run("collect").stdout
+        proc = cdp.run("collect", check=False)
+        self.assertEqual(proc.returncode, 1)  # nothing accepted
+        out = proc.stdout
         self.assertIn("rejected 1", out)
         self.assertIn("uncommitted changes", out)
         clean_patch = dict(dirty_patch, claims=[claim("t.clean", "com.example.svc.Base", file=BASE, line=4,

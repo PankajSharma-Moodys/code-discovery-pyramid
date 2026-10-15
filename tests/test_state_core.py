@@ -194,7 +194,7 @@ class HostileInboxTest(LayoutCase):
         for i, patch in enumerate(bad):
             (inbox / ("b%d.json" % i)).write_text(json.dumps(patch))
         proc = cdp.run("collect", check=False)
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)  # all rejected, none accepted
         self.assertNotIn("Traceback", proc.stderr)
         self.assertEqual(sorted(p.name for p in inbox.glob("*.json")), [])
 

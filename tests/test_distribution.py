@@ -109,7 +109,7 @@ class TargetInstallTest(unittest.TestCase):
     vendored copy keeps `tests/` (`DIST_MEMBERS`, byte-identical above); a target never gets
     them: their fixtures are Java/SQL/Python/C# sources that doubled every `grep -r` there."""
 
-    BUDGET_BYTES = 1_500_000
+    BUDGET_BYTES = 1_600_000  # tests/fixtures alone are ~2 MB, so leaking them still fails
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()

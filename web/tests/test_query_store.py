@@ -60,7 +60,7 @@ class ReadOnlyWorkspaceStoreTest(unittest.TestCase):
         from cdp import query as query_mod
 
         store = self._adapter_store()
-        via_adapter = query_mod.dispatch(store, "unknowns")
+        via_adapter = query_mod.dispatch(store, "unknowns", format="json")  # what `--json` asks for
 
         proc = subprocess.run(
             [sys.executable, "-m", "cdp", "query", "unknowns", "--repo", str(MINIREPO),

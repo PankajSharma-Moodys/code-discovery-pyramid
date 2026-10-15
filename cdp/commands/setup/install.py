@@ -86,7 +86,10 @@ def cmd_install(args) -> int:
         target = Path(args.target).expanduser().resolve()
     if not target.is_dir():
         raise CdpError("not a directory: %s" % target)
-    if any((target / n).exists() for n in ("index.db", ".migrate", "index.db.migrate")):
+    # The store's own lock file, or its db beside a `work/` dir -- and never a git checkout: an app repo's
+    # own index.db (even next to a work/ folder) is no marker.
+    if not (target / ".git").exists() and ((target / "index.db.migrate").exists()
+                                            or ((target / "index.db").exists() and (target / "work").is_dir())):
         raise CdpError("%s is a CDP state directory, not a repository; install into the repository "
                        "(the index store is never a target)" % target)
 

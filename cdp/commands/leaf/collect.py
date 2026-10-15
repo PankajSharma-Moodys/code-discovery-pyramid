@@ -10,7 +10,7 @@ from ...verify import STRICT
 SPEC = Spec(
     group='leaf',
     usage='collect',
-    what='Validates, verifies and appends leaf patches sitting in the inbox.',
+    what='Validates, verifies and appends leaf patches sitting in the inbox. Exit 1 when patches were rejected and none accepted.',
     next='next: `fold --check`.',
 )
 
@@ -58,6 +58,6 @@ def cmd_collect(args) -> int:
     if accepted:
         print("next      cdp fold --check")
     if rejected:
-        print("rejected  %d patch(es) rejected: fix them and re-drop into the inbox (exit 1)" % len(rejected))
-        return 1
-    return 0
+        print("rejected  %d patch(es) rejected: fix them and re-drop into the inbox%s"
+              % (len(rejected), "" if accepted else " (exit 1: nothing accepted)"))
+    return 1 if rejected and not accepted else 0
