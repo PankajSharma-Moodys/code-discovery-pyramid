@@ -30,6 +30,8 @@
       ],
       "read_by": [],
       "readers": [],
+      "repository_reads": [],
+      "repository_writes": [],
       "schema_owned_by": [
         "core"
       ],

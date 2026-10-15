@@ -174,7 +174,7 @@ class CSharpTraceTest(unittest.TestCase):
 
     def test_routes_elided_marker_follows_the_rows(self):
         out = self.cdp.run("query", "routes", "--view", "detail", "--budget", "1").stdout.splitlines()
-        marker = [i for i, l in enumerate(out) if "more (elided" in l]
+        marker = [i for i, l in enumerate(out) if "more (cut by" in l]
         rows = [i for i, l in enumerate(out) if l.startswith("  ") and "/catalog/Tenant" in l]
         self.assertTrue(marker and rows)
         self.assertGreater(marker[0], rows[-1])

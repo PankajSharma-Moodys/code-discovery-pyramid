@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from ..util import NO_REVIEW_NOTE, truncate
-from .common import INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line
+from .common import AS_OF_NOTE, INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line
 
 
 def _match_note(result: Dict) -> str:
@@ -130,7 +130,7 @@ def render(result: Dict) -> str:
             for use in entry["used_by"]:
                 lines.append("    %-24s %s" % (use["module"], use["at"]))
             if entry["used_by_count"] > len(entry["used_by"]):
-                lines.append("    ... %d more (elided by the budget)%s"
+                lines.append("    ... %d more (cut by --budget or max_tokens)%s"
                              % (entry["used_by_count"] - len(entry["used_by"]),
                                 "; all of them: `%s`" % entry["see_all"] if entry.get("see_all") else ""))
             for claim in entry["claims"]:
@@ -228,6 +228,13 @@ def render(result: Dict) -> str:
                 lines.extend(_more("    ", t["migration_count"], t["migrations"]))
             lines.extend(_site_lines("written by", t["writers"], t["written_by"]))
             lines.extend(_site_lines("read by", t["readers"], t["read_by"]))
+            for how, key in (("written", "repository_writes"), ("read", "repository_reads")):
+                for w in t.get(key, []):
+                    lines.append("    %s through %s%s: %d call site(s)" % (
+                        how, w["through"], " (entity %s)" % w["entity"] if w.get("entity")
+                        else "" if "(@" in w["through"] else " (its own query)", w["count"]))
+                    lines.append("      %s%s" % (" ".join(w["sites"]), "  ... %d more" % (w["count"] - len(w["sites"]))
+                                                 if w["count"] > len(w["sites"]) else ""))
             for u in t.get("entity_users", []):
                 lines.append("    used via entity %s (reads and writes not told apart): %d site(s)" % (u["entity"], u["count"]))
                 lines.append("      %s%s" % (" ".join(u["sites"]), "  ... %d more" % (u["count"] - len(u["sites"]))
@@ -239,7 +246,7 @@ def render(result: Dict) -> str:
     elif kind == "config":
         lines.append("%d config key(s)%s" % (result["count"], _match_note(result)))
         if result.get("keys_elided"):
-            lines.append("  showing %d key(s), most-read first; %d key(s) and %d site(s) elided by the budget "
+            lines.append("  showing %d key(s), most-read first; %d key(s) and %d site(s) cut by --budget or max_tokens "
                          "(pass a term, or --budget <bigger N>)%s"
                          % (len(result["keys"]), result["keys_elided"], result["sites_elided"],
                             ": " + ", ".join(result["elided_keys"][:5]) + (", ..." if result["keys_elided"] > 5 else "")
@@ -462,6 +469,8 @@ def _footer(result: Dict) -> str:
            str(as_of.get("commit", "unpinned"))[:12] + ("+uncommitted" if as_of.get("snapshot_uncommitted") else ""),
            as_of.get("state_version", 0))
     )
+    if as_of.get("patch_log_as_of"):  # --as-of replays claims only; the structure stays the current one
+        parts.append("%s" % AS_OF_NOTE % as_of["patch_log_as_of"])
     if as_of.get("routed"):
         parts.append(as_of["routed"])
     if as_of.get("behind"):

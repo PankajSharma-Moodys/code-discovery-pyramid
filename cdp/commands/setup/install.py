@@ -118,4 +118,9 @@ def cmd_install(args) -> int:
     install_mod.install(target, framework=framework, hook=hook, strict=strict, harness=harness,
                         agents_md=getattr(args, "agents_md", False), claude_md=getattr(args, "claude_md", False),
                         allow_mcp=getattr(args, "allow_mcp", False), priority=priority, block_all=block_all, say=print)
+    if hook and getattr(args, "state_dir", None):
+        # The hooks and .mcp.json are shared files (the same on every machine), so a machine's own store
+        # path is not written into them: they read CDP_HOME, which the user sets.
+        print("note      the hooks and MCP server read CDP_HOME (default ~/.cdp), not --state-dir: to use %s, "
+              "set CDP_HOME=%s in the environment Claude Code starts from" % ((args.state_dir,) * 2))
     return 0

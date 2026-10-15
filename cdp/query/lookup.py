@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .. import codeindex
 from .budget import Budget
@@ -536,6 +536,157 @@ def _entity_users(store: Store, edges: Sequence[Dict], entity_at: Dict[tuple, st
     return [found[k] for k in sorted(found)]
 
 
+#: Spring Data method-name prefixes that write (`save`, `saveAll`, `deleteById`, `removeByX`, ...) and
+#: that read (`findByX`, `getById`, `countBy..`, `existsBy..`, `readBy..`, `queryBy..`, `streamBy..`).
+_REPO_WRITE_PREFIXES = ("save", "delete", "remove")
+_REPO_READ_PREFIXES = ("find", "get", "read", "query", "count", "exists", "stream")
+#: A custom data-access method's own query (EntityManager): what marks a method body as one.
+_QUERY_CALL = re.compile(r"\bcreate(?:Native)?Query\(")
+_WRITE_CALL = re.compile(r"\.(?:executeUpdate|persist|merge|remove)\(")
+
+
+#: A JPA relationship field: `@OneToMany(..) [@JoinColumn(..)] private List<Child> metadata;`.
+_RELATION = re.compile(r"@(OneToMany|ManyToOne|OneToOne|ManyToMany)\b(\((?:[^()]|\([^()]*\))*\))?"
+                       r"(?:\s*@[\w.]+(?:\((?:[^()]|\([^()]*\))*\))?)*"
+                       r"\s*(?:(?:private|protected|public|final|transient)\s+)*([\w.<>,? ]+?)\s+(\w+)\s*[;=]")
+#: JPA's own defaults: the to-one sides load with their owner, the collections only when touched.
+_EAGER_BY_DEFAULT = ("ManyToOne", "OneToOne")
+
+
+def _relations(store: Store, entity_files: Dict[str, str]) -> List[Dict]:
+    """Every relationship field declared on an entity: owner, field, target entity (simple name), how it
+    loads (`EAGER`/`LAZY`) and whether the owner's saves/deletes cascade to it. Read from the entity's
+    source (fields are not indexed symbols); getter-annotated (property access) mappings are not seen."""
+    texts = (getattr(store, "code", None) or {}).get("files") or {}
+    out = []
+    for owner, path in sorted(entity_files.items()):
+        text = texts.get(path) or ""
+        for m in _RELATION.finditer(text):
+            kind, args, decl, field = m.group(1), m.group(2) or "", m.group(3), m.group(4)
+            target = re.search(r"targetEntity\s*=\s*(\w+)\.class", args)
+            target = target.group(1) if target else re.findall(r"[A-Z]\w*", decl.replace("java.util.", ""))[-1:]
+            fetch = re.search(r"FetchType\.(EAGER|LAZY)", args)
+            cascades = set(re.findall(r"CascadeType\.(\w+)", args))
+            out.append({"owner": owner, "field": field, "kind": kind,
+                        "target": target if isinstance(target, str) else (target[0] if target else ""),
+                        "fetch": fetch.group(1) if fetch else ("EAGER" if kind in _EAGER_BY_DEFAULT else "LAZY"),
+                        "cascades": bool(cascades & {"ALL", "PERSIST", "MERGE", "REMOVE"})
+                        or bool(re.search(r"orphanRemoval\s*=\s*true", args)),
+                        "at": "%s:%d" % (path, text.count("\n", 0, m.start()) + 1)})
+    return out
+
+
+def _related_access(store: Store, table: str, entities: Sequence[str], by_entity: Dict[str, Tuple[str, List[Dict]]],
+                    relations: List[Dict], roles: Dict[str, str], budget: Budget) -> Tuple[List[Dict], List[Dict]]:
+    """A table reached only through another entity's relationship field: read wherever the owner is read
+    (EAGER) or the field's getter is called (LAZY), written wherever the owner is saved/deleted when the
+    relationship cascades. One group per field, naming the mapping line, so the rule is checkable."""
+    simple = {e.rsplit(".", 1)[-1] for e in entities}
+    writes, reads = [], []
+    for rel in relations:
+        if rel["target"] not in simple or rel["owner"] not in by_entity:
+            continue
+        owner_table, owner_persist = by_entity[rel["owner"]]
+        ow, orr = _repository_access(store, owner_table, owner_persist, roles, Budget(10 ** 6), related=False)
+        how = "%s.%s (@%s, %s%s, %s)" % (rel["owner"], rel["field"], rel["kind"], rel["fetch"],
+                                          ", cascade" if rel["cascades"] else "", rel["at"])
+        read_sites = [s for g in orr for s in g["sites_all"]] if rel["fetch"] == "EAGER" else []
+        getter = "%s#get%s" % (rel["owner"], rel["field"][:1].upper() + rel["field"][1:])
+        read_sites += list(_calls_into(store, {getter: ""}, roles).get(getter, {}))
+        write_sites = [s for g in ow for s in g["sites_all"]] if rel["cascades"] else []
+        for sites, out in ((write_sites, writes), (list(dict.fromkeys(read_sites)), reads)):
+            if sites:
+                out.append({"through": how, "entity": None, "count": len(sites),
+                            "sites": budget.take(sites[:SITES_PER_GROUP])})
+    return writes, reads
+
+
+def _access_index(store: Store, roles: Dict[str, str]) -> Dict:
+    """What every table's access lookup reads, built once per answer (a repo has thousands of calls and
+    tens of tables): non-test calls by callee and by repository, entity -> bound repositories, and the
+    non-test methods whose body builds an EntityManager query, with that body."""
+    cache = getattr(store, "_cache", None)
+    if cache is not None and "_access_index" in cache:
+        return cache["_access_index"]
+    calls: Dict[str, Dict[str, None]] = {}
+    by_repo: Dict[str, Dict[str, None]] = {}
+    bindings: Dict[str, List[str]] = {}
+    for u in store.xref["uses"]:
+        if u.get("kind") == "binding" and u.get("from_symbol"):
+            bindings.setdefault(u.get("fqn"), []).append(u["from_symbol"])
+        elif u.get("kind") == "call" and roles.get(u.get("from_file") or u["anchor"]["file"]) != "test":
+            fqn = str(u.get("fqn", ""))
+            calls.setdefault(fqn, {}).setdefault(cite(u["anchor"]), None)
+            if "#" in fqn:
+                by_repo.setdefault(fqn.partition("#")[0], {})[fqn] = None
+    texts = (getattr(store, "code", None) or {}).get("files") or {}
+    queries: List[Tuple[str, str]] = []
+    for fqn, sym in store.xref["symbols"].items():
+        if sym.get("kind") != "method":
+            continue
+        for site in sym.get("sites", []):
+            text = texts.get(site.get("file")) or ""
+            if site.get("role") == "test" or not site.get("end_line") or "Query(" not in text:
+                continue
+            body = "\n".join(text.splitlines()[site["anchor"]["line"] - 1: site["end_line"]])
+            if _QUERY_CALL.search(body):
+                queries.append((fqn, body))
+    index = {"calls": calls, "by_repo": by_repo, "bindings": bindings, "queries": queries}
+    if cache is not None:
+        cache["_access_index"] = index
+    return index
+
+
+def _calls_into(store: Store, methods: Dict[str, str], roles: Dict[str, str]) -> Dict[str, Dict[str, None]]:
+    """`method fqn -> {call site: None}` for every non-test call on one of `methods`."""
+    calls = _access_index(store, roles)["calls"]
+    return {m: calls[m] for m in methods if calls.get(m)}
+
+
+def _repository_access(store: Store, table: str, persist: Sequence[Dict], roles: Dict[str, str],
+                       budget: Budget, related: bool = False) -> Tuple[List[Dict], List[Dict]]:
+    """Where a JPA table is really written and read, as `(writes, reads)` groups of call sites.
+
+    The entity's `@Table` line is the mapping, not an access. A Spring Data repository bound to the entity
+    (`extends JpaRepository<Entity, ..>`, an xref `binding`) is used through its methods: `save`/`delete`..
+    write, `find`/`get`/`count`.. read, by Spring's own naming. A custom method (an `..Ext`/`..Impl` class,
+    any non-test method that builds an EntityManager query) is credited to the tables its query text
+    names -- JPQL `from Entity`, Criteria `Entity.class`, native SQL `from <table>` -- never to a class's
+    main entity by guess (one such class can read several tables). Its callers are the sites."""
+    index = _access_index(store, roles)
+    entities = {e["source"] for e in persist}
+    simple = {e.rsplit(".", 1)[-1] for e in entities}
+    repos = {r: e for e in entities for r in index["bindings"].get(e, [])}
+    methods: Dict[str, Tuple[str, str]] = {}  # fqn -> (via, "write"|"read")
+    for repo in repos:
+        for fqn in index["by_repo"].get(repo, {}):
+            method = fqn.partition("#")[2]
+            if method.startswith(_REPO_WRITE_PREFIXES):
+                methods[fqn] = (repo, "write")
+            elif method.startswith(_REPO_READ_PREFIXES):
+                methods[fqn] = (repo, "read")
+    names = "|".join(re.escape(n) for n in sorted(simple))
+    if names:
+        mentions = re.compile(r"\bfrom\s+(?:%s|%s)\b|\b(?:%s)\.class\b" % (names, re.escape(table), names), re.I)
+        for fqn, body in index["queries"]:
+            if fqn not in methods and mentions.search(body):
+                methods[fqn] = (fqn.split("#", 1)[0], "write" if _WRITE_CALL.search(body) else "read")
+    groups: Dict[Tuple[str, str], Dict[str, None]] = {}
+    for fqn, cited in _calls_into(store, methods, roles).items():
+        via, how = methods[fqn]
+        groups.setdefault((how, via), {}).update(cited)
+    out = {"write": [], "read": []}
+    for (how, via) in sorted(groups):
+        cited = list(groups[(how, via)])
+        out[how].append({"through": via, "entity": repos.get(via), "count": len(cited),
+                         "sites": budget.take(cited[:SITES_PER_GROUP]), "sites_all": cited})
+    return out["write"], out["read"]
+
+
+def _public(groups: List[Dict]) -> List[Dict]:
+    return [{k: v for k, v in g.items() if k != "sites_all"} for g in groups]
+
+
 def q_table(store: Store, name: Optional[str] = None,
             budget: Optional[Budget] = None,
             exclude_role: Optional[Sequence[str]] = None, exact: bool = False, regex: bool = False) -> Dict:
@@ -554,10 +705,13 @@ def q_table(store: Store, name: Optional[str] = None,
     same = make_matcher(name or "", "regex" if regex else "exact" if exact else "substring")
     roles = _role_index(store)
     buckets: Dict[str, Dict[str, List[Dict]]] = {}
+    by_entity: Dict[str, Tuple[str, List[Dict]]] = {}  # every mapped entity -> (its table, its persist edges)
     for edge in all_edges(store.extraction):
         if not edge["target"].startswith("table:"):
             continue
         table = edge["target"][len("table:") :]
+        if edge["channel"] == "persist":
+            by_entity.setdefault(edge["source"], (table, []))[1].append(edge)
         if name and not same(table):
             continue
         if exclude_role and roles.get(edge["anchor"].get("file")) in exclude_role:
@@ -567,12 +721,19 @@ def q_table(store: Store, name: Optional[str] = None,
             slot[edge["channel"]].append(edge)
 
     entity_at = _entity_index(store)
+    relations: Optional[List[Dict]] = None
     out = []
     for table in budget.take(sorted(buckets)):
         slot = buckets[table]
         evidence = _dedupe_cites(slot["persist"] + slot["read"])
         writers = _site_groups(store, slot["persist"])
         readers = _site_groups(store, slot["read"])
+        access = _repository_access(store, table, slot["persist"], roles, budget)
+        if relations is None:  # parsed once per query, only when some table is answered
+            relations = _relations(store, {e: es[0]["anchor"]["file"] for e, (_, es) in by_entity.items()})
+        related = _related_access(store, table, [e["source"] for e in slot["persist"]], by_entity, relations,
+                                  roles, budget)
+        access = (_public(access[0]) + related[0], _public(access[1]) + related[1])
         out.append(
             {
                 "table": table,
@@ -584,6 +745,8 @@ def q_table(store: Store, name: Optional[str] = None,
                 "writers": _budget_groups(writers, budget),
                 "readers": _budget_groups(readers, budget),
                 "entity_users": _entity_users(store, slot["persist"] + slot["read"], entity_at, roles, budget),
+                "repository_writes": access[0],
+                "repository_reads": access[1],
                 "evidence_count": len(evidence),
                 "evidence": budget.take(evidence),
             }

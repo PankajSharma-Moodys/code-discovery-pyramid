@@ -123,7 +123,9 @@ def uninstall(repo: Path) -> List[str]:
     lines: List[str] = []
     for name in HOOK_NAMES:
         target = hdir / name
-        if target.exists() and MARKER in target.read_text(errors="replace"):
+        if not target.exists():
+            lines.append("skipped    %s (no such hook)" % target)
+        elif MARKER in target.read_text(errors="replace"):
             target.unlink()
             lines.append("removed    %s" % target)
         else:

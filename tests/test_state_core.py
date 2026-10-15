@@ -173,7 +173,7 @@ class HostileInboxTest(LayoutCase):
             "schema_version": "1.0.0", "node": "root/svc", "run_id": run_id, "status": "complete",
             "claims": [claim("t.one", "com.example.svc.Child")], "unknowns": []}))
         proc = cdp.run("collect", check=False)
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)  # some rejected, the valid one accepted
         self.assertNotIn("Traceback", proc.stderr)
         self.assertEqual(sorted(p.name for p in inbox.glob("*.json")), [])
         self.assertEqual(len(list((inbox / "rejected").glob("a*.json*"))), 6)

@@ -103,9 +103,12 @@ def render_kinds_overview() -> List[str]:
     return ["  %-9s %s" % (k, v["summary"]) for k, v in KINDS.items()]
 
 
-def render_recipes() -> str:
+def render_recipes(only: Optional[str] = None) -> str:
+    """Every recipe, or the one named `only` (`help who-calls`: the names the list shows are topics too)."""
     out: List[str] = []
     for r in RECIPES:
+        if only and r["name"] != only:
+            continue
         out += ["%s -- %s" % (r["name"], r["title"]), "  when: " + r["when"]]
         out += ["    $ cdp " + s[0] for s in r["steps"]]
         out += ["  why:  " + r["why"], ""]
@@ -208,7 +211,8 @@ def session_primer() -> str:
     lines = ["CDP query kinds -- `cdp_query(kind=..., ...)`; pick by what you need, not by habit. Each returns "
              "cited file:line rows, never code:"]
     for k, v in KINDS.items():
-        extra = [p for p in v["uses"] if p not in ("term", "budget", "exclude_role", "include_tests")]
+        extra = [p for p in v["uses"] if p not in ("term", "budget", "exclude_role", "include_tests")
+                 and not (p == "exact" and "match" in v["uses"])]  # `exact` is `match=exact`: listed once, below
         lines.append("- %s [%s%s]: %s Use: %s" % (
             k, _term_tag(k), ("; " + ", ".join(extra)) if extra else "", v["summary"].rstrip(".") + ".",
             v["where"].strip()))
@@ -263,7 +267,7 @@ def mcp_properties() -> Dict[str, Dict]:
 
 
 def help_topics() -> List[str]:
-    return sorted(set(COMMANDS) | set(KINDS) | set(QUERY_TOPICS) | {"recipes", "reference"})
+    return sorted(set(COMMANDS) | set(KINDS) | set(QUERY_TOPICS) | {r["name"] for r in RECIPES} | {"recipes", "reference"})
 
 
 MCP_HELP_DESCRIPTION = (
@@ -335,7 +339,8 @@ has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. 
   were left out by a `budget` or a kind's own limit; the answer's note says why and how to get them. A kind
   rejects parameters it does not use; the error says which kind takes them.
 - Run `coverage` (never budgeted) before saying "there is no X"; below 100%% means "not examined".
-- `medium`/`contested` confidence stays as is; `call` edges prove reachability, not invocation.
+- `medium`/`contested` confidence stays as is. A `call` edge cites the invocation when one exists; a
+  `medium` one read only from an import proves reachability, not invocation.
 - A "not found" answer lists close names; retry with one of them.
 - Answers come from the snapshot of HEAD, else the nearest clean ancestor, never another branch (else
   `scan`). `+uncommitted` on `as_of` = the index includes uncommitted edits; `refresh` needs a clean tree.
@@ -387,6 +392,8 @@ def topic(name: Optional[str]) -> str:
         return render_kind(name)
     if name in ("recipes", "workflows", "workflow"):
         return render_recipes()
+    if name in {r["name"] for r in RECIPES} and name not in COMMANDS:  # `help refresh` stays the command
+        return render_recipes(name)
     if name == "reference":
         return reference_md()
     return None  # type: ignore[return-value]

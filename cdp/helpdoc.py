@@ -132,6 +132,11 @@ GUIDANCE: Dict[str, List[str]] = {
         "`stats` and `coverage` are never budgeted, which is why they are the two",
         "commands to check before concluding that something does not exist.",
     ],
+    "exit codes": [
+        "0  done (a query: something matched)        2  usage or environment error (one line, no traceback)",
+        "1  nothing done: a query matched nothing (narrowed, like grep); every patch/task failed",
+        "3  partly done: collect, link collect, run, link prompts, doctor, reflect -- some items failed",
+    ],
     "unknowns, honestly": [
         "An unknown is validated around, never on its content -- CDP checks that",
         "its subject exists and isn't already answered, not whether the gap is real.",

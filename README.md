@@ -42,7 +42,7 @@ table below is that same guidance, gathered in one place.
 | Command | What it does | Next / useful flags |
 |---|---|---|
 | `prompts` | Writes one leaf prompt per scope for the wave loop. | next: hand each prompt to a leaf, then `collect`. Flags: `--digest` (full-file prompts instead of citations), `--wave N`, `--node X`, `--lessons N`/`--no-lessons`. |
-| `collect` | Validates, verifies and appends leaf patches sitting in the inbox. Exit 1 when patches were rejected and none accepted. | next: `fold --check`. |
+| `collect` | Validates, verifies and appends leaf patches sitting in the inbox. Exit 0 all accepted (or empty inbox), 3 some rejected, 1 all rejected. | next: `fold --check`. |
 | `fold [--check]` | Recomputes `state.json` from `patches/` + `xref.json`. `--check` verifies the invariant instead of writing. | next (no `--check`): `query stats`. On `--check` failure: `rollback` the offending run, or `fold` again. |
 | `refresh` | Re-verifies every live claim against HEAD, zero model calls, incremental extraction. | next: `query stats`. Flags: `--quiet`. No-ops cleanly when HEAD is unchanged. |
 | `run --wave N \| --wave-all \| --stale-only \| --scope X` | Dispatch → collect → adjudicate → fold, wave by wave, supervised (leases, retries, resume). | next: `query stats`, or `fold --check`. tip (on partial failure): `run --resume`. Flags: `--runner-cmd`, `--parallel N` (scopes of a wave at once), `--max-attempts`, `--resume`, `--lessons N`/`--no-lessons`. |

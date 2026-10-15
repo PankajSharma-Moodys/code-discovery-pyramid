@@ -66,7 +66,8 @@ has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. 
   were left out by a `budget` or a kind's own limit; the answer's note says why and how to get them. A kind
   rejects parameters it does not use; the error says which kind takes them.
 - Run `coverage` (never budgeted) before saying "there is no X"; below 100% means "not examined".
-- `medium`/`contested` confidence stays as is; `call` edges prove reachability, not invocation.
+- `medium`/`contested` confidence stays as is. A `call` edge cites the invocation when one exists; a
+  `medium` one read only from an import proves reachability, not invocation.
 - A "not found" answer lists close names; retry with one of them.
 - Answers come from the snapshot of HEAD, else the nearest clean ancestor, never another branch (else
   `scan`). `+uncommitted` on `as_of` = the index includes uncommitted edits; `refresh` needs a clean tree.

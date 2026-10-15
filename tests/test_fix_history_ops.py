@@ -88,7 +88,7 @@ class AsOfAndUndoReportTest(P.RepoCase):
         run_id = store.manifest["run_id"]
         backend.close()
         # D4: the list/text views kept only `commit` (the structure's HEAD), hiding that claims were historical
-        self.assertIn("claims as of %s" % run_id, cdp.run("query", "claims", "--as-of", run_id[4:], check=False).stdout)
+        self.assertIn("claims as of %s;" % run_id, cdp.run("query", "claims", "--as-of", run_id[4:], check=False).stdout)
         cdp.inject_model_patch("root/a", [self.a_claim("t.one")])
         self.assertEqual(cdp.run("rollback", "--to-run", run_id, check=False).returncode, 0)
         out = cdp.run("rollback", "--undo").stdout

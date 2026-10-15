@@ -50,17 +50,17 @@ Which kinds take which parameter:
 
 | kind | parameters |
 |---|---|
-| `trace` | `term`, `budget`, `exclude_role`, `include_tests`, `max_hops`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `trace` | `term`, `budget`, `exclude_role`, `include_tests`, `max_hops`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
 | `symbol` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
 | `file` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
-| `module` | `term`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `module` | `term`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
 | `routes` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
 | `table` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
 | `config` | `term`, `budget`, `exclude_role`, `include_tests`, `exact`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
-| `paths` | `frm`, `to`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
-| `search` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
-| `claims` | `term`, `claim_kind`, `module`, `subject`, `budget`, `exclude_role`, `include_tests`, `include_library`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
-| `unknowns` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `as_of` |
+| `paths` | `frm`, `to`, `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
+| `search` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
+| `claims` | `term`, `claim_kind`, `module`, `subject`, `budget`, `exclude_role`, `include_tests`, `include_library`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
+| `unknowns` | `term`, `budget`, `exclude_role`, `include_tests`, `view`, `format`, `max_tokens`, `offset`, `filter`, `match`, `exact`, `as_of` |
 | `conflicts` | `budget`, `view`, `format`, `max_tokens`, `offset`, `filter`, `as_of` |
 | `stats` | `as_of` |
 | `coverage` | `as_of` |
@@ -86,6 +86,7 @@ Which kinds take which parameter:
 - `offset` (`--offset`): skip N rows (see `next`)
 - `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
+- `exact` (`--exact`): `match=exact`
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query trace <route>
@@ -160,6 +161,7 @@ Which kinds take which parameter:
 - `offset` (`--offset`): skip N rows (see `next`)
 - `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
+- `exact` (`--exact`): `match=exact`
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query module <module>
@@ -261,6 +263,7 @@ Which kinds take which parameter:
 - `offset` (`--offset`): skip N rows (see `next`)
 - `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
+- `exact` (`--exact`): `match=exact`
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query paths --from <route>
@@ -286,6 +289,7 @@ Which kinds take which parameter:
 - `offset` (`--offset`): skip N rows (see `next`)
 - `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
+- `exact` (`--exact`): `match=exact`
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query search <word>
@@ -314,6 +318,7 @@ Which kinds take which parameter:
 - `offset` (`--offset`): skip N rows (see `next`)
 - `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
+- `exact` (`--exact`): `match=exact`
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query claims --kind entrypoint
@@ -339,6 +344,7 @@ Which kinds take which parameter:
 - `offset` (`--offset`): skip N rows (see `next`)
 - `filter` (`--filter`): wide `list`/`count`: rows whose line matches a Python `re` regex, pre-cap
 - `match` (`--match`): `substring` (default), `exact` or `regex` (case-sensitive; `search` greps source)
+- `exact` (`--exact`): `match=exact`
 - `as_of` (`--as-of`): replay the claim log up to this commit (sha); structure stays current
 
     $ cdp query unknowns
@@ -471,7 +477,7 @@ Which kinds take which parameter:
 
 **What.** Validates, verifies (anchors exist), entails and appends the leaf patches in the inbox.
 
-**How.** Reads `<CDP_HOME>/work/<repo-slug>/patches/inbox/`. `--mode strict` (default) demotes unverifiable claims to unknowns; `lenient` keeps more. Exit 1 when patches were rejected and none accepted; an empty inbox, or a mix, exits 0 (rejections are listed).
+**How.** Reads `<CDP_HOME>/work/<repo-slug>/patches/inbox/`. `--mode strict` (default) demotes unverifiable claims to unknowns; `lenient` keeps more. Exit 0 when every patch was accepted (or the inbox is empty), 3 when some were rejected, 1 when all were (rejections are listed).
 
     $ cdp collect
 

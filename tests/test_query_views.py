@@ -420,6 +420,10 @@ class ViewsTest(unittest.TestCase):
     def test_offset_past_the_end_is_an_error(self):
         with self.assertRaises(ValueError):
             self.q("routes", view="list", offset=999)
+        rows = self.q("routes", view="list", format="json", max_tokens=0)["count"]
+        self.q("routes", view="list", offset=rows - 1)  # the last row
+        with self.assertRaises(ValueError):  # one past it (was accepted: an empty page, rc 0)
+            self.q("routes", view="list", offset=rows)
 
     # ---- format parity
 
@@ -879,6 +883,16 @@ class QuerySurfaceTest(unittest.TestCase):
         self.assertIn("Python `re", helpdoc.help_text("filter"))
         self.assertIn("Exit code", helpdoc.help_text("views"))
         self.assertIn("Python", PARAMS["filter"][1])
+
+
+class ClaimModuleTest(unittest.TestCase):
+    def test_a_nested_module_is_its_scopes_module_not_its_top_directory(self):
+        from types import SimpleNamespace
+        from cdp.query.common import _claim_module
+        store = SimpleNamespace(_cache={}, inventory={"files": []}, partition={"scopes": [
+            {"node": "root/cron/cron-api/src", "module": "cron/cron-api"}, {"node": "root/(files)", "module": "(root)"}]})
+        self.assertEqual(_claim_module({"source_nodes": ["root/cron/cron-api/src"]}, store), "cron/cron-api")
+        self.assertEqual(_claim_module({"source_nodes": ["root/(files)"]}, store), "(root)")
 
 
 if __name__ == "__main__":

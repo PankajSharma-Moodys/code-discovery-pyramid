@@ -86,8 +86,8 @@ COMMANDS: Dict[str, Dict] = {
     "collect": {
         "what": "Validates, verifies (anchors exist), entails and appends the leaf patches in the inbox.",
         "how": "Reads `<CDP_HOME>/work/<repo-slug>/patches/inbox/`. `--mode strict` (default) demotes "
-               "unverifiable claims to unknowns; `lenient` keeps more. Exit 1 when patches were rejected "
-               "and none accepted; an empty inbox, or a mix, exits 0 (rejections are listed).",
+               "unverifiable claims to unknowns; `lenient` keeps more. Exit 0 when every patch was accepted "
+               "(or the inbox is empty), 3 when some were rejected, 1 when all were (rejections are listed).",
         "examples": [ex("collect")],
         "where": "After leaves wrote patches. Then `fold --check`.",
     },

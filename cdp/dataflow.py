@@ -145,9 +145,26 @@ def _edges(extraction: Dict, xref: Dict) -> List[Dict]:
         )
 
     _member_edges(xref, edges, seen)
+    _cite_calls_not_imports(edges)
     _event_edges(edges, seen)
     edges.sort(key=lambda e: (e["source"], e["channel"], e["target"], e["anchor"]["file"]))
     return edges
+
+
+def _cite_calls_not_imports(edges: List[Dict]) -> None:
+    """A class-level `call` edge read from an import proves reachability only (medium). When a method of
+    the one class really calls a member of the other, cite that call instead: the hop stays (paths keep
+    their shape) but its evidence is the invocation, not the `import` line."""
+    cls = lambda s: s.split("#", 1)[0]
+    called: Dict[Tuple[str, str], Dict] = {}
+    for e in edges:
+        if e["channel"] == "call" and ("#" in e["source"] or "#" in e["target"]):
+            called.setdefault((cls(e["source"]), cls(e["target"])), e)
+    for e in edges:
+        if e["channel"] == "call" and e["confidence"] == "medium" and "#" not in e["source"] + e["target"]:
+            real = called.get((e["source"], e["target"]))
+            if real is not None:
+                e["anchor"], e["confidence"] = real["anchor"], real["confidence"]
 
 
 def _edge(source: str, target: str, row: Dict, confidence: str) -> Dict:

@@ -82,6 +82,15 @@ class InstallTest(unittest.TestCase):
                 self.assertIn("state directory", err)
                 self.assertFalse((Path(d) / ".claude").exists())
 
+    def test_harness_with_a_state_dir_says_how_the_hooks_find_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, state = Path(d) / "r", Path(d) / "s"
+            repo.mkdir()
+            code, out, err = _run("--state-dir", str(state), "install", str(repo), "--harness")
+            self.assertEqual(code, 0, err)
+            self.assertIn("set CDP_HOME=%s" % state, out)
+            self.assertNotIn(str(state), (repo / ".mcp.json").read_text())  # shared file: no machine path
+
     def test_install_accepts_a_repo_with_its_own_index_db(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "index.db").write_text("")  # the app's own SQLite file

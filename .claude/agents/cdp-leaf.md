@@ -105,6 +105,7 @@ Emit a patch of this shape:
     {
       "question": "Why does EServer store a password in plaintext rather than a credential reference?",
       "why_unresolved": "No comment, test or migration in this scope explains it.",
+      "needs": "needs_human",
       "anchor": {"file": "sql-pool-dal/.../EServer.java", "line": 34,
                  "anchor": "private String password;"}
     }
@@ -168,6 +169,11 @@ cannot evidence something it believes will otherwise either assert it anyway or
 quietly omit it, and the second is worse because it destroys the signal.
 
 So: if you cannot anchor it, do not claim it — ask it.
+
+Every unknown states what would resolve it in `needs` (required; `collect` rejects
+an unknown without it): `needs_human` (a person must say), `needs_runtime` (only
+running it shows), `needs_external_doc` (a spec or doc outside the repo),
+`needs_wider_scope` (another part of this repo), `needs_other_repo`.
 
 Prefer a question a specific person could answer over a restatement of your
 uncertainty. "Which team owns the retry policy for the provisioning job?" beats

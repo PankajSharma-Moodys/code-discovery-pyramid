@@ -9,6 +9,10 @@ from .budget import Budget
 from .store import Store
 
 
+#: What `--as-of` does and does not rewind, said on every such answer (`session.apply_as_of`).
+AS_OF_NOTE = "claims as of %s; files, symbols and routes are HEAD's (only the claim log is replayed)"
+
+
 def _as_of(store: Store) -> Dict:
     """The commit and state generation an answer was computed from.
 
@@ -366,7 +370,7 @@ def _more(indent: str, total: int, shown: Sequence[Any]) -> List[str]:
     nothing, so the marker's presence means something.
     """
     missing = total - len(shown)
-    return ["%s... %d more (elided by the budget)" % (indent, missing)] if missing > 0 else []
+    return ["%s... %d more (cut by --budget or max_tokens)" % (indent, missing)] if missing > 0 else []
 
 
 def _role_index(store: Store) -> Dict[str, str]:
@@ -375,10 +379,15 @@ def _role_index(store: Store) -> Dict[str, str]:
 
 
 def _claim_module(claim: Dict, store: Store) -> Optional[str]:
+    """The module of the scope that authored the claim (`partition.json`'s own `module`, so a nested
+    module like `api/client` is itself, not its top directory), else of its first cited file."""
     nodes = claim.get("source_nodes") or ([claim["source_node"]] if claim.get("source_node") else [])
+    if "_node_module" not in store._cache:
+        store._cache["_node_module"] = {s["node"]: s.get("module") for s in store.partition.get("scopes", [])}
     for node in nodes:
-        if node.startswith("root/"):
-            return node.split("/")[1]
+        module = store._cache["_node_module"].get(node)
+        if module:
+            return module
     for anchor in claim.get("evidence", []):
         for entry in store.inventory["files"]:
             if entry["path"] == anchor.get("file"):

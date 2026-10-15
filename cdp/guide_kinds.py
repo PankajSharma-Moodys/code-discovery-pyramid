@@ -330,8 +330,9 @@ KINDS: Dict[str, Dict] = {
 # (`frm`/`to`, `subject`, `module`) is matched. `stats`/`coverage` are never projected.
 for _kind, _spec in KINDS.items():
     if _kind not in ("stats", "coverage"):
-        _spec["uses"] = tuple(_spec["uses"]) + ("view", "format", "max_tokens", "offset", "filter") + (
-            ("match",) if set(_spec["uses"]) & {"term", "frm", "to", "subject", "module"} else ())
+        _spec["uses"] = tuple(dict.fromkeys(tuple(_spec["uses"]) + ("view", "format", "max_tokens", "offset", "filter") + (
+            ("match", "exact") if set(_spec["uses"]) & {"term", "frm", "to", "subject", "module"} else ())))
+        # `exact` is `match=exact` (dispatch), so it goes wherever `match` does
 
 APPLIES: Dict[str, Tuple[str, ...]] = {k: tuple(v["uses"]) + ALWAYS for k, v in KINDS.items()}
 

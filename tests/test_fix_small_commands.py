@@ -55,7 +55,7 @@ class SmallCommandsTest(unittest.TestCase):
             self.assertFalse([u for u in store.state["unknowns"] if u.get("source_node") == "empty"])
             store.close()
 
-    def test_collect_with_some_accepted_exits_0(self) -> None:
+    def test_collect_with_some_rejected_exits_3(self) -> None:  # the shared fan-out rule: 0 all, 3 some, 1 none
         with tempfile.TemporaryDirectory() as tmp:
             repo, state = self._scanned(tmp)
             inbox = next(state.glob("work/*/patches/inbox"))
@@ -67,7 +67,7 @@ class SmallCommandsTest(unittest.TestCase):
             (inbox / "bad.json").write_text("{bad")
             rc, out = _run(["collect", "--repo", str(repo), "--state-dir", str(state)])
             self.assertIn("accepted  1 patch(es), rejected 1", out)
-            self.assertEqual(rc, 0, out)
+            self.assertEqual(rc, 3, out)
 
     def test_an_accepted_patch_leaves_the_inbox_whatever_its_file_name(self) -> None:
         # D1: `x.json` holding a valid patch was never removed, so every collect accepted it again.
@@ -97,6 +97,24 @@ class SmallCommandsTest(unittest.TestCase):
             rc, out = _run(["collect", "--repo", str(repo), "--state-dir", str(state)])
             self.assertIn("accepted  1 patch(es), rejected 1", out)  # this commit's -r2 run is fine
             self.assertIn("'bad' is not a run of this index's commit", out)
+
+    def test_a_rejected_foreign_run_id_never_enters_the_log(self) -> None:
+        # The invalid marker took the patch's own run id, so `rollback --to-snapshot <HEAD>` then cut at it.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, state = self._scanned(tmp)
+            inbox = next(state.glob("work/*/patches/inbox"))
+            store = Store(state)
+            run_id, node = store.manifest["run_id"], store.partition["scopes"][-1]["node"]
+            store.close()
+            (inbox / "w.json").write_text(json.dumps({"schema_version": "1.0.0", "node": node, "run_id": "cdp-WRONG",
+                                                      "status": "complete", "claims": [], "unknowns": []}))
+            _run(["collect", "--repo", str(repo), "--state-dir", str(state)])
+            store = Store(state)
+            self.assertEqual({p["run_id"] for p in store.backend.load_patches()}, {run_id})
+            store.close()
+            rc, out = _run(["rollback", "--to-snapshot", run_id[4:], "--repo", str(repo), "--state-dir", str(state)])
+            self.assertEqual(rc, 0, out)
+            self.assertIn("nothing to exclude", out)
 
     def test_collect_empty_inbox_exits_0(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

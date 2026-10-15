@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .._common import Spec, locked, paths_from_args
+from .._common import Spec, locked, outcome_code, paths_from_args
 from ... import intake as intake_mod
 from ...verify import STRICT
 
@@ -10,7 +10,7 @@ from ...verify import STRICT
 SPEC = Spec(
     group='leaf',
     usage='collect',
-    what='Validates, verifies and appends leaf patches sitting in the inbox. Exit 1 when patches were rejected and none accepted.',
+    what='Validates, verifies and appends leaf patches sitting in the inbox. Exit 0 all accepted (or empty inbox), 3 some rejected, 1 all rejected.',
     next='next: `fold --check`.',
 )
 
@@ -59,5 +59,5 @@ def cmd_collect(args) -> int:
         print("next      cdp fold --check")
     if rejected:
         print("rejected  %d patch(es) rejected: fix them and re-drop into the inbox%s"
-              % (len(rejected), "" if accepted else " (exit 1: nothing accepted)"))
-    return 1 if rejected and not accepted else 0
+              % (len(rejected), " (exit 3: the rest were accepted)" if accepted else " (exit 1: nothing accepted)"))
+    return outcome_code(len(accepted), len(rejected))

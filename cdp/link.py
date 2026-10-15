@@ -699,7 +699,17 @@ def refresh_links(old_report: Dict, new_snapshots: Sequence[Dict]) -> Dict:
     def _still_present(side: Dict, channel: str) -> Optional[Tuple[Dict, Dict]]:
         key = (side["repo"], side["module"], channel, _normalise(channel, side["target"]))
         candidates = fresh_edges.get(key)
-        return candidates[0] if candidates else None
+        if not candidates:
+            return None
+        # The key drops the HTTP method and param names, so GET/POST/DELETE of one path share it: keep the
+        # end's own edge (same target and symbol, else same target) before any other, or a refresh re-pairs
+        # a GET caller with the POST route and the link gets a new id (its resolution is lost).
+        for same in (lambda e: e["target"] == side["target"] and e["source"] == side.get("node"),
+                     lambda e: e["target"] == side["target"]):
+            hit = next((c for c in candidates if same(c[1])), None)
+            if hit:
+                return hit
+        return candidates[0]
 
     links: List[Dict] = []
     for link in old_report["links"]:

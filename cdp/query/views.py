@@ -24,7 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..guide_kinds import FORMATS, VIEWS
 from . import compact as compact_mod
-from .common import REGEX_MAX_LINE, compile_regex
+from .common import AS_OF_NOTE, REGEX_MAX_LINE, compile_regex
 
 #: The built-in per-answer cap, in tokens (CONTEXT_PLAN.md): small enough that one answer grows context the
 #: way one grep does, far under Claude Code's 10k-token MCP warning. A cut answer says what it cut and gives the
@@ -177,6 +177,22 @@ def _names(groups: List[Dict], limit: int = 3) -> str:
     return ", ".join(names[:limit]) + (" +%d" % (len(names) - limit) if len(names) > limit else "") if names else "-"
 
 
+def _via(through: str) -> str:
+    """`EReservationRepository`, or `EReservation.metadata` for a relationship (`Owner.field (@Kind, ..)`)."""
+    base = through.split(" (", 1)[0]
+    return ".".join(base.rsplit(".", 2)[-2:]) if " (@" in through else _short(base)
+
+
+def _access(table: Dict, mapped: str, through: str) -> str:
+    """A table's writers or readers in one note: the mapped/`@Query` sites, then the call sites reached
+    through a repository or a custom query (`q_table`'s `repository_*`), so a JPA table never reads `-`
+    while its code calls `save`/`findBy..` on it."""
+    calls = sum(g.get("count", 0) for g in table.get(through, []))
+    names = _names(table.get(mapped, []))
+    via = "%d call(s) via %s" % (calls, ", ".join(_via(g["through"]) for g in table[through])) if calls else ""
+    return "; ".join(x for x in (names if names != "-" or not via else "", via) if x) or "-"
+
+
 def _unknown_row(u: Dict) -> Dict:
     return {"name": _note(u.get("question"), 120), "at": _cite(u.get("anchor")), "note": u.get("source_node")}
 
@@ -205,8 +221,8 @@ _LIST_ROWS: Dict[Tuple[str, str], Callable[[Any], Dict]] = {
     ("claims", "claims"): _claim_row,
     ("search", "claims"): _claim_row,
     ("table", "tables"): lambda r: {"name": r.get("table"), "at": _first(r.get("evidence")) or _first(r.get("migrations")),
-                                    "note": "written by %s; read by %s" % (_names(r.get("writers", [])),
-                                                                          _names(r.get("readers", [])))},
+                                    "note": "written by %s; read by %s" % (_access(r, "writers", "repository_writes"),
+                                                                          _access(r, "readers", "repository_reads"))},
     ("config", "keys"): lambda r: {"name": r.get("key"), "at": _first(r.get("declared")) or _first(r.get("read")),
                                    "note": "%s read site(s)" % r.get("read_count", len(r.get("read", [])))},
     ("module", "found"): lambda r: {"name": r.get("name"), "note": "%s files, %s loc, %s claims; depends on %s" % (
@@ -371,7 +387,7 @@ def _as_of_json(as_of: Dict) -> Dict:
 def _as_of_brief(as_of: Dict) -> str:
     bits = ["@%s" % str(as_of.get("commit", "?"))[:10], "state %s" % as_of.get("state_version")]
     if as_of.get("patch_log_as_of"):
-        bits.append("claims as of %s" % as_of["patch_log_as_of"])
+        bits.append(AS_OF_NOTE % as_of["patch_log_as_of"])
     if as_of.get("behind"):
         bits.append("%s commit(s) behind HEAD" % as_of["behind"])
     if as_of.get("dirty_files"):
@@ -414,7 +430,7 @@ def apply(kind: str, result: Dict, *, view: str, fmt: str, max_tokens: int, offs
         all_rows, unsearched = _filter_rows(kind, all_rows, filter, mixed)
         totals = {k: sum(1 for b, _ in all_rows if b == k) for k in totals}  # matched, not the stated totals
         total = sum(totals.values())
-    if offset > len(all_rows):
+    if offset and offset >= len(all_rows):  # rows are 0..len-1; offset 0 on an empty answer is fine
         raise ValueError("offset %d is past the last row (%d row(s) in this answer)" % (offset, len(all_rows)))
     window = all_rows[offset:]
     cap = max_tokens * CHARS_PER_TOKEN if max_tokens else 0

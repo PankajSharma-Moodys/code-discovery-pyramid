@@ -121,7 +121,9 @@ def collect(paths: Paths, mode: str = STRICT) -> Dict:
                     {
                         "schema_version": "1.0.0",
                         "node": node,
-                        "run_id": str(patch.get("run_id", store.manifest.get("run_id", "cdp"))),
+                        # this commit's run only: a foreign run id in the log would move `--as-of`/rollback cuts
+                        "run_id": run if run and current_run and _commit_of_run(run) == _commit_of_run(current_run)
+                                  else current_run or run or "cdp",
                         "status": "invalid",
                         "error": "; ".join(errors[:6]),
                     },
