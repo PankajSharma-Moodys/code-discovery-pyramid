@@ -27,7 +27,7 @@ Scores: Quality 7, Scalability 6, Features 8, Harness 7, Overall 7.
    #1,#3-#11 done (uncommitted); #4 `trace` half not reproduced (trace embeds no claims); logger calls stay out (decided).
 
 ## Scalability
-12. [ ] Per-query fixed overhead ~1-2 s: 16 `git` subprocesses (0.76 s) + whole-artifact JSON decode (0.49 s).
+12. [x] Per-query fixed overhead ~1-2 s: 16 `git` subprocesses (0.76 s) + whole-artifact JSON decode (0.49 s).
 13. [ ] Store = one JSON blob per artifact (935 MB, 30 rows), no per-element index.
 14. [ ] MCP server reopens the store per call (`mcp_server/tools.py:91`): warm == cold.
 15. [ ] Peak RSS ~0.7 MB/file: 3.4 GB on unified-store (4.8k files); risk at 20k+.
@@ -35,8 +35,12 @@ Scores: Quality 7, Scalability 6, Features 8, Harness 7, Overall 7.
 17. [ ] Refresh after a one-file change 4.7 s vs 7.1 s full scan.
 18. [ ] Unbudgeted answers large: stats ~4.1k tokens, coverage ~5k; one route compact 10.6 KB (OpenAPI args).
     Measured 2026-10-15: SQL `json_each` on the blob 0.13 s vs json.loads 0.22 s; one-row-per-element table with an
-    index 0.04 ms (+0.27 s at scan). Plan: MCP in-memory cache + one git call first; generic `artifact_row` table
-    (indexed key columns, element payload as JSON) as a separate approved design.
+    index 0.04 ms (+0.27 s at scan).
+    Decided 2026-10-16 (profiled: 16 git calls 0.43 s, decode 0.41 s, no git hook involved):
+    #12 git part done -- repo root/git dir asked once per command (16 -> 5 git calls); dirty check kept as is
+    (left: its 4 repeated name-only diffs on a dirty tree, and an fsmonitor tip in doctor).
+    #13 keep one blob per artifact: no new table, no document store, no JSON-in-SQL lookups.
+    #14 MCP cache parked. #16 full snapshot copies are fine; if ever needed, split into a document DB.
 
 ## Features — gaps
 19. [ ] `--as-of` fails on a scanned commit with no claims of its own (while `diff` uses that snapshot).

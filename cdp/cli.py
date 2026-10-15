@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from .parser import build_parser
-from .store.registry import HOME_ENV
+from .store.registry import HOME_ENV, clear_git_answers
 from .util import CdpError
 
 
@@ -27,6 +27,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args.parser = parser
     # `--state-dir` is CDP_HOME for this run, as its help says: so every store a command opens follows it
     # (the trajectory store and identity aliases too, which resolve CDP_HOME themselves, not the flag).
+    clear_git_answers()
     saved = os.environ.get(HOME_ENV)
     if getattr(args, "state_dir", None):
         os.environ[HOME_ENV] = str(Path(args.state_dir).expanduser().resolve())

@@ -102,7 +102,7 @@ def _origin_remote(repo: Path) -> Optional[str]:
 def _identity_marker(repo: Path) -> Tuple[Path, bool]:
     """`(marker file, whether its directory exists)`: kept in the repo's *common* git dir, so
     every linked worktree of one repo shares it (`.git` is a file, not a directory, in a worktree)."""
-    common = (run_git(repo, "rev-parse", "--git-common-dir") or "").strip()
+    common = (_git_once(repo, "rev-parse", "--git-common-dir") or "").strip()
     git_dir = (repo / common).resolve() if common else repo / ".git"
     return git_dir / "cdp-identity", git_dir.is_dir()
 
@@ -187,12 +187,29 @@ def same_repository(a: Path, b: Path) -> bool:
     return common_a == common_b and git_root(Path(a))[1] == git_root(Path(b))[1]
 
 
+_GIT_ANSWERS: Dict[Tuple[str, Tuple[str, ...]], Optional[str]] = {}
+
+
+def _git_once(repo: Path, *args: str) -> Optional[str]:
+    """`run_git`, asked once per command: where a repo's root and git dir are does not change while one
+    CLI command or MCP call runs, and a query asked it 6 times over (12 subprocesses, ~0.2 s)."""
+    key = (str(repo), args)
+    if key not in _GIT_ANSWERS:
+        _GIT_ANSWERS[key] = run_git(repo, *args)
+    return _GIT_ANSWERS[key]
+
+
+def clear_git_answers() -> None:
+    """Called as each CLI command and MCP call starts, so a long-running server never reuses an answer."""
+    _GIT_ANSWERS.clear()
+
+
 def git_root(repo: Path) -> Tuple[Optional[Path], str]:
     """`(git toplevel, path of repo below it)`; `(None, "")` outside git."""
-    top = run_git(repo, "rev-parse", "--show-toplevel")
+    top = _git_once(repo, "rev-parse", "--show-toplevel")
     if not top or not top.strip():
         return None, ""
-    prefix = (run_git(repo, "rev-parse", "--show-prefix") or "").strip().strip("/")
+    prefix = (_git_once(repo, "rev-parse", "--show-prefix") or "").strip().strip("/")
     return Path(top.strip()), prefix
 
 

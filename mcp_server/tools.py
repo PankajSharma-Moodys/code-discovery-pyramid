@@ -33,6 +33,7 @@ from cdp.util import ArgError, check_enum, check_limit, check_str
 def _paths(repo: str):
     """The store is always the machine one (`CDP_HOME`): a tool call cannot point it
     elsewhere, so a model cannot create stores at paths of its choosing."""
+    registry_mod.clear_git_answers()     # one call's git answers, never the previous call's
     return session_mod.paths_for(check_str(repo, "repo", 4096))  # "" would mean the server's cwd
 
 
