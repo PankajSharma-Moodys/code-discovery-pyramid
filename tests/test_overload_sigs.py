@@ -438,6 +438,62 @@ class HopLimitTest(unittest.TestCase):
         self.assertTrue(cut)
 
 
+PARTIAL = {
+    "App.csproj": '<Project Sdk="Microsoft.NET.Sdk"></Project>\n',
+    "Repo.cs": "namespace A\n{\n    public class Repo\n    {\n        public void Put(string s) { }\n"
+               "        public void Flush() { }\n    }\n}\n",
+    "Svc.cs": """namespace A
+{
+    public partial class Svc
+    {
+        private readonly Repo repo = new Repo();
+        public void Save(string name)
+        {
+            repo.Put(name);
+        }
+        public void Only() { }
+    }
+}
+""",
+    "Svc.More.cs": """namespace A
+{
+    public partial class Svc
+    {
+        public void Save(string name, bool force)
+        {
+            repo.Flush();
+        }
+        public void Run()
+        {
+            Save("a");
+            Save("a", true);
+        }
+    }
+}
+""",
+}
+
+
+class CSharpPartialClassTest(Base):
+    """Overloads of a `partial` class declared in different files are overloads all the same."""
+    FILES, OWNER, NAME = PARTIAL, "A.Svc", "Save"
+
+    def test_overloads_in_different_files_get_a_sig(self):
+        self.assertEqual(self.define_sigs("A.Svc#Save"), [self.sig("string"), self.sig("string,bool")])
+        self.assertEqual(self.define_sigs("A.Svc#Only"), [None])        # not overloaded: no sig
+        self.assertFalse(any("psig" in d for d in self.p.extraction["defines"]))
+
+    def test_calls_and_callers_are_per_overload(self):
+        self.assertEqual(self.call(8, "A.Repo#Put")["from_sig"], self.sig("string"))
+        self.assertEqual(self.call(11)["sig"], self.sig("string"))
+        self.assertEqual(self.call(12)["sig"], self.sig("string,bool"))
+
+    def test_symbol_shows_overloads_not_a_collision(self):
+        found = q_symbol(_Store(self.p), "A.Svc#Save", exact=True)["found"][0]
+        self.assertEqual((found["collision"], found.get("overloads")), (False, 2))
+        self.assertEqual(self.call_edges(self.sig("string,bool")), {("A.Repo#Flush", "high")})
+
+
 class RuleTest(unittest.TestCase):
     def test_param_type_rule(self):
         self.assertEqual(sigs.param_type("java.util.Map<String, List<~T>>"), "java.util.Map")

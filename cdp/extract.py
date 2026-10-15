@@ -20,6 +20,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from . import sigs
 from .lang import extract_file
 from .lang.base import FileFacts
 from .util import MAX_PARSE_BYTES, read_lines
@@ -164,6 +165,7 @@ def run_extract(repo: Path, inventory: Dict, progress=None,
                 if progress:
                     progress(rel)
 
+    sigs.partial_overloads(defines, uses)
     return {
         "head": inventory["head"],
         "files": per_file,

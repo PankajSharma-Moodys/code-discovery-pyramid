@@ -115,21 +115,65 @@ def assign(types, normalise: Callable[[str, set], str]) -> None:
             entries.append((m.symbol, [(normalise(t, mtv) + ("?" if i < len(pnull) and pnull[i] else ""),
                                         m.varargs and i == last)
                                        for i, (t, _) in enumerate(m.params)], hint.rsplit(".", 1)[-1]))
-    for (jt, m), sig in zip(members, overload_sigs(entries)):
+    for (jt, m), (name, ps, _), sig in zip(members, entries, overload_sigs(entries)):
         if m is None:
             jt.primary_sig = sig
             continue
         m.sig = sig
+        if not sig and getattr(jt, "partial", False):
+            # a C# `partial` class may overload this name in another file: `partial_overloads` decides
+            m.psig = sig_of(name, [param_type(t, v) for t, v in ps])
         if m.varargs and m.arity is None:
             m.arity = (len(m.params) - 1, None)
+
+
+def partial_overloads(defines: List[Dict], uses: List[Dict]) -> None:
+    """Overloads of a C# `partial` class declared in different files: each file's extractor saw one
+    definition of the name, so none got a sig. A method of a partial class carries its would-be sig as
+    `psig`; here, over every file, a name with definitions in more than one file turns each `psig` into a
+    `sig` (two identical ones are told apart by position, `@2`) and gives that definition's calls the
+    `from_sig`. `psig` is then dropped everywhere: a name defined once keeps no sig, as in one file."""
+    groups: Dict[str, List[Dict]] = {}
+    for d in defines:
+        if d.get("psig") or d.get("sig"):
+            groups.setdefault(d["fqn"], []).append(d)
+    callers: Dict[Tuple[str, str], str] = {}
+    for fqn, rows in groups.items():
+        if not any("psig" in d for d in rows) or len({d["file"] for d in rows}) < 2:
+            continue
+        rows.sort(key=lambda d: (d["file"], d["anchor"]["line"]))
+        count = _counts(d.get("sig") or d["psig"] for d in rows)
+        nth: Dict[str, int] = {}
+        for d in rows:
+            if "psig" not in d:
+                continue
+            sig = d["psig"]
+            if count[sig] > 1:
+                k = nth[sig] = nth.get(sig, 0) + 1
+                if k > 1:
+                    sig += "@%d" % k
+            d["sig"] = sig
+            callers[(d["file"], fqn)] = sig
+    for d in defines:
+        if d.pop("psig", None) is not None and "sig" not in d:
+            d.pop("arity", None)
+    if callers:
+        for u in uses:
+            if "from_sig" not in u and u.get("from_symbol"):
+                sig = callers.get((u["file"], u["from_symbol"]))
+                if sig:
+                    u["from_sig"] = sig
 
 
 def define_fields(row: Dict, m) -> None:
     """`sig` on an overloaded member's define row, and `arity` ([min, max], max null = unbounded)
     when that is not exactly its parameter count. Nothing on a member that is not overloaded."""
-    if not getattr(m, "sig", None):
+    if getattr(m, "sig", None):
+        row["sig"] = m.sig
+    elif getattr(m, "psig", None):
+        row["psig"] = m.psig
+    else:
         return
-    row["sig"] = m.sig
     n = len(m.params)
     if m.arity and tuple(m.arity) != (n, n):
         row["arity"] = list(m.arity)

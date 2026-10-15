@@ -11,7 +11,8 @@ Scores: Quality 7, Scalability 6, Features 8, Harness 7, Overall 7.
        primary id (claims, links, --as-of); `symbol` body rows and `trace`/`paths` nodes use `sig`.
        Done (uncommitted): pooled sites ws 176 -> 0, us 659 -> 0; overload->overload steps not counted
        toward the hop cap (us paths 504 -> 512); field-initialiser calls listed under every constructor; scan's
-       collision count excludes overloads (ws 624 -> 474). Open: C# partial-class overloads across files.
+       collision count excludes overloads (ws 624 -> 474). C# partial-class overloads across
+       files get sigs too (us: 3 methods, e.g. AdminController#AddJobTypeAsync).
 3. [x] Scala `logger.info` (StrictLogging) resolves to the class itself (`ArchiveLogService#info`).
 4. [x] `symbol`/`trace` embed test/library claims. **Decided:** same default filters as `claims`.
 5. [x] Claims built from library imports (mapstruct `Mappers` -> "converted to factory"); need `@Mapper`.

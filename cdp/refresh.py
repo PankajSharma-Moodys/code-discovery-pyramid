@@ -18,7 +18,7 @@ import datetime
 
 from . import codeindex as codeindex_mod, rereview as rereview_mod, dataflow as dataflow_mod, freshness as freshness_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, resolve as resolve_mod, rollback as rollback_mod, schedule as schedule_mod, snapshot as snapshot_mod, state as state_mod
 from .extract import MAX_PARSE_BYTES, _sorted
-from . import rules as rules_mod
+from . import rules as rules_mod, sigs
 from .lang import extract_file
 from .derived import build_derived_patch
 from .session import Paths, check_repo_matches_manifest, extra_excludes, git_head_or_raise, open_store
@@ -141,6 +141,7 @@ def incremental_extract(
             "imports": len(facts.imports), "io_edges": len(facts.io_edges),
         }
 
+    sigs.partial_overloads(defines, uses)
     return {
         "head": inventory["head"],
         "files": per_file,

@@ -34,11 +34,12 @@ OPS = frozenset(["+", "-", "*", "/", "%", "&", "|", "^", "!", "~", "<", ">", "="
 
 
 class CMember(JMember):
-    __slots__ = ("prop", "bodies", "ctor_init", "ext", "explicit", "nodef", "pnull")
+    __slots__ = ("prop", "bodies", "ctor_init", "ext", "explicit", "nodef", "pnull", "psig")
 
     def __init__(self, kind: str, name: str, owner: "CType") -> None:
         super().__init__(kind, name, owner)
         self.pnull: Optional[List[bool]] = None   # per parameter: declared `T?` (cdp/sigs.py)
+        self.psig: Optional[str] = None           # a partial class's would-be sig (sigs.partial_overloads)
         self.prop = False
         self.bodies: List[Tuple[int, int]] = []
         self.ctor_init: Optional[Tuple[int, int, str]] = None   # args span, "base"/"this"
