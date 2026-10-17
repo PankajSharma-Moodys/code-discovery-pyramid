@@ -124,8 +124,8 @@ CREATE TABLE IF NOT EXISTS snapshot_checkout (
 );
 """
 
-# PLAN_DB_ARCH.md: the object store, `objects.SCHEMA_SQLITE` by its §4 substitutions (unverified:
-# no Postgres server was available when this was written). `complete` is SMALLINT, not BOOLEAN, so
+# PLAN_DB_ARCH.md: the object store, `objects.SCHEMA_SQLITE` by its §4 substitutions (run against
+# Postgres 17: conformance suite plus a full scan + answer capture). `complete` is SMALLINT, not BOOLEAN, so
 # `WHERE complete = 1` is the same SQL on both engines. No data migration: `_drop_artifact_table`.
 SCHEMA_V4 = pg_schema() + """
 ALTER TABLE snapshot_meta ADD COLUMN complete SMALLINT NOT NULL DEFAULT 0;
@@ -794,7 +794,10 @@ class PostgresStore(ObjectStoreMixin, WorkspaceStore):
     def drop_schema(self) -> None:
         """Test/teardown helper -- drops this store's schema and everything in
         it. Never called by production code paths (there is no `cdp` command
-        that destroys a shared team store)."""
+        that destroys a shared team store). A pending manifest is discarded first:
+        `close()` after the drop would otherwise flush it into tables that are gone."""
+        self._flush_build(complete=False, discard=True)
+        self._conn.rollback()
         with self._conn.cursor() as cur:
             cur.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % self._schema)
         self._conn.commit()
