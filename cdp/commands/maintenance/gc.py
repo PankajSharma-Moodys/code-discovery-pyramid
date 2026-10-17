@@ -64,7 +64,8 @@ def cmd_gc(args) -> int:
     try:
         repo = paths.repo
         repo_id = registry_mod.repo_identity(repo)
-        known = [s["commit_sha"] for s in store.list_snapshots() if s["repo_id"] == repo_id]
+        # complete=0 rows are killed scans (the lock rules out a live one): never HEAD or kept
+        known = [s["commit_sha"] for s in store.list_snapshots() if s["repo_id"] == repo_id and s["complete"]]
         # short shas (what `cdp` prints) name a snapshot when they are unambiguous
         args.pin = [resolve_prefix(s, known, "--pin") for s in args.pin]
         args.unpin = [resolve_prefix(s, known, "--unpin") for s in args.unpin]
@@ -74,6 +75,8 @@ def cmd_gc(args) -> int:
             for sha in args.unpin:
                 store.set_pinned(sha, False, repo_id)
         head_sha = resolve_prefix(args.head_sha, known, "--head-sha") if args.head_sha else git_head_or_raise(repo)
+        if head_sha not in known and not args.head_sha:  # HEAD's scan died: keep what queries serve
+            head_sha = next((s["commit_sha"] for s in store.latest_snapshots() if s["repo_id"] == repo_id), head_sha)
         snapshots = [s for s in store.list_snapshots() if s["repo_id"] == repo_id]
         if dry:  # a dry run reports what the pins would do without writing them
             for flag, shas in ((True, args.pin), (False, args.unpin)):
@@ -92,7 +95,7 @@ def cmd_gc(args) -> int:
         cited.discard(None)
         me = registry_mod.snapshot_checkout_key(repo)  # this checkout's own head is the HEAD rule's business
         others = {sid: [c for c in cs if c != me] for sid, cs in store.checkout_heads().items()}
-        keep = snapshot_mod.retention(snapshots, repo_id, head_sha, cited, {k: v for k, v in others.items() if v},
+        keep = snapshot_mod.retention([s for s in snapshots if s["complete"]], repo_id, head_sha, cited, {k: v for k, v in others.items() if v},
                                       store.model_patch_hashes(), args.drop_unreviewed)
         drop = [s for s in snapshots if s["id"] not in keep]
         stale_dirty = [s for s in drop if s["ephemeral"]]
