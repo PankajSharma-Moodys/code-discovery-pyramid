@@ -30,8 +30,11 @@ takes it exclusive, so it never deletes an object a pending manifest is about to
 
 from __future__ import annotations
 
+import contextlib
+import gc
 import hashlib
 import json
+import os
 import struct
 import sys
 import zlib
@@ -107,6 +110,50 @@ def canon(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True).encode("utf-8")
 
 
+class Encoded(tuple):
+    """A segment body already encoded by the caller (an extraction worker): `(sha1 of canon(body),
+    zlib of canon(body))`. `_put_segs` stores it as is, byte-identical to encoding `body` here."""
+
+    def __new__(cls, h: bytes, z: bytes) -> "Encoded":
+        return tuple.__new__(cls, (h, z))
+
+    def __getnewargs__(self) -> Tuple[bytes, bytes]:     # pickled back from a worker process
+        return (self[0], self[1])
+
+
+def encode_seg(body: Any) -> Encoded:
+    raw = canon(body)
+    return Encoded(hashlib.sha1(raw).digest(), zlib.compress(raw, ZLEVEL))
+
+
+ZLEVEL = 6
+
+
+@contextlib.contextmanager
+def _no_gc():
+    """Pause the cyclic GC while decoding a whole artifact's segments: JSON values hold no cycles,
+    and in a scan's multi-GB heap each collection the allocations trigger walks all of it."""
+    was = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was:
+            gc.enable()
+_THREAD_MIN_BYTES = 1 << 20
+
+
+def _compress_many(raws: List[bytes]) -> List[bytes]:
+    """`zlib.compress(raw, ZLEVEL)` of each, in order. zlib releases the GIL, so a large batch is
+    compressed on threads; the output bytes are the same either way."""
+    if len(raws) < 2 or sum(map(len, raws)) < _THREAD_MIN_BYTES:
+        return [zlib.compress(r, ZLEVEL) for r in raws]
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
+        return list(pool.map(lambda r: zlib.compress(r, ZLEVEL), raws, chunksize=32))
+
+
 def _h64(s: str) -> int:
     return struct.unpack(">q", hashlib.sha1(s.encode("utf-8")).digest()[:8])[0]
 
@@ -155,6 +202,7 @@ class ObjectStoreMixin:
         self._bytes_cache: Dict[Tuple[str, int], bytes] = {}   # immutable objects, decompressed
         self._bytes_total = 0
         self._derived: Dict[Any, Any] = {}             # per-view lookup tables (_global_order)
+        self._preloaded: Dict[Tuple[Any, str], Any] = {}   # preload_artifact: handed over once
 
     _BYTES_BUDGET = 256 << 20
 
@@ -175,7 +223,7 @@ class ObjectStoreMixin:
         """Forget cached manifests and object bytes (another process may have committed a
         manifest, or a sweep freed ids a later write reused): the MCP server calls this when
         `snapshot_fingerprint` changes."""
-        self._view_cache, self._derived = {}, {}
+        self._view_cache, self._derived, self._preloaded = {}, {}, {}
         self._bytes_cache, self._bytes_total = {}, 0
 
     def snapshot_fingerprint(self) -> tuple:
@@ -270,7 +318,7 @@ class ObjectStoreMixin:
         self._hold_objects_lock()
         body = canon(obj)
         h = hashlib.sha1(body).digest()
-        self._x(self._q("INSERT OR IGNORE INTO doc (h, z) VALUES (?, ?)"), (self._bin(h), self._bin(zlib.compress(body, 6))))
+        self._x(self._q("INSERT OR IGNORE INTO doc (h, z) VALUES (?, ?)"), (self._bin(h), self._bin(zlib.compress(body, ZLEVEL))))
         return self._rows("SELECT id FROM doc WHERE h=?", (self._bin(h),))[0][0]
 
     def _get_doc(self, doc_id: int) -> Any:
@@ -290,8 +338,9 @@ class ObjectStoreMixin:
         new = {}
         for path, (sha, raw) in items.items():
             if sha not in have and sha not in new:
-                new[sha] = (len(raw), zlib.compress(raw, 6))
-        rows = [(self._bin(sha), size, self._bin(z)) for sha, (size, z) in new.items()]
+                new[sha] = raw
+        zs = _compress_many(list(new.values()))
+        rows = [(self._bin(sha), len(raw), self._bin(z)) for (sha, raw), z in zip(new.items(), zs)]
         for i in range(0, len(rows), BATCH):
             self._xmany(self._q("INSERT OR IGNORE INTO blob (sha, size, z) VALUES (?, ?, ?)"), rows[i:i + BATCH])
             self._db_commit()
@@ -310,27 +359,33 @@ class ObjectStoreMixin:
         """Content-addressed segments; `index` (`f_def`/`x_use`/`flow`) rows go in only with a new
         segment, so a shared segment's rows exist exactly once. Returns ids in `bodies` order."""
         self._hold_objects_lock()
-        enc = []
+        enc = []     # (sha1, canonical bytes or None, zlib or None, index rows)
         for body, idx in bodies:
-            raw = canon(body)
-            enc.append((hashlib.sha1(raw).digest(), raw, idx))
+            if isinstance(body, Encoded):
+                enc.append((body[0], None, body[1], idx))
+            else:
+                raw = canon(body)
+                enc.append((hashlib.sha1(raw).digest(), raw, None, idx))
         ids: Dict[bytes, int] = {}
         for i in range(0, len(enc), BATCH):
             chunk = enc[i:i + BATCH]
-            hs = list({h for h, _, _ in chunk})
+            hs = list({h for h, _, _, _ in chunk})
             have = {bytes(h): sid for sid, h in self._in_chunks("SELECT id, h FROM seg WHERE h IN (%s)",
                                                                   [self._bin(h) for h in hs])}
             new = {}
-            for h, raw, idx in chunk:
+            for h, raw, z, idx in chunk:
                 if h not in have and h not in new:
-                    new[h] = (raw, idx)
+                    new[h] = (raw, z, idx)
             if new:
+                todo = [raw for raw, z, _ in new.values() if z is None]
+                done = iter(_compress_many(todo))
                 self._xmany(self._q("INSERT OR IGNORE INTO seg (h, z) VALUES (?, ?)"),
-                            [(self._bin(h), self._bin(zlib.compress(raw, 6))) for h, (raw, _) in new.items()])
+                            [(self._bin(h), self._bin(z if z is not None else next(done)))
+                             for h, (raw, z, _) in new.items()])
                 fresh = {bytes(h): sid for sid, h in self._in_chunks("SELECT id, h FROM seg WHERE h IN (%s)",
                                                                        [self._bin(h) for h in new])}
                 if index:
-                    rows = [(fresh[h],) + r for h, (_, idx) in new.items() for r in idx]
+                    rows = [(fresh[h],) + r for h, (_, _, idx) in new.items() for r in idx]
                     if rows:
                         cols = {"f_def": "(seg, ord, fqn) VALUES (?, ?, ?)",
                                 "x_use": "(seg, ord, to_sym, status) VALUES (?, ?, ?, ?)",
@@ -340,7 +395,7 @@ class ObjectStoreMixin:
                 have.update(fresh)
             self._db_commit()
             ids.update(have)
-        return [ids[h] for h, _, _ in enc]
+        return [ids[h] for h, _, _, _ in enc]
 
     def _get_segs(self, seg_ids: Iterable[int]) -> Dict[int, Any]:
         ids = sorted(set(seg_ids))
@@ -355,8 +410,9 @@ class ObjectStoreMixin:
         return out
 
     def _get_segs_uncached(self, ids: Sequence[int]) -> Dict[int, Any]:
-        return {sid: json.loads(zlib.decompress(bytes(z)))
-                for sid, z in self._in_chunks("SELECT id, z FROM seg WHERE id IN (%s)", list(ids))}
+        with _no_gc():
+            return {sid: json.loads(zlib.decompress(bytes(z)))
+                    for sid, z in self._in_chunks("SELECT id, z FROM seg WHERE id IN (%s)", list(ids))}
 
     # ----------------------------------------------- extraction cache (fcache)
 
@@ -384,14 +440,17 @@ class ObjectStoreMixin:
         bodies = self._get_segs(hits.values())
         return {path: bodies[seg] for path, seg in hits.items()}
 
-    def put_facts(self, facts: Dict[str, Tuple[bytes, str, Dict]]) -> None:
-        """`{path: (blob sha, module, raw FileFacts dict)}` into the cache."""
+    def put_facts(self, facts: Dict[str, Tuple[bytes, str, Any]]) -> None:
+        """`{path: (blob sha, module, raw FileFacts dict)}` into the cache. The third item may
+        instead be the segment already encoded, `encode_seg({"facts": dict})` (an extraction
+        worker's), stored as is."""
         if not facts:
             return
         xver = self._intern([extractor_version()])[extractor_version()]
         ids = self._intern(list(facts) + [m for _, m, _ in facts.values()])
         paths = list(facts)
-        seg_ids = self._put_segs([({"facts": facts[p][2]}, []) for p in paths], None)
+        seg_ids = self._put_segs([(d if isinstance(d, Encoded) else {"facts": d}, [])
+                                  for p in paths for d in (facts[p][2],)], None)
         rows = []
         for path, seg in zip(paths, seg_ids):
             staged = self._staged_blobs.get(path)
@@ -527,7 +586,17 @@ class ObjectStoreMixin:
 
     # ------------------------------------------------------------ artifacts
 
+    def preload_artifact(self, name: str) -> None:
+        """Read `name` now and hand that value to the next `read_artifact(name)` of this snapshot
+        (once: every read still gets a value no other caller holds). Lets a caller build a
+        long-lived value before `gc.freeze()` when the code that reads it is not its own."""
+        if self.has_artifact(name):
+            self._preloaded[(self._snapshot, name)] = self.read_artifact(name)
+
     def read_artifact(self, name: str, default: Any = None) -> Any:
+        got = self._preloaded.pop((self._snapshot, name), None) if self._preloaded else None
+        if got is not None:
+            return got
         if self._snapshot == -1:
             if default is None:
                 raise CdpError(self._missing(name))
@@ -547,7 +616,7 @@ class ObjectStoreMixin:
 
     def write_artifact(self, name: str, data: Any) -> None:
         sid = self._snapshot_id()
-        self._derived = {}
+        self._derived, self._preloaded = {}, {}
         if self._building == sid:
             view = self._pending
             view.docs[name] = self._decompose(name, data, view)
@@ -576,6 +645,10 @@ class ObjectStoreMixin:
         return self._put_doc(data)
 
     def _decompose(self, name: str, data: Any, view: _Pending) -> int:
+        with _no_gc():
+            return self._decompose_parts(name, data, view)
+
+    def _decompose_parts(self, name: str, data: Any, view: _Pending) -> int:
         if name not in HEAVY or not isinstance(data, dict):
             return self._whole(data)
         try:
@@ -736,6 +809,10 @@ class ObjectStoreMixin:
     # ------------------------------------------------------------ reassembly
 
     def _assemble(self, name: str, view: _Pending, skel: Any) -> Any:
+        with _no_gc():
+            return self._assemble_parts(name, view, skel)
+
+    def _assemble_parts(self, name: str, view: _Pending, skel: Any) -> Any:
         if not isinstance(skel, dict):
             return skel
         if WHOLE in skel and len(skel) == 1:
