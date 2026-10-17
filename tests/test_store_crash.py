@@ -269,11 +269,6 @@ def test_kill9_same_commit_rescan_late_keeps_patch_log(world, point):
     assert (after["patches"], after["reports"]) == (before["patches"], before["reports"])
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: `gc` after a killed new-commit scan drops the only complete snapshot. cmd_gc lists "
-    "snapshots without the `complete` filter (cdp/commands/maintenance/gc.py:77), so the torn "
-    "HEAD row (complete=0) passes the HEAD check (:86), is kept as HEAD by `retention` (:95), and "
-    "the previous complete snapshot is dropped: every query then says `scan needed`."))
 def test_gc_after_killed_scan_keeps_last_complete_snapshot(world):
     home, repo = world
     ok(scan(home, repo))
