@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from .. import codeindex, sigs
 from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, make_matcher, _role_index, _tally, cite, route_inputs
-from .store import Store
+from .store import Store, code_text, file_edges, file_rows, symbols_of, used_by_of, xref_field, xref_uses_of
 from ..rules import all_edges
 
 
@@ -36,7 +36,7 @@ def _member_keys(store: Store, name: str) -> Dict[str, str]:
     its enclosing classes. Never a prefix or substring match: `setServerHint`
     must not answer for `setServerHintApplied`."""
     owner_part, _, member = name.partition("#")
-    symbols = store.xref["symbols"]
+    symbols = symbols_of(store)
     owners = [k for k, e in symbols.items()
               if e["kind"] in ("class", "interface", "enum", "record", "annotation")
               and (k == owner_part or k.endswith("." + owner_part))]
@@ -71,26 +71,26 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
     """
     budget = budget or Budget()
     roles = _role_index(store) if exclude_role else {}
-    xref = store.xref
-    exact_hit = None if regex else xref["symbols"].get(name)
+    symbols, used_by = symbols_of(store), used_by_of(store)
+    exact_hit = None if regex else symbols.get(name)
     via: Dict[str, str] = {}
     if regex:
         rx = make_matcher(name, "regex")
-        keys, mode = [k for k in xref["symbols"] if rx(k)], "regex"
+        keys, mode = [k for k in symbols if rx(k)], "regex"
     elif exact_hit:
         keys, mode = [name], "exact"
     elif "#" in name:
         via = _member_keys(store, name)
         keys = list(via)
-        by_suffix = [k for k in xref["symbols"] if k.endswith("." + name)]
+        by_suffix = [k for k in symbols if k.endswith("." + name)]
         keys += [k for k in by_suffix if k not in via]
         mode = "exact"
     elif exact:
-        keys = [k for k in xref["symbols"] if k == name or k.rsplit(".", 1)[-1] == name
+        keys = [k for k in symbols if k == name or k.rsplit(".", 1)[-1] == name
                 or k.rsplit("#", 1)[-1] == name]
         mode = "exact"
     else:
-        keys = [k for k in xref["symbols"]
+        keys = [k for k in symbols
                 if k == name or k.rsplit(".", 1)[-1] == name or _matches(k, name)]
         mode = "substring"
     # An exact match on the last name first -- a class or, for `Class#method`,
@@ -106,7 +106,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
 
     pending = []
     for key in keys:
-        entry = xref["symbols"][key]
+        entry = symbols[key]
         sites = entry["sites"]
         if exclude_role:
             # A symbol drops from the answer only once every one of its
@@ -115,9 +115,9 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
             sites = [s for s in sites if roles.get(s["anchor"].get("file")) not in exclude_role]
             if not sites:
                 continue
-        users = list(xref["used_by"].get(key, []))
+        users = list(used_by.get(key, []))
         if entry["kind"] in ("class", "enum", "record"):
-            users += xref["used_by"].get(key + "#<init>", [])   # `new X(..)` on a declared constructor
+            users += used_by.get(key + "#<init>", [])   # `new X(..)` on a declared constructor
             users.sort(key=lambda u: (u["module"], u["file"], u["anchor"]["line"]))
         # a site is a line: two uses on one line (`X x = new X()`) are one site
         seen_sites: set = set()
@@ -200,30 +200,31 @@ def _memo(store: Store, key: str, build):
     return cache[key]
 
 
-def _call_index(store: Store) -> Dict:
-    """`(file, from_sig or from_symbol) -> [call row, ...]` (in source order) from `uses` rows of kind
-    `call`: an overload's calls are keyed by its own sig (cdp/sigs.py); built once per query. The rows
-    themselves, not a tuple per row: allocating 100k+ tuples on a loaded store costs ~0.3 s in GC."""
+def _call_index(store: Store, rel: str) -> Dict:
+    """`(file, from_sig or from_symbol) -> [call row, ...]` (in source order) from one file's `uses`
+    rows of kind `call`: an overload's calls are keyed by its own sig (cdp/sigs.py); built once per
+    file per query. The rows themselves, not a tuple per row: allocating 100k+ tuples on a loaded
+    store costs ~0.3 s in GC."""
     def build() -> Dict:
         seen: Dict = {}
-        for u in sorted((u for u in store.extraction["uses"] if u.get("kind") == "call" and u.get("from_symbol")),
+        for u in sorted((u for u in file_rows(store, rel, "uses") if u.get("kind") == "call" and u.get("from_symbol")),
                         key=lambda u: (u["file"], u["anchor"]["line"])):
             seen.setdefault((u["file"], u.get("from_sig") or u["from_symbol"]), []).append(u)
         return seen
 
-    return _memo(store, "_call_index", build)
+    return _memo(store, "_call_index:" + rel, build)
 
 
-def _defines_per_name(store: Store) -> Dict:
-    """`(file, fqn) -> how many method definitions` -- more than one is an overload."""
+def _defines_per_name(store: Store, rel: str) -> Dict:
+    """`(file, fqn) -> how many method definitions` in one file -- more than one is an overload."""
     def build() -> Dict:
         n: Dict = {}
-        for d in store.extraction["defines"]:
+        for d in file_rows(store, rel, "defines"):
             if d["kind"] in ("method", "function"):
                 n[(d["file"], d["fqn"])] = n.get((d["file"], d["fqn"]), 0) + 1
         return n
 
-    return _memo(store, "_defines_per_name", build)
+    return _memo(store, "_defines_per_name:" + rel, build)
 
 
 def _calls_of(store: Store, rel: str, fqn: str, d: Dict) -> List[str]:
@@ -231,11 +232,11 @@ def _calls_of(store: Store, rel: str, fqn: str, d: Dict) -> List[str]:
     store scanned before overloads had sigs pools every overload's calls under the name, so there the
     calls are cut to the ones inside this definition's lines. Calls under the name but outside every
     overload (a field initialiser, which runs in every constructor) belong to each overload, as in the graph."""
-    index = _call_index(store)
+    index = _call_index(store, rel)
     rows = index.get((rel, d.get("sig") or fqn), [])
     if d.get("sig") and (rel, fqn) in index:
         rows = sorted(rows + index[(rel, fqn)], key=lambda r: r["anchor"]["line"])
-    if not d.get("sig") and _defines_per_name(store).get((rel, fqn), 0) > 1:
+    if not d.get("sig") and _defines_per_name(store, rel).get((rel, fqn), 0) > 1:
         lo = d["anchor"]["line"]
         hi = d.get("end_line") or lo
         rows = [r for r in rows if lo <= r["anchor"]["line"] <= hi]
@@ -259,16 +260,12 @@ def _resolved_target(store: Store, row: Dict) -> Optional[str]:
     `StrictLogging` class: `Svc#info`), or for a bare call the enclosing class (`when(..)` from a
     Mockito static import: `SvcTest#when`) -- either credits the call to a class that does not declare
     it. Matched by file, line, caller and method name (two same-named calls on one line share one)."""
-    def build() -> Dict:
-        # rows grouped by file, not one tuple key per row: 50k+ allocations on a loaded store cost ~0.3 s in GC
-        out: Dict = {}
-        for u in store.xref["uses"]:
-            if u.get("kind") == "call":
-                out.setdefault(u["from_file"], []).append(u)
-        return out
+    def build() -> List:
+        # one file's call rows, not one tuple key per row: 50k+ allocations on a loaded store cost ~0.3 s in GC
+        return [u for u in xref_uses_of(store, row["file"]) if u.get("kind") == "call"]
 
     line, caller, tail = row["anchor"]["line"], row.get("from_symbol"), "#" + row["fqn"].rpartition("#")[2]
-    for u in _memo(store, "_resolved_calls", build).get(row["file"], ()):
+    for u in _memo(store, "_resolved_calls:" + row["file"], build):
         if u["anchor"]["line"] == line and u.get("from_symbol") == caller and u["fqn"].endswith(tail):
             return u["fqn"]
     return None
@@ -286,7 +283,7 @@ def _body_facts(store: Store, rel: str, fqn: str, d: Dict) -> Dict:
         out["calls"] = [_short_name(c) for c in calls]
     if d.get("throws"):
         out["throws"] = list(d["throws"])
-    text = (getattr(store, "code", None) or {}).get("files", {}).get(rel)
+    text = code_text(store, rel)
     end = d.get("end_line")
     if text and end:
         n = codeindex.count_literals(rel, text, d["anchor"]["line"], end)
@@ -311,10 +308,11 @@ def _symbol_body(store: Store, key: str, entry: Dict, sites: List[Dict]) -> Dict
     """`body`: one row per definition site of a method (overloads differ): calls, throws, literals."""
     if entry["kind"] != "method":
         return {}
-    rows = _memo(store, "_method_rows", lambda: {(d["fqn"], d["file"], d["anchor"]["line"]): d
-                                                 for d in store.extraction["defines"] if d["kind"] == "method"})
     body = []
     for s in sites:
+        rows = _memo(store, "_method_rows:" + s["file"],
+                     lambda: {(d["fqn"], d["file"], d["anchor"]["line"]): d
+                              for d in file_rows(store, s["file"], "defines") if d["kind"] == "method"})
         d = rows.get((key, s["file"], s["anchor"]["line"]))
         facts = _body_facts(store, s["file"], key, d) if d else {}
         if facts or s.get("sig"):
@@ -348,10 +346,10 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
     out = []
     for entry in budget.take(sorted(files, key=lambda f: (f["path"] != path, len(f["path"])))):
         rel = entry["path"]
-        info = store.extraction["files"].get(rel, {})
-        defines = sorted((d for d in store.extraction["defines"] if d["file"] == rel),
+        info = file_rows(store, rel, "meta") or {}
+        defines = sorted((d for d in file_rows(store, rel, "defines") if d["file"] == rel),
                          key=lambda d: d["anchor"]["line"])
-        edges = [e for e in all_edges(store.extraction) if e["file"] == rel]
+        edges = [e for e in file_edges(store, rel) if e["file"] == rel]
         claims = [
             c for c in store.state["claims"]
             if any(a.get("file") == rel for a in c.get("evidence", []))
@@ -483,7 +481,7 @@ def q_routes(store: Store, pattern: Optional[str] = None,
     the whole name. Each row says which of those matched."""
     budget = budget or Budget()
     mode = "regex" if regex else "exact" if exact else "substring"
-    routes = store.xref["routes"] + store.xref["unresolved_routes"]
+    routes = xref_field(store, "routes") + xref_field(store, "unresolved_routes")
     via: Dict[int, str] = {}
     rx = make_matcher(pattern, "regex") if (pattern and regex) else None
     if pattern:

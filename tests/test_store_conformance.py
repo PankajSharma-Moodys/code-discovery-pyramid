@@ -196,12 +196,17 @@ class RunTaskLeaseMixin:
 
     def test_a_scan_drops_the_dirty_snapshots_its_checkout_superseded(self):
         store = self.make_store()
+        # Each scan completes (its `manifest` write commits the snapshot, which is when the
+        # superseded dirty snapshots go: a scan that never finishes drops nothing).
         for i in range(4):
             store.begin_snapshot("repo-a", "c1+dirty:%d" % i, True, checkout="wt1")
             store.write_artifact("inventory", {"i": i})
+            store.write_artifact("manifest", {"i": i})
         self.assertEqual([r["commit_sha"] for r in store.list_snapshots()], ["c1+dirty:3"])
         store.begin_snapshot("repo-a", "c1+dirty:other", True, checkout="wt2")
+        store.write_artifact("manifest", {})
         store.begin_snapshot("repo-a", "c2", False, checkout="wt1")
+        store.write_artifact("manifest", {})
         self.assertEqual(sorted(r["commit_sha"] for r in store.list_snapshots()), ["c1+dirty:other", "c2"])
 
     def test_pinned_and_shared_dirty_snapshots_survive_pruning(self):

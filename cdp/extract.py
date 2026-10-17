@@ -15,6 +15,8 @@ Two consequences the plan calls out and this file inherits:
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import os
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -94,8 +96,53 @@ def _absorb(rel: str, module: str, facts: FileFacts, defines, uses, io_edges,
     }
 
 
+def _facts_dict(facts: FileFacts) -> Dict:
+    """A `FileFacts` as the extraction cache stores it (JSON values: lists, never tuples)."""
+    fields = {f.name: getattr(facts, f.name) for f in dataclasses.fields(facts)}
+    return json.loads(json.dumps(fields, sort_keys=True))
+
+
+def _cached_facts(repo: Path, candidates: List[Tuple[str, str]], cache, workers: int,
+                  progress=None) -> Dict[str, FileFacts]:
+    """Per-file extraction through the store's cache, keyed by (git blob sha, path, module,
+    extractor version): only files whose content (or extractor) changed are parsed. Every
+    file's facts, hit or miss, go through the cache's JSON form, so a scan's output does not
+    depend on what was cached. Stages every file's bytes as a blob for the snapshot."""
+    from .store.objects import git_blob_sha
+
+    raw: Dict[str, bytes] = {}
+    for rel, _ in candidates:
+        try:
+            raw[rel] = (repo / rel).read_bytes()
+        except OSError:
+            continue
+    shas = {rel: git_blob_sha(b) for rel, b in raw.items()}
+    cache.put_blobs({rel: (shas[rel], b) for rel, b in raw.items()})
+    module_of = dict(candidates)
+    hits = cache.lookup_facts({rel: (shas[rel], module_of[rel]) for rel in raw})
+    todo = [(rel, module) for rel, module in candidates if rel in raw and rel not in hits]
+    fresh: Dict[str, Dict] = {}
+    if workers <= 1 or len(todo) < 2:
+        for rel, module in todo:
+            lines = read_lines(repo / rel)
+            if lines:
+                fresh[rel] = _facts_dict(extract_file(rel, lines, module))
+    else:
+        with ProcessPoolExecutor(max_workers=min(workers, len(todo))) as pool:
+            for rel, module, facts in pool.map(_extract_worker, [(str(repo), r, m) for r, m in todo]):
+                if facts is not None:
+                    fresh[rel] = _facts_dict(facts)
+    cache.put_facts({rel: (shas[rel], module_of[rel], d) for rel, d in fresh.items()})
+    out = {}
+    for rel, _ in candidates:
+        d = hits.get(rel) or fresh.get(rel)
+        if d is not None:
+            out[rel] = FileFacts(**(d["facts"] if rel in hits else d))
+    return out
+
+
 def run_extract(repo: Path, inventory: Dict, progress=None,
-                 workers: Optional[int] = None) -> Dict:
+                 workers: Optional[int] = None, cache=None) -> Dict:
     """Extract every parseable file in `inventory`, in parallel above
     `PARALLEL_MIN_FILES` files.
 
@@ -117,6 +164,9 @@ def run_extract(repo: Path, inventory: Dict, progress=None,
     `PARALLEL_MIN_FILES` parseable files, `min(cpu_count, file_count)` above
     it. An explicit `workers=` always wins, so a caller (the differential
     test) can force real parallel execution on a small repo.
+
+    `cache` (a store with `supports_object_store()`): per-file facts are read from and written
+    to its extraction cache (`_cached_facts`); the absorb/sort below is unchanged.
     """
     repo = Path(repo)
     defines: List[Dict] = []
@@ -136,7 +186,15 @@ def run_extract(repo: Path, inventory: Dict, progress=None,
         workers = (min(os.cpu_count() or 1, len(candidates))
                    if len(candidates) >= PARALLEL_MIN_FILES else 1)
 
-    if workers <= 1:
+    if cache is not None:
+        facts_of = _cached_facts(repo, candidates, cache, workers, progress)
+        for rel, module in candidates:
+            if rel in facts_of:
+                _absorb(rel, module, facts_of[rel], defines, uses, io_edges, imports,
+                        per_file, declared, module_notes)
+                if progress:
+                    progress(rel)
+    elif workers <= 1:
         for rel, module in candidates:
             lines = read_lines(repo / rel)
             if not lines:

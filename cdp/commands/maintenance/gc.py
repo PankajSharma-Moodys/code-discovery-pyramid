@@ -108,6 +108,14 @@ def cmd_gc(args) -> int:
                 print("          drop %s %s%s" % (label, _short(s["commit_sha"]), " [dry-run]" if args.dry_run else ""))
                 if not args.dry_run:
                     store.delete_snapshot(s["id"])
+        if not args.dry_run and store.supports_object_store():
+            # Objects (file blobs, per-file segments, docs) are shared across snapshots and repos:
+            # free the ones no manifest reaches any more, unless a scan holds the objects lock.
+            freed = store.sweep_objects()
+            if freed is None:
+                print("sweep     deferred: a scan or refresh is writing; the next gc frees what is unreachable")
+            elif any(freed.values()):
+                print("sweep     freed %s" % ", ".join("%d %s" % (n, k) for k, n in freed.items() if n))
         if drop and not args.dry_run:
             print("tip       cdp compact to also fold superseded patches into the cold archive")
     finally:

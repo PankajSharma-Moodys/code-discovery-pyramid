@@ -259,7 +259,14 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
         changed = set(rename_map.values()) | edited | added | reformatted
     else:
         changed = {e["path"] for e in new_inventory["files"]}
-    new_extraction = incremental_extract(paths.repo, new_inventory, store.extraction, changed)
+    if backend.supports_object_store():
+        # Per-file cache keyed by content: the same facts `incremental_extract` carries, without
+        # loading (or mutating) the prior snapshot's extraction.
+        from .extract import run_extract
+
+        new_extraction = run_extract(paths.repo, new_inventory, cache=backend)
+    else:
+        new_extraction = incremental_extract(paths.repo, new_inventory, store.extraction, changed)
     rules_mod.apply(new_extraction, repo=paths.repo)   # rule_edges: recomputed in full, never carried (P5)
 
     new_graph = graph_mod.build_graph(new_inventory, new_extraction)
@@ -281,6 +288,7 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     # anywhere above this line, so reading it after the snapshot switch would
     # silently return the new (not-yet-written) snapshot's empty default.
     before_demoted = len(store.state.get("unknowns", []))
+    old_manifest = store.manifest     # the cache is per snapshot: read the base's before the switch
 
     backend.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, new_inventory["head"], excludes),
                          checkout=registry_mod.checkout_key(paths.repo))
@@ -316,7 +324,7 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     backend.write_artifact("state", folded)
     backend.write_artifact(
         "manifest",
-        dict(store.manifest, head=new_inventory["head"], **({"excludes": excludes} if excludes else {}),
+        dict(old_manifest, head=new_inventory["head"], **({"excludes": excludes} if excludes else {}),
              generated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")),
     )
 

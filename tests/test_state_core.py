@@ -379,21 +379,16 @@ class ArchiveScopedToSnapshotTest(LayoutCase):
         for h in ("h1", "shared", "h3", "orphan"):
             conn.execute("INSERT INTO claim_patches_archive (scope_hash, run_id, payload) VALUES (?, 'r', '{}')", (h,))
         conn.commit()
+        # V11's backfill, as the migration runs it on such a store (schema 12 then refuses a store
+        # that still holds V1-era artifacts: there is no data migration to the object schema).
+        from cdp.store.sqlite_archive import migrate_archive_snapshot_id
+        migrate_archive_snapshot_id(conn)
+        rows = dict(conn.execute("SELECT scope_hash, snapshot_id FROM claim_patches_archive").fetchall())
         conn.close()
-        store = SqliteStore(db)
-        try:
-            rows = dict(store._conn.execute("SELECT scope_hash, snapshot_id FROM claim_patches_archive").fetchall())
-        finally:
-            store.close()
         self.assertEqual(rows, {"h1": 1, "shared": None, "h3": 3, "orphan": None})
-        # a legacy (NULL) row stays visible to a snapshot whose partition names its scope
-        store = SqliteStore(db)
-        try:
-            store.use_snapshot("r", "b" * 40)
-            part = store.read_artifact("partition")
-            self.assertEqual(len(store.load_patches_full(part)), 1)
-        finally:
-            store.close()
+        from cdp.util import CdpError
+        with self.assertRaisesRegex(CdpError, "predates the per-file object schema"):
+            SqliteStore(db)
 
 
 @L.needs_git

@@ -179,7 +179,9 @@ def choose_snapshot(repo: Path, repo_id: str, snapshots: List[Dict], durable: bo
     cannot be anchored to a dirty tree's identity.
     """
     repo = Path(repo)
-    mine = [s for s in snapshots if s.get("repo_id") == repo_id and not (durable and s["ephemeral"])]
+    # A snapshot whose build never committed its manifest (`complete` false) answers nothing.
+    mine = [s for s in snapshots if s.get("repo_id") == repo_id and s.get("complete", True)
+            and not (durable and s["ephemeral"])]
     head = run_git_head(repo)
     choice = Choice(repo_id=repo_id, head=head)
     have = ", ".join(s["commit_sha"][:12] + ("*" if s["ephemeral"] else "") for s in mine[-6:]) or "none"
@@ -212,7 +214,7 @@ def choose_snapshot(repo: Path, repo_id: str, snapshots: List[Dict], durable: bo
 
 def stored_excludes(backend, repo_id: str, snapshots: List[Dict]) -> List[str]:
     """The `--exclude` patterns the latest scan of `repo_id` was given (its manifest)."""
-    mine = [s for s in snapshots if s.get("repo_id") == repo_id]
+    mine = [s for s in snapshots if s.get("repo_id") == repo_id and s.get("complete", True)]
     if not mine:
         return []
     try:

@@ -67,7 +67,8 @@ class EphemeralMixin:
         for run_id in run_ids:
             self._conn.execute("DELETE FROM snapshot_task WHERE run_id=?", (run_id,))
             self._conn.execute("DELETE FROM snapshot_run WHERE run_id=?", (run_id,))
-        for table in ("claim_patch", "snapshot_artifact", "snapshot_report", "snapshot_checkout",
+        # Only the manifest rows: the objects they cite are shared, and freed by `sweep_objects`.
+        for table in ("claim_patch", "snapshot_file", "snapshot_doc", "snapshot_report", "snapshot_checkout",
                       "claim_patches_archive"):
             self._conn.execute("DELETE FROM %s WHERE snapshot_id=?" % table, (snapshot_id,))
         self._conn.execute("DELETE FROM snapshot_meta WHERE id=?", (snapshot_id,))
@@ -133,19 +134,14 @@ class ArchiveMixin:
     def _snapshot_exclusions(self, snapshot_id: int):
         from .. import rollback
 
-        row = self._conn.execute(
-            "SELECT payload FROM snapshot_artifact WHERE snapshot_id=? AND name=?",
-            (snapshot_id, rollback.LEDGER_ARTIFACT)).fetchone()
-        ledger = json.loads(row[0]) if row else {"events": []}
+        ledger = self._read_at(snapshot_id, rollback.LEDGER_ARTIFACT, {"events": []})
         events = ledger.get("events", [])
         return rollback.Exclusions([
             (events[i].get("excluded_run_ids", []), *(events[i].get("patch_range") or (None, None)))
             for i in rollback._live_indexes(ledger)])
 
     def _artifact(self, snapshot_id: int, name: str) -> Any:
-        row = self._conn.execute(
-            "SELECT payload FROM snapshot_artifact WHERE snapshot_id=? AND name=?", (snapshot_id, name)).fetchone()
-        return json.loads(row[0]) if row else None
+        return self._read_at(snapshot_id, name, {}) or None
 
     def _check_compaction_is_lossless(self, snapshot_id: int, derived: List[Dict], entries: List[Tuple[int, Dict]],
                                       moving: set, exclusions) -> None:

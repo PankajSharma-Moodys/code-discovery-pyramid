@@ -35,7 +35,7 @@ class RefreshSnapshotTest(_OwnHome, unittest.TestCase):
         with contextlib.closing(sqlite3.connect(str(self.home / "index.db"))) as db:
             latest = db.execute("select id from snapshot_meta order by touch_seq desc limit 1").fetchone()[0]
             return {n for n, in db.execute(
-                "select name from snapshot_artifact where snapshot_id=?", (latest,))}
+                "select name from snapshot_doc where snapshot_id=?", (latest,))}
 
     def test_refreshed_snapshot_has_every_artifact_a_scan_writes(self) -> None:
         scanned = self.artifact_names()

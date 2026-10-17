@@ -11,7 +11,7 @@ from ..util import truncate
 from .budget import Budget
 from .common import (ann_at, cite, squash, _claim_module, _fair_split_budget, _finish, _matches, _role_index,
                      _search_rank_key, REGEX_MAX_LINE, REGEX_TIME_BUDGET, compile_regex, make_matcher)
-from .store import Store
+from .store import Store, symbols_of
 
 
 SEARCHED = ("claim subjects and statements, symbol names, constant values, annotations (name, fqn, text), "
@@ -29,7 +29,7 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
         if hit(c.get("subject", "")) or hit(c.get("statement", ""))
     ]
     symbols = sorted(
-        (k for k in store.xref["symbols"] if hit(k)),
+        (k for k in symbols_of(store) if hit(k)),
         key=lambda s: rank(s, text),
     )
     unknowns = [u for u in store.state["unknowns"] if hit(u.get("question", ""))]
@@ -37,7 +37,7 @@ def q_search(store: Store, text: str, budget: Optional[Budget] = None,
     named = set(symbols)
     constants = sorted(
         ("%s = %s  %s" % (k, e["value"], cite(e["sites"][0]["anchor"]) if e["sites"] else "-")
-         for k, e in store.xref["symbols"].items()
+         for k, e in symbols_of(store).items()
          if k not in named and e.get("value") is not None and hit(e["value"])),
     )
     annotations = _annotation_hits(store, text, exclude_role, regex)
@@ -141,7 +141,7 @@ def _code_hits(store: Store, text: str, exclude_role: Optional[Sequence[str]], r
     needle = text.lower()
     if not files or not needle.strip() or (exclude_role and "source" in exclude_role):
         return []
-    members = codeindex.member_index(store.xref["symbols"])
+    members = codeindex.member_index(symbols_of(store))
     if regex:
         return _regex_code_hits(files, members, compile_regex(text), guards if guards is not None else [])
     hits = []
@@ -194,7 +194,7 @@ def _annotation_hits(store: Store, text: str, exclude_role: Optional[Sequence[st
     rx = make_matcher(text, "regex") if regex else None
     roles = _role_index(store) if exclude_role else {}
     hits = []
-    for fqn, entry in store.xref["symbols"].items():
+    for fqn, entry in symbols_of(store).items():
         for site in entry.get("sites", []):
             if exclude_role and roles.get(site["file"]) in exclude_role:
                 continue

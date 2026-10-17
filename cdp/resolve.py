@@ -80,63 +80,84 @@ def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
 def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, Dict], List[Dict]]:
     table: Dict[str, Dict] = {}
     for row in extraction["defines"]:
-        entry = table.setdefault(
-            row["fqn"],
-            {"fqn": row["fqn"], "kind": row["kind"], "visibility": row["visibility"],
-             "modules": [], "sites": []},
-        )
-        if row["module"] not in entry["modules"]:
-            entry["modules"].append(row["module"])
-        site = {
-            "file": row["file"], "anchor": row["anchor"], "module": row["module"],
-            "role": role_of.get(row["file"], "source"),
-        }
-        if row.get("end_line"):
-            site["end_line"] = row["end_line"]
-        for key in ("annotations", "params", "supertypes", "sig", "arity"):   # per declaration: overloads differ
-            if row.get(key):
-                site[key] = row[key]
-        entry["sites"].append(site)
-        if row.get("value") is not None:
-            entry["value"] = row["value"]
-        if row.get("cfgp"):     # parameters naming a config key: a wrapper (cfgwrap.py)
-            entry["cfgp"] = sorted(set(entry.get("cfgp", ())) | set(row["cfgp"]))
-        for key in ("ret", "ftype", "tparams"):
-            # Overloads and duplicate declarations that disagree on a type
-            # settle nothing: the walk must not pick one.
-            if key not in entry:
-                entry[key] = row.get(key)
-            elif entry[key] != row.get(key):
-                entry[key] = None
+        _add_define(table, row, role_of)
 
     collisions = []
     for fqn, entry in table.items():
-        for key in ("ret", "ftype", "tparams"):
-            if entry.get(key) is None:
-                entry.pop(key, None)
-        entry["modules"].sort()
-        entry["sites"].sort(key=lambda s: (s["file"], s["anchor"]["line"]))
-        clash, overloads = sigs.collision(entry["sites"])
-        if overloads:
-            entry["overloads"] = overloads
+        clash = _finish_symbol(fqn, entry)
         if clash:
-            entry["collision"] = True
-            collisions.append(
-                {
-                    "fqn": fqn,
-                    "kind": entry["kind"],
-                    "modules": entry["modules"],
-                    "sites": entry["sites"],
-                    # Same FQN in two modules is nearly always unintended and is
-                    # reported in the overview. Same FQN in main and test within
-                    # one module is a common, deliberate pattern.
-                    "cross_module": len(entry["modules"]) > 1,
-                }
-            )
+            collisions.append(clash)
     return (
         dict(sorted(table.items())),
         sorted(collisions, key=lambda c: (not c["cross_module"], c["fqn"])),
     )
+
+
+def symbol_entry(fqn: str, rows: List[Dict], role_of: Dict[str, str], constants: Dict[str, Dict]) -> Dict:
+    """One `xref.symbols` entry from its define rows (in `extract.defines` order): exactly what
+    `build_xref` computes for it, for a store that looks symbols up one at a time."""
+    table: Dict[str, Dict] = {}
+    for row in rows:
+        _add_define(table, row, role_of)
+    _finish_symbol(fqn, table[fqn])
+    _resolve_annotation_args(table, constants)
+    return table[fqn]
+
+
+def _add_define(table: Dict[str, Dict], row: Dict, role_of: Dict[str, str]) -> None:
+    entry = table.setdefault(
+        row["fqn"],
+        {"fqn": row["fqn"], "kind": row["kind"], "visibility": row["visibility"],
+         "modules": [], "sites": []},
+    )
+    if row["module"] not in entry["modules"]:
+        entry["modules"].append(row["module"])
+    site = {
+        "file": row["file"], "anchor": row["anchor"], "module": row["module"],
+        "role": role_of.get(row["file"], "source"),
+    }
+    if row.get("end_line"):
+        site["end_line"] = row["end_line"]
+    for key in ("annotations", "params", "supertypes", "sig", "arity"):   # per declaration: overloads differ
+        if row.get(key):
+            site[key] = row[key]
+    entry["sites"].append(site)
+    if row.get("value") is not None:
+        entry["value"] = row["value"]
+    if row.get("cfgp"):     # parameters naming a config key: a wrapper (cfgwrap.py)
+        entry["cfgp"] = sorted(set(entry.get("cfgp", ())) | set(row["cfgp"]))
+    for key in ("ret", "ftype", "tparams"):
+        # Overloads and duplicate declarations that disagree on a type
+        # settle nothing: the walk must not pick one.
+        if key not in entry:
+            entry[key] = row.get(key)
+        elif entry[key] != row.get(key):
+            entry[key] = None
+
+
+def _finish_symbol(fqn: str, entry: Dict) -> Optional[Dict]:
+    """Settle one entry once all its rows are in; returns its collision record, if any."""
+    for key in ("ret", "ftype", "tparams"):
+        if entry.get(key) is None:
+            entry.pop(key, None)
+    entry["modules"].sort()
+    entry["sites"].sort(key=lambda s: (s["file"], s["anchor"]["line"]))
+    clash, overloads = sigs.collision(entry["sites"])
+    if overloads:
+        entry["overloads"] = overloads
+    if clash:
+        entry["collision"] = True
+        return {
+            "fqn": fqn,
+            "kind": entry["kind"],
+            "modules": entry["modules"],
+            "sites": entry["sites"],
+            # Same FQN in two modules is nearly always unintended and is
+            # reported in the overview. Same FQN in main and test within
+            # one module is a common, deliberate pattern.
+            "cross_module": len(entry["modules"]) > 1,
+        }
+    return None
 
 
 def _resolve_arg(value, constants: Dict[str, Dict], owner: str, module: str):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict
 
 from .common import _finish, _tally
-from .store import Store
+from .store import Store, defines_named, symbols_of, xref_field
 
 
 def q_stats(store: Store) -> Dict:
@@ -18,7 +18,7 @@ def q_stats(store: Store) -> Dict:
     # while every directory is `sql-pool-*`, and that mismatch is the first
     # thing a newcomer trips over -- so it belongs in the first thing they run.
     build_name = None
-    for row in store.extraction["defines"]:
+    for row in defines_named(store, "build:rootProject.name"):
         # Only the root `settings.gradle`: a fixture or sub-build's own
         # settings file names a different build.
         if row["fqn"] == "build:rootProject.name" and row["file"] == "settings.gradle":
@@ -35,15 +35,15 @@ def q_stats(store: Store) -> Dict:
         "roles": inv["by_role"],
         "modules": len(inv["modules"]),
         "scopes": len(store.partition["scopes"]),
-        "symbols": len(store.xref["symbols"]),
-        "routes": len(store.xref["routes"]),
+        "symbols": len(symbols_of(store)),
+        "routes": len(xref_field(store, "routes")),
         "claims": len(state.get("claims", [])),
         "claims_by_kind": _tally(c["kind"] for c in state.get("claims", [])),
         "claims_by_confidence": _tally(c.get("confidence", "?") for c in state.get("claims", [])),
         "unknowns": len(state.get("unknowns", [])),
         "conflicts": len(state.get("conflicts", [])),
         "coverage": state.get("coverage", {}),
-        "resolution": store.xref["resolution"],
+        "resolution": xref_field(store, "resolution"),
         "divergence": {
             "declared": store.graph["divergence"]["declared_edges"],
             "observed": store.graph["divergence"]["observed_edges"],

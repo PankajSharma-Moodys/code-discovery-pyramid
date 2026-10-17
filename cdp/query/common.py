@@ -6,7 +6,7 @@ import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .budget import Budget
-from .store import Store
+from .store import Store, symbols_of
 
 
 #: What `--as-of` does and does not rewind, said on every such answer (`session.apply_as_of`).
@@ -113,7 +113,7 @@ def ann_view(file: str, rows: Sequence[Dict]) -> List[Dict]:
 def annotations_of(store: Store, fqn: str) -> Dict:
     """What decorates a symbol: its own annotations and parameters, and its owner class's.
     One entry per definition site (overloads differ); empty keys are left out."""
-    syms = store.xref["symbols"]
+    syms = symbols_of(store)
     out: Dict[str, List] = {"annotations": [], "params": [], "class_annotations": []}
     for site in syms.get(fqn, {}).get("sites", []):
         out["annotations"] += ann_view(site["file"], site.get("annotations", []))
@@ -168,7 +168,7 @@ def route_inputs(store: Store, handler: str, evidence: Sequence[Dict]) -> List[D
     `@RequestBody` and the JAX-RS `*Param` annotations. `required`/`default` appear only when the
     annotation's arguments (or a JAX-RS `@DefaultValue`) state them; the row's `at` is the
     annotation's `file:line`."""
-    sites = store.xref["symbols"].get(handler, {}).get("sites", [])
+    sites = symbols_of(store).get(handler, {}).get("sites", [])
     if not sites:
         return []
     ev = evidence[0] if evidence else {}

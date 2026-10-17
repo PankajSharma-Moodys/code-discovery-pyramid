@@ -12,8 +12,9 @@ tool answers from the same store a `cdp` invocation in that directory would.
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from cdp import pipeline as pipeline_mod
 from cdp import session as session_mod
@@ -35,6 +36,39 @@ def _paths(repo: str):
     elsewhere, so a model cannot create stores at paths of its choosing."""
     registry_mod.clear_git_answers()     # one call's git answers, never the previous call's
     return session_mod.paths_for(check_str(repo, "repo", 4096))  # "" would mean the server's cwd
+
+
+#: One store (and one connection) per repo for the life of the server process, with the query
+#: caches it has built: `_query_store` re-runs the snapshot rule on every call and keeps the caches
+#: only while `snapshot_fingerprint` says the chosen snapshot is unchanged.
+_OPEN: Dict[Tuple[str, str, str], Tuple["query_mod.Store", tuple]] = {}
+_OPEN_LOCK = threading.RLock()
+
+
+def _query_store(paths) -> Tuple["query_mod.Store", bool]:
+    """`(store, cached)`. A backend with no fingerprint (no object store) is opened per call, as
+    before; the caller closes a store only when it is not cached."""
+    from cdp import snapshot as snapshot_mod
+
+    key = (str(paths.state), str(paths.repo), str(paths.repo_id))
+    with _OPEN_LOCK:
+        hit = _OPEN.get(key)
+        if hit is not None:
+            store, seen = hit
+            snapshot_mod.select(store.backend, paths.repo, paths.repo_id)   # HEAD or the tree may have moved
+            now = store.backend.snapshot_fingerprint()
+            if now == seen:
+                return store, True
+            store.backend.invalidate_views()
+            store = query_mod.Store(store.backend)
+            _OPEN[key] = (store, now)
+            return store, True
+        backend = session_mod.open_store(paths)
+        if not hasattr(backend, "snapshot_fingerprint"):
+            return query_mod.Store(backend), False
+        store = query_mod.Store(backend)
+        _OPEN[key] = (store, backend.snapshot_fingerprint())
+        return store, True
 
 
 def _store(repo: str) -> "query_mod.Store":
@@ -88,7 +122,8 @@ def cdp_query(
     paths, term, routed = _paths(repo), term, None
     if kind == "file":
         paths, term, routed = session_mod.route_path(paths, term)
-    store = query_mod.Store(session_mod.open_store(paths))
+    # `as_of` replaces the store's cached state for one answer: never on the shared store.
+    store, cached = (query_mod.Store(session_mod.open_store(paths)), False) if as_of else _query_store(paths)
     try:
         if as_of:
             session_mod.apply_as_of(store, as_of)
@@ -102,7 +137,8 @@ def cdp_query(
         )
         return result
     finally:
-        store.close()
+        if not cached:
+            store.close()
 
 
 def _exclusive(repo: str):
@@ -164,7 +200,7 @@ def cdp_status(repo: str) -> Dict[str, Any]:
     fields (`state.json` coverage, freshness buckets, this run's task rows)
     rather than shelling out and parsing that text back."""
     paths = _paths(repo)
-    store = _store(repo)
+    store, cached = _query_store(paths)
     try:
         state = store.state
         choice = store.choice
@@ -202,7 +238,8 @@ def cdp_status(repo: str) -> Dict[str, Any]:
             ]
         return result
     finally:
-        store.close()
+        if not cached:
+            store.close()
 
 
 def cdp_link(action: str, service: Optional[str] = None) -> Dict[str, Any]:

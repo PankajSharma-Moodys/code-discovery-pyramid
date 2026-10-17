@@ -54,7 +54,11 @@ def scan(
     inventory = inventory_mod.build_inventory(paths.repo, extra_excludes=extra_excludes(paths.repo, exclude))
     say("\n".join(inventory_mod.summarise(inventory)))
 
-    extraction = run_extract(paths.repo, inventory, workers=workers)
+    # Opened before extraction: a store with an object store caches per-file facts and the
+    # tree's blobs (`extract._cached_facts`). The snapshot it selects is the same either way.
+    store = open_store(paths)
+    cache = store if store.supports_object_store() else None
+    extraction = run_extract(paths.repo, inventory, workers=workers, cache=cache)
     apply_rules(extraction, repo=paths.repo)   # rule_edges: recomputed in full on every scan (ANNOTATIONS_PLAN P5)
     say("extract   %d files parsed, %d symbols, %d edges, %d imports"
         % (extraction["totals"]["parsed_files"], extraction["totals"]["defines"],
@@ -77,7 +81,6 @@ def scan(
     say("\n".join(dataflow_mod.summarise(flow)))
 
     state_dir = paths.state
-    store = open_store(paths)
     base = refresh_mod.carry_source(store)  # read before begin_snapshot moves the selection
     store.begin_snapshot(*snapshot_mod.resolve_snapshot(paths.repo, inventory["head"], exclude or ()),
                          checkout=registry_mod.snapshot_checkout_key(paths.repo))

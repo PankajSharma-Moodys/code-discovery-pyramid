@@ -50,204 +50,36 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import WorkspaceStore
+from .objects import SCHEMA_SQLITE, ObjectStoreMixin
 from .sqlite_archive import SCHEMA_V11, ArchiveMixin, EphemeralMixin, migrate_archive_snapshot_id
 from ..util import CdpError, read_json, stable_hash
 
-SCHEMA_V1 = """
-CREATE TABLE IF NOT EXISTS snapshot_meta (
-    id INTEGER PRIMARY KEY,
-    repo_id TEXT,
-    commit_sha TEXT,
-    ephemeral INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    UNIQUE(repo_id, commit_sha)
-);
+from .sqlite_schema import (  # noqa: F401 -- re-exported: tests and migrations name them here
+    SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10,
+)
 
-CREATE TABLE IF NOT EXISTS snapshot_artifact (
-    snapshot_id INTEGER NOT NULL REFERENCES snapshot_meta(id),
-    name TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    PRIMARY KEY (snapshot_id, name)
-);
-
-CREATE TABLE IF NOT EXISTS snapshot_report (
-    snapshot_id INTEGER NOT NULL REFERENCES snapshot_meta(id),
-    name TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    PRIMARY KEY (snapshot_id, name)
-);
-
-CREATE TABLE IF NOT EXISTS claim_patch (
-    id INTEGER PRIMARY KEY,
-    snapshot_id INTEGER NOT NULL REFERENCES snapshot_meta(id),
-    seq INTEGER NOT NULL,
-    label TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    is_derived INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    UNIQUE(snapshot_id, content_hash)
-);
-CREATE INDEX IF NOT EXISTS idx_claim_patch_snapshot_seq ON claim_patch(snapshot_id, seq);
-CREATE INDEX IF NOT EXISTS idx_claim_patch_node ON claim_patch(json_extract(payload, '$.node'));
-
--- 0.16: created now, filled by Phase 7's `compact`.
-CREATE TABLE IF NOT EXISTS claim_patches_archive (
-    scope_hash TEXT,
-    run_id TEXT,
-    payload TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_patches_archive ON claim_patches_archive(scope_hash, run_id);
-
--- link.*: created here, populated in Phase 8.
-CREATE TABLE IF NOT EXISTS link_edge (
-    id INTEGER PRIMARY KEY,
-    payload TEXT
-);
-"""
-
-# M2.5 (0.12/0.13): created here, driven in Phase 5. Schema only -- see the
-# module docstring for why these are not part of `WorkspaceStore`.
-SCHEMA_V2 = """
-CREATE TABLE IF NOT EXISTS snapshot_run (
-    run_id TEXT PRIMARY KEY,
-    snapshot_id INTEGER NOT NULL REFERENCES snapshot_meta(id),
-    partition_hash TEXT,
-    status TEXT,
-    started_at TEXT,
-    finished_at TEXT,
-    model TEXT,
-    template_version TEXT,
-    lessons_version TEXT
-);
-
-CREATE TABLE IF NOT EXISTS snapshot_task (
-    run_id TEXT NOT NULL REFERENCES snapshot_run(run_id),
-    scope_hash TEXT NOT NULL,
-    state TEXT,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    dispatched_at TEXT,
-    lease_until TEXT,
-    last_error TEXT,
-    patch_hash TEXT,
-    PRIMARY KEY (run_id, scope_hash)
-);
-CREATE INDEX IF NOT EXISTS idx_snapshot_task_run_state ON snapshot_task(run_id, state);
-
--- link.* counterparts (0.13): structurally separate from snapshot_run/task so
--- R3's non-entanglement test can drop every link.* row and prove
--- snapshot.*/claim.* are untouched.
-CREATE TABLE IF NOT EXISTS link_run (
-    run_id TEXT PRIMARY KEY,
-    payload TEXT
-);
-
-CREATE TABLE IF NOT EXISTS link_task (
-    run_id TEXT NOT NULL,
-    scope_hash TEXT NOT NULL,
-    payload TEXT,
-    PRIMARY KEY (run_id, scope_hash)
-);
-"""
-
-# M3.6 (0.10): additive column for the retention rule's "pinned" branch --
-# nothing yet sets it automatically (no feature writes it besides `cdp gc
-# --pin`), but the rule cannot be expressed without a place to record it.
-SCHEMA_V3 = """
-ALTER TABLE snapshot_meta ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
-"""
-
-# M5.4: leases are held by the supervisor, not the leaf (`phase_5_plan.md`
-# M5.4) -- a slow frontier model's runner never sees this column. `wall_ms`
-# records every task's own dispatch time from day one, so the tier-derived
-# ceiling M5.4 defers (no p99 exists until Phase 9's star) has real data to
-# replace the v1 constant with later, rather than starting from nothing.
-SCHEMA_V5 = """
-ALTER TABLE snapshot_task ADD COLUMN wall_ms INTEGER;
-"""
-
-# M7.4 (2.5): lets `verify --full` detect a corrupted archive row by content,
-# not only by the aggregate fold mismatch it would eventually cause.
-SCHEMA_V6 = """
-ALTER TABLE claim_patches_archive ADD COLUMN content_hash TEXT;
-"""
-
-# M3.8: `id DESC` is creation order, not "most recently selected" -- `refresh`
-# moving *back* to an earlier commit (e.g. a branch checkout) reuses that
-# commit's existing, lower-numbered row (`begin_snapshot`'s reuse branch), so
-# picking the highest id would keep pointing at a newer, untouched snapshot
-# instead. A monotonic counter, not a timestamp (D8's own argument against
-# wall-clock ordering applies here too: two `begin_snapshot` calls a second
-# apart -- routine for a `post-commit` immediately followed by a
-# `post-checkout` in a test or a fast CI step -- would tie under
-# second-precision `_now()`). Bumped on every `begin_snapshot`, including a
-# reuse; `NULL` for any row written before this migration, so
-# `use_latest_snapshot` falls back to `id` for those.
-SCHEMA_V4 = """
-ALTER TABLE snapshot_meta ADD COLUMN touch_seq INTEGER;
-"""
-
-# Post-Phase-9 item 5: `link_task` gets the same lease/state columns
-# `snapshot_task` already has, so a link task (M8.3's ambiguous-caller-target
-# question) can be dispatched through the same lease/retry machinery as a
-# scope, keeping trajectory learning's `dim_task_kind=link` no longer blind to
-# link work. `scope_hash` (the column link_task already had, M2.5) holds a
-# link task's `task_id` here -- same column name so the generic lease/task
-# helpers below work unmodified against either table.
-SCHEMA_V7 = """
-ALTER TABLE link_task ADD COLUMN state TEXT;
-ALTER TABLE link_task ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE link_task ADD COLUMN dispatched_at TEXT;
-ALTER TABLE link_task ADD COLUMN lease_until TEXT;
-ALTER TABLE link_task ADD COLUMN last_error TEXT;
-ALTER TABLE link_task ADD COLUMN patch_hash TEXT;
-ALTER TABLE link_task ADD COLUMN wall_ms INTEGER;
-"""
-
-# This cycle's web layer: `/api/status`'s freshness bucketing was shelling
-# out to `git log` on every request (`freshness.file_churned_between`, one
-# process per anchored file). This table persists that answer keyed by
-# exactly the three things it depends on -- `(path, since_sha, head_sha)` is
-# fully determined, so a hit never goes stale for a commit pair already
-# computed. `churned` is nullable: `NULL` records `file_churned_between`
-# returning `None` (unwalkable range) as a cached fact too, so a request
-# handler never re-shells to find that out either.
-SCHEMA_V8 = """
-CREATE TABLE IF NOT EXISTS churn_cache (
-    path TEXT NOT NULL,
-    since_sha TEXT NOT NULL,
-    head_sha TEXT NOT NULL,
-    churned INTEGER,
-    PRIMARY KEY (path, since_sha, head_sha)
-);
-"""
-
-# A model's verdict on a link, kept apart from `link_edge` (which a re-scan replaces) and
-# saved one row at a time, so neither a re-scan nor a concurrent `link run` can lose one.
-SCHEMA_V9 = """
-CREATE TABLE IF NOT EXISTS link_resolution (
-    link_id TEXT PRIMARY KEY,
-    payload TEXT NOT NULL
-);
-"""
-
-# Which checkout (worktree) last scanned an uncommitted-changes snapshot: lets a scan
-# drop the dirty snapshots it supersedes without touching another worktree's.
-SCHEMA_V10 = """
-CREATE TABLE IF NOT EXISTS snapshot_checkout (
-    snapshot_id INTEGER NOT NULL,
-    checkout TEXT NOT NULL,
-    seq INTEGER NOT NULL,
-    PRIMARY KEY (snapshot_id, checkout)
-);
+# PLAN_DB_ARCH.md: artifacts move from one JSON payload per (snapshot, name) to a per-file manifest
+# over shared content-addressed objects (`objects.py`). No data migration: a store holding V1-era
+# artifacts is refused by `_drop_artifact_table` (rescan into a fresh store).
+SCHEMA_V12 = SCHEMA_SQLITE + """
+ALTER TABLE snapshot_meta ADD COLUMN complete INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS sm_live ON snapshot_meta (repo_id, touch_seq) WHERE complete = 1;
 """
 
 #: Forward-only migrations, one script per version. Adding a version is
 #: appending here, never editing an earlier entry.
 MIGRATIONS: Tuple[str, ...] = (
     SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10,
-    SCHEMA_V11,
+    SCHEMA_V11, SCHEMA_V12,
 )
+
+
+def _drop_artifact_table(conn) -> None:
+    """V12: the JSON-payload table goes; a store that still holds payloads is not migrated."""
+    if conn.execute("SELECT 1 FROM snapshot_artifact LIMIT 1").fetchone():
+        raise CdpError("this store predates the per-file object schema (schema 12) and holds artifacts; "
+                       "move its index.db aside and rescan (no migration is provided)")
+    conn.execute("DROP TABLE snapshot_artifact")
 
 
 def _now() -> str:
@@ -308,7 +140,7 @@ class _UnbornConn:
         pass
 
 
-class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
+class SqliteStore(ObjectStoreMixin, EphemeralMixin, ArchiveMixin, WorkspaceStore):
     def __init__(self, db_path: Path, inbox_root: "Path | None" = None,
                  readonly: bool = False, busy_timeout_ms: int = 60000) -> None:
         """`readonly`: a reader that must never wait on a writer or touch the
@@ -334,6 +166,38 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         self._snapshot: "int | None" = None
         self._wanted_repo: "str | None" = None
         self._scan_needed = ""
+        self._obj_init()
+
+    # -------------------------------------------- object-store hooks (objects.py)
+
+    def _x(self, sql, params=()):
+        return self._conn.execute(sql, params)
+
+    def _xmany(self, sql, rows):
+        self._conn.executemany(sql, rows)
+
+    def _db_commit(self) -> None:
+        self._conn.commit()
+
+    def _db_rollback(self) -> None:
+        self._conn.rollback()
+
+    def _objects_lock(self, shared: bool, timeout_s: Optional[float] = None):
+        from types import SimpleNamespace
+        from .. import lock as lock_mod
+
+        scope = SimpleNamespace(state=self.db_path.parent, repo_id="objects")
+        kw = {} if timeout_s is None else {"timeout_s": timeout_s}
+        return lock_mod.repo_lock(scope, "sqlite", None, shared=shared, scope="objects", **kw)
+
+    def _finish_snapshot(self, snapshot_id: int) -> None:
+        """Inside the manifest transaction: mark the snapshot complete and current, and drop the
+        dirty snapshots this checkout's scan supersedes."""
+        self._conn.execute("UPDATE snapshot_meta SET complete=1, touch_seq=%s WHERE id=?" % self._TOUCH_SEQ,
+                           (snapshot_id,))
+        meta = getattr(self, "_build_meta", None)
+        if meta and meta[0] == snapshot_id:
+            self.prune_ephemeral(meta[1], snapshot_id, meta[2], meta[3])
 
     @property
     def _conn(self) -> sqlite3.Connection:
@@ -373,8 +237,8 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
                 conn.execute("PRAGMA journal_mode = WAL")
                 self._migrate(conn)
                 if self._snapshot == 1:  # the default snapshot a reader selected while unborn
-                    conn.execute("INSERT OR IGNORE INTO snapshot_meta (id, ephemeral, created_at) VALUES (1, 1, ?)",
-                                 (_now(),))
+                    conn.execute("INSERT OR IGNORE INTO snapshot_meta (id, ephemeral, created_at, complete) "
+                                 "VALUES (1, 1, ?, 1)", (_now(),))
                     conn.commit()
             finally:
                 conn.close()
@@ -389,33 +253,33 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
 
     def begin_snapshot(self, repo_id: str, commit_sha: str, ephemeral: bool = False,
                        checkout: str = "") -> None:
-        """Select or create the snapshot, and in the same transaction drop the dirty
-        snapshots this checkout's scan supersedes (`prune_ephemeral`)."""
+        """Select or create the snapshot and start building its manifest. Nothing becomes visible
+        here: a new row is `complete=0` until the build commits (the `manifest` write), which also
+        makes it the latest and drops the dirty snapshots this checkout's scan supersedes
+        (`prune_ephemeral`). A rescan of a commit keeps serving the old manifest until then."""
+        self._flush_build(complete=True)
         row = self._conn.execute(
             "SELECT id FROM snapshot_meta WHERE repo_id=? AND commit_sha=?",
             (repo_id, commit_sha),
         ).fetchone()
         if row is not None:
             snapshot_id = row[0]
-            # The new sequence number is computed inside the statement, so two
-            # processes touching snapshots at once cannot draw the same one.
-            self._conn.execute(
-                "UPDATE snapshot_meta SET touch_seq=%s WHERE id=?" % self._TOUCH_SEQ, (snapshot_id,)
-            )
         else:
             snapshot_id = self._conn.execute(
-                "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
-                "VALUES (?, ?, ?, ?, %s)" % self._TOUCH_SEQ,
+                "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, complete) "
+                "VALUES (?, ?, ?, ?, 0)",
                 (repo_id, commit_sha, int(ephemeral), _now()),
             ).lastrowid
-        self._snapshot = snapshot_id
-        self.prune_ephemeral(repo_id, snapshot_id, ephemeral, checkout)
         self._conn.commit()
+        self._snapshot = snapshot_id
+        self._build_meta = (snapshot_id, repo_id, ephemeral, checkout)
+        self._begin_build(snapshot_id, reuse=row is not None)
 
     def supports_snapshot_history(self) -> bool:
         return True
 
     def use_snapshot(self, repo_id: str, commit_sha: str) -> None:
+        self._flush_build(complete=True)
         row = self._conn.execute(
             "SELECT id FROM snapshot_meta WHERE repo_id=? AND commit_sha=?",
             (repo_id, commit_sha),
@@ -442,11 +306,11 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
 
     def list_snapshots(self) -> List[Dict]:
         rows = self._conn.execute(
-            "SELECT id, repo_id, commit_sha, ephemeral, pinned, created_at FROM snapshot_meta ORDER BY id"
+            "SELECT id, repo_id, commit_sha, ephemeral, pinned, created_at, complete FROM snapshot_meta ORDER BY id"
         ).fetchall()
         return [
             {"id": r[0], "repo_id": r[1], "commit_sha": r[2], "ephemeral": bool(r[3]),
-             "pinned": bool(r[4]), "created_at": r[5]}
+             "pinned": bool(r[4]), "created_at": r[5], "complete": bool(r[6])}
             for r in rows
         ]
 
@@ -806,6 +670,8 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
             conn.executescript(script)
             if script is SCHEMA_V11:
                 migrate_archive_snapshot_id(conn)
+            if script is SCHEMA_V12:
+                _drop_artifact_table(conn)
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
         conn.commit()
 
@@ -821,7 +687,7 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
             self._snapshot = 1                            # for the first write (`_materialize`)
             return 1
         self._conn.execute(
-            "INSERT OR IGNORE INTO snapshot_meta (id, ephemeral, created_at) VALUES (1, 1, ?)",
+            "INSERT OR IGNORE INTO snapshot_meta (id, ephemeral, created_at, complete) VALUES (1, 1, ?, 1)",
             (_now(),),
         )
         self._conn.commit()
@@ -845,6 +711,7 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         return [r[0] for r in rows]
 
     def select_none(self, repo_id: str, reason: str = "", label: str = "") -> None:
+        self._flush_build(complete=True)
         self._snapshot = -1
         self._wanted_repo = label or repo_id
         self._scan_needed = reason
@@ -854,7 +721,8 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         rows = self._conn.execute(
             "SELECT m.id, m.repo_id, m.commit_sha, m.created_at FROM snapshot_meta m "
             "WHERE m.repo_id IS NOT NULL AND m.id = (SELECT id FROM snapshot_meta "
-            "WHERE repo_id = m.repo_id ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1) ORDER BY m.repo_id"
+            "WHERE repo_id = m.repo_id AND complete = 1 ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1) "
+            "ORDER BY m.repo_id"
         ).fetchall()
         return [{"id": r[0], "repo_id": r[1], "commit_sha": r[2], "created_at": r[3]} for r in rows]
 
@@ -879,8 +747,9 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         point at whatever commit was scanned most recently, not whichever one
         is actually current. A store holding exactly one snapshot (the
         overwhelming common case) is unaffected either way."""
+        self._flush_build(complete=True)
         row = self._conn.execute(
-            "SELECT id FROM snapshot_meta ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1"
+            "SELECT id FROM snapshot_meta WHERE complete = 1 ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1"
         ).fetchone()
         if row is not None:
             self._snapshot = row[0]
@@ -916,17 +785,6 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
 
     # ------------------------------------------------------------ artifacts
 
-    def read_artifact(self, name: str, default: Any = None) -> Any:
-        row = self._conn.execute(
-            "SELECT payload FROM snapshot_artifact WHERE snapshot_id=? AND name=?",
-            (self._snapshot_id(), name),
-        ).fetchone()
-        if row is None:
-            if default is None:
-                raise CdpError(self._missing(name))
-            return default
-        return json.loads(row[0])
-
     def _missing(self, name: str) -> str:
         if self._snapshot == -1:
             known = self.repo_ids()
@@ -940,28 +798,22 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
     def _describe_repo(self, repo_id: str) -> str:
         """A scanned repo as a person recognises it: its path, not a bare UUID."""
         row = self._conn.execute(
-            "SELECT a.payload FROM snapshot_artifact a JOIN snapshot_meta m ON m.id = a.snapshot_id "
-            "WHERE m.repo_id=? AND a.name='inventory' ORDER BY COALESCE(m.touch_seq, m.id) DESC LIMIT 1",
+            "SELECT d.doc_id FROM snapshot_doc d JOIN snapshot_meta m ON m.id = d.snapshot_id "
+            "WHERE m.repo_id=? AND d.name='inventory' ORDER BY COALESCE(m.touch_seq, m.id) DESC LIMIT 1",
             (repo_id,)).fetchone()
-        path = (json.loads(row[0]).get("repo") if row else None) or ""
+        inv = self._get_doc(row[0]) if row else {}
+        inv = inv.get("rest", inv) if isinstance(inv, dict) else {}
+        path = (inv.get("repo") if isinstance(inv, dict) else None) or ""
         return path or repo_id
 
-    def write_artifact(self, name: str, data: Any) -> None:
-        self._conn.execute(
-            "INSERT INTO snapshot_artifact (snapshot_id, name, payload) VALUES (?, ?, ?) "
-            "ON CONFLICT(snapshot_id, name) DO UPDATE SET payload=excluded.payload",
-            (self._snapshot_id(), name, json.dumps(data, sort_keys=True)),
-        )
-        self._conn.commit()
-
-    def has_artifact(self, name: str) -> bool:
-        if self._snapshot == -1:
-            return False
-        row = self._conn.execute(
-            "SELECT 1 FROM snapshot_artifact WHERE snapshot_id=? AND name=?",
-            (self._snapshot_id(), name),
-        ).fetchone()
-        return row is not None
+    def _read_at(self, snapshot_id: int, name: str, default: Any = None) -> Any:
+        """One artifact of a snapshot other than the selected one (compaction, gc)."""
+        saved = self._snapshot
+        self._snapshot = snapshot_id
+        try:
+            return self.read_artifact(name, default)
+        finally:
+            self._snapshot = saved
 
     # -------------------------------------------------------------- reports
 
@@ -1055,6 +907,11 @@ class SqliteStore(EphemeralMixin, ArchiveMixin, WorkspaceStore):
         (self._inbox_dir() / (node.replace("/", "__") + ".json")).unlink(missing_ok=True)
 
     def close(self) -> None:
+        import sys
+
+        if not self._closed:
+            self._flush_build(complete=True, discard=sys.exc_info()[0] is not None)
+        self._release_objects_lock()
         if self._unborn_conn is not None:
             self._unborn_conn._mem.close()
             self._unborn_conn = None

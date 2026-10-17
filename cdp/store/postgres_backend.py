@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from . import WorkspaceStore
+from .objects import ObjectStoreMixin, pg_schema
 from ..util import CdpError, read_json, stable_hash
 
 _VALID_SCHEMA = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -123,7 +124,15 @@ CREATE TABLE IF NOT EXISTS snapshot_checkout (
 );
 """
 
-MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2, SCHEMA_V3)
+# PLAN_DB_ARCH.md: the object store, `objects.SCHEMA_SQLITE` by its §4 substitutions (unverified:
+# no Postgres server was available when this was written). `complete` is SMALLINT, not BOOLEAN, so
+# `WHERE complete = 1` is the same SQL on both engines. No data migration: `_drop_artifact_table`.
+SCHEMA_V4 = pg_schema() + """
+ALTER TABLE snapshot_meta ADD COLUMN complete SMALLINT NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS sm_live ON snapshot_meta (repo_id, touch_seq) WHERE complete = 1;
+"""
+
+MIGRATIONS: Tuple[str, ...] = (SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4)
 
 
 def _now() -> str:
@@ -139,7 +148,9 @@ def _lease_ts(seconds: float = 0.0) -> str:
     return when.isoformat(timespec="milliseconds")
 
 
-class PostgresStore(WorkspaceStore):
+class PostgresStore(ObjectStoreMixin, WorkspaceStore):
+    _pg = True
+
     def __init__(self, dsn: str, schema: str, inbox_root: "Path | None" = None) -> None:
         try:
             import psycopg2
@@ -152,6 +163,8 @@ class PostgresStore(WorkspaceStore):
             raise CdpError("invalid Postgres schema name %r" % schema)
         self._Json = psycopg2.extras.Json
         self._schema = schema
+        self._dsn = dsn
+        self._obj_init()
         self._conn = psycopg2.connect(dsn)
         self._conn.autocommit = False
         # A session-level advisory lock, keyed by the schema name, serialises
@@ -182,6 +195,41 @@ class PostgresStore(WorkspaceStore):
         cur.execute('SET search_path TO "%s"' % self._schema)
         return cur
 
+    # -------------------------------------------- object-store hooks (objects.py)
+
+    def _x(self, sql, params=()):
+        cur = self._cur()
+        cur.execute(sql, params)
+        return cur
+
+    def _xmany(self, sql, rows):
+        if rows:
+            self._cur().executemany(sql, rows)
+
+    def _db_commit(self) -> None:
+        self._conn.commit()
+
+    def _db_rollback(self) -> None:
+        self._conn.rollback()
+
+    def _objects_lock(self, shared: bool, timeout_s: Optional[float] = None):
+        from types import SimpleNamespace
+        from .. import lock as lock_mod
+
+        scope = SimpleNamespace(state=".", repo_id="objects:" + self._schema)
+        kw = {} if timeout_s is None else {"timeout_s": timeout_s}
+        return lock_mod.repo_lock(scope, "postgres", {"dsn": self._dsn}, shared=shared,
+                                  scope="objects:" + self._schema, **kw)
+
+    def _finish_snapshot(self, snapshot_id: int) -> None:
+        """Inside the manifest transaction: complete, current, and the superseded dirty snapshots gone."""
+        cur = self._cur()
+        cur.execute("UPDATE snapshot_meta SET complete=1, touch_seq=%s WHERE id=%s",
+                    (self._next_touch_seq(cur), snapshot_id))
+        meta = getattr(self, "_build_meta", None)
+        if meta and meta[0] == snapshot_id:
+            self.prune_ephemeral(meta[1], snapshot_id, meta[2], meta[3])
+
     def _inbox_dir(self) -> Path:
         return self._inbox_root / "patches" / "inbox"
 
@@ -198,6 +246,7 @@ class PostgresStore(WorkspaceStore):
         must order by "most recently *selected*", not "most recently
         *created*", or moving back to an earlier, already-scanned commit
         would not be recognised as the current one."""
+        self._flush_build(complete=True)
         cur = self._cur()
         cur.execute(
             "SELECT id FROM snapshot_meta WHERE repo_id=%s AND commit_sha=%s",
@@ -206,20 +255,18 @@ class PostgresStore(WorkspaceStore):
         row = cur.fetchone()
         if row is not None:
             snapshot_id = row[0]
-            cur.execute(
-                "UPDATE snapshot_meta SET touch_seq=%s WHERE id=%s",
-                (self._next_touch_seq(cur), snapshot_id),
-            )
         else:
+            # Not visible (`complete=0`, no touch) until the build commits: `SqliteStore.begin_snapshot`.
             cur.execute(
-                "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, touch_seq) "
-                "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                (repo_id, commit_sha, ephemeral, _now(), self._next_touch_seq(cur)),
+                "INSERT INTO snapshot_meta (repo_id, commit_sha, ephemeral, created_at, complete) "
+                "VALUES (%s, %s, %s, %s, 0) RETURNING id",
+                (repo_id, commit_sha, ephemeral, _now()),
             )
             snapshot_id = cur.fetchone()[0]
-        self._snapshot = snapshot_id
-        self.prune_ephemeral(repo_id, snapshot_id, ephemeral, checkout)
         self._conn.commit()
+        self._snapshot = snapshot_id
+        self._build_meta = (snapshot_id, repo_id, ephemeral, checkout)
+        self._begin_build(snapshot_id, reuse=row is not None)
 
     def _delete_snapshot_rows(self, snapshot_id: int) -> None:
         """Everything scoped to one snapshot, uncommitted (the caller owns the transaction)."""
@@ -227,7 +274,7 @@ class PostgresStore(WorkspaceStore):
         cur.execute("DELETE FROM snapshot_task WHERE run_id IN "
                     "(SELECT run_id FROM snapshot_run WHERE snapshot_id=%s)", (snapshot_id,))
         cur.execute("DELETE FROM snapshot_run WHERE snapshot_id=%s", (snapshot_id,))
-        for table in ("claim_patch", "snapshot_artifact", "snapshot_report", "snapshot_checkout"):
+        for table in ("claim_patch", "snapshot_file", "snapshot_doc", "snapshot_report", "snapshot_checkout"):
             cur.execute("DELETE FROM %s WHERE snapshot_id=%%s" % table, (snapshot_id,))
         cur.execute("DELETE FROM snapshot_meta WHERE id=%s", (snapshot_id,))
 
@@ -288,6 +335,7 @@ class PostgresStore(WorkspaceStore):
         return True
 
     def use_snapshot(self, repo_id: str, commit_sha: str) -> None:
+        self._flush_build(complete=True)
         cur = self._cur()
         cur.execute(
             "SELECT id FROM snapshot_meta WHERE repo_id=%s AND commit_sha=%s",
@@ -326,6 +374,12 @@ class PostgresStore(WorkspaceStore):
             if version <= current:
                 continue
             cur.execute(script)
+            if script is SCHEMA_V4:
+                cur.execute("SELECT 1 FROM snapshot_artifact LIMIT 1")
+                if cur.fetchone():
+                    raise CdpError("this store predates the per-file object schema and holds artifacts; "
+                                   "drop its schema and rescan (no migration is provided)")
+                cur.execute("DROP TABLE snapshot_artifact")
             cur.execute("INSERT INTO schema_version (version) VALUES (%s)", (version,))
         self._conn.commit()
 
@@ -342,7 +396,7 @@ class PostgresStore(WorkspaceStore):
         cur.execute("SELECT 1 FROM snapshot_meta WHERE id=1")
         if cur.fetchone() is None:
             cur.execute(
-                "INSERT INTO snapshot_meta (id, ephemeral, created_at) VALUES (1, TRUE, %s) "
+                "INSERT INTO snapshot_meta (id, ephemeral, created_at, complete) VALUES (1, TRUE, %s, 1) "
                 "ON CONFLICT (id) DO NOTHING",
                 (_now(),),
             )
@@ -356,44 +410,11 @@ class PostgresStore(WorkspaceStore):
 
     # ------------------------------------------------------------ artifacts
 
-    def read_artifact(self, name: str, default: Any = None) -> Any:
-        cur = self._cur()
-        cur.execute(
-            "SELECT payload FROM snapshot_artifact WHERE snapshot_id=%s AND name=%s",
-            (self._snapshot_id(), name),
-        )
-        row = cur.fetchone()
-        self._conn.commit()
-        if row is None:
-            if default is None:
-                raise CdpError(self._missing(name))
-            return default
-        return row[0]
-
     def _missing(self, name: str) -> str:
         if self._snapshot == -1:
             return "scan needed for %s in schema %r: %s" % (
                 self._wanted_repo, self._schema, self._scan_needed or "no scan of this repo")
         return "missing artifact %r in schema %r -- run `scan` first" % (name, self._schema)
-
-    def write_artifact(self, name: str, data: Any) -> None:
-        cur = self._cur()
-        cur.execute(
-            "INSERT INTO snapshot_artifact (snapshot_id, name, payload) VALUES (%s, %s, %s) "
-            "ON CONFLICT (snapshot_id, name) DO UPDATE SET payload=excluded.payload",
-            (self._snapshot_id(), name, self._Json(data)),
-        )
-        self._conn.commit()
-
-    def has_artifact(self, name: str) -> bool:
-        cur = self._cur()
-        cur.execute(
-            "SELECT 1 FROM snapshot_artifact WHERE snapshot_id=%s AND name=%s",
-            (self._snapshot_id(), name),
-        )
-        row = cur.fetchone()
-        self._conn.commit()
-        return row is not None
 
     # -------------------------------------------------------------- reports
 
@@ -494,6 +515,11 @@ class PostgresStore(WorkspaceStore):
         (self._inbox_dir() / (node.replace("/", "__") + ".json")).unlink(missing_ok=True)
 
     def close(self) -> None:
+        import sys
+
+        if not self._conn.closed:
+            self._flush_build(complete=True, discard=sys.exc_info()[0] is not None)
+        self._release_objects_lock()
         self._conn.close()
 
     def supports_run_tracking(self) -> bool:
@@ -504,14 +530,14 @@ class PostgresStore(WorkspaceStore):
     def list_snapshots(self) -> List[Dict]:
         cur = self._cur()
         cur.execute(
-            "SELECT id, repo_id, commit_sha, ephemeral, pinned, created_at "
+            "SELECT id, repo_id, commit_sha, ephemeral, pinned, created_at, complete "
             "FROM snapshot_meta ORDER BY id"
         )
         rows = cur.fetchall()
         self._conn.commit()
         return [
             {"id": r[0], "repo_id": r[1], "commit_sha": r[2], "ephemeral": bool(r[3]),
-             "pinned": bool(r[4]), "created_at": r[5]}
+             "pinned": bool(r[4]), "created_at": r[5], "complete": bool(r[6])}
             for r in rows
         ]
 
@@ -712,6 +738,7 @@ class PostgresStore(WorkspaceStore):
         return self._snapshot is not None
 
     def select_none(self, repo_id: str, reason: str = "", label: str = "") -> None:
+        self._flush_build(complete=True)
         self._snapshot = -1
         self._wanted_repo = label or repo_id
         self._scan_needed = reason
@@ -728,16 +755,18 @@ class PostgresStore(WorkspaceStore):
         cur.execute(
             "SELECT m.id, m.repo_id, m.commit_sha, m.created_at FROM snapshot_meta m "
             "WHERE m.repo_id IS NOT NULL AND m.id = (SELECT id FROM snapshot_meta "
-            "WHERE repo_id = m.repo_id ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1) ORDER BY m.repo_id"
+            "WHERE repo_id = m.repo_id AND complete = 1 ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1) "
+            "ORDER BY m.repo_id"
         )
         rows = cur.fetchall()
         self._conn.commit()
         return [{"id": r[0], "repo_id": r[1], "commit_sha": r[2], "created_at": str(r[3])} for r in rows]
 
     def use_latest_snapshot(self) -> None:
+        self._flush_build(complete=True)
         cur = self._cur()
         cur.execute(
-            "SELECT id FROM snapshot_meta ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1"
+            "SELECT id FROM snapshot_meta WHERE complete = 1 ORDER BY COALESCE(touch_seq, id) DESC LIMIT 1"
         )
         row = cur.fetchone()
         self._conn.commit()

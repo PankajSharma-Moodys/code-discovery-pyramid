@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 
 from .. import sigs
 from .common import _matches, cite, make_matcher
-from .store import Store
+from .store import Store, file_rows, symbols_of, xref_field
 
 CLASS_KINDS = ("class", "interface", "enum", "record", "struct")
 VERB_PREFIX = re.compile(r"^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(\S.*)$", re.I)
@@ -45,7 +45,7 @@ def resolve_entry(store: Store, entry: str, adjacency: Dict[str, List[Dict]],
 def _route(store: Store, entry: str, match: str = "substring", rx=None) -> Optional[Dict]:
     m = VERB_PREFIX.match(entry.strip()) if match != "regex" else None
     verb, path = (m.group(1).upper(), m.group(2).strip()) if m else (None, entry)
-    routes = [r for r in store.xref["routes"] + store.xref["unresolved_routes"]
+    routes = [r for r in xref_field(store, "routes") + xref_field(store, "unresolved_routes")
               if (verb is None or r["verb"].upper() == verb)]
     if rx:
         hits = sorted((r for r in routes if rx(r["route"]) or rx("%s %s" % (r["verb"], r["route"]))),
@@ -60,9 +60,8 @@ def _route(store: Store, entry: str, match: str = "substring", rx=None) -> Optio
     # does not pull in the other paths it is a prefix of.
     group = [r for r in hits if r["route"] == hits[0]["route"]]
     group.sort(key=lambda r: (r["verb"], r["handler"]))
-    files = store.extraction["files"]
     first = group[0]
-    node = files.get(first["file"], {}).get("primary") or first["handler"].split("#", 1)[0]
+    node = (file_rows(store, first["file"], "meta") or {}).get("primary") or first["handler"].split("#", 1)[0]
     verbs = sorted({r["verb"] for r in group})
     others = sorted({"%s %s" % (r["verb"], r["route"]) for r in hits if r["route"] != first["route"]}) if rx else []
     return {
@@ -76,7 +75,7 @@ def _route(store: Store, entry: str, match: str = "substring", rx=None) -> Optio
         "at": cite(first["evidence"][0]) if first["evidence"] else None,
         "handlers": [
             {"verb": r["verb"], "handler": r["handler"], "module": r["module"],
-             "node": files.get(r["file"], {}).get("primary") or r["handler"].split("#", 1)[0],
+             "node": (file_rows(store, r["file"], "meta") or {}).get("primary") or r["handler"].split("#", 1)[0],
              "at": cite(r["evidence"][0]) if r["evidence"] else None}
             for r in group
         ],
@@ -101,7 +100,7 @@ def _source(store: Store, entry: str, exact: bool, rx=None) -> Optional[Dict]:
 
 def _class(store: Store, entry: str, adjacency: Dict[str, List[Dict]], rx=None) -> Optional[Dict]:
     """A class term: every class with that name, and the public members with outgoing edges."""
-    symbols = store.xref["symbols"]
+    symbols = symbols_of(store)
     keys = sorted((k for k, v in symbols.items() if v["kind"] in CLASS_KINDS
                    and (rx(k) if rx else (k == entry or k.rsplit(".", 1)[-1] == entry))),
                   key=lambda k: (len(k), k))
@@ -133,7 +132,7 @@ def _class(store: Store, entry: str, adjacency: Dict[str, List[Dict]], rx=None) 
 
 
 def _symbol(store: Store, entry: str, match: str = "substring", rx=None) -> Optional[Dict]:
-    symbols = store.xref["symbols"]
+    symbols = symbols_of(store)
     keys = [k for k in symbols if (rx(k) if rx else k == entry or k.rsplit(".", 1)[-1] == entry)]
     if not rx and match != "exact":
         keys = keys or [k for k in symbols if _matches(k, entry)]

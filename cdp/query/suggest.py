@@ -11,7 +11,7 @@ import difflib
 import re
 from typing import Dict, List, Optional
 
-from .store import Store
+from .store import Store, symbols_of, xref_field
 from ..rules import all_edges
 
 _SPLIT = re.compile(r"[.#:/_\-\s]+|(?<=[a-z0-9])(?=[A-Z])")
@@ -19,16 +19,16 @@ _SPLIT = re.compile(r"[.#:/_\-\s]+|(?<=[a-z0-9])(?=[A-Z])")
 
 def _candidates(store: Store, kind: str) -> List[str]:
     if kind in ("symbol", "trace", "search"):
-        names = {k.rsplit(".", 1)[-1] for k in store.xref["symbols"]} | set(store.xref["symbols"])
+        names = {k.rsplit(".", 1)[-1] for k in symbols_of(store)} | set(symbols_of(store))
         if kind == "trace":
-            names |= {r["route"] for r in store.xref["routes"] + store.xref["unresolved_routes"]}
+            names |= {r["route"] for r in xref_field(store, "routes") + xref_field(store, "unresolved_routes")}
         return sorted(names)
     if kind == "file":
         return sorted(f["path"] for f in store.inventory["files"])
     if kind == "module":
         return sorted(m["name"] for m in store.inventory["modules"])
     if kind == "routes":
-        return sorted({r["route"] for r in store.xref["routes"] + store.xref["unresolved_routes"]})
+        return sorted({r["route"] for r in xref_field(store, "routes") + xref_field(store, "unresolved_routes")})
     if kind == "table":
         return sorted({e["target"][6:] for e in all_edges(store.extraction) if e["target"].startswith("table:")})
     if kind == "config":

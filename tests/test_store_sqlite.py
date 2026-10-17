@@ -341,7 +341,7 @@ class TestRunsAndTasks(unittest.TestCase):
         before = {
             "runs": conn.execute("SELECT * FROM snapshot_run").fetchall(),
             "tasks": conn.execute("SELECT * FROM snapshot_task").fetchall(),
-            "artifacts": conn.execute("SELECT * FROM snapshot_artifact").fetchall(),
+            "artifacts": conn.execute("SELECT * FROM snapshot_doc").fetchall(),
             "patches": conn.execute("SELECT * FROM claim_patch").fetchall(),
         }
         conn.execute("DELETE FROM link_run")
@@ -351,7 +351,7 @@ class TestRunsAndTasks(unittest.TestCase):
         after = {
             "runs": conn.execute("SELECT * FROM snapshot_run").fetchall(),
             "tasks": conn.execute("SELECT * FROM snapshot_task").fetchall(),
-            "artifacts": conn.execute("SELECT * FROM snapshot_artifact").fetchall(),
+            "artifacts": conn.execute("SELECT * FROM snapshot_doc").fetchall(),
             "patches": conn.execute("SELECT * FROM claim_patch").fetchall(),
         }
         self.assertEqual(before, after)

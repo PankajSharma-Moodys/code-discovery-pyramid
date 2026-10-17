@@ -217,6 +217,19 @@ class WorkspaceStore(ABC):
     # methods default to a clear refusal: a backend with no run/task storage
     # (`FileStore`) cannot silently pretend to support `cdp run`/`cdp gc`.)
 
+    def supports_object_store(self) -> bool:
+        """Whether artifacts live as a per-file manifest over shared content-addressed objects
+        (`objects.py`: extraction cache, typed reads, `sweep_objects`). `FileStore` keeps whole
+        JSON files: no objects, nothing to sweep."""
+        return False
+
+    def sweep_objects(self, dry_run: bool = False) -> Optional[Dict[str, int]]:
+        """Free objects no snapshot reaches; `{}` when there is no object store."""
+        return {}
+
+    def dangling_references(self) -> List[str]:
+        return []
+
     def supports_compaction(self) -> bool:
         """Whether this backend can back `cdp compact` (Phase 7, 2.4). `False`
         by default (`FileStore` has no cold table to move rows into)."""

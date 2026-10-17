@@ -327,6 +327,7 @@ def check_fold(
     problems: List[str] = []
     if full:
         problems += store.verify_archive_integrity(partition)
+        problems += store.dangling_references()     # manifests citing a swept object
     patches = store.load_patches_full(partition) if full else store.load_patches()
     recomputed = fold(
         patches, xref, partition, repo=repo, mode=mode,

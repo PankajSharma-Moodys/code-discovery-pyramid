@@ -9,7 +9,7 @@ from .. import sigs
 from ..dataflow import adjacency_of
 from .budget import Budget
 from .common import _finish, annotations_of, _matches, _role_index, cite, make_matcher
-from .store import Store
+from .store import Store, file_rows, symbols_of, used_by_of
 from .trace_entry import resolve_entry
 
 
@@ -167,7 +167,7 @@ def q_trace(
         for node, edge in got.items():
             reached.setdefault(node, edge)
     exhausted = any(ex for _, _, ex in walks)
-    callers = store.xref["used_by"].get(resolved["node"], [])
+    callers = used_by_of(store).get(resolved["node"], [])
 
     rows = _merge_rows(store, resolved, walks, callers)
     # The entry point itself is never budgeted away, and the same holds for
@@ -285,7 +285,7 @@ def _pivot(store: Store, resolved: Dict, adjacency: Dict[str, List[Dict]]) -> No
     if "#" in node:
         candidates.append(node.split("#", 1)[0])
     at = resolved.get("at") or ""
-    primary = store.extraction["files"].get(at.rsplit(":", 1)[0], {}).get("primary")
+    primary = (file_rows(store, at.rsplit(":", 1)[0], "meta") or {}).get("primary")
     if primary:
         candidates.append(primary)
     for candidate in candidates:
@@ -344,7 +344,7 @@ def _is_boilerplate(store: Store, target: str) -> bool:
     target = sigs.name_of(target)
     if not _ACCESSOR.search(target):
         return False
-    for site in store.xref["symbols"].get(target, {}).get("sites", [])[:1]:
+    for site in symbols_of(store).get(target, {}).get("sites", [])[:1]:
         end = site.get("end_line")
         return end is None or end - site["anchor"]["line"] <= _ACCESSOR_MAX_LINES
     return True
@@ -376,7 +376,7 @@ def _edge_rows(store: Store, reached: Dict[str, Dict]) -> List[Dict]:
             cite(edge["anchor"]), edge.get("confidence", "medium"))
         name = sigs.name_of(target)
         # an overload's own definition site; the name's every site otherwise
-        sites = store.xref["symbols"].get(name, {}).get("sites", [])
+        sites = symbols_of(store).get(name, {}).get("sites", [])
         if name != target:
             sites = [s for s in sites if s.get("sig") == target] or sites
         for site in sites:
