@@ -316,11 +316,17 @@ def _refresh(backend, paths: Paths, mode: str, exclude, say: Callable[..., None]
     backend.write_derived_patch(build_derived_patch(
         paths.repo, new_inventory, new_extraction, new_graph, new_xref, new_part, new_flow,
         backend.load_patches()))
-    folded = state_mod.fold(
-        backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=mode,
-        excluded_run_ids=rollback_mod.load_excluded_run_ids(backend),
-        extraction=new_extraction,
-    )
+    # Same freeze as `pipeline.scan` (T3): the extraction, xref and graph are already in memory, so
+    # the fold's verification walks need not re-traverse them (T3b, unified-store one-file refresh
+    # 25.4 -> ~18 s). Unfrozen on exit, exceptions included. Imported here: pipeline imports refresh.
+    from .pipeline import _frozen_heap
+
+    with _frozen_heap():
+        folded = state_mod.fold(
+            backend.load_patches(), new_xref, new_part, repo=paths.repo, mode=mode,
+            excluded_run_ids=rollback_mod.load_excluded_run_ids(backend),
+            extraction=new_extraction,
+        )
     backend.write_artifact("state", folded)
     backend.write_artifact(
         "manifest",
