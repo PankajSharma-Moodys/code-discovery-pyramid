@@ -38,7 +38,7 @@ import zlib
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from ..util import CdpError
+from ..util import CdpError, stable_hash
 
 #: Heavy artifacts decomposed into per-file segments; everything else is one doc.
 HEAVY = ("inventory", "extract", "xref", "dataflow", "code")
@@ -132,6 +132,7 @@ class _Pending:
 
     def __init__(self, files: Dict[str, Dict], docs: Dict[str, int]) -> None:
         self.files, self.docs = files, docs
+        self.staged: Dict[Optional[str], Any] = {}
 
 
 class ObjectStoreMixin:
@@ -447,6 +448,42 @@ class ObjectStoreMixin:
             self._pending = _Pending({}, {})
         self._building = snapshot_id
 
+    def _staging(self) -> Dict:
+        """Reports, and (key None) the derived patch, held for the manifest txn (PLAN_DB_ARCH.md §6)."""
+        return self._pending.staged if self._pending and self._building == self._snapshot else {}
+
+    def write_report(self, name: Optional[str], data: Any) -> None:
+        data = json.loads(json.dumps(data, sort_keys=True))
+        if self._pending and self._building == self._snapshot:
+            self._pending.staged[name] = data
+        else:
+            self._put_row(self._snapshot_id(), name, data)
+            self._db_commit()
+
+    def write_derived_patch(self, patch: Dict) -> None:
+        self.write_report(None, patch)
+
+    def _put_row(self, sid: int, name: Optional[str], data: Any) -> None:
+        """Report `name`, or (None) the derived patch: `seq` 0, replaced by every scan. Uncommitted."""
+        from .sqlite_backend import _now
+
+        j, x = self._Json(data) if self._pg else json.dumps(data, sort_keys=True), self._x
+        if name is not None:
+            return x(self._q("INSERT INTO snapshot_report (snapshot_id, name, payload) VALUES (?, ?, ?) "
+                             "ON CONFLICT (snapshot_id, name) DO UPDATE SET payload=excluded.payload"), (sid, name, j))
+        x(self._q("DELETE FROM claim_patch WHERE snapshot_id=? AND is_derived=?"), (sid, True))
+        x(self._q("INSERT INTO claim_patch (snapshot_id, seq, label, content_hash, payload, is_derived, created_at) "
+                  "VALUES (?, 0, 'derived', ?, ?, ?, ?)"), (sid, stable_hash(data), j, True, _now()))
+
+    def load_patches(self) -> List[Dict]:
+        rows = self._rows("SELECT seq, payload, is_derived FROM claim_patch WHERE snapshot_id=? ORDER BY seq",
+                          (self._snapshot_id(),))
+        if self._pg:
+            self._db_commit()
+        d = self._staging().get(None)
+        return ([dict(d, patch_no=0)] if d else []) + [dict(p if self._pg else json.loads(p), patch_no=q)
+                                                       for q, p, x in rows if not (d and x)]
+
     def _flush_build(self, complete: bool, discard: bool = False) -> None:
         """Commit a pending manifest that never got its `manifest` artifact (a test, or a command
         that stops early). An exception in flight discards it instead: the previous snapshot stays
@@ -475,6 +512,8 @@ class ObjectStoreMixin:
                 "loc, flags, fseg, xseg, wseg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"), rows)
             self._xmany(self._q("INSERT INTO snapshot_doc (snapshot_id, name, doc_id) VALUES (?, ?, ?)"),
                         [(sid, n, d) for n, d in sorted(view.docs.items())])
+            for name, data in view.staged.items():
+                self._put_row(sid, name, data)
             if complete:
                 self._finish_snapshot(sid)
             self._db_commit()

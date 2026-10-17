@@ -418,16 +418,9 @@ class PostgresStore(ObjectStoreMixin, WorkspaceStore):
 
     # -------------------------------------------------------------- reports
 
-    def write_report(self, name: str, data: Any) -> None:
-        cur = self._cur()
-        cur.execute(
-            "INSERT INTO snapshot_report (snapshot_id, name, payload) VALUES (%s, %s, %s) "
-            "ON CONFLICT (snapshot_id, name) DO UPDATE SET payload=excluded.payload",
-            (self._snapshot_id(), name, self._Json(data)),
-        )
-        self._conn.commit()
-
     def read_report(self, name: str, default: Any = None) -> Any:
+        if name in self._staging():
+            return self._staging()[name]
         cur = self._cur()
         cur.execute(
             "SELECT payload FROM snapshot_report WHERE snapshot_id=%s AND name=%s",
@@ -442,16 +435,6 @@ class PostgresStore(ObjectStoreMixin, WorkspaceStore):
         return row[0]
 
     # ------------------------------------------------------------ patch log
-
-    def load_patches(self) -> List[Dict]:
-        cur = self._cur()
-        cur.execute(
-            "SELECT seq, payload FROM claim_patch WHERE snapshot_id=%s ORDER BY seq ASC",
-            (self._snapshot_id(),),
-        )
-        rows = cur.fetchall()
-        self._conn.commit()
-        return [dict(r[1], patch_no=r[0]) for r in rows]
 
     def append_patch(self, patch: Dict, label: str) -> str:
         snapshot_id = self._snapshot_id()
@@ -479,18 +462,6 @@ class PostgresStore(ObjectStoreMixin, WorkspaceStore):
         new_id = cur.fetchone()[0]
         self._conn.commit()
         return str(new_id)
-
-    def write_derived_patch(self, patch: Dict) -> None:
-        snapshot_id = self._snapshot_id()
-        cur = self._cur()
-        cur.execute("DELETE FROM claim_patch WHERE snapshot_id=%s AND is_derived=TRUE", (snapshot_id,))
-        cur.execute(
-            "INSERT INTO claim_patch "
-            "(snapshot_id, seq, label, content_hash, payload, is_derived, created_at) "
-            "VALUES (%s, 0, 'derived', %s, %s, TRUE, %s)",
-            (snapshot_id, stable_hash(patch), self._Json(patch), _now()),
-        )
-        self._conn.commit()
 
     # ---------------------------------------------------------------- inbox
     # (filesystem handoff with the agent session, same as every backend --
