@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import re
+import zlib
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..store import SqliteStore, WorkspaceStore
 from ..util import CdpError
@@ -152,6 +155,87 @@ class Store:
             return [d for d in self.extraction["defines"] if d["fqn"] == fqn]
         return self.backend.defines_of([fqn]).get(fqn, [])
 
+    def xref_get(self, key: str, default: Any = None) -> Any:
+        """`xref.get(key, default)` for a skeleton field (constants, ...); shared, read-only."""
+        if not self._parts("xref"):
+            return self.xref.get(key, default)
+        return self._memo("_skel:xref", lambda: self.backend.parts_skeleton("xref"))["rest"].get(key, default)
+
+    def _segs(self, col: str, paths=None):
+        """`(path, inflated segment bytes)` of the snapshot's `col` segments (of `paths` when given)."""
+        files = self.backend.current_files()
+        path_of = {r[col]: p for p, r in files.items() if r.get(col) and (paths is None or p in paths)}
+        for sid, z in self.backend._in_chunks("SELECT id, z FROM seg WHERE id IN (%s)", list(path_of)):
+            yield path_of[sid], zlib.decompress(bytes(z))
+
+    def _heads(self, pats=(), paths=None) -> Dict[str, Dict]:
+        """`path -> extract segment` up to its `uses` (canonical JSON sorts it after every other
+        list), for the files whose head holds one of `pats` (any, when empty)."""
+        per = {}
+        for path, raw in self._segs("fseg", paths):
+            cut = raw.find(b', "uses": ')
+            head = raw[:cut] + b"}" if cut >= 0 else raw
+            if pats and not any(p in head for p in pats):
+                continue
+            try:   # parses only when the cut is at the top-level key (any other leaves brackets open)
+                per[path] = json.loads(head)
+            except ValueError:
+                per[path] = json.loads(raw)
+        return per
+
+    def extract_where(self, needles: Sequence[str]) -> Dict[str, List[Dict]]:
+        """`extraction`'s defines/io_edges/rule_edges in snapshot order, kept to the files whose rows
+        hold a string starting with one of `needles`: a superset of those rows, callers filter."""
+        if not self._parts("extract") or not all(" " <= c < "\x7f" and c not in '"\\' for n in needles for c in n):
+            return {k: self.extraction.get(k) or [] for k in _LISTS}
+
+        def build():
+            per = self._heads([json.dumps(n)[:-1].encode() for n in needles])
+            skel = self.backend.parts_skeleton("extract")
+            return {k: _in_order(skel["runs"].get(k, ()) if k in skel["lists"] else (), self, per, k) for k in _LISTS}
+        return self._memo("_where:" + "\0".join(needles), build)
+
+    def defines_in(self, paths: Sequence[str]) -> Dict[str, List[Dict]]:
+        """`path -> file_rows(self, path, "defines")`, reading no `uses`."""
+        if not self._parts("extract"):
+            return {p: file_rows(self, p, "defines") for p in paths}
+        per = self._heads(paths=set(paths))
+        return {p: per.get(p, {}).get("defines", []) for p in paths}
+
+    def call_owners(self) -> Optional[Dict[str, Tuple[Optional[frozenset], bool]]]:
+        """`path -> (the owners O of every "fqn": "O#.." / "O" in its xref uses, None when one is escaped;
+        whether it has a binding use)`, from raw segments; None when xref is whole."""
+        if not self._parts("xref"):
+            return None
+
+        def build():
+            out = {}
+            for path, raw in self._segs("xseg"):
+                found = _OWNER.findall(raw)
+                out[path] = (None if any(e == b"\\" for _, e in found) else frozenset(o for o, _ in found),
+                             b'"kind": "binding"' in raw)
+            return out
+        return self._memo("_owners", build)
+
+    def xref_uses_in(self, paths: Sequence[str]) -> List[Dict]:
+        """`xref.uses` rows of `paths` (a decomposed xref), in snapshot order."""
+        got = self._cache.setdefault("_xuses", {})
+        files = self.backend.current_files()
+        need = {files[p]["xseg"]: p for p in paths if p not in got and files.get(p, {}).get("xseg")}
+        for sid, seg in self.backend._get_segs(need).items():
+            got[need[sid]] = seg
+        runs = self.backend.parts_skeleton("xref")["runs"]["uses"]
+        return _in_order(runs, self, {p: got[p] for p in paths if p in got}, "uses")
+
+    def code_texts(self, paths: Optional[Sequence[str]] = None) -> Dict[str, str]:
+        """`code.files` (or those of `paths`)."""
+        if not self._parts("code"):
+            files = (self.code or {}).get("files", {})
+            return {p: files[p] for p in (files if paths is None else paths) if p in files}
+        if paths is None:
+            return self._memo("_code", self.backend.code_texts)
+        return self.backend.code_texts(list(paths))
+
     def code_text(self, path: str) -> Optional[str]:
         """`code.files.get(path)`."""
         if not self._parts("code"):
@@ -198,6 +282,16 @@ class LazyMap(Mapping):
     def __len__(self) -> int:
         return len(self._all_keys())
 
+    def prefetch(self, keys) -> None:
+        """Fetch every not-yet-fetched key of `keys` in one `get_many` call (absent keys stay absent)."""
+        if self._full is not None:
+            return
+        want = [k for k in dict.fromkeys(keys) if k not in self._got and (self._keyset is None or k in self._keyset)]
+        if want:
+            got = self._get_many(want)
+            for k in want:
+                self._got[k] = got.get(k, _MISSING)
+
     def _load_full(self) -> Dict[str, Any]:
         if self._full is None:
             self._full = self._full_fn()
@@ -211,11 +305,59 @@ class LazyMap(Mapping):
 
 
 _MISSING = object()
+_LISTS = ("defines", "io_edges", "rule_edges")
+_OWNER = re.compile(rb'"fqn": "([^"#\\]*)([#"\\])')
+
+
+def _in_order(runs, store: Store, per: Dict[str, Dict], key: str) -> List[Dict]:
+    """List `key`'s rows of the files in `per`, in the snapshot order its skeleton runs record."""
+    def build():
+        files = store.backend.current_files()
+        return sorted(files, key=lambda p: files[p]["ord"])
+    order, rows, cursor = store._memo("_order", build), [], {}
+    for pos, n in runs:
+        path = order[pos]
+        if path in per:
+            i = cursor.get(path, 0)
+            rows.extend(per[path].get(key, [])[i:i + n])
+            cursor[path] = i + n
+    return rows
+
+
+def edges_where(store, needles: Sequence[str]) -> List[Dict]:
+    """`rules.all_edges(extraction)` kept to `Store.extract_where`'s files, in the same order."""
+    from ..rules import _edge_key, all_edges
+
+    if not isinstance(store, Store):
+        return all_edges(store.extraction)
+    sub = store.extract_where(needles)
+    edges = all_edges(sub)
+    return sorted(edges, key=_edge_key) if store.has_rule_edges() and not sub.get("rule_edges") else edges
+
+
+def extract_where(store, needles: Sequence[str]) -> Dict[str, List[Dict]]:
+    if isinstance(store, Store):
+        return store.extract_where(needles)
+    return {k: store.extraction.get(k) or [] for k in _LISTS}
+
+
+def xref_get(store, key: str, default: Any = None) -> Any:
+    return store.xref_get(key, default) if isinstance(store, Store) else store.xref.get(key, default)
 
 
 def symbols_of(store) -> Mapping:
     """`store.xref["symbols"]`, through the typed read when the store has one (duck-typed test stores do not)."""
     return store.symbols if isinstance(store, Store) else store.xref["symbols"]
+
+
+def prefetch_symbols(store, fqns, owners: bool = True) -> None:
+    """Warm `symbols_of(store)` for `fqns` (and, with `owners`, the owners `annotations_of` looks up)."""
+    syms = symbols_of(store)
+    if isinstance(syms, LazyMap):
+        keys = []
+        for f in fqns:
+            keys += [f, f.partition("#")[0], f.rpartition(".")[0]] if owners else [f]
+        syms.prefetch(k for k in keys if k)
 
 
 def used_by_of(store) -> Mapping:

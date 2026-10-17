@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .. import codeindex, sigs
 from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, make_matcher, _role_index, _tally, cite, route_inputs
-from .store import Store, code_text, file_edges, file_rows, symbols_of, used_by_of, xref_field, xref_uses_of
+from .store import LazyMap, Store, code_text, edges_where, extract_where, file_edges, file_rows, prefetch_symbols, symbols_of, used_by_of, xref_field, xref_get, xref_uses_of
 from ..rules import all_edges
 
 
@@ -567,11 +568,15 @@ def _budget_groups(groups: List[Dict], budget: Budget) -> List[Dict]:
     return out
 
 
+#: What every edge `q_table` reads names (`extract_where`).
+_TABLE_NEEDLES = ("table:", "entity:")
+
+
 def _entity_index(store: Store) -> Dict[tuple, str]:
     """`(file, line)` -> entity type name, from the `entity:X` persist edges the C#
     extractor writes on the same line as the `table:` edges of a `DbSet<X>`."""
     out: Dict[tuple, str] = {}
-    for e in all_edges(store.extraction):
+    for e in edges_where(store, _TABLE_NEEDLES):
         if e["channel"] == "persist" and e["target"].startswith("entity:"):
             out[(e["anchor"]["file"], e["anchor"]["line"])] = e["target"][len("entity:"):]
     return out
@@ -584,17 +589,25 @@ def _entity_users(store: Store, edges: Sequence[Dict], entity_at: Dict[tuple, st
     writes are not told apart (an entity use does not say which)."""
     found: Dict[str, Dict[str, None]] = {}
     done: set = set()
-    symbols = store.xref["symbols"]
+    symbols, used_by = symbols_of(store), used_by_of(store)
+    hits = []
     for e in edges:
         ent = entity_at.get((e["anchor"]["file"], e["anchor"]["line"]))
         if not ent or (ent, e["module"]) in done:
             continue
         done.add((ent, e["module"]))
-        simple = ent.rsplit(".", 1)[-1]
-        keys = [k for k, v in symbols.items() if v["kind"] in ("class", "record", "struct")
-                and k.rsplit(".", 1)[-1] == simple and e["module"] in v["modules"]]
+        hits.append((e, ent.rsplit(".", 1)[-1]))
+    if not hits:
+        return []
+    named = _memo(store, "_by_simple_name", lambda: _by_simple_name(symbols))
+    prefetch_symbols(store, [k for _, simple in hits for k in named.get(simple, ())], owners=False)
+    keyed = [(e, simple, [k for k in named.get(simple, ()) if symbols[k]["kind"] in ("class", "record", "struct")
+                          and e["module"] in symbols[k]["modules"]]) for e, simple in hits]
+    if isinstance(used_by, LazyMap):
+        used_by.prefetch(k for _, _, keys in keyed for k in keys)
+    for e, simple, keys in keyed:
         for key in keys:
-            for u in store.xref["used_by"].get(key, []):
+            for u in used_by.get(key, []):
                 f = u["file"]
                 if f == e["anchor"]["file"] or "/Migrations/" in f:
                     continue
@@ -605,6 +618,14 @@ def _entity_users(store: Store, edges: Sequence[Dict], entity_at: Dict[tuple, st
     found = {k: {"entity": k, "count": len(v), "sites": budget.take(list(v)[:SITES_PER_GROUP])}
              for k, v in found.items()}
     return [found[k] for k in sorted(found)]
+
+
+def _by_simple_name(symbols) -> Dict[str, List[str]]:
+    """`simple name -> symbol keys ending in it`, in key order."""
+    out: Dict[str, List[str]] = {}
+    for k in symbols:
+        out.setdefault(k.rsplit(".", 1)[-1], []).append(k)
+    return out
 
 
 #: Spring Data method-name prefixes that write (`save`, `saveAll`, `deleteById`, `removeByX`, ...) and
@@ -628,7 +649,10 @@ def _relations(store: Store, entity_files: Dict[str, str]) -> List[Dict]:
     """Every relationship field declared on an entity: owner, field, target entity (simple name), how it
     loads (`EAGER`/`LAZY`) and whether the owner's saves/deletes cascade to it. Read from the entity's
     source (fields are not indexed symbols); getter-annotated (property access) mappings are not seen."""
-    texts = (getattr(store, "code", None) or {}).get("files") or {}
+    if isinstance(store, Store):
+        texts = store.code_texts(sorted(set(entity_files.values())))
+    else:
+        texts = (getattr(store, "code", None) or {}).get("files") or {}
     out = []
     for owner, path in sorted(entity_files.items()):
         text = texts.get(path) or ""
@@ -672,27 +696,77 @@ def _related_access(store: Store, table: str, entities: Sequence[str], by_entity
     return writes, reads
 
 
-def _access_index(store: Store, roles: Dict[str, str]) -> Dict:
-    """What every table's access lookup reads, built once per answer (a repo has thousands of calls and
-    tens of tables): non-test calls by callee and by repository, entity -> bound repositories, and the
-    non-test methods whose body builds an EntityManager query, with that body."""
-    cache = getattr(store, "_cache", None)
-    if cache is not None and "_access_index" in cache:
-        return cache["_access_index"]
-    calls: Dict[str, Dict[str, None]] = {}
-    by_repo: Dict[str, Dict[str, None]] = {}
-    bindings: Dict[str, List[str]] = {}
-    for u in store.xref["uses"]:
-        if u.get("kind") == "binding" and u.get("from_symbol"):
-            bindings.setdefault(u.get("fqn"), []).append(u["from_symbol"])
-        elif u.get("kind") == "call" and roles.get(u.get("from_file") or u["anchor"]["file"]) != "test":
-            fqn = str(u.get("fqn", ""))
-            calls.setdefault(fqn, {}).setdefault(cite(u["anchor"]), None)
-            if "#" in fqn:
-                by_repo.setdefault(fqn.partition("#")[0], {})[fqn] = None
-    texts = (getattr(store, "code", None) or {}).get("files") or {}
+def _access_index(store: Store, roles: Dict[str, str]) -> "_Access":
+    """What every table's access lookup reads, built once per answer and only as far as asked."""
+    return _memo(store, "_access_index", lambda: _Access(store, roles))
+
+
+class _Access:
+    """Non-test calls by owner (`O` of `O#m`), entity -> bound repositories, and the non-test methods whose
+    body builds an EntityManager query. A decomposed store reads only the xref files that can hold the part
+    asked for (`Store.call_owners`); otherwise one pass over all of xref. Same values, same order."""
+
+    def __init__(self, store, roles: Dict[str, str]) -> None:
+        self.store, self.roles, self.owners = store, roles, {}
+        self.files = store.call_owners() if isinstance(store, Store) else None
+        self._bindings = self._queries = self._words = None
+        if self.files is None:
+            self._bindings = self._add(store.xref["uses"], None)
+            texts = (getattr(store, "code", None) or {}).get("files") or {}
+            self._queries = _query_bodies(store.xref["symbols"].items(), texts)
+
+    def _add(self, uses, owner) -> Dict[str, List[str]]:
+        """Group the non-test calls of `uses` on `owner` (None: all, False: none) into `owners`; return the bindings."""
+        bindings: Dict[str, List[str]] = {}
+        for u in uses:
+            if u.get("kind") == "binding" and u.get("from_symbol"):
+                bindings.setdefault(u.get("fqn"), []).append(u["from_symbol"])
+            elif u.get("kind") == "call" and self.roles.get(u.get("from_file") or u["anchor"]["file"]) != "test":
+                fqn = str(u.get("fqn", ""))
+                if owner is None or fqn.partition("#")[0] == owner:
+                    self.owners.setdefault(fqn.partition("#")[0], {}).setdefault(fqn, {}).setdefault(
+                        cite(u["anchor"]), None)
+        return bindings
+
+    def bindings(self) -> Dict[str, List[str]]:
+        if self._bindings is None:
+            self._bindings = self._add(self.store.xref_uses_in([p for p, (_, b) in self.files.items() if b]), False)
+        return self._bindings
+
+    def owner_calls(self, owner: str) -> Dict[str, Dict[str, None]]:
+        """`fqn -> {call site: None}` of the non-test calls on `owner` or its members, in first-call order."""
+        if self.files is not None and owner not in self.owners:
+            key = json.dumps(owner)[1:-1].encode()
+            self._add(self.store.xref_uses_in([p for p, (o, _) in self.files.items() if o is None or key in o]), owner)
+            self.owners.setdefault(owner, {})
+        return self.owners.get(owner, {})
+
+    def queries(self) -> List[Tuple[str, str]]:
+        if self._queries is None:
+            texts = self.store.code_texts()
+            defined = self.store.defines_in([p for p, t in texts.items() if "Query(" in t])
+            fqns = sorted({str(r.get("fqn")) for rows in defined.values() for r in rows})
+            prefetch_symbols(self.store, fqns, owners=False)
+            self._queries = _query_bodies(((f, symbols_of(self.store).get(f) or {}) for f in fqns), texts)
+        return self._queries
+
+    def may_mention(self, names: Sequence[str]) -> bool:
+        """False only when no query body can match `_repository_access`'s `mentions` for `names`: it matches
+        a name only as a whole word, so ASCII words absent from every (ASCII) body's words cannot match."""
+        if self._words is None:
+            bodies = [b for _, b in self.queries()]
+            self._words = all(map(str.isascii, bodies)) and set(_WORD.findall("\n".join(bodies).lower()))
+        return (self._words is False or not all(map(_WORD.fullmatch, names))
+                or any(n.lower() in self._words for n in names))
+
+
+_WORD = re.compile(r"[A-Za-z0-9_]+")
+
+
+def _query_bodies(symbols, texts: Dict[str, str]) -> List[Tuple[str, str]]:
+    """`(fqn, body)` of each non-test method site of `symbols` (`(fqn, entry)` pairs) building a query."""
     queries: List[Tuple[str, str]] = []
-    for fqn, sym in store.xref["symbols"].items():
+    for fqn, sym in symbols:
         if sym.get("kind") != "method":
             continue
         for site in sym.get("sites", []):
@@ -702,16 +776,13 @@ def _access_index(store: Store, roles: Dict[str, str]) -> Dict:
             body = "\n".join(text.splitlines()[site["anchor"]["line"] - 1: site["end_line"]])
             if _QUERY_CALL.search(body):
                 queries.append((fqn, body))
-    index = {"calls": calls, "by_repo": by_repo, "bindings": bindings, "queries": queries}
-    if cache is not None:
-        cache["_access_index"] = index
-    return index
+    return queries
 
 
 def _calls_into(store: Store, methods: Dict[str, str], roles: Dict[str, str]) -> Dict[str, Dict[str, None]]:
     """`method fqn -> {call site: None}` for every non-test call on one of `methods`."""
-    calls = _access_index(store, roles)["calls"]
-    return {m: calls[m] for m in methods if calls.get(m)}
+    index = _access_index(store, roles)
+    return {m: c for m in methods for c in [index.owner_calls(m.partition("#")[0]).get(m)] if c}
 
 
 def _repository_access(store: Store, table: str, persist: Sequence[Dict], roles: Dict[str, str],
@@ -727,19 +798,19 @@ def _repository_access(store: Store, table: str, persist: Sequence[Dict], roles:
     index = _access_index(store, roles)
     entities = {e["source"] for e in persist}
     simple = {e.rsplit(".", 1)[-1] for e in entities}
-    repos = {r: e for e in entities for r in index["bindings"].get(e, [])}
+    repos = {r: e for e in entities for r in index.bindings().get(e, [])}
     methods: Dict[str, Tuple[str, str]] = {}  # fqn -> (via, "write"|"read")
     for repo in repos:
-        for fqn in index["by_repo"].get(repo, {}):
+        for fqn in (f for f in index.owner_calls(repo) if "#" in f):
             method = fqn.partition("#")[2]
             if method.startswith(_REPO_WRITE_PREFIXES):
                 methods[fqn] = (repo, "write")
             elif method.startswith(_REPO_READ_PREFIXES):
                 methods[fqn] = (repo, "read")
     names = "|".join(re.escape(n) for n in sorted(simple))
-    if names:
+    if names and index.may_mention([*simple, table]):
         mentions = re.compile(r"\bfrom\s+(?:%s|%s)\b|\b(?:%s)\.class\b" % (names, re.escape(table), names), re.I)
-        for fqn, body in index["queries"]:
+        for fqn, body in index.queries():
             if fqn not in methods and mentions.search(body):
                 methods[fqn] = (fqn.split("#", 1)[0], "write" if _WRITE_CALL.search(body) else "read")
     groups: Dict[Tuple[str, str], Dict[str, None]] = {}
@@ -777,7 +848,7 @@ def q_table(store: Store, name: Optional[str] = None,
     roles = _role_index(store)
     buckets: Dict[str, Dict[str, List[Dict]]] = {}
     by_entity: Dict[str, Tuple[str, List[Dict]]] = {}  # every mapped entity -> (its table, its persist edges)
-    for edge in all_edges(store.extraction):
+    for edge in edges_where(store, _TABLE_NEEDLES):
         if not edge["target"].startswith("table:"):
             continue
         table = edge["target"][len("table:") :]
@@ -840,21 +911,28 @@ _PLACEHOLDER_RE = re.compile(r"\$\{([^}:]+)(?::([^}]*))?\}")
 def _value_default(store: Store, read: Dict) -> Optional[str]:
     """The `${key:default}` default of the `@Value` that made this read, from the annotation's
     parsed `args` (the edge itself is unchanged). None when there is no default."""
-    index = getattr(store, "_value_anns", None)
-    if index is None:
-        index = {}
-        for row in store.extraction["defines"]:
+    cache = getattr(store, "_cache", None)
+    if not isinstance(cache, dict):   # a duck-typed store: built per call
+        cache = {}
+    by_file = cache.get("_value_anns")
+    if by_file is None:
+        by_file = cache["_value_anns"] = {}
+        for row in extract_where(store, ("config:",))["defines"]:
+            by_file.setdefault(row["file"], []).append(row)
+    if read["file"] not in by_file:   # a wrapped read's file need not mention a config key
+        by_file[read["file"]] = list(file_rows(store, read["file"], "defines"))
+    key = ("_value_at", read["file"])
+    if key not in cache:
+        index: Dict = {}
+        for row in by_file[read["file"]]:
             groups = [row.get("annotations") or []]
             groups += [p.get("annotations") or [] for p in row.get("params") or []]
             for anns in groups:
                 for ann in anns:
                     if ann.get("name") == "Value" and isinstance(ann.get("args", {}).get("value"), str):
-                        index.setdefault((row["file"], ann.get("line")), []).append(ann["args"]["value"])
-        try:
-            store._value_anns = index
-        except AttributeError:
-            pass
-    for text in index.get((read["file"], read["anchor"].get("line")), ()):
+                        index.setdefault(ann.get("line"), []).append(ann["args"]["value"])
+        cache[key] = index
+    for text in cache[key].get(read["anchor"].get("line"), ()):
         for m in _PLACEHOLDER_RE.finditer(text):
             if m.group(2) is not None and m.group(1) == read["key"]:
                 return m.group(2)
@@ -884,7 +962,7 @@ def q_config(store: Store, key: Optional[str] = None,
     def slot_of(name: str) -> Dict:
         return rows.setdefault(name, {"key": name, "declared": [], "read": [], "values": []})
 
-    for row in store.extraction["defines"]:
+    for row in extract_where(store, ("config:",))["defines"]:
         if row["kind"] != "config_key" or not row["fqn"].startswith("config:"):
             continue
         name = row["fqn"][len("config:") :]
@@ -896,8 +974,10 @@ def q_config(store: Store, key: Optional[str] = None,
         slot["declared"].append(cite(row["anchor"]))
         if row.get("value") and row["value"] not in slot["values"]:
             slot["values"].append(row["value"])
-    for read in config_reads(store.extraction, store.xref.get("constants", {}),
-                         store.xref.get("config_wrapped", ())):
+    reads = config_reads({"io_edges": edges_where(store, ("config:",))}, xref_get(store, "constants", {}),
+                         xref_get(store, "config_wrapped", ()))
+    prefetch_symbols(store, [r["by"] for r in reads])
+    for read in reads:
         if key and not same(read["key"]):
             continue
         if exclude_role and roles.get(read["file"]) in exclude_role:
