@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime
+import gc
 
 from . import codeindex as codeindex_mod, dataflow as dataflow_mod, graph as graph_mod, inventory as inventory_mod, partition as partition_mod, query as query_mod, refresh as refresh_mod, resolve as resolve_mod, schedule as schedule_mod, snapshot as snapshot_mod
 from .derived import build_derived_patch, structural_unknowns  # noqa: F401  (re-exported)
@@ -34,6 +36,23 @@ def _say_stranded_claims(store, paths: Paths, say) -> None:
                 "`cdp gc` keeps it)" % (n, snap["commit_sha"][:12]))
     finally:
         store.use_snapshot(mine["repo_id"], mine["commit_sha"])
+
+
+@contextlib.contextmanager
+def _frozen_heap():
+    """Keep every object alive now out of the cyclic GC's walks until the block ends. Measured
+    (T3, EPIC_HARDENING.md): with the scan's extraction, xref and graph in the tracked heap, the
+    collections `verify_all`'s allocations trigger cost ~2/3 of its time (unified-store: 15 s with
+    them, 6 s frozen). Unfrozen after, so anything that became cyclic garbage meanwhile is
+    collectable again (unless the host process had frozen its own heap: that is left frozen);
+    refcounting frees acyclic values throughout."""
+    ours = gc.get_freeze_count() == 0
+    gc.freeze()
+    try:
+        yield
+    finally:
+        if ours:
+            gc.unfreeze()
 
 
 def scan(
@@ -112,7 +131,11 @@ def scan(
     store.write_derived_patch(patch)
     store.ensure_inbox()
 
-    st = fold_and_write(store, xref, part, repo=paths.repo)
+    # The fold reads the extraction back from the store; preloaded here, it is frozen with the rest.
+    if hasattr(store, "preload_artifact"):
+        store.preload_artifact("extract")
+    with _frozen_heap():
+        st = fold_and_write(store, xref, part, repo=paths.repo)
     verify_stats = st["verification"]
     say("verify    %d/%d derived claims anchored (%d demoted, rate %.3f)"
         % (verify_stats["claims_kept"], verify_stats["claims_in"],

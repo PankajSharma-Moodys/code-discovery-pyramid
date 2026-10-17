@@ -18,7 +18,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -102,43 +102,77 @@ def _facts_dict(facts: FileFacts) -> Dict:
     return json.loads(json.dumps(fields, sort_keys=True))
 
 
-def _cached_facts(repo: Path, candidates: List[Tuple[str, str]], cache, workers: int,
-                  progress=None) -> Dict[str, FileFacts]:
+def _encoded_facts(rel: str, lines: List[str], module: str) -> Tuple[Dict, object]:
+    """One file's facts as the extraction cache stores them, plus its encoded cache segment."""
+    from .store.objects import encode_seg
+
+    d = _facts_dict(extract_file(rel, lines, module))
+    return d, encode_seg({"facts": d})
+
+
+def _cache_worker(payload: Tuple[str, str, str]):
+    """`_extract_worker` for the cached path: the JSON form and the encoded segment are built
+    here, in the worker, so the parent only stores them."""
+    repo_str, rel, module = payload
+    lines = read_lines(Path(repo_str) / rel)
+    if not lines:
+        return (rel, None)
+    return (rel, _encoded_facts(rel, lines, module))
+
+
+def _cached_facts(repo: Path, candidates: List[Tuple[str, str]], cache, workers: int):
     """Per-file extraction through the store's cache, keyed by (git blob sha, path, module,
     extractor version): only files whose content (or extractor) changed are parsed. Every
     file's facts, hit or miss, go through the cache's JSON form, so a scan's output does not
-    depend on what was cached. Stages every file's bytes as a blob for the snapshot."""
+    depend on what was cached. Stages every file's bytes as a blob for the snapshot.
+
+    Yields `(path, FileFacts)` in `candidates` order as each file's facts arrive (hits at once,
+    misses as the pool returns them), so the caller absorbs and drops them one at a time; the
+    misses' encoded cache segments are written once the last one is in."""
     from .store.objects import git_blob_sha
 
-    raw: Dict[str, bytes] = {}
-    for rel, _ in candidates:
+    def read(rel: str):
         try:
-            raw[rel] = (repo / rel).read_bytes()
+            b = (repo / rel).read_bytes()
         except OSError:
-            continue
-    shas = {rel: git_blob_sha(b) for rel, b in raw.items()}
+            return rel, None, None
+        return rel, b, git_blob_sha(b)
+
+    # File reads and sha1 release the GIL: a thread pool overlaps them (results in `candidates` order).
+    with ThreadPoolExecutor(max_workers=8) as tp:
+        got = [g for g in tp.map(read, [rel for rel, _ in candidates], chunksize=64) if g[1] is not None]
+    raw = {rel: b for rel, b, _ in got}
+    shas = {rel: h for rel, _, h in got}
+    del got
     cache.put_blobs({rel: (shas[rel], b) for rel, b in raw.items()})
+    del raw    # the workers re-read their files; holding every file's bytes here only costs RSS
     module_of = dict(candidates)
-    hits = cache.lookup_facts({rel: (shas[rel], module_of[rel]) for rel in raw})
-    todo = [(rel, module) for rel, module in candidates if rel in raw and rel not in hits]
-    fresh: Dict[str, Dict] = {}
+    hits = cache.lookup_facts({rel: (shas[rel], module_of[rel]) for rel in shas})
+    todo = [(rel, module) for rel, module in candidates if rel in shas and rel not in hits]
+    segs: Dict[str, Tuple] = {}
+    pool = None
     if workers <= 1 or len(todo) < 2:
-        for rel, module in todo:
+        def compute(rel: str, module: str):
             lines = read_lines(repo / rel)
-            if lines:
-                fresh[rel] = _facts_dict(extract_file(rel, lines, module))
+            return _encoded_facts(rel, lines, module) if lines else None
+        results = ((rel, compute(rel, module)) for rel, module in todo)
     else:
-        with ProcessPoolExecutor(max_workers=min(workers, len(todo))) as pool:
-            for rel, module, facts in pool.map(_extract_worker, [(str(repo), r, m) for r, m in todo]):
-                if facts is not None:
-                    fresh[rel] = _facts_dict(facts)
-    cache.put_facts({rel: (shas[rel], module_of[rel], d) for rel, d in fresh.items()})
-    out = {}
-    for rel, _ in candidates:
-        d = hits.get(rel) or fresh.get(rel)
-        if d is not None:
-            out[rel] = FileFacts(**(d["facts"] if rel in hits else d))
-    return out
+        pool = ProcessPoolExecutor(max_workers=min(workers, len(todo)))
+        results = pool.map(_cache_worker, [(str(repo), r, m) for r, m in todo])
+    try:
+        for rel, _ in candidates:
+            if rel in hits:
+                yield rel, FileFacts(**hits.pop(rel)["facts"])
+            elif rel in shas:
+                got_rel, got = next(results)     # `todo` is `candidates` order, misses only
+                assert got_rel == rel
+                if got is not None:
+                    segs[rel] = (shas[rel], module_of[rel], got[1])
+                    yield rel, FileFacts(**got[0])
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
+    cache.put_facts(segs)
 
 
 def run_extract(repo: Path, inventory: Dict, progress=None,
@@ -187,13 +221,12 @@ def run_extract(repo: Path, inventory: Dict, progress=None,
                    if len(candidates) >= PARALLEL_MIN_FILES else 1)
 
     if cache is not None:
-        facts_of = _cached_facts(repo, candidates, cache, workers, progress)
-        for rel, module in candidates:
-            if rel in facts_of:
-                _absorb(rel, module, facts_of[rel], defines, uses, io_edges, imports,
-                        per_file, declared, module_notes)
-                if progress:
-                    progress(rel)
+        module_of = dict(candidates)
+        for rel, facts in _cached_facts(repo, candidates, cache, workers):
+            _absorb(rel, module_of[rel], facts, defines, uses, io_edges, imports,
+                    per_file, declared, module_notes)
+            if progress:
+                progress(rel)
     elif workers <= 1:
         for rel, module in candidates:
             lines = read_lines(repo / rel)
