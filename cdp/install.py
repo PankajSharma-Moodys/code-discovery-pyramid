@@ -463,7 +463,9 @@ def install(
           % (dest / "run.py", target))
     say("tip       --priority = --harness --strict --claude-md --allow-mcp (CDP first, one flag; the demo setting). "
         "Pieces: --harness (hooks + MCP server; add --strict to answer greps the index covers), --claude-md (a marked "
-        "rule block in CLAUDE.md), --allow-mcp (no permission prompt for the cdp tools), --agents-md; `githook install` "
-        "refreshes on commit/pull/rebase; headless `claude -p` refuses MCP tools unless allowed "
-        "(`--allowedTools \"mcp__cdp__*\"` or --allow-mcp); --framework {langgraph,adk} for non-Claude-Code leaves")
+        "rule block in CLAUDE.md), --allow-mcp (no permission prompt for the cdp tools, once the workspace is trusted), "
+        "--agents-md; `githook install` refreshes on commit/pull/rebase; headless `claude -p` refuses MCP tools unless "
+        "allowed: pass `--allowedTools \"mcp__cdp__*\"` (--allow-mcp only applies once the workspace is trusted; "
+        "Claude Code ignores an untrusted workspace's permissions.allow); --framework {langgraph,adk} for "
+        "non-Claude-Code leaves")
     return dest

@@ -51,7 +51,9 @@ a `PostToolUse` ("No matches found"), not a failure -- `--post-search` answers i
 replace it entirely: a pure search (no `;`/`&&`/pipes into non-limiters) whose every term
 is a known identifier with recorded uses; a whole-file Read of a long file gets its
 outline. A partial, empty or compound answer runs the call. Any MCP `cdp_query` (whatever
-the server is named) marks the session as having asked the index, and the gate stops.
+the server is named) that ran marks the session as having asked the index, and the gate stops;
+one the harness refused (not permitted) does not -- a PreToolUse precedes the permission check,
+so it is confirmed from the transcript's `tool_result` (or a PostToolUse) before it counts.
 Each denial is once per session and subject (a search's terms, or a file for a Read). The gate stands
 down for a file, or any file in a search's scope, with uncommitted changes (the index would be stale),
 and for a search path outside the repo or outside a source dir. `CDP_LEAF_SESSION=1` (only `1`) stands all of
@@ -350,6 +352,76 @@ def index_was_asked(session_id: str) -> bool:
     return _asked_marker(session_id).exists()
 
 
+def _pending_marker(session_id: str) -> Path:
+    key = hashlib.sha256(("pending|%s" % session_id).encode()).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / ("cdp-gate-pending-%s" % key)
+
+
+#: How much of a transcript's tail `_query_ran` reads: the query it looks for is recent.
+TRANSCRIPT_TAIL_BYTES = 4 * 1024 * 1024
+
+
+def _query_ran(transcript_path: str) -> bool:
+    """Whether the transcript holds a `cdp_query` call whose result is not an error.
+
+    A PreToolUse fires before the permission check, so a `cdp_query` the harness then refuses
+    ("Claude requested permissions to use mcp__cdp__cdp_query, but you haven't granted it yet")
+    looks identical to one that ran; only its `tool_result` tells them apart.
+    """
+    path = Path(transcript_path)
+    with path.open("rb") as handle:
+        size = path.stat().st_size
+        if size > TRANSCRIPT_TAIL_BYTES:
+            handle.seek(size - TRANSCRIPT_TAIL_BYTES)
+            handle.readline()  # drop the partial first line
+        lines = handle.read().decode("utf-8", "replace").splitlines()
+    queries = set()
+    for line in lines:
+        if "tool_use" not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        message = record.get("message") if isinstance(record, dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
+        for block in content if isinstance(content, list) else []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use" and is_index_query(block.get("name")):
+                queries.add(block.get("id"))
+            elif (block.get("type") == "tool_result" and block.get("tool_use_id") in queries
+                  and not block.get("is_error")):
+                return True
+    return False
+
+
+def note_query_event(event: Dict, session_id: str) -> None:
+    """A `cdp_query` hook event. A PostToolUse means it ran: the index was asked. A PreToolUse
+    only means it was attempted (the permission check comes after), so it is recorded as pending
+    and `index_asked` confirms it from the transcript. With no transcript to check (a harness
+    that sends none), the attempt counts, as it always did."""
+    if event.get("hook_event_name") == "PostToolUse" or not event.get("transcript_path"):
+        note_index_asked(session_id)
+    else:
+        _touch_once(_pending_marker(session_id))
+
+
+def index_asked(event: Dict, session_id: str) -> bool:
+    """`index_was_asked`, plus confirming a pending `cdp_query` against the transcript."""
+    if index_was_asked(session_id):
+        return True
+    if not _pending_marker(session_id).exists():
+        return False
+    try:
+        ran = _query_ran(str(event.get("transcript_path") or ""))
+    except (OSError, ValueError):
+        return False
+    if ran:
+        note_index_asked(session_id)
+    return ran
+
+
 #: A whole-file Read of a source file longer than this gets the file's outline first.
 READ_MIN_LOC = 250
 
@@ -420,9 +492,9 @@ def gate_decide(event: Dict) -> Optional[Dict]:
 
     sid = str(event.get("session_id") or "no-session")
     if is_index_query(event.get("tool_name")):
-        note_index_asked(sid)  # E1: the model asked the index; nothing left to deny
+        note_query_event(event, sid)  # E1: the model asked the index; nothing left to deny
         return None
-    if index_was_asked(sid):
+    if index_asked(event, sid):
         return None
     gated = _gate(event)
     if gated is None:
@@ -516,7 +588,10 @@ def post_search(event: Dict) -> Optional[str]:
     from . import hook_rules
 
     tool = str(event.get("tool_name"))
-    if tool not in ("Bash", "Grep", "Glob") or is_index_query(tool):
+    if is_index_query(tool):
+        note_index_asked(str(event.get("session_id") or "no-session"))  # a PostToolUse: it ran
+        return None
+    if tool not in ("Bash", "Grep", "Glob"):
         return None
     if not hook_rules.is_empty_result(tool, event.get("tool_response"), event.get("tool_input")):
         return None
@@ -554,9 +629,9 @@ def decide(event: Dict) -> Optional[str]:
 
     sid = str(event.get("session_id") or "no-session")
     if is_index_query(event.get("tool_name")):
-        note_index_asked(sid)
+        note_query_event(event, sid)  # recorded as asked only once the call is known to have run
         return None
-    if index_was_asked(sid):
+    if index_asked(event, sid):
         return None
     gated = _gate(event)
     if gated is None:

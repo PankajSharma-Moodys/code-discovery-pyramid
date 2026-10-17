@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -120,6 +121,55 @@ class NudgeFlowTest(unittest.TestCase):
         self.assertIsNone(hook_mod.decide(self.ev("Grep", pattern="ReservationService")))
         # another session is unaffected
         self.assertIsNotNone(hook_mod.decide(self.ev("Grep", session="other", pattern="ReservationService")))
+
+    def transcript(self, name, is_error):
+        """A Claude Code transcript holding one cdp_query call and its result."""
+        path = Path(self.tmp.name) / ("%s.jsonl" % name)
+        result = ("Claude requested permissions to use mcp__cdp__cdp_query, but you haven't granted it yet."
+                  if is_error else "symbol ReservationService src/ReservationService.java:3")
+        lines = [{"type": "assistant", "message": {"content": [
+                     {"type": "tool_use", "id": "toolu_" + name, "name": "mcp__cdp__cdp_query", "input": {}}]}},
+                 {"type": "user", "message": {"content": [
+                     {"type": "tool_result", "tool_use_id": "toolu_" + name, "content": result,
+                      "is_error": is_error}]}}]
+        path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+        return str(path)
+
+    def test_a_denied_cdp_query_does_not_silence_the_next_nudge(self) -> None:
+        tp = self.transcript("denied", is_error=True)
+        sid = uuid.uuid4().hex  # session markers live in $TMPDIR and outlast a run
+        query = dict(self.ev("mcp__cdp__cdp_query", sid, kind="symbol", term="x"), transcript_path=tp,
+                     hook_event_name="PreToolUse")
+        self.assertIsNone(hook_mod.decide(query))
+        grep = dict(self.ev("Grep", sid, pattern="ReservationService"), transcript_path=tp)
+        self.assertIn('term="ReservationService"', hook_mod.decide(grep) or "")
+
+    def test_a_cdp_query_that_ran_still_silences_the_session(self) -> None:
+        tp = self.transcript("ran", is_error=False)
+        query = dict(self.ev("mcp__cdp__cdp_query", kind="symbol", term="x"), transcript_path=tp,
+                     hook_event_name="PreToolUse")
+        self.assertIsNone(hook_mod.decide(query))
+        self.assertIsNone(hook_mod.decide(dict(self.ev("Grep", pattern="ReservationService"), transcript_path=tp)))
+
+    def test_a_post_tool_use_of_cdp_query_silences_the_session(self) -> None:
+        tp = self.transcript("post", is_error=True)  # the PostToolUse itself is the proof it ran
+        hook_mod.post_search(dict(self.ev("mcp__cdp__cdp_query", kind="symbol", term="x"), transcript_path=tp,
+                                  hook_event_name="PostToolUse"))
+        self.assertIsNone(hook_mod.decide(dict(self.ev("Grep", pattern="ReservationService"), transcript_path=tp)))
+
+    def test_the_gate_is_not_released_by_a_denied_cdp_query(self) -> None:
+        tp = self.transcript("gate", is_error=True)
+        query = dict(self.ev("mcp__cdp__cdp_query", uuid.uuid4().hex, kind="symbol", term="x"), transcript_path=tp,
+                     hook_event_name="PreToolUse")
+        self.assertIsNone(hook_mod.gate_decide(query))
+        self.assertFalse(hook_mod.index_asked(query, query["session_id"]))
+
+    def test_the_install_tip_says_allow_mcp_needs_a_trusted_workspace(self) -> None:
+        from cdp import install as install_mod
+        import inspect
+        source = inspect.getsource(install_mod.install)
+        self.assertIn("only applies once the workspace is trusted", source)
+        self.assertNotIn('*\\"` or --allow-mcp', source)
 
     def test_the_nudge_matcher_also_sees_cdp_query_so_it_can_go_quiet(self) -> None:
         from cdp.install import HOOK_MATCHER
