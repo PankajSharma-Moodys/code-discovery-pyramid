@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> NEW: created (Status.scala:3)
+    NEW --> PAID: pay (Orders.scala:7)
+    PAID --> SHIPPED: ship (Orders.scala:11)
+    PAID --> SHIPPED: generic (Orders.scala:4)
+    SHIPPED --> [*]
+    note right of SHIPPED
+      terminal, see Orders.scala:4
+    end note

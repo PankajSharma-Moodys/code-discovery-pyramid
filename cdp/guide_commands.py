@@ -52,6 +52,18 @@ COMMANDS: Dict[str, Dict] = {
         "examples": [ex("docs"), ex("docs --out <out>")],
         "where": "Onboarding or a CLAUDE.md draft. For a specific question use `query`.",
     },
+    "verify-diagram": {
+        "what": "Checks a Mermaid `flowchart`/`stateDiagram` before you show it: each edge's `file:line` "
+                "(on the edge label) must resolve to one repo file and the line +-3 must show the edge's "
+                "call, assignment or state. Per edge: correct, wrong_citation (declaration, comment, "
+                "generic line, missing file/line; with a `hint`), unsupported, ambiguous, uncited; "
+                "dashed `-.->` edges without a cite are `inferred`. Reads git files only, not the store.",
+        "how": "Input: a .mmd file, a markdown answer with ```mermaid fences, or `-` for stdin. Paths "
+               "resolve by repo-unique suffix over `git ls-files` of `--repo`. Exit 0 all correct, 3 any "
+               "non-correct, 1 unparseable (incl. a one-line `note X: a:1`). `--json` for tools.",
+        "examples": [ex("verify-diagram diagram.mmd", True), ex("verify-diagram - --json", True)],
+        "where": "Last step before an answer carries a diagram. Exit 3: re-cite at the `hint`, then rerun.",
+    },
     "status": {
         "what": "Index head vs git HEAD (behind/dirty), coverage, freshness buckets, waves, per-node "
                 "status and the current run's task table.",
