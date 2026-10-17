@@ -246,13 +246,6 @@ def test_kill9_same_commit_rescan_mid_objects_keeps_answers(world):
     ok(verify_full(home, repo))
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: a same-commit rescan commits the snapshot's derived patch (`write_derived_patch`, "
-    "cdp/store/sqlite_backend.py:870-887) and reports (`write_report`, :820-826) in their own "
-    "transactions before the manifest transaction (pipeline.py:112,124 run before the `manifest` "
-    "write at :126); PLAN_DB_ARCH.md §6 puts them inside it. Killed in between, the old manifest "
-    "and `state` are served with the new scan's patch log and verify report, and `verify --full` "
-    "fails (fold_hash mismatch)."))
 @pytest.mark.parametrize("point", [
     pytest.param("obj:_commit_build:before", id="before-manifest-txn"),
     pytest.param("sql:_finish_snapshot:after", id="inside-manifest-txn"),

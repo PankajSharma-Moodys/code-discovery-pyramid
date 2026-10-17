@@ -817,15 +817,9 @@ class SqliteStore(ObjectStoreMixin, EphemeralMixin, ArchiveMixin, WorkspaceStore
 
     # -------------------------------------------------------------- reports
 
-    def write_report(self, name: str, data: Any) -> None:
-        self._conn.execute(
-            "INSERT INTO snapshot_report (snapshot_id, name, payload) VALUES (?, ?, ?) "
-            "ON CONFLICT(snapshot_id, name) DO UPDATE SET payload=excluded.payload",
-            (self._snapshot_id(), name, json.dumps(data, sort_keys=True)),
-        )
-        self._conn.commit()
-
     def read_report(self, name: str, default: Any = None) -> Any:
+        if name in self._staging():
+            return self._staging()[name]
         row = self._conn.execute(
             "SELECT payload FROM snapshot_report WHERE snapshot_id=? AND name=?",
             (self._snapshot_id(), name),
@@ -837,13 +831,6 @@ class SqliteStore(ObjectStoreMixin, EphemeralMixin, ArchiveMixin, WorkspaceStore
         return json.loads(row[0])
 
     # ------------------------------------------------------------ patch log
-
-    def load_patches(self) -> List[Dict]:
-        rows = self._conn.execute(
-            "SELECT seq, payload FROM claim_patch WHERE snapshot_id=? ORDER BY seq ASC",
-            (self._snapshot_id(),),
-        ).fetchall()
-        return [dict(json.loads(r[1]), patch_no=r[0]) for r in rows]
 
     def append_patch(self, patch: Dict, label: str) -> str:
         snapshot_id = self._snapshot_id()
@@ -866,25 +853,6 @@ class SqliteStore(ObjectStoreMixin, EphemeralMixin, ArchiveMixin, WorkspaceStore
         )
         self._conn.commit()
         return str(cur.lastrowid)
-
-    def write_derived_patch(self, patch: Dict) -> None:
-        """Overwrite the reserved derived slot (`seq=0`, `is_derived=1`).
-
-        Mirrors `FileStore`'s fixed `0000-derived.json` slot: idempotent by
-        construction rather than by content hash, because a rescan's derived
-        claims must replace the previous scan's, not accumulate beside them.
-        """
-        snapshot_id = self._snapshot_id()
-        self._conn.execute(
-            "DELETE FROM claim_patch WHERE snapshot_id=? AND is_derived=1", (snapshot_id,)
-        )
-        self._conn.execute(
-            "INSERT INTO claim_patch "
-            "(snapshot_id, seq, label, content_hash, payload, is_derived, created_at) "
-            "VALUES (?, 0, 'derived', ?, ?, 1, ?)",
-            (snapshot_id, stable_hash(patch), json.dumps(patch, sort_keys=True), _now()),
-        )
-        self._conn.commit()
 
     # ---------------------------------------------------------------- inbox
 
