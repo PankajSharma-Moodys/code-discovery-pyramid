@@ -1,0 +1,10 @@
+flowchart TD
+  R["OrderResource"] -->|"placeOrder"| S["OrderService.placeOrder"]
+  S -->|"OrderService.java:9"| V["validator.validate"]
+  S -- "svc/OrderService.java:10" --> DB[("repository.save")]
+  S -.-> L["audit log"]
+  S -->|"refund, OrderService.java:16"| D["repository.delete"]
+  S -->|"OrderService.java:14"| D
+  S -->|"Util.java:4"| U["Log.write"]
+  S -->|"Missing.java:3"| M["missing"]
+  S -->|"OrderService.java:99"| X["save"]

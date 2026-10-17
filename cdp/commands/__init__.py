@@ -11,6 +11,7 @@ from __future__ import annotations
 from .core import scan as c_scan
 from .core import query as c_query
 from .core import docs as c_docs
+from .core import verify_diagram as c_verify_diagram
 from .leaf import prompts as c_prompts
 from .leaf import collect as c_collect
 from .leaf import fold as c_fold
@@ -39,6 +40,7 @@ COMMANDS = (
     ("scan", c_scan),
     ("query", c_query),
     ("docs", c_docs),
+    ("verify-diagram", c_verify_diagram),
     ("prompts", c_prompts),
     ("collect", c_collect),
     ("fold", c_fold),
