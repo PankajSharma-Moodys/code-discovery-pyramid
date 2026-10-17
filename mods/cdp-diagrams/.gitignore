@@ -1,0 +1,2 @@
+tests/*.local.test.ts
+.claude-plugin/types/
