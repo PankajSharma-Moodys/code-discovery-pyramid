@@ -56,31 +56,31 @@ def scan_and_dispatch(state_dir, trajectory_db, lessons_arg):
         raise SystemExit("cdp run failed: %s" % r.stderr)
 
 
-CDP_SYSTEM_PROMPT_TMPL = (
-    "You may run `python3 -m cdp.cli query <subcommand> --repo {repo} "
-    "--state-dir {state_dir}` and `python3 -m cdp.cli docs --repo {repo} "
-    "--state-dir {state_dir}` via Bash to look up structural facts about the "
-    "repository (symbols, routes, modules, stats, unknowns). cwd for that "
-    "command must be {root}. Prefer cdp query over grepping."
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from run_benchmark import CDP_ALLOWED, CDP_ONLY_DENIED, CDP_SYSTEM_PROMPT, mcp_config  # noqa: E402
 
 
-def run_claude(question, state_dir):
-    prompt_ctx = CDP_SYSTEM_PROMPT_TMPL.format(repo=REPO, state_dir=state_dir, root=ROOT)
-    args = [
+def claude_args(question, mcp_cfg):
+    return [
         "claude", "-p", question, "--output-format", "json", "--model", READER_MODEL,
-        # Bash-only, no Read/Grep/Glob: this harness lives inside the very
+        # CDP-only, no Grep/Glob/Read: this harness lives inside the very
         # repo `cdp` scans (unlike M6.2's `run_benchmark.py`, whose target was
         # a different checkout), so any filesystem tool can read
         # `holdout_live_questions.json` and its gold facts directly --
         # contamination found live in this session's first real run (arm A's
         # answer literally cited "the benchmark questions in the repository").
-        # Bash restricted to cdp.cli closes that path: the model can only
-        # answer from what `cdp query`/`docs` actually returns.
+        # The model can only answer from what the installed copy's cdp MCP
+        # tools return (headless needs them allowed by name, D0). Bash stays
+        # listed but nothing allows it, so headless denies every Bash call
+        # (`--tools ""` would be tighter, but may also drop MCP tools: unverified).
         "--tools", "Bash",
-        "--allowedTools", "Bash(*cdp.cli*)",
-        "--append-system-prompt", prompt_ctx,
+        "--mcp-config", mcp_cfg, "--strict-mcp-config", *CDP_ALLOWED, *CDP_ONLY_DENIED,
+        "--append-system-prompt", CDP_SYSTEM_PROMPT,
     ]
+
+
+def run_claude(question, state_dir):
+    args = claude_args(question, mcp_config(REPO, state_dir))
     t0 = time.time()
     proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=180)
     wall = time.time() - t0
@@ -140,7 +140,12 @@ def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--trajectory-db", required=True, help="scratch trajectory DB, never the real one")
+    ap.add_argument("--dry-run", action="store_true", help="print the reader command line; run nothing")
     args = ap.parse_args()
+    if args.dry_run:
+        cfg = mcp_config(REPO, "/tmp/live_holdout_a", dry_run=True)
+        print("reader: cwd=%s\n  %s" % (ROOT, " ".join(map(repr, claude_args("<question>", cfg)))))
+        return
 
     questions = json.loads(QUESTIONS_FILE.read_text())
 

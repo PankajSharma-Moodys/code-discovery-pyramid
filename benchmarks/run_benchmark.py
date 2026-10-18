@@ -8,12 +8,18 @@ verbatim-quote requirement. See PHASE/M6_2_BENCHMARK_DESIGN.md for the design
 this implements.
 """
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from cdp.guide import DIAGRAM_RULE  # noqa: E402  (same diagram rule the skill ships)
 
 REPO = "/Users/sharmp49/git/code_scanner"
 STATE_DIR = "/tmp/m62_scratch"
@@ -21,32 +27,59 @@ READER_MODEL = "sonnet"
 JUDGE_MODEL = "opus"
 RESULTS_DIR = Path(__file__).parent / "results"
 QUESTIONS_FILE = Path(__file__).parent / "questions.json"
+ARMS = ("baseline", "cdp")  # `--arms baseline,cdp,cdp_only` adds the CDP-only arm
+
+# Headless `claude -p` denies MCP tools in an untrusted workspace even with `--allow-mcp` in the
+# project settings (D0); the CDP arms therefore load the server explicitly and allow it by name.
+CDP_ALLOWED = ["--allowedTools", "mcp__cdp__*"]
+# A CDP-only arm must not fall back to searching.
+CDP_ONLY_DENIED = ["--disallowedTools", "Grep", "Glob", "Bash(grep:*)", "Bash(find:*)"]
 
 CDP_SYSTEM_PROMPT = (
-    "You may run `python3 -m cdp.cli query <subcommand> --repo "
-    f"{REPO} --state-dir {STATE_DIR}` and `python3 -m cdp.cli docs "
-    f"--repo {REPO} --state-dir {STATE_DIR}` via Bash to look up structural "
-    "facts about the repository (symbols, routes, modules, stats, unknowns). "
-    "cwd for that command must be /Users/sharmp49/hackathon/code_scanner. "
-    "You may also use Read/Grep/Glob directly on the repo. Prefer cdp query "
-    "over grepping when it can answer the question."
+    "Use the cdp MCP tools (cdp_query, cdp_help) first to look up structural facts about the "
+    "repository (symbols, routes, modules, callers, flows); answer from the cited lines and quote each "
+    "file:line. " + DIAGRAM_RULE
 )
 
 
-def run_claude(question, arm, cwd):
-    base_args = [
-        "claude", "-p", question,
-        "--output-format", "json",
-        "--model", READER_MODEL,
-    ]
+def installed_copy(repo):
+    """The repo's installed CDP copy (`cdp install <repo>`: skill files only, no hooks or settings)."""
+    dest = Path(repo) / ".claude" / "skills" / "cdp"
+    if not (dest / "mcp_server").is_dir():
+        r = subprocess.run([sys.executable, str(ROOT / "run.py"), "install", repo],
+                           capture_output=True, text=True)
+        if r.returncode != 0 or not (dest / "mcp_server").is_dir():
+            raise SystemExit("cdp install %s failed: %s" % (repo, r.stderr or r.stdout))
+    return dest
+
+
+def mcp_config(repo, state_dir, dry_run=False):
+    """An --mcp-config file that runs the installed copy's MCP server on `state_dir` (= CDP_HOME)."""
+    dest = Path(repo) / ".claude" / "skills" / "cdp" if dry_run else installed_copy(repo)
+    cfg = {"mcpServers": {"cdp": {"command": "python3", "args": ["-m", "mcp_server.server"],
+                                  "env": {"PYTHONPATH": str(dest), "CDP_HOME": state_dir}}}}
+    if dry_run:
+        return "<mcp-config: %s>" % json.dumps(cfg)
+    fd, path = tempfile.mkstemp(prefix="cdp-mcp-", suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        json.dump(cfg, f)
+    return path
+
+
+def claude_args(question, arm, mcp_cfg):
+    args = ["claude", "-p", question, "--output-format", "json", "--model", READER_MODEL]
     if arm == "baseline":
-        args = base_args + ["--tools", "Read,Grep,Glob"]
-    else:
-        args = base_args + [
-            "--tools", "Read,Grep,Glob,Bash",
-            "--allowedTools", "Bash(*cdp.cli*)",
-            "--append-system-prompt", CDP_SYSTEM_PROMPT,
-        ]
+        return args + ["--tools", "Read,Grep,Glob"]
+    args += ["--mcp-config", mcp_cfg, "--strict-mcp-config", *CDP_ALLOWED]
+    if arm == "cdp_only":
+        args += ["--tools", "Read", *CDP_ONLY_DENIED]
+    else:  # cdp: baseline tools + the cdp MCP tools
+        args += ["--tools", "Read,Grep,Glob"]
+    return args + ["--append-system-prompt", CDP_SYSTEM_PROMPT]
+
+
+def run_claude(question, arm, cwd, mcp_cfg=None):
+    args = claude_args(question, arm, mcp_cfg)
     t0 = time.time()
     proc = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=180)
     wall = time.time() - t0
@@ -120,18 +153,29 @@ def citation_validity(answer_text):
     return {"total": len(cites), "valid": ok}
 
 
-def main():
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    arms = ARMS
+    if "--arms" in argv:
+        arms = tuple(argv[argv.index("--arms") + 1].split(","))
+    if "--dry-run" in argv:  # print the reader command lines; runs nothing, installs nothing
+        cfg = mcp_config(REPO, STATE_DIR, dry_run=True)
+        for arm in arms:
+            print("%s: cwd=%s\n  %s" % (arm, REPO, " ".join(map(repr, claude_args("<question>", arm, cfg)))))
+        return
     questions = json.loads(QUESTIONS_FILE.read_text())
     RESULTS_DIR.mkdir(exist_ok=True)
     results = []
+    cfg = mcp_config(REPO, STATE_DIR) if set(arms) - {"baseline"} else None
 
-    print(f"Running {len(questions)} questions x 2 arms ({2*len(questions)} reader calls)...", flush=True)
+    n = len(arms) * len(questions)
+    print(f"Running {len(questions)} questions x {len(arms)} arms ({n} reader calls)...", flush=True)
     with ThreadPoolExecutor(max_workers=6) as pool:
         futs = {}
         for q in questions:
-            futs[pool.submit(run_claude, q["question"], "baseline", REPO)] = (q["id"], "baseline")
-            futs[pool.submit(run_claude, q["question"], "cdp", REPO)] = (q["id"], "cdp")
-        by_q = {q["id"]: {"question": q, "baseline": None, "cdp": None} for q in questions}
+            for arm in arms:
+                futs[pool.submit(run_claude, q["question"], arm, REPO, cfg)] = (q["id"], arm)
+        by_q = {q["id"]: {"question": q, **{arm: None for arm in arms}} for q in questions}
         done = 0
         for fut in as_completed(futs):
             qid, arm = futs[fut]
@@ -144,7 +188,7 @@ def main():
         judge_futs = {}
         for qid, rec in by_q.items():
             gold = rec["question"]["gold_facts"]
-            for arm in ("baseline", "cdp"):
+            for arm in arms:
                 ans = rec[arm].get("result", "") if rec[arm] else ""
                 judge_futs[pool.submit(run_judge, qid, rec["question"]["question"], gold, ans)] = (qid, arm)
         judged = 0
@@ -156,7 +200,7 @@ def main():
 
     for qid, rec in by_q.items():
         row = {"id": qid, "category": rec["question"]["category"]}
-        for arm in ("baseline", "cdp"):
+        for arm in arms:
             r = rec[arm] or {}
             answer = r.get("result", "")
             verdicts = rec.get("verdicts", {}).get(arm, [])
@@ -167,8 +211,8 @@ def main():
             row[f"{arm}_cost_usd"] = r.get("total_cost_usd", 0)
             row[f"{arm}_wall_s"] = r.get("_wall_s", 0)
             row[f"{arm}_num_turns"] = r.get("num_turns", 0)
-            if arm == "cdp":
-                row["citation_validity"] = citation_validity(answer)
+            if arm != "baseline":
+                row[f"{arm}_citation_validity" if arm != "cdp" else "citation_validity"] = citation_validity(answer)
         results.append(row)
 
     out = {"reader_model": READER_MODEL, "judge_model": JUDGE_MODEL, "results": results, "raw": by_q}
