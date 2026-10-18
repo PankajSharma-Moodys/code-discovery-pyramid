@@ -146,6 +146,44 @@ def _drop_fields(kind: str, rows: List[Row], cfg: Optional[Dict]) -> Tuple[List[
 
 # --------------------------------------------------------------------------- list rows
 
+def state_rows(roles: Dict[str, str], evidence: List[Dict]) -> Tuple[List[Dict], Dict[str, Dict[str, int]]]:
+    """An enum's state evidence (D4a's `access`/`value`/`from` uses): write then guard rows outside
+    tests, one per (line, value), and per value its `read` uses and test-file write/guards as counts."""
+    tally: Dict[str, Dict[str, int]] = {}
+    rows: Dict[str, List[Dict]] = {"write": [], "guard": []}
+    seen: set = set()
+    for u in evidence:
+        value, at = u["value"].rsplit(".", 1)[-1], (u["file"], u["anchor"]["line"])
+        t = tally.setdefault(value, {})
+        kind = "read" if u["access"] not in rows else "test" if roles.get(u["file"]) == "test" else None
+        if kind:
+            t[kind] = t.get(kind, 0) + 1
+        elif (at, value) not in seen:
+            seen.add((at, value))
+            rows[u["access"]].append(dict(u, value=value))
+    return rows["write"] + rows["guard"], tally
+
+
+def state_section(rows: List[Dict], shown: List[Dict], tally: Dict[str, Dict[str, int]], members: List[str],
+                  use_row: Callable[[Dict], Dict]) -> Dict:
+    """`states` per value (`members` order, then any other): its `write`/`guard` rows (`at`, `in`,
+    `from`) and `read`/`test` counts; `transitions`: the writes naming both values; `no_writer`: values
+    never written outside tests, from all `rows` (only `shown` are listed; the rest is `states_cut`)."""
+    states: Dict[str, Dict] = {v: {} for v in list(dict.fromkeys(members)) + sorted(set(tally) - set(members))}
+    transitions = []
+    for u in shown:
+        row = {k: v for k, v in use_row(u).items() if k != "module"}
+        if u.get("from"):
+            row["from"] = u["from"].rsplit(".", 1)[-1]
+            transitions.append({"from": row["from"], "to": u["value"], "at": row["at"]})
+        states[u["value"]].setdefault(u["access"], []).append(row)
+    for v, t in tally.items():
+        states[v].update(t)
+    writers = {r["value"] for r in rows if r["access"] == "write"}
+    out = {"states": states, "transitions": transitions, "no_writer": [v for v in states if v not in writers]}
+    return dict(out, states_cut=len(rows) - len(shown)) if len(rows) > len(shown) else out
+
+
 def _short(fqn: str) -> str:
     owner, sep, member = str(fqn).partition("#")
     return owner.rsplit(".", 1)[-1] + sep + member

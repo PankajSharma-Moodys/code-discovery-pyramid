@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from .. import codeindex, sigs
 from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, make_matcher, _role_index, _tally, cite, route_inputs
+from .views import state_rows, state_section
 from .store import LazyMap, Store, code_text, edges_where, extract_where, file_edges, file_rows, prefetch_symbols, symbols_of, used_by_of, xref_field, xref_get, xref_uses_of
 from ..rules import all_edges
 
@@ -120,6 +121,8 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
             if not sites:
                 continue
         users = list(used_by.get(key, []))
+        # D4a: one row per enum value used, so taken before the per-line site merge below
+        evidence = [u for u in users if u.get("access") and roles.get(u.get("file")) not in (exclude_role or ())]
         if entry["kind"] in ("class", "enum", "record"):
             users += used_by.get(key + "#<init>", [])   # `new X(..)` on a declared constructor
             users.sort(key=lambda u: (u["module"], u["file"], u["anchor"]["line"]))
@@ -135,7 +138,8 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
         if exclude_role:
             claims = [c for c in claims
                       if any(roles.get(a.get("file")) not in exclude_role for a in c.get("evidence", []))]
-        pending.append((key, entry, sites, users, claims))
+        pending.append((key, entry, sites, users, claims,
+                        state_rows(_role_index(store) if evidence else {}, evidence)))
 
     # One allowance, shared fairly: with several matches the first must not spend
     # the whole budget on its own use list and leave the rest "N more". Each match
@@ -144,7 +148,7 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
     # that are counted as elided (re-run with a longer term or a bigger budget).
     room, chosen = budget.limit - budget.spent, []
     for item in pending:
-        cost = 1 + min(len(item[3]) + len(item[4]), MIN_USES_PER_MATCH)
+        cost = 1 + min(len(item[3]) + len(item[4]) + len(item[5][0]), MIN_USES_PER_MATCH)
         if cost > room and (chosen or room < 1):
             break
         room -= cost
@@ -153,9 +157,14 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
     budget.items = ("match", len(pending), len(pending) - len(chosen))  # a dropped match's uses go uncounted
     budget.spent += len(chosen)
     pending = chosen
-    shares = _fair_split_budget(budget.limit - budget.spent, [len(u) + len(c) for _, _, _, u, c in pending])
+    shares = _fair_split_budget(budget.limit - budget.spent,
+                                [len(u) + len(c) + len(st[0]) for _, _, _, u, c, st in pending])
     out = []
-    for (key, entry, sites, users, claims), share in zip(pending, shares):
+    for (key, entry, sites, users, claims, (states, tally)), share in zip(pending, shares):
+        # an enum's write/guard sites come first: they are what a lifecycle diagram is drawn from
+        shown_states = states[:share]
+        budget.spent, budget.elided, share = (budget.spent + len(shown_states), budget.elided + len(states)
+                                              - len(shown_states), share - len(shown_states))
         n_users = min(len(users), share)
         n_claims = min(len(claims), share - n_users)
         shown_users = Budget(n_users).take(users)
@@ -189,9 +198,16 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                 "claims": shown_claims,
                 "claims_count": len(claims),
                 # The way to every use of this one match, at the full budget.
-                "see_all": "cdp query symbol %s --exact" % key if len(users) > len(shown_users) else None,
+                "see_all": "cdp query symbol %s --exact" % key if len(users) + len(states) >
+                len(shown_users) + len(shown_states) else None,
             }
         )
+        if tally:   # an enum's values, declaration line then name, for the ones nothing writes
+            members = sorted((d["anchor"]["line"], d["fqn"].rpartition(".")[2]) for s in sites
+                             for d in file_rows(store, s["anchor"]["file"], "defines")
+                             if d["fqn"].rpartition(".")[0] == key and d["kind"] in ("field", "constant"))
+            out[-1].update(state_section(states, shown_states, tally, [m for _, m in members],
+                                         lambda u: _use_row(store, u)))
     return _finish({"query": "symbol", "name": name, "match": mode, "found": out}, store, budget)
 
 

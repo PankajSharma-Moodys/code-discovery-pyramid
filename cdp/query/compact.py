@@ -18,7 +18,8 @@ path the row already names; a class's annotations are copied onto each of its me
 - a route param annotation already stated by an `inputs` row is dropped;
 - claim timestamps equal to `as_of.commit` are dropped (a different or empty one is kept: that is the
   staleness signal), and claim evidence is grouped by file;
-- a `used_by` row's `in` (its enclosing member) is `Owner#member`: its `at` file places the package;
+- a `used_by` (or `states` write/guard) row's `in` (its enclosing member) is `Owner#member`: its `at`
+  file places the package;
 - empty fields inside rows are omitted.
 
 `tests/test_query_views.py` extracts every fact (citations, annotation texts, resolved values,
@@ -80,6 +81,9 @@ def _walk(value: Any, ctx: _Ctx, top: bool = False) -> Any:
     _localise_annotations(row, ctx)
     if isinstance(row.get("used_by"), list):
         row["used_by"] = [_use(u) for u in row["used_by"]]
+    if isinstance(row.get("states"), dict):
+        row["states"] = {v: {k: [_use(u) for u in r] if isinstance(r, list) else r for k, r in st.items()}
+                         for v, st in row["states"].items()}
     done = {k: _walk(v, ctx) for k, v in row.items()}
     return done if top else {k: v for k, v in done.items() if v not in (None, [], {}, "")}
 

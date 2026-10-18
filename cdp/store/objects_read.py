@@ -143,8 +143,10 @@ class ObjectReadMixin:
         out: Dict[str, List[Dict]] = {}
         for seg, o, fqn in sorted(hits, key=lambda h: (files[seg_path[h[0]]]["ord"], h[1])):
             u = segs[seg]["uses"][o]
-            out.setdefault(ids[fqn], []).append(
-                {"anchor": dict(u["anchor"]), "file": u["from_file"], "module": u["from_module"]})
+            row = {"anchor": dict(u["anchor"]), "file": u["from_file"], "module": u["from_module"]}
+            if "access" in u:     # state evidence, as `resolve._transpose` carries it
+                row.update((k, u[k]) for k in ("access", "from", "value") if k in u)
+            out.setdefault(ids[fqn], []).append(dict(sorted(row.items())))
         return {k: sorted(v, key=lambda r: (r["module"], r["file"], r["anchor"]["line"])) for k, v in out.items()}
 
     def file_part(self, name: str, path: str) -> Optional[Dict]:
