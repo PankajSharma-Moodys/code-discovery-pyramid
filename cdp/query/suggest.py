@@ -8,7 +8,9 @@ caller (CLI exit code 1, MCP result field) can retry with a real name.
 from __future__ import annotations
 
 import difflib
+import heapq
 import re
+from collections import Counter
 from typing import Dict, List, Optional
 
 from .store import Store, symbols_of, xref_field
@@ -37,10 +39,43 @@ def _candidates(store: Store, kind: str) -> List[str]:
     return []
 
 
+def _close_matches(word: str, possibilities: List[str], n: int, cutoff: float) -> List[str]:
+    """`difflib.get_close_matches(word, possibilities, n, cutoff)`, same list, without running the
+    quadratic `ratio()` on every candidate: `quick_ratio()` bounds `ratio()` from above, so scoring
+    candidates in falling-bound order can stop once the bound drops below the n-th best
+    `(ratio, name)` kept so far (ties still compare by name, as `get_close_matches` does)."""
+    # The bounds, computed as `real_quick_ratio()` / `quick_ratio()` compute them (same floats):
+    # 2*m/(len(x)+len(word)), m = min(len(x), len(word)), then m = shared character counts.
+    lw, counts = len(word), sorted(Counter(word).items())
+    bounded = []
+    for x in possibilities:
+        total = len(x) + lw
+        if not total:                   # both empty: difflib scores 1.0
+            ub = 1.0
+        elif 2.0 * min(len(x), lw) / total >= cutoff:
+            ub = 2.0 * sum(min(x.count(c), k) for c, k in counts) / total
+        else:
+            continue
+        if ub >= cutoff:
+            bounded.append((ub, x))
+    s = difflib.SequenceMatcher()
+    s.set_seq2(word)
+    bounded.sort(reverse=True)
+    best: List = []          # min-heap of the n largest (ratio, name)
+    for ub, x in bounded:
+        if len(best) == n and ub < best[0][0]:
+            break
+        s.set_seq1(x)
+        r = s.ratio()
+        if r >= cutoff:
+            (heapq.heappush if len(best) < n else heapq.heappushpop)(best, (r, x))
+    return [x for _, x in sorted(best, reverse=True)]
+
+
 def did_you_mean(store: Store, kind: str, term: str, limit: int = 5) -> List[str]:
     pool = _candidates(store, kind)
     lower = {c.lower(): c for c in pool}
-    hits = [lower[m] for m in difflib.get_close_matches(term.lower(), list(lower), n=limit, cutoff=0.6)]
+    hits = [lower[m] for m in _close_matches(term.lower(), list(lower), limit, 0.6)]
     # Shared word pieces (`OrderServ` ~ `OrderService`, `order` ~ `OrderResource`) also count.
     pieces = {p.lower() for p in _SPLIT.split(term) if len(p) > 2}
     if pieces:

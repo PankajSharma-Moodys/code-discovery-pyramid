@@ -24,7 +24,7 @@ behind the same `WorkspaceStore` interface; the backend conformance suite in
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from ..util import CdpError
 
@@ -229,6 +229,21 @@ class WorkspaceStore(ABC):
 
     def dangling_references(self) -> List[str]:
         return []
+
+    # Per-file segment reads (`objects.py`). Only a store that `supports_object_store()` has
+    # segments; callers (`query.Store`) read whole artifacts otherwise, so these hold nothing.
+
+    def segments(self, name: str, paths: Iterable[str]) -> Dict[str, Dict]:
+        """`path -> that file's segment of decomposed artifact `name``; `{}` without an object store."""
+        return {}
+
+    def extract_heads(self, needles: Sequence[str] = (), paths: Optional[Iterable[str]] = None) -> Dict[str, Dict]:
+        """`path -> extract segment read without its `uses``; `{}` without an object store."""
+        return {}
+
+    def call_owners(self) -> Dict[str, Tuple[Optional[frozenset], bool]]:
+        """`path -> (owners its xref uses cite, has a binding use)`; `{}` without an object store."""
+        return {}
 
     def supports_compaction(self) -> bool:
         """Whether this backend can back `cdp compact` (Phase 7, 2.4). `False`

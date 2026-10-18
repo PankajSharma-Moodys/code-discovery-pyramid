@@ -38,16 +38,19 @@ def _member_keys(store: Store, name: str) -> Dict[str, str]:
     must not answer for `setServerHintApplied`."""
     owner_part, _, member = name.partition("#")
     symbols = symbols_of(store)
-    owners = [k for k, e in symbols.items()
-              if e["kind"] in ("class", "interface", "enum", "record", "annotation")
-              and (k == owner_part or k.endswith("." + owner_part))]
+    named = [k for k in symbols if k == owner_part or k.endswith("." + owner_part)]
+    prefetch_symbols(store, named, owners=False)
+    owners = [k for k in named if symbols[k]["kind"] in ("class", "interface", "enum", "record", "annotation")]
     found: Dict[str, str] = {}
-    types = _type_index(store)
     for owner in sorted(owners):
         simple = owner.rsplit(".", 1)[-1]
         wanted = "<init>" if member in (simple, "<init>") else member
-        is_cs = symbols[owner]["sites"][0]["file"].endswith(".cs")
-        decl = (_cs_index(store) if is_cs else types).declaring(owner, wanted)
+        if owner + "#" + wanted in symbols:
+            # every `declaring` (Java, C#, Python) looks at the owner itself first: no index needed
+            decl = owner + "#" + wanted
+        else:
+            is_cs = symbols[owner]["sites"][0]["file"].endswith(".cs")
+            decl = (_cs_index(store) if is_cs else _type_index(store)).declaring(owner, wanted)
         if decl:
             declaring = decl.split("#", 1)[0]
             found[decl] = "" if declaring == owner else \

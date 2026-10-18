@@ -35,6 +35,7 @@ import gc
 import hashlib
 import json
 import os
+import re
 import struct
 import sys
 import zlib
@@ -53,6 +54,9 @@ F_BINARY, F_CODE = 1, 2
 SEG_EXTRACT, SEG_XREF, SEG_FLOW, SEG_FACTS = 1, 2, 3, 4
 USED_BY_STATUS = {"local": 1, "matched": 2, "ambiguous": 3}
 BATCH = 2000
+_SEG_COL = {"extract": "fseg", "xref": "xseg", "dataflow": "wseg"}
+_USES_CUT = b', "uses": '
+_OWNER = re.compile(rb'"fqn": "([^"#\\]*)([#"\\])')
 
 SCHEMA_SQLITE = """
 CREATE TABLE IF NOT EXISTS str  (id INTEGER PRIMARY KEY, h64 INTEGER NOT NULL UNIQUE, s TEXT NOT NULL);
@@ -983,11 +987,63 @@ class ObjectStoreMixin:
     def file_part(self, name: str, path: str) -> Optional[Dict]:
         """One file's segment of a decomposed artifact (extract: its lists and `meta`; xref:
         `uses`; dataflow: `edges`), or None when the file has none."""
-        col = {"extract": "fseg", "xref": "xseg", "dataflow": "wseg"}[name]
+        col = _SEG_COL[name]
         row = self.current_files().get(path)
         if not row or not row.get(col):
             return None
         return self._get_segs([row[col]])[row[col]]
+
+    def segments(self, name: str, paths: Iterable[str]) -> Dict[str, Dict]:
+        """`path -> file_part(name, path)` for each of `paths` that has a segment, in one read."""
+        col = _SEG_COL[name]
+        files = self.current_files()
+        need = {files[p][col]: p for p in paths if files.get(p, {}).get(col)}
+        return {need[sid]: seg for sid, seg in self._get_segs(need).items()}
+
+    def _raw_segments(self, col: str, paths=None, cut: Optional[bytes] = None):
+        """`(path, inflated canonical JSON of its `col` segment)`, unparsed; with `cut`, only the
+        bytes before it (cached apart from whole segments, bounded like them)."""
+        files = self.current_files()
+        path_of = {r[col]: p for p, r in files.items() if r.get(col) and (paths is None or p in paths)}
+        kind = "seg" if cut is None else "seg:" + cut.decode()
+        have = {sid: self._bytes_cache[(kind, sid)] for sid in path_of if (kind, sid) in self._bytes_cache}
+        for sid, z in self._in_chunks("SELECT id, z FROM seg WHERE id IN (%s)", [i for i in path_of if i not in have]):
+            def load(z=z) -> bytes:
+                raw = zlib.decompress(bytes(z))
+                at = raw.find(cut) if cut is not None else -1
+                return raw[:at] + b"}" if at >= 0 else raw
+            have[sid] = self._cached_bytes(kind, sid, load)
+        for sid in sorted(have, key=lambda i: files[path_of[i]]["ord"]):
+            yield path_of[sid], have[sid]
+
+    def extract_heads(self, needles: Sequence[str] = (), paths: Optional[Iterable[str]] = None) -> Dict[str, Dict]:
+        """`path -> its extract segment`, read without parsing its `uses` (canonical JSON sorts that
+        list after every other), for the files (of `paths`, when given) whose other rows hold the
+        start of a JSON string beginning with one of `needles` -- any file, when there are none. A segment whose cut does
+        not land on the top-level key is parsed whole (it then also carries `uses`)."""
+        pats = [json.dumps(n)[:-1].encode() for n in needles]    # the string's opening, any ending
+        per = {}
+        for path, head in self._raw_segments("fseg", None if paths is None else set(paths), _USES_CUT):
+            if pats and not any(p in head for p in pats):
+                continue
+            try:   # parses only when the cut is at the top-level key (any other leaves brackets open)
+                per[path] = json.loads(head)
+            except ValueError:
+                per[path] = self.file_part("extract", path)
+        return per
+
+    def call_owners(self) -> Dict[str, Tuple[Optional[frozenset], bool]]:
+        """`path -> (the owners O of every "fqn": "O#.." / "O" in its xref uses, None when one is
+        escaped; whether it has a binding use)`, scanned from the raw segments, never parsed."""
+        key = (id(self._view()), "owners")
+        if key not in self._derived:
+            out = {}
+            for path, raw in self._raw_segments("xseg"):
+                found = _OWNER.findall(raw)
+                out[path] = (None if any(e == b"\\" for _, e in found) else frozenset(o for o, _ in found),
+                             b'"kind": "binding"' in raw)
+            self._derived[key] = out
+        return self._derived[key]
 
     def code_texts(self, paths: Optional[Sequence[str]] = None) -> Dict[str, str]:
         """`code.files` (or the given paths of it), path-sorted."""
