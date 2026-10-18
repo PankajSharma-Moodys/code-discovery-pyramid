@@ -18,7 +18,7 @@ import re
 from typing import Dict, List, Optional, Set, Tuple
 
 from .. import sigs
-from .base import ExtractContext, FileFacts, anchor_at, is_third_party, mk_use
+from .base import ExtractContext, FileFacts, anchor_at, is_third_party, mark_state, mk_use
 from .csharp_decl import NOT_TYPE, CMember, CType, parse_type, skip_angle
 from .csharp_interp import holes
 from .csharp_tokens import CsTokens
@@ -69,6 +69,7 @@ class Scan:
         self.init_braces: Set[int] = set()           # `{` of object initializers: `Name = new()` is not an assignment
         self.caller_sig: Optional[str] = None        # the enclosing overload's sig (cdp/sigs.py), if any
         self._argo: Optional[int] = None             # `(` of the call being emitted, for `argt`
+        self._tu: Optional[Tuple[int, int, int]] = None   # (qualifier token, rows) of the last type use
 
     # ------------------------------------------------------------ entry
 
@@ -259,7 +260,9 @@ class Scan:
         if emit and self.line_of is None:
             anchor = anchor_at(self.fi.ctx, self.tk.line[i])
             if anchor is not None:
+                n0 = len(self.fi.facts.uses)
                 type_uses(self.fi.facts, text, anchor, self.caller, self.fi.resolver)
+                self._tu = (i, n0, len(self.fi.facts.uses))
 
     # -------------------------------------------------- expression chains
 
@@ -479,6 +482,9 @@ class Scan:
                 group = (te, name, j + 1) if te is not None and tk.at(j + 2) in (",", ")") \
                     and tk.at(i - 1) in ("(", ",") and emit and self._group_host(i) else None
                 if tref is not None:
+                    tu = self._tu
+                    if emit and te is not None and tu is not None and tu[0] == j - 1 and tu[2] > tu[1]:
+                        mark_state(fi.facts.uses[tu[1]:tu[2]], tk, tu[0], j + 1, te[0] + "." + name, "cs")
                     tref += "." + name
                     te = (fi.resolver.resolve(tref)[0], ())
                 else:

@@ -22,7 +22,7 @@ import re
 from typing import Dict, List, Optional, Set, Tuple
 
 from .. import sigs
-from .base import ExtractContext, FileFacts, anchor_at, is_third_party, mk_use
+from .base import ExtractContext, FileFacts, anchor_at, is_third_party, mark_state, mk_use
 from .java_config import call_keys
 from .java_decl import NOT_TYPE, JMember, JType, parse_type
 from .java_tokens import Tokens
@@ -85,6 +85,7 @@ class Scan:
         self.emit_types = emit_types
         self.cls_type = jt.fqn
         self._sup = None
+        self._tu: Optional[Tuple[int, int, int]] = None   # (qualifier token, rows) of the last type use
 
     # ------------------------------------------------------------ entry
 
@@ -391,6 +392,8 @@ class Scan:
                     continue
                 if emit:
                     self.consumed.add(j + 1)
+                    if te is not None and not te[1] and name[:1].isupper():
+                        self._state_ref(te[0], j + 1)
                 if te is not None and not te[1] and name[:1].isupper() and not ALL_CAPS.match(name) \
                         and self._is_type_ref(te):
                     te = (te[0] + "." + name, ())
@@ -430,7 +433,18 @@ class Scan:
             from .java_flow import type_uses
             anchor = anchor_at(self.fi.ctx, self.tk.line[i])
             if anchor is not None:
+                n0 = len(self.fi.facts.uses)
                 type_uses(self.fi.facts, name, anchor, self.caller, self.fi.resolver)
+                self._tu = (i, n0, len(self.fi.facts.uses))
+
+    STATE_LANG = "java"
+
+    def _state_ref(self, base: str, name_i: int) -> None:
+        """`Type.NAME` right after the qualifier's type use: state evidence on that row (base.mark_state)."""
+        tu = self._tu
+        if tu is not None and tu[0] == name_i - 2 and tu[2] > tu[1]:
+            mark_state(self.fi.facts.uses[tu[1]:tu[2]], self.tk, tu[0], name_i, base + "." + self.tk.text[name_i],
+                       self.STATE_LANG)
 
     def _type_ref(self, name: str) -> TExpr:
         return (self.fi.resolve_name(name), ())
