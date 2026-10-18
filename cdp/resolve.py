@@ -309,6 +309,7 @@ def _resolve_uses(
     counts = {"local": 0, "matched": 0, "third_party": 0, "ambiguous": 0, "unresolved": 0}
     out: List[Dict] = []
     types = PyIndex(extraction, symbols, paths)
+    pending: List[Tuple[Dict, List]] = []    # state-evidence rows that are call arguments
     cstypes = CsTypeIndex(extraction, symbols) if any(f.endswith(".cs") for f in extraction["files"]) else None
 
     # Python call/reference rows are expressions; each becomes one row per target.
@@ -398,12 +399,87 @@ def _resolve_uses(
             record["to_modules"] = target_modules
         if candidates:
             record["candidates"] = candidates
+        if row.get("access") and kind == "type":
+            # the qualifier as resolved (a C# `using` / wildcard guess settles here), not as guessed
+            value = _enum_value(fqn + "." + row["value"].rpartition(".")[2], symbols)
+            if value:
+                record["access"], record["value"] = row["access"], value
+                if row.get("arg"):
+                    pending.append((record, row["arg"]))
         out.append(record)
         if cfg_calls is not None and row.get("ka") and kind == "call":
             cfg_calls.append((fqn, row))
 
+    if pending:
+        _state_args(pending, out, symbols)
     out.sort(key=lambda r: (r["fqn"], r["from_file"], r["anchor"]["line"]))
     return out, counts
+
+
+# ------------------------------------------------------------- state evidence
+STATE_FIELD = re.compile(r"status|state|phase", re.I)
+NEW_PARAM = re.compile(r"^(?:new|to|next|target)", re.I)
+OLD_PARAM = re.compile(r"^(?:old|from|prev|previous|current|orig)", re.I)
+
+
+def _enum_value(fqn: str, symbols: Dict[str, Dict]) -> Optional[str]:
+    """`fqn` (or, for a Scala `X.X` type alias, `X.NAME`) when it is a value of an enum: a Java/C#
+    `enum` member, or a constant of a Scala `object .. extends Enumeration`."""
+    owner, _, name = fqn.rpartition(".")
+    outer, _, simple = owner.rpartition(".")
+    for cand in [fqn] + ([outer + "." + name] if outer.rpartition(".")[2] == simple else []):
+        e = symbols.get(cand)
+        o = symbols.get(cand.rpartition(".")[0]) if e else None
+        if not o:
+            continue
+        if o["kind"] == "enum" and e["kind"] == "field":
+            return cand
+        if e["kind"] == "constant" and any(t.rpartition(".")[2] == "Enumeration"
+                                           for s in o["sites"] for t in s.get("supertypes", ())):
+            return cand
+    return None
+
+
+def _callee_params(calls: Sequence[Dict], callee: str, symbols: Dict[str, Dict]) -> Optional[Tuple[List[str], bool]]:
+    """Parameter names of the one declaration the call to `callee` on that line resolved to."""
+    for r in calls:
+        target = r["fqn"]
+        owner, _, meth = target.partition("#")
+        ctor = meth == "<init>"
+        if meth != callee and not (ctor and owner.rpartition(".")[2] == callee):
+            continue
+        sites = [s for s in (symbols.get(target) or {}).get("sites", ())
+                 if s.get("params") and (not r.get("sig") or s.get("sig") == r["sig"])]
+        names = {tuple(p["name"] for p in s["params"]) for s in sites}
+        if len(names) == 1:
+            return list(names.pop()), ctor
+    return None
+
+
+def _state_args(pending: List[Tuple[Dict, List]], out: List[Dict], symbols: Dict[str, Dict]) -> None:
+    """A value passed as a call argument: a constructor arg into a status-named parameter (not an
+    `old*`/`from*` one) is a `write`;
+    two values of one enum passed to a new-/old-named parameter pair are a transition (`from` on the new)."""
+    calls: Dict[Tuple[str, int], List[Dict]] = {}
+    for r in out:
+        if r.get("kind") == "call":
+            calls.setdefault((r["from_file"], r["anchor"]["line"]), []).append(r)
+    groups: Dict[Tuple[str, int], List[Tuple[str, Dict]]] = {}
+    for rec, (callee, line, opener, pos, name) in pending:
+        if name is None:
+            got = _callee_params(calls.get((rec["from_file"], line), ()), callee, symbols)
+            if not got or pos >= len(got[0]):
+                continue
+            name = got[0][pos]
+            if got[1] and STATE_FIELD.search(name) and not OLD_PARAM.match(name):
+                rec["access"] = "write"
+        groups.setdefault((rec["from_file"], opener), []).append((name, rec))
+    for args in groups.values():
+        new = [r for n, r in args if NEW_PARAM.match(n)]
+        old = [r for n, r in args if OLD_PARAM.match(n)]
+        if len(new) == 1 and len(old) == 1 and \
+                new[0]["value"].rpartition(".")[0] == old[0]["value"].rpartition(".")[0]:
+            new[0]["from"] = old[0]["value"]
 
 
 def _overload(record: Dict, sites: List[Dict], row: Dict) -> None:
@@ -434,9 +510,12 @@ def _transpose(uses: Sequence[Dict]) -> Dict[str, List[Dict]]:
     for row in uses:
         if row["resolved"] not in ("local", "matched", "ambiguous"):
             continue
-        index.setdefault(row["fqn"], []).append(
-            {"module": row["from_module"], "file": row["from_file"], "anchor": row["anchor"]}
-        )
+        entry = {"module": row["from_module"], "file": row["from_file"], "anchor": row["anchor"]}
+        if "access" in row:       # state evidence (`_enum_value`): only on enum-value uses
+            entry["access"], entry["value"] = row["access"], row["value"]
+            if "from" in row:
+                entry["from"] = row["from"]
+        index.setdefault(row["fqn"], []).append(entry)
     return {
         k: sorted(v, key=lambda r: (r["module"], r["file"], r["anchor"]["line"]))
         for k, v in sorted(index.items())

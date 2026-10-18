@@ -224,8 +224,157 @@ def mk_define(fqn: str, kind: str, visibility: str, anchor: Dict, value: Optiona
     return row
 
 
-def mk_use(fqn: str, anchor: Dict, via_import: bool = False, resolved: str = "external") -> Dict:
-    return {"fqn": fqn, "resolved": resolved, "via_import": via_import, "anchor": anchor}
+def mk_use(fqn: str, anchor: Dict, via_import: bool = False, resolved: str = "external",
+           access: Optional[str] = None, value: Optional[str] = None) -> Dict:
+    """`access`/`value` (state evidence, `state_access`) are set only when given: every other row
+    keeps exactly its four keys."""
+    row = {"fqn": fqn, "resolved": resolved, "via_import": via_import, "anchor": anchor}
+    if access is not None:
+        row["access"], row["value"] = access, value
+    return row
+
+
+# ------------------------------------------------------------- state evidence
+# A `Type.NAME` reference (an enum value, once resolve confirms the target) is classified from the
+# tokens around it: `write` (assignment, named/initializer arg, setter-named call), `guard` (`==`/`!=`,
+# `equals`, `case`/`is` pattern, membership in a literal set), else `read`. A call argument also
+# carries `arg` = [callee, callee line, opener index, position, name] so resolve can name the
+# parameter (constructor arg into a status field) and pair `(new, old)` transitions.
+STATE_SETTER = re.compile(r"^(?:set|with|update|change|mark|move|transition)\w*?(?:status|state|phase)\w*$", re.I)
+STATE_GUARD_CALLS = frozenset(("contains", "Contains", "containsAll", "equals", "Equals", "inSet", "inSetBind",
+                               "isIn", "notIn", "in", "oneOf"))
+STATE_GUARD_SUFFIX = re.compile(r"^[A-Z]\w*In$")          # `new WorkflowStatusIn(List(..))`
+STATE_SETS = frozenset(("Set", "Seq", "List", "Vector", "Array", "of", "asList", "EnumSet", "HashSet",
+                        "listOf", "setOf"))
+STATE_MEMBER_TEST = frozenset(("contains", "Contains", "containsAll", "includes"))
+STATE_THRU = frozenset(("toString", "ToString", "name", "ordinal", "id"))   # `S.A.toString == x` is still S.A
+_DECL_KW = frozenset(("val", "var", "def", "let", "const", "final", "readonly", "lazy"))
+_NOT_ASSIGN = frozenset(("=", "!", "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "?", ":"))
+
+
+def _opener(tk, i: int) -> int:
+    """Index of the unclosed bracket enclosing token `i`, or -1 (a bounded backward walk)."""
+    j, steps = i - 1, 0
+    while j >= 0 and steps < 400:
+        if tk.kind[j] == "op":
+            t = tk.text[j]
+            if t in (")", "]", "}") and 0 <= tk.match[j] < j:
+                j = tk.match[j]
+            elif t in ("(", "[", "{"):
+                return j
+        j -= 1
+        steps += 1
+    return -1
+
+
+def _qual_start(tk, i: int) -> int:
+    while tk.at(i - 1) == "." and tk.is_id(i - 2):
+        i -= 2
+    return i
+
+
+def _callee(tk, o: int) -> Tuple[Optional[str], int]:
+    c = o - 1
+    if tk.at(c) == "]" and 0 <= tk.match[c] < c:       # `f[T](..)`
+        c = tk.match[c] - 1
+    return (tk.text[c], c) if tk.is_id(c) else (None, -1)
+
+
+def _is_guard_call(name: Optional[str]) -> bool:
+    return bool(name) and (name in STATE_GUARD_CALLS or bool(STATE_GUARD_SUFFIX.match(name)))
+
+
+def _arg_pos(tk, o: int, s: int) -> int:
+    pos, j = 0, o + 1
+    while j < s:
+        if tk.kind[j] == "op" and tk.text[j] in ("(", "[", "{") and tk.match[j] > j:
+            j = tk.match[j]
+        elif tk.text[j] == ",":
+            pos += 1
+        j += 1
+    return pos
+
+
+def state_access(tk, s: int, e: int, lang: str) -> Tuple[str, Optional[List]]:
+    """(`write`|`guard`|`read`, arg) for the reference whose qualifier starts at token `s` and whose
+    value name is token `e`. Only token shapes are read; anything else is `read`."""
+    s = _qual_start(tk, s)
+    q = e + 1
+    while tk.at(q) in (".", "?.") and tk.at(q + 1) in STATE_THRU:
+        q += 2
+        if tk.at(q) == "(" and tk.at(q + 1) == ")":
+            q += 2
+    p = s - 1
+    if tk.at(p) == "(" and tk.at(p - 1) == "nameof" and tk.at(q) == ")":   # C# `x == nameof(S.A)`
+        p, q = p - 2, q + 1
+    pt, qt = tk.at(p), tk.at(q)
+    if (pt == "=" and tk.at(p - 1) in ("=", "!")) or (qt in ("=", "!") and tk.at(q + 1) == "="):
+        return "guard", None
+    if qt in (".", "?.") and tk.at(q + 1) in ("equals", "Equals") or (lang == "cs" and qt == "=>" and pt in ("{", ",")):
+        return "guard", None
+    b = p
+    while tk.at(b) == "|" or (lang == "cs" and tk.at(b) in ("or", "and", "not")):
+        if tk.at(b) == "not" or not tk.is_id(b - 1):
+            b -= 1
+            continue
+        b = _qual_start(tk, b - 1) - 1
+    if tk.at(b) == "case" or (lang == "cs" and tk.at(b) == "is"):
+        return "guard", None
+    named = None
+    if (pt == "=" and tk.at(p - 1) not in _NOT_ASSIGN) or (lang == "cs" and pt == ":"):
+        n = p - 1
+        if not tk.is_id(n):
+            return "read", None
+        before = tk.at(n - 1)
+        o = _opener(tk, n)
+        if before in ("(", ",") and o >= 0 and tk.text[o] == "(":
+            named = tk.text[n]
+        elif pt == ":":
+            return "read", None
+        elif before in _DECL_KW or before in (":", ">", "]", "?") or (tk.is_id(n - 1) and before != "this"):
+            return "read", None                            # a declaration: `val s = ..`, `Status s = ..`
+        else:
+            return "write", None
+    elif pt in ("(", ",", "{") and qt in (")", ",", "}"):
+        o = p if pt in ("(", "{") else _opener(tk, s)
+    else:
+        return "read", None
+    if o < 0:
+        return "read", None
+    close = tk.close(o)
+    member_test = tk.at(close + 1) in (".", "?.") and tk.at(close + 2) in STATE_MEMBER_TEST
+    if tk.text[o] == "{":                                  # C# `new[] { A, B }.Contains(x)`
+        return ("guard" if member_test else "read"), None
+    callee, ci = _callee(tk, o)
+    if callee is None or callee == "nameof":
+        return "read", None
+    if _is_guard_call(callee):
+        return "guard", None
+    if STATE_SETTER.match(callee):
+        return "write", None
+    if callee in STATE_SETS and named is None:
+        o2 = _opener(tk, _qual_start(tk, ci))
+        if member_test or (o2 >= 0 and tk.text[o2] == "(" and _is_guard_call(_callee(tk, o2)[0])):
+            return "guard", None
+        return "read", None
+    ctor = callee[:1].isupper() or callee == "copy" or tk.at(ci - 1) == "new"
+    if named is not None and ctor:
+        return "write", [callee, tk.line[ci] + 1, o, None, named]
+    return "read", [callee, tk.line[ci] + 1, o, None if named else _arg_pos(tk, o, s), named]
+
+
+def mark_state(rows: Sequence[Dict], tk, s: int, e: int, value: str, lang: str) -> None:
+    """Annotate the `kind: type` row the qualifier at token `s` emitted with the value token `e` names."""
+    if tk.at(e + 1) in ("(", "[") or tk.at(e + 1) == "." and tk.is_id(e + 2) and tk.at(e + 2) not in STATE_THRU \
+            and tk.at(e + 2) not in ("equals", "Equals"):
+        return
+    for row in rows:
+        if row.get("kind") == "type" and "access" not in row:
+            access, arg = state_access(tk, s, e, lang)
+            row["access"], row["value"] = access, value
+            if arg:
+                row["arg"] = arg
+            return
 
 
 def mk_edge(source: str, target: str, channel: str, anchor: Dict) -> Dict:
