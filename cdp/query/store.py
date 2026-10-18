@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import re
-import zlib
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
 
@@ -161,28 +158,6 @@ class Store:
             return self.xref.get(key, default)
         return self._memo("_skel:xref", lambda: self.backend.parts_skeleton("xref"))["rest"].get(key, default)
 
-    def _segs(self, col: str, paths=None):
-        """`(path, inflated segment bytes)` of the snapshot's `col` segments (of `paths` when given)."""
-        files = self.backend.current_files()
-        path_of = {r[col]: p for p, r in files.items() if r.get(col) and (paths is None or p in paths)}
-        for sid, z in self.backend._in_chunks("SELECT id, z FROM seg WHERE id IN (%s)", list(path_of)):
-            yield path_of[sid], zlib.decompress(bytes(z))
-
-    def _heads(self, pats=(), paths=None) -> Dict[str, Dict]:
-        """`path -> extract segment` up to its `uses` (canonical JSON sorts it after every other
-        list), for the files whose head holds one of `pats` (any, when empty)."""
-        per = {}
-        for path, raw in self._segs("fseg", paths):
-            cut = raw.find(b', "uses": ')
-            head = raw[:cut] + b"}" if cut >= 0 else raw
-            if pats and not any(p in head for p in pats):
-                continue
-            try:   # parses only when the cut is at the top-level key (any other leaves brackets open)
-                per[path] = json.loads(head)
-            except ValueError:
-                per[path] = json.loads(raw)
-        return per
-
     def extract_where(self, needles: Sequence[str]) -> Dict[str, List[Dict]]:
         """`extraction`'s defines/io_edges/rule_edges in snapshot order, kept to the files whose rows
         hold a string starting with one of `needles`: a superset of those rows, callers filter."""
@@ -190,7 +165,7 @@ class Store:
             return {k: self.extraction.get(k) or [] for k in _LISTS}
 
         def build():
-            per = self._heads([json.dumps(n)[:-1].encode() for n in needles])
+            per = self.backend.extract_heads(needles)
             skel = self.backend.parts_skeleton("extract")
             return {k: _in_order(skel["runs"].get(k, ()) if k in skel["lists"] else (), self, per, k) for k in _LISTS}
         return self._memo("_where:" + "\0".join(needles), build)
@@ -199,7 +174,7 @@ class Store:
         """`path -> file_rows(self, path, "defines")`, reading no `uses`."""
         if not self._parts("extract"):
             return {p: file_rows(self, p, "defines") for p in paths}
-        per = self._heads(paths=set(paths))
+        per = self.backend.extract_heads(paths=paths)
         return {p: per.get(p, {}).get("defines", []) for p in paths}
 
     def call_owners(self) -> Optional[Dict[str, Tuple[Optional[frozenset], bool]]]:
@@ -207,23 +182,12 @@ class Store:
         whether it has a binding use)`, from raw segments; None when xref is whole."""
         if not self._parts("xref"):
             return None
-
-        def build():
-            out = {}
-            for path, raw in self._segs("xseg"):
-                found = _OWNER.findall(raw)
-                out[path] = (None if any(e == b"\\" for _, e in found) else frozenset(o for o, _ in found),
-                             b'"kind": "binding"' in raw)
-            return out
-        return self._memo("_owners", build)
+        return self._memo("_owners", self.backend.call_owners)
 
     def xref_uses_in(self, paths: Sequence[str]) -> List[Dict]:
         """`xref.uses` rows of `paths` (a decomposed xref), in snapshot order."""
         got = self._cache.setdefault("_xuses", {})
-        files = self.backend.current_files()
-        need = {files[p]["xseg"]: p for p in paths if p not in got and files.get(p, {}).get("xseg")}
-        for sid, seg in self.backend._get_segs(need).items():
-            got[need[sid]] = seg
+        got.update(self.backend.segments("xref", [p for p in paths if p not in got]))
         runs = self.backend.parts_skeleton("xref")["runs"]["uses"]
         return _in_order(runs, self, {p: got[p] for p in paths if p in got}, "uses")
 
@@ -306,7 +270,6 @@ class LazyMap(Mapping):
 
 _MISSING = object()
 _LISTS = ("defines", "io_edges", "rule_edges")
-_OWNER = re.compile(rb'"fqn": "([^"#\\]*)([#"\\])')
 
 
 def _in_order(runs, store: Store, per: Dict[str, Dict], key: str) -> List[Dict]:
