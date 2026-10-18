@@ -107,7 +107,10 @@ KINDS: Dict[str, Dict] = {
                "`Class(..)` (to `__init__`), and `obj.m()` only when `obj`'s class is known (`self`, annotation, "
                "`x = Class()`, a callee's annotated/inferred return, isinstance); an untyped parameter's calls, "
                "`getattr`, dispatch through a list of modules and decorator-built wrappers are not found.",
-        "read": "`defined_range` is `file:start-end` (read exactly that); `used_by_count` is the "
+        "read": "`defined_range` is `file:start-end` (read exactly that); each `used_by` row's `at` is the line "
+                "that performs the use and `in` the method/function whose body holds it (the caller; absent at "
+                "class or field level; `Owner#member` in the compact view, the full fqn with `view=detail`) -- cite `at`, "
+                "name `in`; `used_by_count` is the "
                 "true total even when the list is budgeted (several matches split the budget evenly, "
                 "and a cut one gives `see_all`, the exact command for every use); `overloads: N` counts a "
                 "method's distinct signatures (not a collision); `collision` true means one declaration "

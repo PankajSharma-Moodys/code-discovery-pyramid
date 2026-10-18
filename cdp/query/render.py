@@ -133,7 +133,7 @@ def render(result: Dict) -> str:
                 lines.extend(_body_line(head, b) or ([head.rstrip(": ")] if b.get("sig") else []))
             lines.append("  used by %d site(s)" % entry["used_by_count"])
             for use in entry["used_by"]:
-                lines.append("    %-24s %s" % (use["module"], use["at"]))
+                lines.append("    %-24s %s%s" % (use["module"], use["at"], "  in " + use["in"] if use.get("in") else ""))
             if entry["used_by_count"] > len(entry["used_by"]):
                 lines.append("    ... %d more (cut by --budget or max_tokens)%s"
                              % (entry["used_by_count"] - len(entry["used_by"]),

@@ -189,8 +189,9 @@ def _render_overview(surface: Dict) -> str:
     lines.extend(guide_mod.render_kinds_overview())
     lines.append("")
     lines.append("COMMANDS")
+    width = max((len(c["name"]) for c in surface["commands"]), default=0)
     for command in surface["commands"]:
-        lines.append("  %-10s %s" % (command["name"], command["summary"]))
+        lines.append("  %-*s %s" % (width, command["name"], command["summary"]))
     lines.append("")
     lines.append("RECIPES")
     for workflow in surface["workflows"]:

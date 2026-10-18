@@ -184,7 +184,8 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
                 "used_by_count": len(users),
-                "used_by": [{"module": u["module"], "at": cite(u["anchor"])} for u in shown_users],
+                # `in`: the method/function whose body holds the use -- the caller node a diagram names.
+                "used_by": [_use_row(store, u) for u in shown_users],
                 "claims": shown_claims,
                 "claims_count": len(claims),
                 # The way to every use of this one match, at the full budget.
@@ -192,6 +193,32 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
             }
         )
     return _finish({"query": "symbol", "name": name, "match": mode, "found": out}, store, budget)
+
+
+def _use_row(store: Store, u: Dict) -> Dict:
+    """One `used_by` row: module, the use's own line, and (where one encloses it) the member it is in."""
+    row = {"module": u["module"], "at": cite(u["anchor"])}
+    owner = _enclosing_member(store, u["file"], u["anchor"]["line"])
+    if owner:
+        row["in"] = owner
+    return row
+
+
+def _enclosing_member(store: Store, rel: str, line: int) -> Optional[str]:
+    """The fqn of the innermost method/function definition in `rel` whose extent holds `line`, or
+    None (a use at class or field level). From the file's `defines` extents, built once per file."""
+    def build() -> List:
+        return sorted(((d["anchor"]["line"], d.get("end_line") or d["anchor"]["line"], d["fqn"])
+                       for d in file_rows(store, rel, "defines") if d["kind"] in ("method", "function")),
+                      key=lambda e: (e[0], -e[1]))
+
+    best = None
+    for lo, hi, fqn in _memo(store, "_member_extents:" + rel, build):
+        if lo > line:
+            break
+        if line <= hi:
+            best = fqn   # sorted by start, so a later hit starts inside the earlier one: innermost wins
+    return best
 
 
 def _memo(store: Store, key: str, build):
