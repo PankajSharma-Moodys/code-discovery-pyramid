@@ -9,6 +9,7 @@ One source, four generated surfaces: the MCP `cdp_query`/`cdp_help` schema text
 from __future__ import annotations
 
 import argparse
+import textwrap
 from typing import Dict, List, Optional, Tuple
 
 from .guide_commands import COMMANDS, FLAG_HELP, RECIPES
@@ -290,6 +291,21 @@ MCP_LINK_DESCRIPTION = (
 
 # ------------------------------------------------------------------- SKILL.md
 
+# One text for the skill Rules and the benchmark system prompts (benchmarks/run_*.py).
+DIAGRAM_RULE = (
+    "Diagram only for a flow or lifecycle question, or when asked: a Mermaid `flowchart` (also for "
+    "lifecycles; stateDiagram-v2 cannot dash edges) drawn only from retrieved facts. Each edge label cites "
+    "the line that performs it (call, assignment, transition; never a declaration, signature or comment) "
+    "by a repo-unique path suffix; given only a declaration, Read it to find the site or dash the edge. "
+    "Never draw an edge you did not find: list steps/states with no writer found apart, dash inferred "
+    "edges (`-.->`), end with \"+N not shown: ...\". Notes in block form only (`note ... end note`). Before "
+    "showing it, run `cdp verify-diagram` and fix or dash every edge not reported correct."
+)
+
+
+def _wrap(text: str, indent: str, width: int = 108) -> str:
+    return textwrap.fill(text, width, subsequent_indent=indent, break_long_words=False, break_on_hyphens=False)
+
 
 def skill_md() -> str:
     return """---
@@ -344,10 +360,11 @@ has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. 
 - A "not found" answer lists close names; retry with one of them.
 - Answers come from the snapshot of HEAD, else the nearest clean ancestor, never another branch (else
   `scan`). `+uncommitted` on `as_of` = the index includes uncommitted edits; `refresh` needs a clean tree.
+%s
 
 Full reference (every flag, defaults, examples): `cdp_help` or `run.py help <topic>` / `help reference`
 (source repo: `docs/CDP_REFERENCE.md`).
-""" % ("\n".join(flow_table()), "\n".join(USAGE[1:]))
+""" % ("\n".join(flow_table()), "\n".join(USAGE[1:]), _wrap("- " + DIAGRAM_RULE, "  "))
 
 
 # ------------------------------------------------------------- CDP_REFERENCE.md

@@ -97,6 +97,27 @@ def _tag(row: Dict, total: int) -> str:
     return "  (via %d of %d members)" % (len(members), total)
 
 
+def _state_lines(entry: Dict) -> List[str]:
+    """An enum's `states` (write/guard sites per value), its `transitions` and its unwritten values."""
+    if not entry.get("states"):
+        return []
+    lines = ["  states (write/guard sites outside tests; read = other uses):"]
+    for value, st in entry["states"].items():
+        counts = ", ".join("%s %d" % (k, st[k]) for k in ("read", "test") if st.get(k))
+        lines.append("    %s%s" % (value, " (%s)" % counts if counts else ""))
+        for access in ("write", "guard"):
+            for r in st.get(access, []):
+                lines.append("      %-5s %s%s%s" % (access, r["at"], "  in " + r["in"] if r.get("in") else "",
+                                                   "  from " + r["from"] if r.get("from") else ""))
+    if entry.get("states_cut"):
+        lines.append("    ... %d more write/guard site(s) (cut by --budget)" % entry["states_cut"])
+    for t in entry.get("transitions", []):
+        lines.append("  transition %s -> %s  %s" % (t["from"], t["to"], t["at"]))
+    if entry.get("no_writer"):
+        lines.append("  no writer found: %s" % ", ".join(entry["no_writer"]))
+    return lines
+
+
 def render(result: Dict) -> str:
     """Text rendering of a result that has *already* been budgeted.
 
@@ -131,9 +152,10 @@ def render(result: Dict) -> str:
                 # an overload is told apart by its signature (cdp/sigs.py)
                 head = "  %s%s: " % (b["at"], " " + sigs.short(b["sig"]) if b.get("sig") else "")
                 lines.extend(_body_line(head, b) or ([head.rstrip(": ")] if b.get("sig") else []))
+            lines.extend(_state_lines(entry))
             lines.append("  used by %d site(s)" % entry["used_by_count"])
             for use in entry["used_by"]:
-                lines.append("    %-24s %s" % (use["module"], use["at"]))
+                lines.append("    %-24s %s%s" % (use["module"], use["at"], "  in " + use["in"] if use.get("in") else ""))
             if entry["used_by_count"] > len(entry["used_by"]):
                 lines.append("    ... %d more (cut by --budget or max_tokens)%s"
                              % (entry["used_by_count"] - len(entry["used_by"]),

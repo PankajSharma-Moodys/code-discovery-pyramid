@@ -52,6 +52,7 @@ class ScFileInfo(FileInfo):
 
 class ScScan(Scan):
     ARG_ANGLES = False      # `<` is only ever an operator in a Scala argument list
+    STATE_LANG = "scala"
     def __init__(self, fi: ScFileInfo, jt: ScType, caller: str, tvars, bounds=None) -> None:
         super().__init__(fi, jt, caller, tvars, bounds=bounds)
         self.localdefs: Set[str] = set()
@@ -472,6 +473,8 @@ class ScScan(Scan):
         if recv is None:
             return None
         base, steps = recv
+        if emit and not steps and name[:1].isupper():
+            self._state_ref(base, name_i)
         if not steps and name[:1].isupper() and not ALL_CAPS.match(name) and self._is_type_ref(recv):
             return (base + "." + name, ())
         if ALL_CAPS.match(name):

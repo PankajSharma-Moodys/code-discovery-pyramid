@@ -927,8 +927,11 @@ class _NotDecomposable(Exception):
 
 
 def _user(u: Dict) -> Dict:
-    """A `used_by` entry as it read back from JSON: sorted keys, its own anchor dict."""
-    return {"anchor": dict(u["anchor"]), "file": u["file"], "module": u["module"]}
+    """A `used_by` entry as it read back from JSON: sorted keys, its own anchor dict, and the state
+    evidence (`access`/`value`/`from`) `resolve._transpose` carries on an enum-value use."""
+    out = {"anchor": dict(u["anchor"]), "file": u["file"], "module": u["module"]}
+    out.update((k, u[k]) for k in ("access", "from", "value") if k in u)
+    return dict(sorted(out.items()))
 
 
 def _same(a: Any, b: Any) -> bool:

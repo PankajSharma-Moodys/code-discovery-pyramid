@@ -233,8 +233,8 @@ COMMANDS: Dict[str, Dict] = {
                "creating the file, never touching text outside the markers; `--allow-mcp` adds `mcp__cdp__*` to "
                "`permissions.allow` (the cdp tools run without a prompt; they edit no repository files); "
                "`--priority` = `--harness --strict --claude-md --allow-mcp`, the CDP-first preset; `--agents-md` "
-               "also writes AGENTS.md; headless `claude -p` refuses MCP tools unless allowed (`--allowedTools "
-               "\"mcp__cdp__*\"` or `--allow-mcp`); `--remove-harness` undoes hooks, the MCP entry, the CLAUDE.md "
+               "also writes AGENTS.md; headless `claude -p` refuses MCP tools unless allowed: pass `--allowedTools "
+               "\"mcp__cdp__*\"` (`--allow-mcp` takes effect only once the workspace is trusted);`--remove-harness` undoes hooks, the MCP entry, the CLAUDE.md "
                "block and the permission (only what install added) and deletes settings files it leaves empty; "
                "`--self` refreshes this repo's vendored copy (for CDP developers).",
         "examples": [ex("install <target>"), ex("install <target> --harness", True), ex("install <target> --priority", True),
