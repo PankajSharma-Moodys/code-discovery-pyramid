@@ -211,8 +211,13 @@ def resolve(path: str, hints: Sequence[str], files: Sequence[str], context: str)
     abbreviation such as `Handler.cs`), narrowed by module hints, non-test files and file
     stems the diagram spells out elsewhere."""
     p = path.lstrip("./")
-    c = [f for f in files if f == p or f.endswith("/" + p)]
-    if not c and "/" not in p:
+    if "/.../" in p:   # `scheduler-core/.../Foo.scala`: head dirs, then any depth, then the tail
+        head, _, tail = p.partition("/.../")
+        c = [f for f in files if (f == tail or f.endswith("/" + tail))
+             and re.search(r"(^|/)%s/" % re.escape(head), f[:len(f) - len(tail)])]
+    else:
+        c = [f for f in files if f == p or f.endswith("/" + p)]
+    if not c and "/" not in p and "..." not in p:
         c = [f for f in files if os.path.basename(f).endswith(p)]
     if len(c) > 1 and hints:
         c = [f for f in c if all(h in f for h in hints)] or c
@@ -233,6 +238,8 @@ def _words(text: str):
     Hyphenated module hints (`scheduler-core`) are not claims."""
     strong, weak = [], []
     text = re.sub(r"[\w]+(?:-[\w]+)+", " ", strip_cites(text))
+    text = re.sub(r"[\w./-]*[\w-]\.(?:%s)\b(?::\d+)?" % _EXT, " ", text)   # a path is not an identifier
+    text = re.sub(r"\b\w+(?:/\w+)+/?", " ", text)
     for raw in re.findall(r"[A-Za-z_][\w.#]*", text):
         parts = [x for x in re.split(r"[.#]", raw) if x]
         for w in parts:
@@ -253,6 +260,9 @@ def claimed_tokens(edge: Dict, nodes: Dict[str, str], kind: str) -> List[str]:
     target state (the source for `X --> [*]`) and the label's identifiers -- a plain word such
     as `reconcile` names a mechanism, not the transition."""
     strong, weak = _words(edge["label"])
+    calls = re.findall(r"([A-Za-z_][\w.#]*)\s*\(", strip_cites(edge["label"]))
+    if calls and kind != "state":   # `ship(order) · f:1`: the callee is the claim, `order` is an argument
+        strong, weak = _words(" ".join(calls))
     if kind == "state":
         sid = edge["to"] if edge["to"] != "[*]" else edge["from"]
         toks = strong + ([sid] if sid != "[*]" else [])
@@ -262,6 +272,9 @@ def claimed_tokens(edge: Dict, nodes: Dict[str, str], kind: str) -> List[str]:
         toks = strong + weak
         n_strong, n_weak = _words(nodes.get(edge["to"], ""))
         toks += n_strong or ([] if toks else n_weak)
+        tgt = edge["to"]
+        if not nodes.get(tgt) and len(tgt) >= 3 and (tgt.isupper() or tgt[:1].isupper()):
+            toks.append(tgt)   # a bare-id lifecycle edge (`QUEUED --> PENDING`): the target state is the claim
     seen, out = set(), []
     for w in toks:
         if w.lower() not in seen:
@@ -312,7 +325,8 @@ def _decl(line: str, tok: str) -> bool:
                     r"unsafe|open|suspend|inline)\s+)+[\w<>\[\],.?\s]*?\b%s\s*[(<]" % t, line)
         or re.search(r"\b(val|var|let|const|lazy\s+val)\s+%s\b" % t, line)
         or re.match(r"\s*(?:%s\s+)+[\w<>\[\],.?\s]*?\b%s\s*(?:=(?!=)|;)" % (_MODS, t), line)
-        or re.match(r"\s*%s\s*(?:\([^)]*\))?\s*(?:=\s*[^,;=]+)?\s*[,;]?\s*(?://.*)?$" % t, line))
+        or (tok[:1].isupper() and re.match(
+            r"\s*%s\s*(?:\([^)]*\))?\s*(?:=\s*[^,;=]+)?\s*[,;]?\s*(?://.*)?$" % t, line)))
 
 
 def _code(line: str) -> str:
@@ -336,17 +350,6 @@ def _uses(line: str, toks: Sequence[str], decl_ok: bool = False,
     if states and sum(1 for st in states if re.search(r"\b%s\b" % re.escape(st), code)) >= 3:
         return []
     return [t for t in toks if _hit(code, t) and (decl_ok or not _decl(code, t))]
-    if not decl_ok and _SIGNATURE.match(code):
-        body = re.search(r"\)[^{=]*(?:\{|=>|=)(.*)$", code)
-        code = body.group(1) if body else ""   # a signature shows where a call lands, not the call
-        if not code.strip():
-            return None
-    if states and sum(1 for st in states if re.search(r"\b%s\b" % re.escape(st), code)) >= 3:
-        return None
-    for tok in toks:
-        if _hit(code, tok) and (decl_ok or not _decl(code, tok)):
-            return tok
-    return None
 
 
 # ---------------------------------------------------------------------------- grading
