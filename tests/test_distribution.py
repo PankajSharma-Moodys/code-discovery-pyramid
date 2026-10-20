@@ -142,6 +142,10 @@ class TargetInstallTest(unittest.TestCase):
         self.assertEqual([r for r in rels if "tests/" in r or "fixtures" in r or r.startswith("tests")], [])
         size = sum(p.stat().st_size for p in self.files())
         self.assertLess(size, self.BUDGET_BYTES, "install copied %d bytes into the target" % size)
+        claude = [p for p in (self.target / ".claude").rglob("*") if p.is_file()]  # skill + agent + diagram mod
+        self.assertTrue((self.target / ".claude" / "cdp-diagrams" / ".claude-plugin" / "plugin.json").is_file())
+        total = sum(p.stat().st_size for p in claude)
+        self.assertLess(total, self.BUDGET_BYTES, "install wrote %d bytes under .claude/" % total)
 
     def test_installed_copy_runs_scan_query_help_and_mcp(self) -> None:
         run = [sys.executable, str(self.skill / "run.py")]

@@ -10,9 +10,9 @@ from pathlib import Path
 
 SPEC = Spec(
     group='setup',
-    usage='install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook] [--harness] [--strict] [--block-all] [--agents-md] [--claude-md] [--allow-mcp] [--priority] [--remove-harness]',
-    what='Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent). Writes nothing else unless asked: `--harness` adds the Claude Code hooks + MCP server, `--agents-md` adds AGENTS.md, `--claude-md` a CDP rule block in CLAUDE.md, `--allow-mcp` the `mcp__cdp__*` permission, `--priority` all of those plus the strict gate.',
-    next='next: `scan --repo <target>` (printed for you). tip: `--harness` adds the Claude Code hooks (a nudge that names the exact cdp_query, never a block; `--strict` to answer greps from the index; `--priority` for CDP-first in one flag) + MCP server (`githook install` is what auto-refreshes on commit, pull and rebase); `--framework {langgraph,adk}` for non-Claude-Code leaves.',
+    usage='install <repo> [--self] [--framework {claude-code,langgraph,adk,none}] [--hook] [--harness] [--strict] [--block-all] [--agents-md] [--claude-md] [--allow-mcp] [--priority] [--no-diagrams] [--remove-harness]',
+    what='Copies the skill into another repository (and, by default, the `cdp-leaf` Claude Code agent and the `cdp-diagrams` mod in `.claude/cdp-diagrams`, which draws mermaid blocks in replies; `--no-diagrams` skips it). Writes nothing else unless asked: `--harness` adds the Claude Code hooks + MCP server, `--agents-md` adds AGENTS.md, `--claude-md` a CDP rule block in CLAUDE.md, `--allow-mcp` the `mcp__cdp__*` permission, `--priority` all of those plus the strict gate.',
+    next='next: `scan --repo <target>`, and `claude --plugin-dir <target>/.claude/cdp-diagrams` for the diagram mod (both printed for you). tip: `--harness` adds the Claude Code hooks (a nudge that names the exact cdp_query, never a block; `--strict` to answer greps from the index; `--priority` for CDP-first in one flag) + MCP server (`githook install` is what auto-refreshes on commit, pull and rebase); `--framework {langgraph,adk}` for non-Claude-Code leaves.',
 )
 
 
@@ -49,10 +49,13 @@ def register(add) -> None:
                         "write only the index store; nothing edits the repository). Off by default")
     i.add_argument("--priority", action="store_true",
                    help="CDP-first preset = --harness --strict --claude-md --allow-mcp")
+    i.add_argument("--no-diagrams", action="store_true", dest="no_diagrams",
+                   help="do not copy the cdp-diagrams mod (draws mermaid blocks in Claude's replies) into "
+                        ".claude/cdp-diagrams; by default it is copied, and the line to load it is printed")
     i.add_argument("--remove-harness", action="store_true",
                    help="remove everything --harness / --hook / --claude-md / --allow-mcp / --agents-md added: hooks, the MCP "
                         "server entry, the CLAUDE.md block, the permission (only if install added it), an "
-                        "AGENTS.md still identical to the one written; copied skill files stay")
+                        "AGENTS.md still identical to the one written; copied skill files and the diagram mod stay")
     i.add_argument("--block-all", action="store_true", dest="block_all",
                    help="implies --strict, and denies EVERY Grep/Glob and pure grep/rg/find search in an indexed "
                         "source dir, every time, naming the cdp_query to use instead (Reads still run)")
@@ -117,7 +120,8 @@ def cmd_install(args) -> int:
         raise CdpError("--strict applies to --hook or --harness (it chooses blocking over the nudge)")
     install_mod.install(target, framework=framework, hook=hook, strict=strict, harness=harness,
                         agents_md=getattr(args, "agents_md", False), claude_md=getattr(args, "claude_md", False),
-                        allow_mcp=getattr(args, "allow_mcp", False), priority=priority, block_all=block_all, say=print)
+                        allow_mcp=getattr(args, "allow_mcp", False), priority=priority, block_all=block_all,
+                        diagrams=not getattr(args, "no_diagrams", False), say=print)
     if hook and getattr(args, "state_dir", None):
         # The hooks and .mcp.json are shared files (the same on every machine), so a machine's own store
         # path is not written into them: they read CDP_HOME, which the user sets.

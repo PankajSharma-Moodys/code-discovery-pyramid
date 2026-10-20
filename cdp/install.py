@@ -6,7 +6,8 @@ import json
 import shutil
 
 from . import hook as hook_mod
-from .install_extras import install_allow_mcp, install_claude_md, remove_allow_mcp, remove_claude_md
+from .install_extras import (install_allow_mcp, install_claude_md, install_diagrams, remove_allow_mcp,
+                             remove_claude_md)
 from .slim import slim_python
 from .store import registry as registry_mod
 from .util import CdpError, SKILL_ROOT, read_json
@@ -354,7 +355,7 @@ def remove_agents_md(target: Path) -> List[str]:
 
 def remove_harness(target: Path) -> List[str]:
     """Undo `install_hook` / `install_session_hook` / `install_mcp`; leaves the
-    copied skill files and every non-CDP entry alone. A settings or MCP file that
+    copied skill files (and the `.claude/cdp-diagrams` mod) and every non-CDP entry alone. A settings or MCP file that
     this leaves as `{}` is deleted rather than left behind."""
     notes: List[str] = []
     settings_path = target / ".claude" / "settings.json"
@@ -408,6 +409,7 @@ def install(
     allow_mcp: bool = False,
     priority: bool = False,
     block_all: bool = False,
+    diagrams: bool = True,
     say: Callable[..., None] = lambda *a: None,
 ) -> Path:
     """Copy the skill into `target`'s `.claude/skills/cdp/`, register the leaf agent for
@@ -432,6 +434,11 @@ def install(
     say("installed %s" % dest)
 
     register_leaf_agent(target, framework, say)
+    # The diagram mod ships with every install into another repository (`--no-diagrams` skips it).
+    # Not on `--self`: this repository already has the source at `mods/cdp-diagrams`.
+    if diagrams and target.resolve() != SKILL_ROOT.resolve():
+        for line in install_diagrams(target):
+            say(line)
 
     # Tier-0 (7.9): a root-level AGENTS.md works for any assistant, hook-less
     # or not (Cursor, Codex, Copilot, Aider all read it). It is a new file in the
