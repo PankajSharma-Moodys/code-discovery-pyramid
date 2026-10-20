@@ -1,7 +1,8 @@
 // Badges each drawn edge with what `cdp verify-diagram` says of its file:line
 // citation. The checker is a host command (`$.process.run`, CLI only); its
 // result is cached per fence and per directory, so a re-render never runs it
-// again. Any failure (no cdp, not a git repo, a parse error, a timeout, no
+// again. It prefers the copy `cdp install` vendored into the repo (the version
+// that repo was set up with), then cdp on PATH, then the module. Any failure (no cdp, not a git repo, a parse error, a timeout, no
 // process API) leaves the diagram without badges. Nothing reaches the model.
 
 import type { Graph } from './mermaid.ts'
@@ -14,7 +15,10 @@ export type CheckedEdge = { id: string; from: string; to: string; label: string;
 export type Verdict = { edges: CheckedEdge[] }
 
 export type RunResult = { exitCode: number; stdout: string }
-export type Run = (argv: readonly string[], init: { cwd?: string; stdin?: string; timeoutMs?: number }) => Promise<RunResult>
+export type Run = (
+  argv: readonly string[],
+  init: { cwd?: string; env?: Record<string, string>; stdin?: string; timeoutMs?: number },
+) => Promise<RunResult>
 
 const STATUSES = new Set<string>(['correct', 'wrong_citation', 'unsupported', 'ambiguous', 'uncited', 'inferred'])
 
@@ -148,8 +152,21 @@ export function fenceHash(source: string): string {
   return `${h.toString(16)}:${s.length}`
 }
 
-/** Checker commands, in order: cdp on PATH, then the module. */
-export const COMMANDS: readonly (readonly string[])[] = [['cdp'], ['python3', '-m', 'cdp.cli']]
+/** Where `cdp install` vendors CDP in a repo; its `cdp/` package runs with PYTHONPATH set here. */
+export const VENDORED = '.claude/skills/cdp'
+
+export type Command = { argv: readonly string[]; env?: Record<string, string> }
+
+/**
+ * Checker commands for `repo`, in order: the vendored copy (when present),
+ * cdp on PATH, then the module from wherever python3 finds it.
+ */
+export function commandsFor(repo: string, vendored: boolean): Command[] {
+  const out: Command[] = []
+  if (vendored) out.push({ argv: ['python3', '-m', 'cdp.cli'], env: { PYTHONPATH: `${repo}/${VENDORED}` } })
+  out.push({ argv: ['cdp'] }, { argv: ['python3', '-m', 'cdp.cli'] })
+  return out
+}
 
 type Entry = { done: false; settled: Promise<void> } | { done: true; verdict: Verdict | null }
 
@@ -159,7 +176,9 @@ export class Verifier {
   private allowed = new Set<string>()
   private cache = new Map<string, Entry>()
   private roots = new Map<string, Promise<string | null>>()
-  private working: number | null = null
+  private vendored = new Map<string, Promise<boolean>>()
+  /** Per repo root, the command that answered last. */
+  private working = new Map<string, number>()
 
   private timeoutMs: number
 
@@ -228,16 +247,31 @@ export class Verifier {
     return r
   }
 
+  private hasVendored(repo: string, run: Run): Promise<boolean> {
+    let v = this.vendored.get(repo)
+    if (!v) {
+      v = run(['test', '-f', `${repo}/${VENDORED}/cdp/cli.py`], { cwd: repo, timeoutMs: 5000 }).then(
+        x => x.exitCode === 0,
+        () => false,
+      )
+      this.vendored.set(repo, v)
+    }
+    return v
+  }
+
   private async check(source: string, cwd: string, run: Run): Promise<Verdict | null> {
     const repo = await this.root(cwd, run)
     if (!repo) return null
-    const order = this.working === null ? COMMANDS.map((_, i) => i) : [this.working]
+    const commands = commandsFor(repo, await this.hasVendored(repo, run))
+    const known = this.working.get(repo)
+    const order = known === undefined ? commands.map((_, i) => i) : [known]
     for (const i of order) {
-      const argv = [...COMMANDS[i]!, 'verify-diagram', '-', '--repo', repo, '--json']
+      const c = commands[i]!
+      const argv = [...c.argv, 'verify-diagram', '-', '--repo', repo, '--json']
       const started = Date.now()
       let r: RunResult
       try {
-        r = await run(argv, { cwd: repo, stdin: source, timeoutMs: this.timeoutMs })
+        r = await run(argv, { cwd: repo, ...(c.env ? { env: c.env } : {}), stdin: source, timeoutMs: this.timeoutMs })
       } catch {
         // Cannot start: try the next command. A timeout: stop.
         if (Date.now() - started >= this.timeoutMs * 0.9) return null
@@ -251,7 +285,7 @@ export class Verifier {
       }
       // Started but not the checker (no such module, an old cdp): the next one.
       if (!json) continue
-      this.working = i
+      this.working.set(repo, i)
       return parseVerdict(r.stdout, r.exitCode)
     }
     return null

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { parseMermaid } from '../hooks/mermaid.ts'
-import { COMMANDS, fenceHash, MARK, matchEdges, parseVerdict, type Run, type Verdict, verdictLine, Verifier } from '../hooks/verify.ts'
+import { commandsFor, fenceHash, MARK, matchEdges, parseVerdict, type Run, type Verdict, verdictLine, Verifier } from '../hooks/verify.ts'
 import { FLOW_SRC, FLOW_STDOUT, STATE_MD, STATE_STDOUT } from './fixtures/verify-samples.ts'
 
 const STATE_SRC = STATE_MD.slice(STATE_MD.indexOf('stateDiagram'), STATE_MD.lastIndexOf('```'))
@@ -30,15 +30,22 @@ function out(edges: { from: string; to: string; label?: string; status: string; 
 
 const SIMPLE = 'flowchart TD\n  A -->|call x.java:12| B\n  B -->|save y.java:3| C\n'
 
-/** A stubbed process.run: git answers the root, the checker answers `checker` (a function of the argv). */
-function stub(checker: (argv: readonly string[], stdin: string) => Promise<{ exitCode: number; stdout: string }>) {
-  const calls: { argv: readonly string[]; cwd?: string; stdin?: string }[] = []
+/**
+ * A stubbed process.run: git answers the root, `test -f` answers whether the
+ * vendored copy is there, the checker answers `checker` (a function of the argv and env).
+ */
+function stub(
+  checker: (argv: readonly string[], stdin: string, env?: Record<string, string>) => Promise<{ exitCode: number; stdout: string }>,
+  vendored = false,
+) {
+  const calls: { argv: readonly string[]; cwd?: string; stdin?: string; env?: Record<string, string> }[] = []
   const run: Run = async (argv, init) => {
-    calls.push({ argv, cwd: init.cwd, stdin: init.stdin })
+    calls.push({ argv, cwd: init.cwd, stdin: init.stdin, ...(init.env ? { env: init.env } : {}) })
     if (argv[0] === 'git') return { exitCode: 0, stdout: '/repo\n' }
-    return checker(argv, init.stdin ?? '')
+    if (argv[0] === 'test') return { exitCode: vendored ? 0 : 1, stdout: '' }
+    return checker(argv, init.stdin ?? '', init.env)
   }
-  return { run, calls, checks: () => calls.filter(c => c.argv[0] !== 'git') }
+  return { run, calls, checks: () => calls.filter(c => c.argv[0] !== 'git' && c.argv[0] !== 'test') }
 }
 
 async function verdictOf(v: Verifier, src: string, run: Run): Promise<{ v: Verdict | null | undefined; invalidated: number }> {
@@ -183,7 +190,74 @@ describe('Verifier with a stubbed process.run', () => {
     expect((await verdictOf(v, SIMPLE, s.run)).v).not.toBeNull()
     await verdictOf(v, other, s.run)
     expect(s.checks().map(c => c.argv.slice(0, 3).join(' '))).toEqual(['cdp verify-diagram -', 'python3 -m cdp.cli', 'python3 -m cdp.cli'])
-    expect(COMMANDS[1]).toEqual(['python3', '-m', 'cdp.cli'])
+    expect(s.checks().every(c => c.env === undefined)).toBe(true)
+  })
+
+  test('vendored copy present: python3 -m cdp.cli with PYTHONPATH at it, first, then remembered', async () => {
+    const v = new Verifier()
+    v.allow(fence(SIMPLE))
+    const other = 'flowchart TD\n  A -->|call x.java:12| B\n'
+    v.allow(fence(other))
+    const s = stub(async () => ({ exitCode: 0, stdout: allCorrect }), true)
+    expect((await verdictOf(v, SIMPLE, s.run)).v!.edges.length).toBe(2)
+    await verdictOf(v, other, s.run)
+    expect(s.calls.filter(c => c.argv[0] === 'test')).toEqual([
+      { argv: ['test', '-f', '/repo/.claude/skills/cdp/cdp/cli.py'], cwd: '/repo', stdin: undefined },
+    ])
+    const want = {
+      argv: ['python3', '-m', 'cdp.cli', 'verify-diagram', '-', '--repo', '/repo', '--json'],
+      cwd: '/repo',
+      env: { PYTHONPATH: '/repo/.claude/skills/cdp' },
+    }
+    expect(s.checks()).toEqual([
+      { ...want, stdin: SIMPLE },
+      { ...want, stdin: other },
+    ])
+  })
+
+  test('vendored copy present but broken: falls through to cdp, then python3', async () => {
+    const v = new Verifier()
+    v.allow(fence(SIMPLE))
+    const s = stub(async (argv, _stdin, env) => {
+      if (env) return { exitCode: 1, stdout: 'ModuleNotFoundError' }
+      if (argv[0] === 'cdp') throw new Error('ENOENT')
+      return { exitCode: 0, stdout: allCorrect }
+    }, true)
+    expect((await verdictOf(v, SIMPLE, s.run)).v).not.toBeNull()
+    expect(s.checks().map(c => `${c.argv.slice(0, 3).join(' ')}${c.env ? ' +PYTHONPATH' : ''}`)).toEqual([
+      'python3 -m cdp.cli +PYTHONPATH',
+      'cdp verify-diagram -',
+      'python3 -m cdp.cli',
+    ])
+  })
+
+  test('vendored absent: cdp then python3, no PYTHONPATH; commandsFor gives the order', async () => {
+    const v = new Verifier()
+    v.allow(fence(SIMPLE))
+    const s = stub(async () => {
+      throw new Error('ENOENT')
+    })
+    expect((await verdictOf(v, SIMPLE, s.run)).v).toBeNull()
+    expect(s.checks().map(c => [c.argv[0], c.env])).toEqual([
+      ['cdp', undefined],
+      ['python3', undefined],
+    ])
+    expect(commandsFor('/r', false)).toEqual([{ argv: ['cdp'] }, { argv: ['python3', '-m', 'cdp.cli'] }])
+    expect(commandsFor('/r', true)[0]).toEqual({ argv: ['python3', '-m', 'cdp.cli'], env: { PYTHONPATH: '/r/.claude/skills/cdp' } })
+  })
+
+  test('the vendored check itself failing to start counts as absent', async () => {
+    const v = new Verifier()
+    v.allow(fence(SIMPLE))
+    const seen: string[] = []
+    const run: Run = async (argv, init) => {
+      seen.push(argv[0]! + (init.env ? '+env' : ''))
+      if (argv[0] === 'git') return { exitCode: 0, stdout: '/repo\n' }
+      if (argv[0] === 'test') throw new Error('ENOENT')
+      return { exitCode: 0, stdout: allCorrect }
+    }
+    expect((await verdictOf(v, SIMPLE, run)).v).not.toBeNull()
+    expect(seen).toEqual(['git', 'test', 'cdp'])
   })
 
   test('every command throws, or python3 has no cdp module: null', async () => {
