@@ -27,6 +27,8 @@ TYPE_KW = ("class", "trait", "object", "enum")
 CONTINUES = frozenset(["else", "match", "with", "extends", "catch", "finally", "yield", "forSome",
                        "if", "then", "do"])
 IMPLICIT_PARAM = frozenset(["implicit", "using"])
+# a template-body statement that declares rather than runs: never scanned as initialiser code
+NOT_STATEMENT = frozenset(["type", "given", "extension", "export", "end", "package"])
 
 
 class ScType(JType):
@@ -502,9 +504,25 @@ class ScalaDeclParser:
             elif kw in ("val", "var"):
                 i = self._vals(jt, start, i, mods, anns, qual, end)
             else:
-                i = self._skip_to_boundary(start, end) if i == start else self._stmt_end(start, i, end)
+                bare = i == start                    # no modifier or annotation before it
+                i = self._skip_to_boundary(start, end) if bare else self._stmt_end(start, i, end)
                 if i <= start:
                     i = start + 1
+                elif bare and not (tk.kind[start] == "id" and t in NOT_STATEMENT):
+                    self._template_stmt(jt, start, i)
+
+    def _template_stmt(self, jt: ScType, a: int, b: int) -> None:
+        """A bare statement in a template body -- `foo()`, `it should "x" in { .. }`, `test("x") { .. }`,
+        `before { .. }`: it runs when the type is initialised, so its calls belong to the initialiser
+        (`#<init>`; `#<clinit>` in an object), as a `val` initialiser's do. No define row (`declarations`
+        skips `init`), so `query symbol` shows such a use with no `in`, like a field initialiser's."""
+        tk = self.tk
+        m = ScMember("init", "<init>", jt)
+        m.body = (a, b)
+        m.static = jt.is_object
+        m.line = m.start_line = tk.line[a]
+        m.end_line = tk.line[b - 1]
+        jt.members.append(m)
 
     def _def(self, jt: ScType, start: int, i: int, mods: Set[str], anns: List[Ann], qual: Optional[str],
              end: int) -> int:
