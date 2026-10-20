@@ -239,7 +239,36 @@ def build_anchor(
 EXACT = "exact"
 
 
+#: Per-file memo of fact anchors: `(lines, rel_path, {index: anchor or None})`, one slot per
+#: recent file list (same identity-plus-held-reference guard as `_INDEX_CACHE`). Many rows share a
+#: line; each used to recompute its anchor. Evicted with the file, so it never grows across files;
+#: module-global, hence per process; a thread race only recomputes an entry, never corrupts one.
+_FACT_MEMO: "OrderedDict[int, Tuple[Sequence[str], str, Dict[int, Optional[Dict[str, object]]]]]" = OrderedDict()
+_FACT_MEMO_MAX = 2
+
+
 def build_fact_anchor(
+    rel_path: str,
+    lines: Sequence[str],
+    index: int,
+) -> Optional[Dict[str, object]]:
+    """Memoised per (file lines, index); returns a fresh dict each call, so a caller may mutate it."""
+    key = id(lines)
+    slot = _FACT_MEMO.get(key)
+    if slot is None or slot[0] is not lines or slot[1] != rel_path:
+        slot = (lines, rel_path, {})
+        _FACT_MEMO[key] = slot
+        while len(_FACT_MEMO) > _FACT_MEMO_MAX:
+            _FACT_MEMO.popitem(last=False)
+    memo = slot[2]
+    if index in memo:
+        hit = memo[index]
+    else:
+        hit = memo[index] = _build_fact_anchor(rel_path, lines, index)
+    return None if hit is None else dict(hit)
+
+
+def _build_fact_anchor(
     rel_path: str,
     lines: Sequence[str],
     index: int,
