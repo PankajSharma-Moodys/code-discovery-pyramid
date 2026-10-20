@@ -19,6 +19,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .lang.java_types import is_jdk, jdk_step, split_type
 
+GUESS_PREFIX = "guess:"   # file signal set by lang/java.py: a name qualified by guess
 CLASS_KINDS = frozenset(["class", "interface", "enum", "record", "annotation"])
 NAME_RE = re.compile(r"[A-Za-z_$][\w$.]*")
 OBJECT_METHODS = frozenset(["toString", "equals", "hashCode", "getClass", "notify", "notifyAll",
@@ -222,7 +223,10 @@ class SigScope:
     same-package class; else the one declared class a wildcard import owns; else (a JDK or
     third-party type) the bare name. A name several wildcards could own stays as it was.
 
-    `scope_of(file) -> (package, wildcard packages)`; `probe(fqns) -> the declared classes
+    Only names the extractor guessed (a `guess:` file signal) are settled; a qualified name
+    the source wrote is kept as written.
+
+    `scope_of(file) -> (package, wildcard packages, guessed names)`; `probe(fqns) -> the declared classes
     among them` (a set lookup at scan time, an indexed query in the store).
     """
 
@@ -231,20 +235,20 @@ class SigScope:
         self.probe = probe
         self.known: Dict[str, bool] = {}
 
-    def _names(self, texts: Iterable[str], pkg: str, wilds: Sequence[str]) -> Dict[str, List[str]]:
+    def _names(self, texts: Iterable[str], pkg: str, wilds: Sequence[str], guessed) -> Dict[str, List[str]]:
         found: Dict[str, List[str]] = {}
         for t in texts:
             for n in NAME_RE.findall(t):
-                if n.startswith(pkg + "."):
+                if n in guessed and n.startswith(pkg + "."):
                     found[n] = [n] + [w + "." + n[len(pkg) + 1:] for w in wilds]
         return found
 
     def settle(self, texts: Sequence[str], file: str) -> Dict[str, str]:
         """`name -> settled name` for each guessed name in `texts`."""
-        pkg, wilds = self.scope_of(file)
-        if not pkg:
+        pkg, wilds, guessed = self.scope_of(file)
+        if not pkg or not guessed:
             return {}
-        names = self._names(texts, pkg, wilds)
+        names = self._names(texts, pkg, wilds, guessed)
         need = {c for cands in names.values() for c in cands if c not in self.known}
         if need:
             hit = set(self.probe(need))
@@ -304,8 +308,10 @@ def sig_scope_from_extraction(extraction: Dict) -> Optional[SigScope]:
         if row["fqn"].endswith(".*"):
             wild.setdefault(row["file"], []).append(row["fqn"][:-2])
     pkgs = {f: info.get("package") or "" for f, info in extraction["files"].items()}
+    guess = {f: frozenset(g[len(GUESS_PREFIX):] for g in info.get("signals") or () if g.startswith(GUESS_PREFIX))
+             for f, info in extraction["files"].items()}
     classes = {r["fqn"] for r in extraction["defines"] if r.get("kind") in CLASS_KINDS}
-    return SigScope(lambda f: (pkgs.get(f, ""), wild.get(f, ())), lambda cands: classes.intersection(cands))
+    return SigScope(lambda f: (pkgs.get(f, ""), wild.get(f, ()), guess.get(f, frozenset())), lambda cands: classes.intersection(cands))
 
 
 def settle_extraction(extraction: Dict) -> Dict:
