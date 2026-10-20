@@ -207,3 +207,114 @@ class TypeIndex:
             if fallback is None and not strict and name not in OBJECT_METHODS:
                 fallback = cls + "#" + name
         return fallback
+
+
+# ------------------------------------------------------------ signature scope
+
+
+class SigScope:
+    """Settles the type names an extractor guessed into a file's own package.
+
+    `_Resolver.resolve` (one file, no symbol table) names an unimported simple type
+    `<package>.<Name>`; that is right for a same-package class and a phantom for a type a
+    wildcard import brings in or one outside the repository. Here, with the declared classes
+    in view, a name under the file's package settles in Java's order: the declared
+    same-package class; else the one declared class a wildcard import owns; else (a JDK or
+    third-party type) the bare name. A name several wildcards could own stays as it was.
+
+    `scope_of(file) -> (package, wildcard packages)`; `probe(fqns) -> the declared classes
+    among them` (a set lookup at scan time, an indexed query in the store).
+    """
+
+    def __init__(self, scope_of, probe) -> None:
+        self.scope_of = scope_of
+        self.probe = probe
+        self.known: Dict[str, bool] = {}
+
+    def _names(self, texts: Iterable[str], pkg: str, wilds: Sequence[str]) -> Dict[str, List[str]]:
+        found: Dict[str, List[str]] = {}
+        for t in texts:
+            for n in NAME_RE.findall(t):
+                if n.startswith(pkg + "."):
+                    found[n] = [n] + [w + "." + n[len(pkg) + 1:] for w in wilds]
+        return found
+
+    def settle(self, texts: Sequence[str], file: str) -> Dict[str, str]:
+        """`name -> settled name` for each guessed name in `texts`."""
+        pkg, wilds = self.scope_of(file)
+        if not pkg:
+            return {}
+        names = self._names(texts, pkg, wilds)
+        need = {c for cands in names.values() for c in cands if c not in self.known}
+        if need:
+            hit = set(self.probe(need))
+            for c in need:
+                self.known[c] = c in hit
+        out = {}
+        for n, cands in names.items():
+            if self.known[n]:
+                continue
+            owners = [c for c in cands[1:] if self.known[c]]
+            if len(owners) == 1:
+                out[n] = owners[0]
+            elif not owners:
+                out[n] = n[len(pkg) + 1:]
+        return out
+
+    def fix_row(self, row: Dict, fields: Sequence[str]) -> Dict:
+        """`row` with each type-bearing field (`sig`, `ret`, `ftype`, `from_sig`, `argt` and the
+        `type` of each of `params`) settled; the same row when nothing changes."""
+        texts: List[str] = []
+        for key in fields:
+            v = row.get(key)
+            if isinstance(v, str):
+                texts.append(v)
+            elif isinstance(v, list):
+                texts.extend(x if isinstance(x, str) else (x.get("type") or "") if isinstance(x, dict) else ""
+                             for x in v)
+        if not texts:
+            return row
+        fix = self.settle(texts, row["file"])
+        if not fix:
+            return row
+
+        def sub(s):
+            return NAME_RE.sub(lambda m: fix.get(m.group(0), m.group(0)), s) if isinstance(s, str) else s
+
+        new = dict(row)
+        for key in fields:
+            v = row.get(key)
+            if isinstance(v, str):
+                new[key] = sub(v)
+            elif isinstance(v, list):
+                new[key] = [dict(x, type=sub(x["type"])) if isinstance(x, dict) and "type" in x else sub(x) for x in v]
+        return new
+
+
+DEFINE_TYPE_FIELDS = ("sig", "ret", "ftype", "params")
+USE_TYPE_FIELDS = ("from_sig", "argt")
+
+
+def sig_scope_from_extraction(extraction: Dict) -> Optional[SigScope]:
+    """A `SigScope` over a whole extraction (None when it holds no Java)."""
+    if not any(f.endswith(".java") for f in extraction.get("files", {})):
+        return None
+    wild: Dict[str, List[str]] = {}
+    for row in extraction["imports"]:
+        if row["fqn"].endswith(".*"):
+            wild.setdefault(row["file"], []).append(row["fqn"][:-2])
+    pkgs = {f: info.get("package") or "" for f, info in extraction["files"].items()}
+    classes = {r["fqn"] for r in extraction["defines"] if r.get("kind") in CLASS_KINDS}
+    return SigScope(lambda f: (pkgs.get(f, ""), wild.get(f, ())), lambda cands: classes.intersection(cands))
+
+
+def settle_extraction(extraction: Dict) -> Dict:
+    """`extraction` with Java signature type names settled (rows copied, never mutated)."""
+    scope = sig_scope_from_extraction(extraction)
+    if scope is None:
+        return extraction
+    defines = [scope.fix_row(r, DEFINE_TYPE_FIELDS) if r["file"].endswith(".java") else r
+               for r in extraction["defines"]]
+    uses = [scope.fix_row(r, USE_TYPE_FIELDS) if r["file"].endswith(".java") and (r.get("from_sig") or r.get("argt")) else r
+            for r in extraction["uses"]]
+    return dict(extraction, defines=defines, uses=uses)
