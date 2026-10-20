@@ -1,17 +1,41 @@
 // cdp-diagrams: draws ```mermaid flowchart / stateDiagram blocks of Claude's
 // replies as diagrams. Display only: one ui.render hook on AssistantMessage,
 // which changes the drawing and never the stored message (no tools, no MCP,
-// no session.append, no prompt hooks), so nothing reaches the model.
+// no session.append, no prompt hooks), so nothing reaches the model. The
+// turn.start / tool.call / turn.complete hooks only observe (always next(e))
+// to note whether a main-loop turn used CDP.
 
 import type { Elements, Register } from 'claude-code'
 
+import { CdpTurnTracker } from './detect.ts'
 import { hasMermaid, splitBlocks } from './mermaid.ts'
 import { altText, legendText, prepare, summary, toSvg } from './render.ts'
 
 /** Columns the transcript leaves a reply after its bullet and margins. */
 const INDENT = 4
 
+const tracker = new CdpTurnTracker()
+
+/** Whether the last main-loop turn that completed used CDP (MCP or the Bash CLI). */
+export const lastTurnUsedCdp = (): boolean => tracker.lastTurnUsedCdp()
+
 export const register: Register = on => {
+  on('turn.start', ($, e, next) => {
+    tracker.start(e)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('tool.call', ($, e, next) => {
+    tracker.call(e)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('turn.complete', ($, e, next) => {
+    const used = tracker.complete(e)
+    if (used !== undefined) $.ui.log(`cdp-diagrams: turn ${e.turnId} used CDP: ${used}`, { to: 'debug' })
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     const text = e.props.text
     if (e.props.isSummary || !hasMermaid(text)) return next(e)
