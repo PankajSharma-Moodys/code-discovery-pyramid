@@ -64,6 +64,14 @@ _TEST_PATTERNS = (
     # `Tests.Helpers.cs` (no name before `Tests`, like `Tests.cs` above) and
     # `Foo.Tests.Extensions.cs` (class `Foo`) stay source.
     re.compile(r"(^|/)\w+Tests?(\.\w+)+\.cs$"),
+    # Test MODULES: every file under one is a test, whatever its name (helpers,
+    # fakes, fixtures). Path-only: the classifier sees no build info.
+    #   .NET project dir `Foo.Tests`, `Foo.UnitTests`, `Foo.Specs`, ...
+    re.compile(r"(^|/)[^/]+\.(Unit|Integration|Functional|Component|Acceptance)?(Tests?|Specs?)/"),
+    #   (case-sensitive: lowercase `com.x.test/` is a Java package, not a project)
+    #   JVM/other build module dir `foo-test`, `foo-tests`, `foo-it`
+    re.compile(r"(^|/)[^/]+-(tests?|it)/", re.I),
+    re.compile(r"(^|/)testdata/"),
     re.compile(r"[^/]+\.(test|spec)\.(js|jsx|ts|tsx|mjs)$"),
 )
 
