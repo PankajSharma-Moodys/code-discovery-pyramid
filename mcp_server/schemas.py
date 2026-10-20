@@ -29,15 +29,13 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "cdp_scan": {
         "description": (
-            "Run a full CDP scan of a repository and write queryable state. "
-            "Deterministic, no model calls. Run once before `cdp_query`/"
-            "`cdp_status` against a repository that has never been scanned, "
-            "or after structural changes."
+            "Full CDP scan of a repository (no model calls). Run once before `cdp_query`/"
+            "`cdp_status` on an unscanned repository, or after structural changes."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "repo": {"type": "string", "description": "path to the repository to scan"},
+                "repo": {"type": "string", "description": "repo path"},
                 "max_leaf_files": {"type": "integer", "minimum": 1},
                 "max_leaf_loc": {"type": "integer", "minimum": 1},
                 "max_concurrent": {"type": "integer", "minimum": 1},
@@ -50,14 +48,12 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "cdp_refresh": {
         "description": (
-            "Bring a scanned repository's index up to the current commit (no model calls; "
-            "incremental). Use when a `cdp_query`/`cdp_status` answer says `behind` > 0. "
-            "Needs a clean working tree; commit or stash first, or the answer stays as of the "
-            "indexed commit."
+            "Incrementally bring a scanned repository's index to the current commit (no model calls). "
+            "Use when an answer says `behind` > 0. Needs a clean working tree."
         ),
         "inputSchema": {
             "type": "object",
-            "properties": {"repo": {"type": "string", "description": "path to an already-scanned repository"}},
+            "properties": {"repo": {"type": "string", "description": "repo path"}},
             "required": ["repo"],
             "additionalProperties": False,
         },
@@ -66,7 +62,7 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "description": guide.MCP_HELP_DESCRIPTION,
         "inputSchema": {
             "type": "object",
-            "properties": {"topic": {"type": "string", "description": "a query kind, a command, 'recipes', or empty for the overview"}},
+            "properties": {"topic": {"type": "string", "description": "query kind, command, 'recipes', or empty"}},
             "additionalProperties": False,
         },
     },
@@ -84,14 +80,13 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "cdp_verify_diagram": {
         "description": (
-            "Check a Mermaid flowchart's edge citations against repo files, before showing it. "
-            "ok=false: re-cite or dash the listed edges, rerun."
+            "Check a Mermaid diagram's edge citations against repo files before showing it."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "repo": {"type": "string", "description": "path to the repository"},
-                "diagram": {"type": "string", "description": "mermaid, or an answer with ```mermaid fences"},
+                "repo": {"type": "string", "description": "repo path"},
+                "diagram": {"type": "string", "description": "mermaid or answer with fences"},
             },
             "required": ["repo", "diagram"],
             "additionalProperties": False,
@@ -99,14 +94,13 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "cdp_status": {
         "description": (
-            "Coverage, freshness and any in-flight run's task state for an "
-            "already-scanned repository -- the cheap check before trusting "
-            "an answer as complete."
+            "Coverage, freshness and in-flight task state of a scanned repository: "
+            "the cheap check before trusting an answer as complete."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "repo": {"type": "string", "description": "path to the repository"},
+                "repo": {"type": "string", "description": "repo path"},
             },
             "required": ["repo"],
             "additionalProperties": False,

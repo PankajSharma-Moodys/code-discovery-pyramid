@@ -27,7 +27,7 @@ class SchemaTest(unittest.TestCase):
         self.assertEqual(schema["properties"]["action"]["enum"], ["scan", "scan_save", "query"])
         self.assertEqual(schema["required"], ["action"])
         self.assertFalse(schema["additionalProperties"])
-        self.assertLess(estimate_at_rest_tokens()["tokens_est"], 2200)
+        self.assertLess(estimate_at_rest_tokens()["tokens_est"], 2000)
 
     def test_bad_arguments_are_rejected_by_the_schema_and_the_tool(self) -> None:
         for bad in ({"action": "zap"}, {"action": "query", "service": 3}, {"action": "scan", "x": 1}):

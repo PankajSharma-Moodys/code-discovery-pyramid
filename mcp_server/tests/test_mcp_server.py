@@ -44,7 +44,7 @@ class AtRestTokenCostTest(unittest.TestCase):
         measured = estimate_at_rest_tokens()
         self.assertEqual(measured["tool_count"], 7)
         self.assertEqual(set(measured["per_tool"]), {"cdp_query", "cdp_scan", "cdp_refresh", "cdp_status", "cdp_help", "cdp_link", "cdp_verify_diagram"})
-        self.assertLess(measured["tokens_est"], 2200)
+        self.assertLess(measured["tokens_est"], 2000)
 
     def test_growing_the_tool_count_is_the_stress_test_named_in_the_plan(self) -> None:
         schemas = dict(TOOL_SCHEMAS)
