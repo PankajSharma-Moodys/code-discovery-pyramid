@@ -58,6 +58,12 @@ _TEST_PATTERNS = (
     re.compile(r"(^|/)test_[^/]+\.py$"),
     re.compile(r"[^/]+_test\.(go|py|rb|js|ts)$"),
     re.compile(r"[^/]+(Test|Tests|IT|Spec)\.(java|kt|scala|cs)$"),
+    # C# partial classes split one test class across `<Name>Tests.<Part>.cs`
+    # files (`FooTests.Cleanup.cs`); the first dot segment is the class name.
+    # Java/Kotlin/Scala file names carry no part segment, so this is C#-only.
+    # `Tests.Helpers.cs` (no name before `Tests`, like `Tests.cs` above) and
+    # `Foo.Tests.Extensions.cs` (class `Foo`) stay source.
+    re.compile(r"(^|/)\w+Tests?(\.\w+)+\.cs$"),
     re.compile(r"[^/]+\.(test|spec)\.(js|jsx|ts|tsx|mjs)$"),
 )
 
