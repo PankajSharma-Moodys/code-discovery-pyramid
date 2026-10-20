@@ -444,7 +444,7 @@ Which kinds take which parameter:
 
 **What.** Checks a Mermaid `flowchart`/`stateDiagram` before you show it: each edge's `file:line` (on the edge label) must resolve to one repo file and the line +-3 must show the edge's call, assignment or state. Per edge: correct, wrong_citation (declaration, comment, generic line, missing file/line; with a `hint`), unsupported, ambiguous, uncited; dashed `-.->` edges without a cite are `inferred`. Reads git files only, not the store.
 
-**How.** Input: a .mmd file, a markdown answer with ```mermaid fences, or `-` for stdin. Paths resolve by repo-unique suffix over `git ls-files` of `--repo`. Exit 0 all correct, 3 any non-correct, 1 unparseable (incl. a one-line `note X: a:1`). `--json` for tools.
+**How.** Input: a .mmd file, a markdown answer with ```mermaid fences, or `-` for stdin. Paths resolve by repo-unique suffix over `git ls-files` of `--repo`. Exit 0 all correct, 3 any non-correct, 1 unparseable (incl. a one-line `note X: a:1`). `--json` for tools. Over MCP: `cdp_verify_diagram`.
 
     $ cdp verify-diagram diagram.mmd
     $ cdp verify-diagram - --json

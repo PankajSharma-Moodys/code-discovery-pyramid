@@ -55,7 +55,7 @@ class SchemaIsGenerated(unittest.TestCase):
         self.assertIn("cdp_help", TOOL_SCHEMAS)
         from mcp_server.schemas import estimate_at_rest_tokens
 
-        self.assertLess(estimate_at_rest_tokens()["tokens_est"], 2000)
+        self.assertLess(estimate_at_rest_tokens()["tokens_est"], 2200)
 
 
 class AgainstARealScan(unittest.TestCase):

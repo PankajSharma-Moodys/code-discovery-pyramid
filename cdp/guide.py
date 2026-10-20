@@ -299,7 +299,7 @@ DIAGRAM_RULE = (
     "by a repo-unique path suffix; given only a declaration, Read it to find the site or dash the edge. "
     "Never draw an edge you did not find: list steps/states with no writer found apart, dash inferred "
     "edges (`-.->`), end with \"+N not shown: ...\". Notes in block form only (`note ... end note`). Before "
-    "showing it, run `cdp verify-diagram` and fix or dash every edge not reported correct."
+    "showing it, call `cdp_verify_diagram` (CLI: `cdp verify-diagram`) and fix or dash every edge not reported correct."
 )
 
 

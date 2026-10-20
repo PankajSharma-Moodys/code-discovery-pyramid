@@ -82,6 +82,21 @@ TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
+    "cdp_verify_diagram": {
+        "description": (
+            "Check a Mermaid flowchart's edge citations against repo files, before showing it. "
+            "ok=false: re-cite or dash the listed edges, rerun."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string", "description": "path to the repository"},
+                "diagram": {"type": "string", "description": "mermaid, or an answer with ```mermaid fences"},
+            },
+            "required": ["repo", "diagram"],
+            "additionalProperties": False,
+        },
+    },
     "cdp_status": {
         "description": (
             "Coverage, freshness and any in-flight run's task state for an "
