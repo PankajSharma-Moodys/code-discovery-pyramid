@@ -3,12 +3,15 @@
 // which changes the drawing and never the stored message (no tools, no MCP,
 // no session.append, no prompt hooks), so nothing reaches the model. The
 // turn.start / tool.call / turn.complete hooks only observe (always next(e))
-// to note whether a main-loop turn used CDP.
+// to note whether a main-loop turn used CDP. After such a turn's answer,
+// turn.complete opens $.ui.ask (the person's dialog, not the model's) to offer
+// a diagram and only records the choice for M3 (offer.ts).
 
 import type { Elements, Register } from 'claude-code'
 
 import { CdpTurnTracker } from './detect.ts'
 import { hasMermaid, splitBlocks } from './mermaid.ts'
+import { type DiagramChoice, DiagramOffer, type OnChoice } from './offer.ts'
 import { altText, legendText, prepare, summary, toSvg } from './render.ts'
 
 /** Columns the transcript leaves a reply after its bullet and margins. */
@@ -18,6 +21,22 @@ const tracker = new CdpTurnTracker()
 
 /** Whether the last main-loop turn that completed used CDP (MCP or the Bash CLI). */
 export const lastTurnUsedCdp = (): boolean => tracker.lastTurnUsedCdp()
+
+const offer = new DiagramOffer()
+
+/** The diagram the person last chose to have drawn, or null. */
+export const pendingChoice = (): DiagramChoice | null => offer.pending()
+
+/** Sets the hook point told of each offer's result (null: no diagram) with the answer it was for. */
+export const onDiagramChoice = (cb: OnChoice | null): void => {
+  offer.onChoice = cb
+}
+
+/** Call before submitting the mod's own diagram follow-up, so its end is not offered. */
+export const expectDiagramFollowUp = (): void => offer.expectFollowUp()
+
+/** Resolves once the latest offer has settled. */
+export const offerSettled = (): Promise<void> => offer.idle()
 
 export const register: Register = on => {
   on('turn.start', ($, e, next) => {
@@ -30,10 +49,13 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('turn.complete', ($, e, next) => {
+  on('turn.complete', async ($, e, next) => {
     const used = tracker.complete(e)
     if (used !== undefined) $.ui.log(`cdp-diagrams: turn ${e.turnId} used CDP: ${used}`, { to: 'debug' })
-    return next(e)
+    const r = await next(e)
+    // Unawaited: the turn ends now; the dialog follows its answer row.
+    offer.maybeOffer(e, used === true, (q, o) => $.ui.ask(q, o))
+    return r
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
