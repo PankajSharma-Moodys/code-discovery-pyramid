@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from .base import ExtractContext, FileFacts, anchor_at
 from .java_body import ALL_CAPS, FileInfo, Scan, TExpr
 from .java_types import split_type
+from .scala_glue import cuts_chain
 from .scala_decl import ScType, ScalaDeclParser, scala_type_text
 from .scala_tokens import ScTokens
 
@@ -44,6 +45,8 @@ class ScFileInfo(FileInfo):
         super().__init__(ctx, facts, tk, resolver, types, members, list(resolver.wildcards),
                          lambda *a: False, None)
         self.http_types = frozenset()
+        self.declared = frozenset(m.name for jt in types for m in jt.members)
+        self.imported = tuple(resolver.simple_to_fqn.values()) + tuple(resolver.wildcards)
         self.parser = ScalaDeclParser(tk, lines)
 
     def norm_scala(self, text: str, tvars) -> str:
@@ -410,6 +413,8 @@ class ScScan(Scan):
             self.emit(self.cls_type, name, tk.line[i], "invoke", (), strict=True, alts=alts)
             self._open = None
             self.consumed.add(i)
+        if cuts_chain(name, fi.declared, fi.imported):
+            return None                              # `when(..).thenReturn(..)`: nothing to type the chain on
         return self.apply((self.cls_type, ()), "m:" + name)
 
     def _skip_args(self, j: int) -> int:
