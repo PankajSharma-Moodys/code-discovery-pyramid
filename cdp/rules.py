@@ -52,7 +52,7 @@ import re
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .anchor import build_anchor
+from .anchor import build_fact_anchor
 from .util import read_lines
 
 RULES_DIR = Path(__file__).resolve().parent / "rules"
@@ -518,7 +518,7 @@ class _Anchors:
             return {"file": rel, "line": line, "anchor": text}
         if rel not in self.lines:
             self.lines[rel] = read_lines(self.repo / rel)
-        return build_anchor(rel, self.lines[rel], line - 1)
+        return build_fact_anchor(rel, self.lines[rel], line - 1)   # a rule edge is a deterministic fact
 
 
 def _decl_sites(d: Dict) -> Iterable[Tuple[str, Dict, Optional[Dict]]]:

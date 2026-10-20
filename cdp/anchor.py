@@ -234,6 +234,68 @@ def build_anchor(
     return None
 
 
+#: Key on an anchor that cites its line exactly but whose text is not unique enough to
+#: survive an edit (§5.4). Only deterministic facts carry it; a claim must never cite one.
+EXACT = "exact"
+
+
+#: Per-file memo of fact anchors: `(lines, rel_path, {index: anchor or None})`, one slot per
+#: recent file list (same identity-plus-held-reference guard as `_INDEX_CACHE`). Many rows share a
+#: line; each used to recompute its anchor. Evicted with the file, so it never grows across files;
+#: module-global, hence per process; a thread race only recomputes an entry, never corrupts one.
+_FACT_MEMO: "OrderedDict[int, Tuple[Sequence[str], str, Dict[int, Optional[Dict[str, object]]]]]" = OrderedDict()
+_FACT_MEMO_MAX = 2
+
+
+def build_fact_anchor(
+    rel_path: str,
+    lines: Sequence[str],
+    index: int,
+) -> Optional[Dict[str, object]]:
+    """Memoised per (file lines, index); returns a fresh dict each call, so a caller may mutate it."""
+    key = id(lines)
+    slot = _FACT_MEMO.get(key)
+    if slot is None or slot[0] is not lines or slot[1] != rel_path:
+        slot = (lines, rel_path, {})
+        _FACT_MEMO[key] = slot
+        while len(_FACT_MEMO) > _FACT_MEMO_MAX:
+            _FACT_MEMO.popitem(last=False)
+    memo = slot[2]
+    if index in memo:
+        hit = memo[index]
+    else:
+        hit = memo[index] = _build_fact_anchor(rel_path, lines, index)
+    return None if hit is None else dict(hit)
+
+
+def _build_fact_anchor(
+    rel_path: str,
+    lines: Sequence[str],
+    index: int,
+) -> Optional[Dict[str, object]]:
+    """The anchor of a deterministic extractor fact at 0-based `index`.
+
+    A fact is re-extracted whenever its blob changes, so it never has to survive an edit:
+    it cites `(file, index + 1)` exactly. Text uniqueness (`build_anchor`) is still tried
+    first, because claims derived from facts reuse their anchors and claims must survive
+    edits; the fact keeps its own line even when that text grew upward from an earlier
+    line. When no span qualifies (the line repeats more than `MAX_MATCHES_IN_FILE` times,
+    or twice within the window), the fact keeps the line's own text and is marked `EXACT`
+    instead of being dropped.
+    """
+    if not (0 <= index < len(lines)):
+        return None
+    anchor = build_anchor(rel_path, lines, index)
+    if anchor is not None:
+        if anchor["line"] != index + 1:
+            anchor["line"] = index + 1
+        return anchor
+    text = normalise_ws(lines[index])[:MAX_ANCHOR_LEN]
+    if not text:
+        return None
+    return {"file": rel_path, "line": index + 1, "anchor": text, EXACT: True}
+
+
 def build_anchor_for_text(
     rel_path: str,
     lines: Sequence[str],

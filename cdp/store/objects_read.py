@@ -123,7 +123,28 @@ class ObjectReadMixin:
             self._derived[key] = ({p: r["role"] for p, r in self.current_files().items()},
                                   self.artifact_field("xref", "constants", {}) or {})
         role_of, constants = self._derived[key]
-        return {f: json.loads(canon(resolve_mod.symbol_entry(f, rs, role_of, constants))) for f, rs in rows.items()}
+        scope = self._sig_scope()
+        return {f: json.loads(canon(resolve_mod.symbol_entry(f, rs, role_of, constants, scope))) for f, rs in rows.items()}
+
+    def _sig_scope(self):
+        """`jtypes.SigScope` over this snapshot: a file's package and wildcard imports from its
+        extract segment, declared classes through `f_def` (what `build_xref` settles against)."""
+        key = (id(self._view()), "sig-scope")
+        if key not in self._derived:
+            from ..jtypes import CLASS_KINDS, SigScope
+            files: Dict[str, Tuple] = {}
+
+            def scope_of(path):
+                if path not in files:
+                    part = self.file_part("extract", path) or {}
+                    files[path] = ((part.get("meta") or {}).get("package") or "",
+                                   [r["fqn"][:-2] for r in part.get("imports", ()) if r["fqn"].endswith(".*")])
+                return files[path]
+
+            def probe(cands):
+                return {f for f, rs in self.defines_of(sorted(cands)).items() if any(r["kind"] in CLASS_KINDS for r in rs)}
+            self._derived[key] = SigScope(scope_of, probe)
+        return self._derived[key]
 
     def used_by_keys(self) -> List[str]:
         rows = self._rows("SELECT DISTINCT u.to_sym FROM x_use u JOIN snapshot_file f ON f.xseg = u.seg "

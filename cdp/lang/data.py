@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Tuple
 
+from ..anchor import EXACT
 from .base import ExtractContext, Extractor, FileFacts, anchor_at, count_loc, mk_define, mk_edge
 
 # A table name: up to two qualifiers (`${schema}.`, `dbo.`, `[dbo].`) then the name.
@@ -54,6 +55,9 @@ class SqlExtractor(Extractor):
             facts.notes.append("migration_version=" + migration.group(1))
 
         seen = set()
+        # (table, channel) -> rows whose anchor is EXACT (repeated text): a later occurrence with a
+        # unique anchor is preferred, since claims about the table must survive edits
+        pending: Dict[Tuple[str, str], Tuple[Dict, Optional[Dict]]] = {}
         in_block = False
         for idx, raw_line in enumerate(ctx.lines):
             # Comments are prose, not DDL; Flyway `${placeholders}` stand for a
@@ -88,10 +92,21 @@ class SqlExtractor(Extractor):
                     anchor = anchor_at(ctx, idx)
                     if anchor is None:
                         continue
+                    edge = mk_edge(owner, "table:" + table, channel, anchor)
+                    define = (mk_define("table:" + table, "table", "public", anchor)
+                              if channel == "schema_own" and regex is CREATE_TABLE_RE else None)
+                    if anchor.get(EXACT):
+                        pending.setdefault(key, (edge, define))
+                        continue
                     seen.add(key)
-                    facts.io_edges.append(mk_edge(owner, "table:" + table, channel, anchor))
-                    if channel == "schema_own" and regex is CREATE_TABLE_RE:
-                        facts.defines.append(mk_define("table:" + table, "table", "public", anchor))
+                    pending.pop(key, None)
+                    facts.io_edges.append(edge)
+                    if define is not None:
+                        facts.defines.append(define)
+        for edge, define in pending.values():   # no unique occurrence: the first one, cited exactly
+            facts.io_edges.append(edge)
+            if define is not None:
+                facts.defines.append(define)
         return facts
 
 

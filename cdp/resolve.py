@@ -35,6 +35,7 @@ from .rules import all_edges
 from .graph import build_symbol_index, owners_of
 from .cfgwrap import wrapped_reads
 from .cstypes import CsTypeIndex
+from .jtypes import DEFINE_TYPE_FIELDS, settle_extraction
 from .pytypes import PyIndex
 from .lang.base import is_third_party
 from .routes_cs import expand_routes
@@ -44,6 +45,7 @@ SYMBOLIC_RE = re.compile(r"\$\{([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\}")
 
 def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
     module_set = {m["name"] for m in inventory["modules"]}
+    extraction = settle_extraction(extraction)
     symbol_owner, namespace_owner = build_symbol_index(extraction)
     role_of = {f["path"]: f["role"] for f in inventory["files"]}
 
@@ -93,11 +95,13 @@ def _symbol_table(extraction: Dict, role_of: Dict[str, str]) -> Tuple[Dict[str, 
     )
 
 
-def symbol_entry(fqn: str, rows: List[Dict], role_of: Dict[str, str], constants: Dict[str, Dict]) -> Dict:
+def symbol_entry(fqn: str, rows: List[Dict], role_of: Dict[str, str], constants: Dict[str, Dict], scope=None) -> Dict:
     """One `xref.symbols` entry from its define rows (in `extract.defines` order): exactly what
     `build_xref` computes for it, for a store that looks symbols up one at a time."""
     table: Dict[str, Dict] = {}
     for row in rows:
+        if scope is not None and row["file"].endswith(".java"):
+            row = scope.fix_row(row, DEFINE_TYPE_FIELDS)    # as `settle_extraction` did at scan
         _add_define(table, row, role_of)
     _finish_symbol(fqn, table[fqn])
     _resolve_annotation_args(table, constants)
