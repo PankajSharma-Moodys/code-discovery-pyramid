@@ -117,5 +117,46 @@ class VerifyDiagramTest(unittest.TestCase):
             self.assertEqual(cites[0]["spans"], [(12, 14), (20, 20)])
 
 
+class AccuracyTest(unittest.TestCase):
+    """V2: node-label paths, action words, `.../` paths and lifecycle state names."""
+
+    SHOP = diagram.Repo(str(FIXTURES / "diagrams" / "shoprepo"))
+
+    def statuses(self, src: str, repo=None):
+        return [e["status"] for e in diagram.grade(src, repo or self.SHOP)[0]["edges"]]
+
+    def test_call_statement_is_not_an_enum_member_declaration(self) -> None:
+        # orders.py:25 is `ship(order)`; node labels carrying a path must not matter
+        for node in ('"ship (shop/shipping.py:4)"', '"shipping.ship"', '"ship"',
+                     '"ship  shop/shipping.py"'):
+            src = 'flowchart LR\n A["status = PAID"] -->|orders.py:25| B[%s]' % node
+            self.assertEqual(self.statuses(src), ["correct"], node)
+
+    def test_action_words_are_not_evidence(self) -> None:
+        # line 16 is `self.order_id = order_id`: `order` is an argument, not the callee
+        src = 'flowchart LR\n A["x"] -->|"ship(order) · orders.py:16"| B["y"]'
+        self.assertEqual(self.statuses(src), ["wrong_citation"])
+        src = 'flowchart LR\n A["x"] -->|"ship(order) · orders.py:25"| B["y"]'
+        self.assertEqual(self.statuses(src), ["correct"])
+
+    def test_dotdotdot_path_and_state_names(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name) / "sched" / "core" / "svc"
+        d.mkdir(parents=True)
+        (d / "Flow.scala").write_text("object Flow {\n  def a() = 1\n  def go(w: W) = {\n"
+                                      "    repo.moveWorkflowStatus(w, PENDING)\n  }\n}\n")
+        repo = diagram.Repo(tmp.name)
+        self.assertEqual(diagram.resolve("sched/.../Flow.scala", [], repo.files, ""),
+                         ["sched/core/svc/Flow.scala"])
+        self.assertEqual(diagram.resolve("other/.../Flow.scala", [], repo.files, ""), [])
+        src = 'flowchart LR\n  QUEUED -->|"sched/.../Flow.scala:4 moveWorkflowToPending"| PENDING'
+        self.assertEqual(self.statuses(src, repo), ["correct"])
+        src = 'flowchart LR\n  Creating -.->|Flow.scala:4| PENDING'
+        self.assertEqual(self.statuses(src, repo), ["correct"])
+        src = 'flowchart LR\n  QUEUED -->|"Flow.scala:2 moveWorkflowToPending"| FAILED'
+        self.assertEqual(self.statuses(src, repo), ["unsupported"])
+
+
 if __name__ == "__main__":
     unittest.main()
