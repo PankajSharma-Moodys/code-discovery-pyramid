@@ -1,4 +1,4 @@
-"""Test-DSL glue (`when`, `should`, `in`, ...) produces no use rows; a file declaring the name keeps them."""
+"""Bare `when(..)` chains are cut only in files importing a test framework; explicit-receiver calls stay."""
 
 from __future__ import annotations
 
@@ -15,20 +15,26 @@ def calls(src: str):
     return {u["fqn"] for u in ScalaExtractor().extract(ctx).uses if u.get("kind") == "call"}
 
 
+STUB = "package p\nclass Repo { def save(x: Int) = 1 }\nclass S {\n  val r = mock[Repo]\n  def m() = {\n    when(r.save(1)).thenReturn(2)\n  }\n}\n"
+
+
 class GlueTest(unittest.TestCase):
-    SPEC = ("package p\nclass Repo { def save(x: Int) = 1 }\n"
-            "class S extends FlatSpec {\n  val r = mock[Repo]\n"
-            "  it should \"x\" in {\n    when(r.save(1)).thenReturn(2)\n    r.save(1) shouldBe 2\n  }\n}\n")
-
-    def test_glue_dropped_real_call_kept(self) -> None:
-        got = calls(self.SPEC)
+    def test_framework_import_cuts_chain(self) -> None:
+        got = calls("import org.mockito.Mockito._\n" + STUB)
         self.assertIn("p.Repo#save", got)
-        for name in ("when", "in", "should", "shouldBe", "thenReturn"):
-            self.assertFalse([f for f in got if f.endswith("#" + name)], (name, got))
+        self.assertFalse([f for f in got if f.endswith("#thenReturn")], got)
 
-    def test_declared_name_kept(self) -> None:
-        src = "package p\nclass S { def when(x: Int) = 1\n def m() = when(2) }\n"
-        self.assertIn("p.S#when", calls(src))
+    def test_no_import_keeps_chain(self) -> None:
+        self.assertTrue([f for f in calls(STUB) if f.endswith("#thenReturn")])
+
+    def test_other_file_method_with_glue_name_kept(self) -> None:
+        src = "package p\nimport org.scalatest.FlatSpec\nclass U { def go(m: Matrix) = m.times(2) }\n"
+        self.assertIn("p.Matrix#times", calls(src))
+
+    def test_declared_name_not_cut(self) -> None:
+        src = ("package p\nimport org.mockito.Mockito._\nclass R { def foo() = 1 }\n"
+               "class S { def when(x: Int): R = new R\n def m() = when(2).foo() }\n")
+        self.assertIn("p.S#foo", calls(src))   # chain kept, typed later from S#when
 
 
 if __name__ == "__main__":
