@@ -1,16 +1,17 @@
 // cdp-diagrams: draws ```mermaid flowchart / stateDiagram blocks of Claude's
-// replies as diagrams. Display only: one ui.render hook on AssistantMessage,
-// which changes the drawing and never the stored message (no tools, no MCP,
-// no session.append, no prompt hooks), so nothing reaches the model. The
-// turn.start / tool.call / turn.complete hooks only observe (always next(e))
-// to note whether a main-loop turn used CDP. After such a turn's answer,
-// turn.complete opens $.ui.ask (the person's dialog, not the model's) to offer
-// a diagram and only records the choice for M3 (offer.ts).
+// replies as diagrams. The ui.render hook on AssistantMessage changes the
+// drawing and never the stored message. turn.start / tool.call / turn.complete
+// observe (next(e)) to note whether a main-loop turn used CDP; after such a
+// turn's answer, turn.complete opens $.ui.ask (the person's dialog) to offer a
+// diagram (offer.ts). The one message the mod sends the model is the follow-up
+// the person asked for there: one $.prompt.submit (followup.ts), during whose
+// turn main-loop tool calls are denied. Nothing else reaches the model.
 
 import type { Elements, Register } from 'claude-code'
 
 import { CdpTurnTracker } from './detect.ts'
 import { hasMermaid, splitBlocks } from './mermaid.ts'
+import { DiagramFollowUp, type DiagramLink } from './followup.ts'
 import { type DiagramChoice, DiagramOffer, type OnChoice } from './offer.ts'
 import { altText, legendText, prepare, summary, toSvg } from './render.ts'
 
@@ -38,23 +39,50 @@ export const expectDiagramFollowUp = (): void => offer.expectFollowUp()
 /** Resolves once the latest offer has settled. */
 export const offerSettled = (): Promise<void> => offer.idle()
 
+const followUp = new DiagramFollowUp()
+
+/** Whether `turnId` is the mod's own diagram follow-up turn. */
+export const isDiagramTurn = (turnId: string): boolean => followUp.isDiagramTurn(turnId)
+
+/** For a follow-up turn: the answer's turnId and text it draws, and the kinds asked for; else null. */
+export const diagramFor = (turnId: string): DiagramLink | null => followUp.diagramFor(turnId)
+
 export const register: Register = on => {
   on('turn.start', ($, e, next) => {
     tracker.start(e)
+    followUp.start(e)
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('tool.call', ($, e, next) => {
     tracker.call(e)
+    // Only during the follow-up turn, main loop only; every other call passes unchanged.
+    const deny = followUp.denies(e)
+    if (deny !== null) return { deny }
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     const used = tracker.complete(e)
+    followUp.complete(e)
     if (used !== undefined) $.ui.log(`cdp-diagrams: turn ${e.turnId} used CDP: ${used}`, { to: 'debug' })
     const r = await next(e)
     // Unawaited: the turn ends now; the dialog follows its answer row.
-    offer.maybeOffer(e, used === true, (q, o) => $.ui.ask(q, o))
+    if (offer.maybeOffer(e, used === true, (q, o) => $.ui.ask(q, o))) {
+      const { turnId, answer } = e
+      void offer.idle().then(() => {
+        const choice = offer.take()
+        if (!choice) return
+        return followUp.begin(
+          choice,
+          turnId,
+          answer,
+          text => $.prompt.submit({ text }),
+          () => offer.expectFollowUp(),
+          () => offer.cancelFollowUp(),
+        )
+      })
+    }
     return r
   }).catch(($, e, next) => next(e))
 

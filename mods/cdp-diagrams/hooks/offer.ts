@@ -1,7 +1,7 @@
 // After a main-loop turn that used CDP ends with an answer, offers to draw a
 // diagram of it: "Yes"/"No", then (on Yes) a multi-select of the kinds. Pure
 // apart from the `ask` it is handed; register.tsx gives it `$.ui.ask`. It
-// only records the choice (`pending()`, `onChoice`); M3 acts on it.
+// only records the choice (`pending()`, `onChoice`); followup.ts acts on it.
 
 export type DiagramKind = 'flowchart' | 'state'
 
@@ -58,6 +58,11 @@ export class DiagramOffer {
   /** Marks the next main-loop turn as the mod's own diagram follow-up: no offer at its end. */
   expectFollowUp(): void {
     this.followUp = true
+  }
+
+  /** Withdraws the mark when the follow-up never started (its submit dropped or failed). */
+  cancelFollowUp(): void {
+    this.followUp = false
   }
 
   /** The last choice made (null after No, a dismissal or no kinds). */

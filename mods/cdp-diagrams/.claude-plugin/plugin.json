@@ -1,7 +1,7 @@
 {
   "name": "cdp-diagrams",
   "version": "0.1.0",
-  "description": "Draws mermaid flowchart and stateDiagram blocks in Claude's replies as diagrams (display only)",
+  "description": "Draws mermaid flowchart and stateDiagram blocks in Claude's replies as diagrams; after a CDP answer, offers to have one drawn (one follow-up prompt, tools off)",
   "author": {
     "name": "sharmp49"
   }
