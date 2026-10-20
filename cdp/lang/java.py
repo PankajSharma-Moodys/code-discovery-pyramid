@@ -83,6 +83,9 @@ JAVA_BUILTINS = frozenset(
 )
 
 
+GUESS_PREFIX = "guess:"   # file signal: a type name the extractor qualified by guess
+
+
 class _Annotation:
     __slots__ = ("name", "args", "index")
 
@@ -137,6 +140,7 @@ class JavaExtractor(Extractor):
         _emit_entrypoints(ctx, facts, code, primary)
         emit_flow(ctx, facts, code, tk, types, resolver, statics, static_wild)
 
+        facts.signals.extend(GUESS_PREFIX + g for g in _guessed_in_sigs(facts, resolver.guessed))
         facts.signals = sorted(set(facts.signals))
         return facts
 
@@ -475,6 +479,23 @@ def _read_annotations(tk: Tokens, types: List[JType]) -> List[_Annotation]:
     return found
 
 
+def _guessed_in_sigs(facts: FileFacts, guessed) -> List[str]:
+    """The guessed names that a signature type field of this file carries (the only place
+    `jtypes.SigScope` reads them), so a file records no guess it never needs."""
+    if not guessed:
+        return []
+    texts: List[str] = []
+    for row in facts.defines + facts.uses:
+        for key in ("sig", "ret", "ftype", "from_sig", "argt", "params"):
+            v = row.get(key)
+            if isinstance(v, str):
+                texts.append(v)
+            elif isinstance(v, list):
+                texts.extend(x if isinstance(x, str) else (x.get("type") or "") for x in v if isinstance(x, (str, dict)))
+    found = {n for t in texts for n in re.findall(r"[A-Za-z_$][\w$.]*", t)}
+    return sorted(guessed & found)
+
+
 class _Resolver:
     """Simple-name -> FQN within one file's own knowledge (§6.3)."""
 
@@ -483,6 +504,7 @@ class _Resolver:
         self.simple_to_fqn = simple_to_fqn
         self.wildcards = wildcards
         self.local_types: Dict[str, str] = {}
+        self.guessed: set = set()   # names qualified by the same-package guess (not written so)
         self.static_members: Dict[str, str] = {}   # `import static a.B.NAME` -> NAME: a.B
 
     def resolve(self, name: str) -> Tuple[str, str]:
@@ -515,6 +537,7 @@ class _Resolver:
                 full = fq + "." + rest
                 return full, ("third_party" if is_third_party(full) else "external")
             if head[:1].isupper() and self.pkg:
+                self.guessed.add(self.pkg + "." + name)
                 return self.pkg + "." + name, "local"
             return name, ("third_party" if is_third_party(name) else "external")
         if name in self.local_types:
@@ -523,6 +546,7 @@ class _Resolver:
         if hit:
             return hit, ("third_party" if is_third_party(hit) else "external")
         if self.pkg:
+            self.guessed.add(self.pkg + "." + name)
             return self.pkg + "." + name, "local"
         return name, "unresolved"
 

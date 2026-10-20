@@ -75,12 +75,38 @@ class SigScopeTest(unittest.TestCase):
     def test_store_symbol_entry_matches_xref(self):
         from cdp import resolve
         rows = [d for d in self.p.extraction["defines"] if d["fqn"] == "a.svc.Svc#same"]
-        scope = SigScope(lambda f: ("a.svc", ["a.model"]),
+        scope = SigScope(lambda f: ("a.svc", ["a.model"], frozenset(["a.svc.Dto", "a.svc.Peer"])),
                          lambda c: {x for x in c if x in ("a.model.Dto", "a.svc.Peer")})
         role = {r["file"]: "source" for r in rows}
         got = resolve.symbol_entry("a.svc.Svc#same", rows, role, {}, scope)
         args = lambda e: [s["sig"].partition("(")[2] for s in e["sites"]]
         self.assertEqual(args(got), args(self.p.xref["symbols"]["a.svc.Svc#same"]))
+
+
+class ExplicitQualifiedTest(unittest.TestCase):
+    def test_written_qualified_kept_guessed_settled(self):
+        files = {
+            "src/a/model/Dto.java": "package a.model;\npublic class Dto {}\n",
+            "src/a/web/Ctl.java": (
+                "package a.web;\nimport a.model.*;\n"
+                "public class Ctl {\n"
+                "  public void wild(Dto d) {}\n"
+                "  public void wild(Dto d, int n) {}\n"
+                "  public void bare(Missing m) {}\n"
+                "  public void bare(Missing m, int n) {}\n"
+                "}\n"),
+            "src/a/web/Ex.java": (
+                "package a.web;\npublic class Ex {\n"
+                "  public void explicit(a.web.Dto d) {}\n"
+                "  public void explicit(a.web.Dto d, int n) {}\n}\n"),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Pipeline(_repo(Path(tmp), files))
+            sy = p.xref["symbols"]
+            sigs = lambda o: [s["sig"] for s in sy[o]["sites"] if s.get("sig")]
+            self.assertIn("a.web.Ex#explicit(a.web.Dto)", sigs("a.web.Ex#explicit"))
+            self.assertIn("a.web.Ctl#wild(a.model.Dto)", sigs("a.web.Ctl#wild"))
+            self.assertIn("a.web.Ctl#bare(Missing)", sigs("a.web.Ctl#bare"))
 
 
 if __name__ == "__main__":

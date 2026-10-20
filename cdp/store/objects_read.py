@@ -138,7 +138,9 @@ class ObjectReadMixin:
                 if path not in files:
                     part = self.file_part("extract", path) or {}
                     files[path] = ((part.get("meta") or {}).get("package") or "",
-                                   [r["fqn"][:-2] for r in part.get("imports", ()) if r["fqn"].endswith(".*")])
+                                   [r["fqn"][:-2] for r in part.get("imports", ()) if r["fqn"].endswith(".*")],
+                                   frozenset(g[len("guess:"):] for g in (part.get("meta") or {}).get("signals") or ()
+                                             if g.startswith("guess:")))
                 return files[path]
 
             def probe(cands):
