@@ -80,3 +80,19 @@ test('drawing adds nothing to the conversation the model reads', async ($, on) =
   }
   expect(session.appended()).toEqual([])
 })
+
+test('a reply from no CDP or diagram turn runs no checker and draws no badges', async ($, on) => {
+  const runs: unknown[] = []
+  on('process.run', ($, e) => {
+    runs.push(e.argv)
+    return { exitCode: 0, stdout: '', stderr: '' }
+  })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'cdp-diagrams', surface, component: 'AssistantMessage', props: props(REPLY), viewport })
+    expect(await ui.find({ type: 'Text', text: /DeleteStoreHandler\.cs:133/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /verified \d+\/\d+ edges/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^[✓✗?~] / })).toBeUndefined()
+    await ui.unmount()
+  }
+  expect(runs).toEqual([])
+})

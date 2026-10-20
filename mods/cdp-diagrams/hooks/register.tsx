@@ -6,6 +6,9 @@
 // diagram (offer.ts). The one message the mod sends the model is the follow-up
 // the person asked for there: one $.prompt.submit (followup.ts), during whose
 // turn main-loop tool calls are denied. Nothing else reaches the model.
+// Fences of CDP turns and of those follow-ups are checked with
+// `cdp verify-diagram` (verify.ts) and their edges badged; that runs on the
+// host and its result only changes the drawing.
 
 import type { Elements, Register } from 'claude-code'
 
@@ -14,6 +17,7 @@ import { hasMermaid, splitBlocks } from './mermaid.ts'
 import { DiagramFollowUp, type DiagramLink } from './followup.ts'
 import { type DiagramChoice, DiagramOffer, type OnChoice } from './offer.ts'
 import { altText, legendText, prepare, summary, toSvg } from './render.ts'
+import { MARK, matchEdges, type Run, type Verdict, verdictLine, Verifier } from './verify.ts'
 
 /** Columns the transcript leaves a reply after its bullet and margins. */
 const INDENT = 4
@@ -47,6 +51,11 @@ export const isDiagramTurn = (turnId: string): boolean => followUp.isDiagramTurn
 /** For a follow-up turn: the answer's turnId and text it draws, and the kinds asked for; else null. */
 export const diagramFor = (turnId: string): DiagramLink | null => followUp.diagramFor(turnId)
 
+const verifier = new Verifier()
+
+/** Resolves once every citation check started so far has ended. */
+export const verifySettled = (): Promise<void> => verifier.idle()
+
 export const register: Register = on => {
   on('turn.start', ($, e, next) => {
     tracker.start(e)
@@ -66,6 +75,14 @@ export const register: Register = on => {
     const used = tracker.complete(e)
     followUp.complete(e)
     if (used !== undefined) $.ui.log(`cdp-diagrams: turn ${e.turnId} used CDP: ${used}`, { to: 'debug' })
+    // A CDP turn's or a diagram follow-up's fences get their citations checked.
+    if (e.agentId === undefined && (used === true || followUp.isDiagramTurn(e.turnId))) {
+      try {
+        if (verifier.allow(e.answer) > 0) $.ui.invalidate('ui.render')
+      } catch {
+        // badges are extra; the drawing stands without them
+      }
+    }
     const r = await next(e)
     // Unawaited: the turn ends now; the dialog follows its answer row.
     if (offer.maybeOffer(e, used === true, (q, o) => $.ui.ask(q, o))) {
@@ -97,7 +114,27 @@ export const register: Register = on => {
     const Svg = e.surface === 'terminal' ? null : (t as Elements['desktop']).Svg
     const columns = Math.max(30, (e.viewport?.columns ?? 100) - INDENT)
 
-    const parts = splitBlocks(text).map((block, i) => {
+    const blocks = splitBlocks(text)
+    let cwd: string | null = null
+    let run: Run | null = null
+    if (blocks.some(b => b.kind === 'mermaid' && verifier.isAllowed(b.source))) {
+      try {
+        cwd = await $.session.cwd()
+        run = (argv, init) => $.process.run(argv, init)
+      } catch {
+        cwd = null
+      }
+    }
+    const verdictFor = (source: string): Verdict | null | undefined => {
+      if (cwd === null || run === null) return undefined
+      try {
+        return verifier.lookup(source, cwd, run, () => $.ui.invalidate('ui.render'))
+      } catch {
+        return undefined
+      }
+    }
+
+    const parts = blocks.map((block, i) => {
       if (block.kind === 'text') {
         return block.text.trim() ? <Markdown key={`m${i}`} text={block.text} /> : null
       }
@@ -111,7 +148,14 @@ export const register: Register = on => {
         )
       }
       const pad = Math.max(2, ...p.layout.legend.map(r => r.tag.length))
-      const legend = p.layout.legend.map(r => legendText(r, p.unplaced, pad))
+      const verdict = verdictFor(block.source)
+      const matched = verdict ? matchEdges(p.graph, verdict) : null
+      const legend = p.layout.legend.map(r => {
+        const row = legendText(r, p.unplaced, pad)
+        if (!matched) return row
+        const m = matched[r.edge]
+        return `${m ? MARK[m.status] : ' '} ${row}`
+      })
       const notes = p.graph.notes.map(n => `note ${n}`)
       return (
         <Box key={`d${i}`} flexDirection="column">
@@ -132,6 +176,7 @@ export const register: Register = on => {
               ))}
             </Box>
           )}
+          {verdict && <Text dimColor>{verdictLine(p.graph, verdict)}</Text>}
           {notes.map(n => (
             <Text dimColor>{n}</Text>
           ))}

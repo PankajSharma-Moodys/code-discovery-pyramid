@@ -14,7 +14,7 @@ export type Route = {
   head: 'end' | 'start' | 'none'
   tag: string | null
 }
-export type LegendRow = { tag: string; text: string; fromId: string; from: string; to: string; dashed: boolean; selfLoop: boolean }
+export type LegendRow = { tag: string; edge: number; text: string; fromId: string; from: string; to: string; dashed: boolean; selfLoop: boolean }
 export type Layout = {
   direction: 'TD' | 'LR'
   width: number
@@ -90,12 +90,13 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
 
   // Tags and legend, in source order, so the numbers read top to bottom.
   const legend: LegendRow[] = []
-  const tags: (string | null)[] = g.edges.map(e => {
+  const tags: (string | null)[] = g.edges.map((e, edge) => {
     const self = e.from === e.to
     if (!e.label && !self) return null
     const tag = String(legend.length + 1)
     legend.push({
       tag,
+      edge,
       text: e.label,
       fromId: e.from,
       from: firstLine(byId.get(e.from)),
