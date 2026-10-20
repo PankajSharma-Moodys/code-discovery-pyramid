@@ -77,6 +77,7 @@ async function flush() {
 
 function engine(on: Hooks, answers: string[]) {
   const submits: string[] = []
+  const runs: string[] = []
   on('tool.call', ($, e) => {
     if (e.tool !== 'AskUserQuestion') return { result: { stdout: 'ok', stderr: '', interrupted: false } } as never
     const questions = (e as unknown as { questions: Question[] }).questions
@@ -99,10 +100,11 @@ function engine(on: Hooks, answers: string[]) {
   on('session.cwd', () => ({ value: '/repo' }) as never)
   on('process.run', ($, e) => {
     const argv = (e as unknown as { argv: string[] }).argv
+    runs.push(argv.join(' '))
     if (argv[0] === 'git') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
     return { value: { exitCode: 3, stdout: FLOW_STDOUT, stderr: '' } } as never
   })
-  return { submits }
+  return { submits, runs }
 }
 
 const done = (turnId: string, answer: string) =>
@@ -112,6 +114,7 @@ const done = (turnId: string, answer: string) =>
 async function diagramTurn($: Engine, on: Hooks, answer = ANSWER, reply = REPLY, before = async () => {}) {
   const s = engine(on, ['Yes', 'Flowchart'])
   await before()
+  runsOf = s.runs
   await $.turn.start({ text: 'how are stores created?', turnId: 'a1' })
   await $.tool.call({ tool: 'Bash', command: 'cdp query symbol Store', description: 'q' } as never)
   await $.turn.complete(done('a1', answer))
@@ -121,6 +124,8 @@ async function diagramTurn($: Engine, on: Hooks, answer = ANSWER, reply = REPLY,
   await $.turn.complete(done('f1', reply))
   await flush()
 }
+
+let runsOf: string[] = []
 
 const row = (text: string) => ({ text, isFirstOfReply: true })
 
@@ -177,6 +182,18 @@ describe('placement through the engine', () => {
       await a.unmount()
       await r.unmount()
     }
+  })
+
+  test("the follow-up's turn.complete starts the citation check before any row draws (fullscreen lost renders' runs, I4)", async ($, on) => {
+    await diagramTurn($, on)
+    await verifySettled()
+    await flush()
+    expect(runsOf.filter(r => r.includes('verify-diagram'))).toHaveLength(1)
+    const { a } = await rows($, 'terminal', FULL)
+    await a.redraw()
+    expect(await a.find(BADGES)).toBeDefined()
+    // the rows' renders hit the cache: still the one checker run
+    expect(runsOf.filter(r => r.includes('verify-diagram'))).toHaveLength(1)
   })
 
   test('no answer row matches: the reply row keeps the drawing', async ($, on) => {

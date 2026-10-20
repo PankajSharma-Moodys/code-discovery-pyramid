@@ -308,6 +308,42 @@ describe('Verifier with a stubbed process.run', () => {
     expect(s.checks().length).toBe(1)
   })
 
+  test('a reply that never comes (git, then the checker): no entry is kept, the next ask runs again and badges', async () => {
+    for (const lostAt of ['git', 'checker'] as const) {
+      const v = new Verifier(20, 10)
+      v.allow(fence(SIMPLE))
+      const good = stub(async () => ({ exitCode: 0, stdout: allCorrect }))
+      const lost: Run = (argv, init) =>
+        (lostAt === 'git' ? argv[0] === 'git' : argv[0] !== 'git' && argv[0] !== 'test')
+          ? new Promise<never>(() => {})
+          : good.run(argv, init)
+      let inv = 0
+      expect(v.lookup(SIMPLE, '/repo', lost, () => inv++)).toBeUndefined()
+      await v.idle()
+      expect(inv).toBe(0)
+      // not cached as "could not be checked": the next ask starts over with a run that replies
+      expect(v.lookup(SIMPLE, '/repo', good.run, () => inv++)).toBeUndefined()
+      await v.idle()
+      expect(v.lookup(SIMPLE, '/repo', good.run, () => inv++)?.edges.map(e => e.status)).toEqual(['correct', 'correct'])
+      expect(inv).toBe(1)
+    }
+  })
+
+  test('prefetch: starts each allowed fence of an answer; a later lookup of the same fence is a cache hit', async () => {
+    const v = new Verifier()
+    const answer = 'Flow:\n\n' + fence(SIMPLE) + '\ntext'
+    const s = stub(async () => ({ exitCode: 0, stdout: allCorrect }))
+    let inv = 0
+    expect(v.prefetch(answer, '/repo', s.run, () => inv++)).toBe(0)
+    v.allow(answer)
+    expect(v.prefetch(answer, '/repo', s.run, () => inv++)).toBe(1)
+    await v.idle()
+    expect(inv).toBe(1)
+    const never: Run = () => new Promise<never>(() => {})
+    expect(v.lookup(SIMPLE, '/repo', never, () => inv++)).not.toBeUndefined()
+    expect(s.checks().length).toBe(1)
+  })
+
   test('cache hit: many renders while running and after, one run per fence and directory', async () => {
     const v = new Verifier()
     v.allow(fence(SIMPLE))

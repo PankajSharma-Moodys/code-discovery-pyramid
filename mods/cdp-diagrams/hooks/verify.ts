@@ -172,6 +172,31 @@ type Entry = { done: false; settled: Promise<void> } | { done: true; verdict: Ve
 
 const MAX_ENTRIES = 256
 
+/**
+ * A run whose reply never came back. Seen live on the fullscreen terminal: a
+ * `$.process.run` asked through a ui.render dispatch that the engine drew again
+ * before the command ended never settled (the command itself exited). Nothing
+ * of it is cached, so a later ask starts over.
+ */
+class Lost extends Error {}
+
+/** Rejects with Lost when `p` has not settled `ms` after the call. */
+function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Lost('no reply')), ms)
+    p.then(
+      v => {
+        clearTimeout(t)
+        resolve(v)
+      },
+      err => {
+        clearTimeout(t)
+        reject(err)
+      },
+    )
+  })
+}
+
 export class Verifier {
   private allowed = new Set<string>()
   private cache = new Map<string, Entry>()
@@ -181,9 +206,16 @@ export class Verifier {
   private working = new Map<string, number>()
 
   private timeoutMs: number
+  /** How long past a run's own timeout its reply may take before it counts as lost. */
+  private graceMs: number
 
-  constructor(timeoutMs = 15000) {
+  /** The git root and vendored-copy probes' timeout. */
+  private stepMs: number
+
+  constructor(timeoutMs = 15000, graceMs = 5000) {
     this.timeoutMs = timeoutMs
+    this.stepMs = Math.min(5000, timeoutMs)
+    this.graceMs = graceMs
   }
 
   /** Marks the fences of a CDP or diagram turn's answer for checking; how many were new. */
@@ -203,9 +235,25 @@ export class Verifier {
   }
 
   /**
+   * Starts the check of each allowed fence of `answer` (turn.complete calls
+   * this with its own `$`, so no ui.render dispatch carries the run); how many
+   * fences it asked for.
+   */
+  prefetch(answer: string, cwd: string, run: Run, invalidate: () => void): number {
+    let n = 0
+    for (const b of splitBlocks(answer)) {
+      if (b.kind !== 'mermaid' || !this.isAllowed(b.source)) continue
+      this.lookup(b.source, cwd, run, invalidate)
+      n++
+    }
+    return n
+  }
+
+  /**
    * The verdict for a fence drawn in `cwd`: undefined while not allowed or
    * still running (the first ask starts it; `invalidate` runs once it ends),
-   * null when it could not be checked.
+   * null when it could not be checked. A run whose reply was lost leaves no
+   * entry, so the next ask runs it again.
    */
   lookup(source: string, cwd: string, run: Run, invalidate: () => void): Verdict | null | undefined {
     if (!this.isAllowed(source)) return undefined
@@ -221,8 +269,9 @@ export class Verifier {
           // a redraw that cannot be asked for waits for the next one
         }
       },
-      () => {
-        this.cache.set(key, { done: true, verdict: null })
+      err => {
+        if (err instanceof Lost) this.cache.delete(key)
+        else this.cache.set(key, { done: true, verdict: null })
       },
     )
     if (this.cache.size >= MAX_ENTRIES) this.cache.delete(this.cache.keys().next().value!)
@@ -238,9 +287,13 @@ export class Verifier {
   private root(cwd: string, run: Run): Promise<string | null> {
     let r = this.roots.get(cwd)
     if (!r) {
-      r = run(['git', 'rev-parse', '--show-toplevel'], { cwd, timeoutMs: 5000 }).then(
+      r = withDeadline(run(['git', 'rev-parse', '--show-toplevel'], { cwd, timeoutMs: this.stepMs }), this.stepMs + this.graceMs).then(
         x => (x.exitCode === 0 && x.stdout.trim() ? x.stdout.trim() : null),
-        () => null,
+        err => {
+          if (!(err instanceof Lost)) return null
+          this.roots.delete(cwd)
+          throw err
+        },
       )
       this.roots.set(cwd, r)
     }
@@ -250,9 +303,13 @@ export class Verifier {
   private hasVendored(repo: string, run: Run): Promise<boolean> {
     let v = this.vendored.get(repo)
     if (!v) {
-      v = run(['test', '-f', `${repo}/${VENDORED}/cdp/cli.py`], { cwd: repo, timeoutMs: 5000 }).then(
+      v = withDeadline(run(['test', '-f', `${repo}/${VENDORED}/cdp/cli.py`], { cwd: repo, timeoutMs: this.stepMs }), this.stepMs + this.graceMs).then(
         x => x.exitCode === 0,
-        () => false,
+        err => {
+          if (!(err instanceof Lost)) return false
+          this.vendored.delete(repo)
+          throw err
+        },
       )
       this.vendored.set(repo, v)
     }
@@ -271,8 +328,12 @@ export class Verifier {
       const started = Date.now()
       let r: RunResult
       try {
-        r = await run(argv, { cwd: repo, ...(c.env ? { env: c.env } : {}), stdin: source, timeoutMs: this.timeoutMs })
-      } catch {
+        r = await withDeadline(
+          run(argv, { cwd: repo, ...(c.env ? { env: c.env } : {}), stdin: source, timeoutMs: this.timeoutMs }),
+          this.timeoutMs + this.graceMs,
+        )
+      } catch (err) {
+        if (err instanceof Lost) throw err
         // Cannot start: try the next command. A timeout: stop.
         if (Date.now() - started >= this.timeoutMs * 0.9) return null
         continue

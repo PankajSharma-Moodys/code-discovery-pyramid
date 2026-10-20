@@ -93,7 +93,18 @@ export const register: Register = on => {
     // A CDP turn's or a diagram follow-up's fences get their citations checked.
     if (e.agentId === undefined && (used === true || followUp.isDiagramTurn(e.turnId))) {
       try {
-        if (verifier.allow(e.answer) > 0) $.ui.invalidate('ui.render')
+        if (verifier.allow(e.answer) > 0) {
+          $.ui.invalidate('ui.render')
+          // Started here, not from a row's ui.render: on the fullscreen terminal a
+          // run asked through a render the engine drew again never replied (I4 live).
+          const answer = e.answer
+          void $.session
+            .cwd()
+            .then(cwd =>
+              verifier.prefetch(answer, cwd, (argv, init) => $.process.run(argv, init), () => $.ui.invalidate('ui.render')),
+            )
+            .catch(() => {})
+        }
       } catch {
         // badges are extra; the drawing stands without them
       }
