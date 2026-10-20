@@ -68,6 +68,34 @@ function edgeLabel(s: string): string {
   return decode(unquote(s)).replace(BR, ' ').replace(/\s+/g, ' ').trim()
 }
 
+/** A file:line citation: `orders.py:24`, `shop/orders.py:24`, `Job.scala:39-45`. */
+const CITE = /(?:[\w.\-]+\/)*[\w\-]+(?:\.[\w\-]+)*\.[A-Za-z]\w*:\d+(?:[-–]\d+)?/g
+
+/**
+ * Splits an edge label into what happens (`charge(order)`) and the file:line
+ * citations that say where (`orders.py:23`): `charge(order) · orders.py:23`,
+ * `success: orders.py:24`, `initial (Job.scala:5)` and a bare `orders.py:22`.
+ */
+export function splitLabel(label: string): { action: string; cites: string[] } {
+  const cites = label.match(CITE) ?? []
+  // Parentheses that only held citations go with them: `initial (Job.scala:5)`.
+  let a = label.replace(CITE, '\u0000')
+  a = a.replace(/\(\s*\u0000(?:\s*[,;]\s*\u0000)*\s*\)/g, ' ').replace(/\u0000/g, ' ').replace(/\s+/g, ' ')
+  // A separator left before another, a note in parentheses, or the end goes:
+  // `return order · orders.py:28 (inferred)` reads `return order (inferred)`.
+  a = a.replace(/\s*[·•]\s*(?=[·•,;]|$)/g, '').replace(/\s*[·•]\s*(?=\()/g, ' ')
+  a = a.replace(/^[\s·•,;:|\-–—]+|[\s·•,;:|(@\-–—]+$/g, '')
+  return { action: a, cites: [...cites] }
+}
+
+/** `s` cut to `n` characters with an ellipsis. */
+export function shorten(s: string, n: number): string {
+  const cs = [...s]
+  if (cs.length <= n) return s
+  if (n <= 1) return '…'
+  return cs.slice(0, n - 1).join('').trimEnd() + '…'
+}
+
 class Builder {
   nodes = new Map<string, GNode>()
   explicit = new Set<string>()

@@ -8,7 +8,7 @@ describe('followUpPrompt', () => {
   test('flowchart only', () => {
     const p = followUpPrompt(['flowchart'])
     expect(p).toBe(
-      'Draw your previous answer as a ```mermaid flowchart block. Use only facts already in that answer and the CDP results above it; use no tools. Label each edge with the file:line that performs it (a call, assignment or transition, never a declaration); dash inferred edges (`-.->`). No prose beyond one line per diagram, ending "+N not shown: ..." when items are left out.',
+      'Draw your previous answer as a ```mermaid flowchart block. Use only facts in that answer and the CDP results above it; use no tools. Label each edge "<short action> · file:line" (e.g. "charge(order) · orders.py:23"), citing the line performing it (a call, assignment or transition, never a declaration); dash inferred edges (`-.->`). No prose beyond one line per diagram, ending "+N not shown: ..." when items are left out.',
     )
     expect(p).not.toContain('stateDiagram')
     expect(words(p)).toBeLessThanOrEqual(80)

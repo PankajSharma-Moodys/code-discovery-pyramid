@@ -1,12 +1,37 @@
 // Turns a Layout into terminal lines (box-drawing characters) or an SVG
 // document, and decides when a block is shown raw instead (and why).
 
-import { layoutGraph, LIMITS, TooLarge, type Layout, type LegendRow, type PlacedBox, type Pt } from './layout.ts'
-import { parseMermaid, ParseError, type Graph } from './mermaid.ts'
+import { LABEL_WIDTH, layoutGraph, LIMITS, TooLarge, type Layout, type LegendRow, type PlacedBox, type Pt, type Role } from './layout.ts'
+import { parseMermaid, ParseError, shorten, type Graph } from './mermaid.ts'
+import type { CheckedEdge, EdgeStatus } from './verify.ts'
+
+/** Who drew a cell of the terminal drawing, so the mod can colour it. */
+export type Owner =
+  | { k: 'edge'; edge: number }
+  | { k: 'tag'; edge: number; mark: boolean }
+  | { k: 'box'; id: string; role: Role; shape: string; label: boolean }
 
 export type Prepared =
-  | { ok: true; graph: Graph; layout: Layout; lines: string[] | null; unplaced: Set<string> }
+  | { ok: true; graph: Graph; layout: Layout; lines: string[] | null; owners: (Owner | null)[][]; unplaced: Set<string> }
   | { ok: false; reason: string }
+
+/**
+ * Layouts tried in order until one fits: boxes narrow first, then the
+ * actions drawn on edges, then edges keep only their markers.
+ */
+const TRIES: [boxWidth: number, labelWidth: number, roomy?: boolean][] = [
+  [24, LABEL_WIDTH, true],
+  [18, LABEL_WIDTH, true],
+  [24, LABEL_WIDTH],
+  [18, LABEL_WIDTH],
+  [14, LABEL_WIDTH],
+  [18, 12],
+  [14, 12],
+  [14, 8],
+  [10, 8],
+  [14, 0],
+  [10, 0],
+]
 
 /**
  * Parses and lays out one mermaid source. `maxColumns` bounds the terminal
@@ -22,17 +47,17 @@ export function prepare(source: string, maxColumns: number | null): Prepared {
   }
   let narrowest = Infinity
   try {
-    for (const boxWidth of [24, 18, 14, 10]) {
+    for (const [boxWidth, labelWidth, roomy] of TRIES) {
       for (const compact of [false, true]) {
-        const layout = layoutGraph(graph, { boxWidth, compact })
+        const layout = layoutGraph(graph, { boxWidth, compact, labelWidth, roomy: roomy ?? false })
         if (maxColumns === null) {
           if (layout.width > 400) return { ok: false, reason: `too wide to draw (${layout.width} cells)` }
-          return { ok: true, graph, layout, lines: null, unplaced: new Set() }
+          return { ok: true, graph, layout, lines: null, owners: [], unplaced: new Set() }
         }
         narrowest = Math.min(narrowest, layout.width)
         if (layout.width <= maxColumns) {
-          const { lines, unplaced } = drawText(layout)
-          return { ok: true, graph, layout, lines, unplaced }
+          const { lines, owners, unplaced } = drawText(layout)
+          return { ok: true, graph, layout, lines, owners, unplaced }
         }
       }
     }
@@ -67,6 +92,7 @@ class Canvas {
   fixed: (string | null)[]
   mask: number[]
   dash: boolean[]
+  owner: (Owner | null)[]
   w: number
   h: number
   constructor(w: number, h: number) {
@@ -75,50 +101,76 @@ class Canvas {
     this.fixed = new Array(w * h).fill(null)
     this.mask = new Array(w * h).fill(0)
     this.dash = new Array(w * h).fill(false)
+    this.owner = new Array(w * h).fill(null)
   }
   inside(x: number, y: number) {
     return x >= 0 && y >= 0 && x < this.w && y < this.h
   }
-  put(x: number, y: number, s: string) {
-    for (let i = 0; i < s.length; i++) if (this.inside(x + i, y)) this.fixed[y * this.w + x + i] = s[i]!
+  put(x: number, y: number, s: string, who: Owner | ((i: number) => Owner) | null = null) {
+    const cs = [...s]
+    for (let i = 0; i < cs.length; i++) {
+      if (!this.inside(x + i, y)) continue
+      const j = y * this.w + x + i
+      this.fixed[j] = cs[i]!
+      this.owner[j] = typeof who === 'function' ? who(i) : who
+    }
   }
   free(x: number, y: number) {
     return this.inside(x, y) && this.fixed[y * this.w + x] === null && this.mask[y * this.w + x] === 0
   }
-  link(x: number, y: number, bits: number, dashed: boolean) {
+  link(x: number, y: number, bits: number, dashed: boolean, edge: number) {
     if (!this.inside(x, y)) return
     const i = y * this.w + x
     this.mask[i]! |= bits
     if (dashed) this.dash[i] = true
+    if (this.fixed[i] === null) this.owner[i] = { k: 'edge', edge }
   }
-  lines(): string[] {
-    const out: string[] = []
+  cells(): { lines: string[]; owners: (Owner | null)[][] } {
+    const lines: string[] = []
+    const owners: (Owner | null)[][] = []
     for (let y = 0; y < this.h; y++) {
-      let row = ''
+      const row: string[] = []
+      const who: (Owner | null)[] = []
       for (let x = 0; x < this.w; x++) {
         const i = y * this.w + x
         const m = this.mask[i]!
-        row += this.fixed[i] ?? (m ? ((this.dash[i] ? DASHED[m] : undefined) ?? SOLID[m] ?? '┼') : ' ')
+        row.push(this.fixed[i] ?? (m ? ((this.dash[i] ? DASHED[m] : undefined) ?? SOLID[m] ?? '┼') : ' '))
+        who.push(this.fixed[i] !== null || m ? this.owner[i]! : null)
       }
-      out.push(row.replace(/\s+$/, ''))
+      while (row.length && row[row.length - 1] === ' ') {
+        row.pop()
+        who.pop()
+      }
+      lines.push(row.join(''))
+      owners.push(who)
     }
-    return out
+    return { lines, owners }
   }
 }
 
+/** The border a box draws with: a start or end step is rounded. */
+function borderOf(b: PlacedBox): string {
+  if (b.shape === 'rect' && (b.role === 'entry' || b.role === 'end')) return BORDERS.round!
+  return BORDERS[b.shape] ?? BORDERS.rect!
+}
+
 function drawBox(c: Canvas, b: PlacedBox) {
+  const edge: Owner = { k: 'box', id: b.id, role: b.role, shape: b.shape, label: false }
+  const text: Owner = { k: 'box', id: b.id, role: b.role, shape: b.shape, label: true }
   if (b.shape === 'start' || b.shape === 'end') {
-    c.put(b.x, b.y, b.shape === 'start' ? '●' : '◉')
+    c.put(b.x, b.y, b.shape === 'start' ? '●' : '◉', edge)
     return
   }
-  const [tl, tr, bl, br, hz, vt] = [...(BORDERS[b.shape] ?? BORDERS.rect!)] as [string, string, string, string, string, string]
-  c.put(b.x, b.y, tl + hz.repeat(b.w - 2) + tr)
-  c.put(b.x, b.y + b.h - 1, bl + hz.repeat(b.w - 2) + br)
+  const [tl, tr, bl, br, hz, vt] = [...borderOf(b)] as [string, string, string, string, string, string]
+  c.put(b.x, b.y, tl + hz.repeat(b.w - 2) + tr, edge)
+  c.put(b.x, b.y + b.h - 1, bl + hz.repeat(b.w - 2) + br, edge)
   for (let i = 1; i < b.h - 1; i++) {
-    const text = b.lines[i - 1] ?? ''
+    const line = b.lines[i - 1] ?? ''
     const inner = b.w - 2
-    const left = Math.floor((inner - text.length) / 2)
-    c.put(b.x, b.y + i, vt + ' '.repeat(left) + text + ' '.repeat(inner - left - text.length) + vt)
+    const left = Math.floor((inner - line.length) / 2)
+    const row = vt + ' '.repeat(left) + line + ' '.repeat(inner - left - line.length) + vt
+    const last = row.length - 1
+    c.put(b.x, b.y + i, row, k => (k === 0 || k === last ? edge : text))
   }
 }
 
@@ -126,7 +178,7 @@ function step(a: Pt, b: Pt): [number, number] {
   return [Math.sign(b.x - a.x), Math.sign(b.y - a.y)]
 }
 
-function drawRoute(c: Canvas, pts: Pt[], dashed: boolean) {
+function drawRoute(c: Canvas, pts: Pt[], dashed: boolean, edge: number) {
   for (let k = 0; k + 1 < pts.length; k++) {
     const a = pts[k]!
     const b = pts[k + 1]!
@@ -136,58 +188,67 @@ function drawRoute(c: Canvas, pts: Pt[], dashed: boolean) {
     const back = dx > 0 ? L : dx < 0 ? R : dy > 0 ? U : D
     let x = a.x
     let y = a.y
-    c.link(x, y, fwd, dashed)
+    c.link(x, y, fwd, dashed, edge)
     while (x !== b.x || y !== b.y) {
       x += dx
       y += dy
-      c.link(x, y, back | (x === b.x && y === b.y ? 0 : fwd), dashed)
+      c.link(x, y, back | (x === b.x && y === b.y ? 0 : fwd), dashed, edge)
     }
   }
   // A lone first or last cell still reads as a line along the flow.
   const ends = [pts[0]!, pts[pts.length - 1]!]
   for (const p of ends) {
     const i = p.y * c.w + p.x
-    if (c.inside(p.x, p.y) && c.mask[i] === 0) c.link(p.x, p.y, U | D, dashed)
+    if (c.inside(p.x, p.y) && c.mask[i] === 0) c.link(p.x, p.y, U | D, dashed, edge)
   }
 }
 
-function placeTag(c: Canvas, pts: Pt[], tag: string): boolean {
+/** Owners for a drawn label: the marker's cells, then the action's. */
+const tagOwner = (edge: number, mark: string) => (i: number): Owner => ({ k: 'tag', edge, mark: i < [...mark].length })
+
+function placeTag(c: Canvas, pts: Pt[], text: string, edge: number, mark: string): boolean {
+  const n = [...text].length
   const segs: [Pt, Pt][] = []
   for (let k = 0; k + 1 < pts.length; k++) segs.push([pts[k]!, pts[k + 1]!])
-  // On a horizontal run first: ──12──
+  // On a horizontal run first: ──① success──
   for (const [a, b] of segs) {
     if (a.y !== b.y) continue
     const lo = Math.min(a.x, b.x) + 1
     const hi = Math.max(a.x, b.x) - 1
-    if (hi - lo + 1 < tag.length + 2) continue
-    const x0 = Math.floor((lo + hi - tag.length + 1) / 2)
+    if (hi - lo + 1 < n + 2) continue
+    const x0 = Math.floor((lo + hi - n + 1) / 2)
     let ok = true
-    for (let i = 0; i < tag.length; i++) {
+    for (let i = 0; i < n; i++) {
       const j = a.y * c.w + x0 + i
       if (c.fixed[j] !== null || (c.mask[j] !== (L | R) && c.mask[j] !== 0)) ok = false
     }
     if (ok) {
-      c.put(x0, a.y, tag)
+      c.put(x0, a.y, text, tagOwner(edge, mark))
       return true
     }
   }
-  // Else beside a vertical run, right then left, with a blank cell around it.
-  for (const [a, b] of segs) {
+  // Else beside a vertical run, the one nearest the arrow first, right then
+  // left, a blank cell around it; a row inside the run before its bends.
+  for (const [a, b] of [...segs].reverse()) {
     if (a.x !== b.x) continue
     const lo = Math.min(a.y, b.y)
     const hi = Math.max(a.y, b.y)
     const mid = Math.floor((lo + hi) / 2)
-    const rows = [...Array(hi - lo + 1).keys()].map(i => lo + i).sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid))
+    const end = (y: number) => (y === lo || y === hi ? 1 : 0)
+    const rows = [...Array(hi - lo + 1).keys()].map(i => lo + i).sort((p, q) => end(p) - end(q) || Math.abs(p - mid) - Math.abs(q - mid))
     for (const y of rows) {
-      for (const x0 of [a.x + 1, a.x - tag.length]) {
+      for (const x0 of [a.x + 2, a.x + 1, a.x - n - 1, a.x - n]) {
         let ok = true
-        for (let i = -1; i <= tag.length; i++) {
+        for (let i = -1; i <= n; i++) {
           const x = x0 + i
           if (x === a.x) continue
-          if (i >= 0 && i < tag.length ? !c.free(x, y) : c.inside(x, y) && !c.free(x, y)) ok = false
+          if (i >= 0 && i < n ? !c.free(x, y) : c.inside(x, y) && !c.free(x, y)) ok = false
         }
+        // The gap beside the line, when there is one, stays blank too.
+        if (x0 === a.x + 2 && !c.free(a.x + 1, y)) ok = false
+        if (x0 === a.x - n - 1 && !c.free(a.x - 1, y)) ok = false
         if (ok) {
-          c.put(x0, y, tag)
+          c.put(x0, y, text, tagOwner(edge, mark))
           return true
         }
       }
@@ -196,19 +257,24 @@ function placeTag(c: Canvas, pts: Pt[], tag: string): boolean {
   return false
 }
 
-export function drawText(layout: Layout): { lines: string[]; unplaced: Set<string> } {
+export type Drawing = { lines: string[]; owners: (Owner | null)[][]; unplaced: Set<string> }
+
+export function drawText(layout: Layout): Drawing {
   const c = new Canvas(layout.width, layout.height)
   for (const b of layout.boxes) drawBox(c, b)
-  for (const r of layout.routes) drawRoute(c, r.points, r.dashed)
+  for (const r of layout.routes) drawRoute(c, r.points, r.dashed, r.edge)
   for (const r of layout.routes) {
     const p = r.head === 'end' ? r.points[r.points.length - 1] : r.head === 'start' ? r.points[0] : undefined
     if (!p) continue
     const td = layout.direction === 'TD'
-    c.put(p.x, p.y, r.head === 'end' ? (td ? '▼' : '▶') : td ? '▲' : '◀')
+    c.put(p.x, p.y, r.head === 'end' ? (td ? '▼' : '▶') : td ? '▲' : '◀', { k: 'edge', edge: r.edge })
   }
   const unplaced = new Set<string>()
-  for (const r of layout.routes) if (r.tag && !placeTag(c, r.points, r.tag)) unplaced.add(r.tag)
-  // A self-loop is marked beside its box: ↻5
+  // Labelled edges first get their action; then the rest, and any that did
+  // not fit, get their marker alone.
+  const pending = layout.routes.filter(r => r.tag && !(r.label && placeTag(c, r.points, r.label, r.edge, r.tag)))
+  for (const r of pending) if (!placeTag(c, r.points, r.tag!, r.edge, r.tag!)) unplaced.add(r.tag!)
+  // A self-loop is marked beside its box: ↻⑤
   for (const row of layout.legend) {
     if (!row.selfLoop) continue
     const b = layout.boxes.find(x => x.id === row.fromId)
@@ -217,23 +283,214 @@ export function drawText(layout: Layout): { lines: string[]; unplaced: Set<strin
     for (let dy = 0; b && dy < b.h && !placed; dy++) {
       const x = b.x + b.w + 1
       const y = b.y + Math.floor(b.h / 2) + (dy % 2 ? -1 : 1) * Math.ceil(dy / 2)
-      if ([...Array(mark.length + 1).keys()].every(i => !c.inside(x - 1 + i, y) || c.free(x - 1 + i, y))) {
-        c.put(x, y, mark)
+      const n = [...mark].length
+      if ([...Array(n + 1).keys()].every(i => !c.inside(x - 1 + i, y) || c.free(x - 1 + i, y))) {
+        c.put(x, y, mark, tagOwner(row.edge, mark))
         placed = true
       }
     }
     if (!placed) unplaced.add(row.tag)
   }
-  return { lines: c.lines(), unplaced }
+  return { ...c.cells(), unplaced }
 }
 
-/** One legend row as text: the tag, the label (the file:line citations), and endpoints where needed. */
-export function legendText(row: LegendRow, unplaced: Set<string>, pad = 2): string {
-  const dash = row.dashed ? ' (dashed)' : ''
-  const tag = row.tag.padStart(pad)
-  if (row.selfLoop) return `${tag}  ↻ ${row.from}: ${row.text || '(no label)'}${dash}`
-  const ends = unplaced.has(row.tag) ? `${row.from} → ${row.to}: ` : ''
-  return `${tag}  ${ends}${row.text}${dash}`
+// ---------------------------------------------------------------- styles
+
+/** A run's look, as Text props: a theme colour, dim, bold. */
+export type Style = { color?: string; dimColor?: boolean; bold?: boolean }
+export type Run = { text: string; style: Style | null }
+
+/** An edge's colour by what the checker said of it; unchecked edges draw grey, dashed ones dim. */
+export function edgeStyle(status: EdgeStatus | null | undefined, dashed: boolean): Style | null {
+  switch (status) {
+    case 'correct':
+      return { color: 'success' }
+    case 'wrong_citation':
+      return { color: 'error' }
+    case 'unsupported':
+    case 'ambiguous':
+    case 'uncited':
+      return { color: 'warning' }
+    case 'inferred':
+      return { dimColor: true }
+    default:
+      return dashed ? { dimColor: true } : { color: 'subtle' }
+  }
+}
+
+/**
+ * A box's look by role (theme colours, so they follow the person's theme):
+ * where the flow starts bold in the accent, a branch bold in purple, a step
+ * or state in blue or teal, a store in blue, where it ends dim. Verdict
+ * colours (green, red, yellow) are kept for edges.
+ */
+export function boxStyle(role: Role, label: boolean, shape = 'rect'): Style | null {
+  switch (role) {
+    case 'entry':
+      return label ? { bold: true } : { color: 'claude', bold: true }
+    case 'decision':
+      return label ? { bold: true, color: 'autoAccept' } : { color: 'autoAccept' }
+    case 'end':
+      return label ? null : { dimColor: true }
+    default:
+      if (label) return null
+      if (shape === 'db') return { color: 'ide' }
+      return shape === 'round' ? { color: 'planMode' } : { color: 'permission' }
+  }
+}
+
+const sameStyle = (a: Style | null, b: Style | null) =>
+  a === b || (!!a && !!b && a.color === b.color && !!a.dimColor === !!b.dimColor && !!a.bold === !!b.bold)
+
+/** Joins neighbouring cells of one look into runs. */
+export function toRuns(cells: { ch: string; style: Style | null }[]): Run[] {
+  const out: Run[] = []
+  for (const { ch, style } of cells) {
+    const last = out[out.length - 1]
+    if (last && sameStyle(last.style, style)) last.text += ch
+    else out.push({ text: ch, style })
+  }
+  return out
+}
+
+/**
+ * The drawing's rows as styled runs. `statusOf` gives each edge's checked
+ * status (undefined while unchecked); `dashed` whether the edge is dashed.
+ */
+export function styledRows(
+  d: { lines: string[]; owners: (Owner | null)[][] },
+  statusOf: (edge: number) => EdgeStatus | null | undefined,
+  dashed: (edge: number) => boolean,
+): Run[][] {
+  return d.lines.map((line, y) => {
+    const chars = [...line]
+    const who = d.owners[y] ?? []
+    return toRuns(
+      chars.map((ch, x) => {
+        const o = who[x] ?? null
+        if (!o || ch === ' ') return { ch, style: null }
+        if (o.k === 'box') return { ch, style: boxStyle(o.role, o.label, o.shape) }
+        const st = edgeStyle(statusOf(o.edge), dashed(o.edge))
+        if (o.k === 'edge') return { ch, style: st }
+        if (o.mark) return { ch, style: { ...(st ?? {}), bold: true } }
+        return { ch, style: st?.color === 'error' ? st : st?.dimColor ? st : null }
+      }),
+    )
+  })
+}
+
+/** Plain text of a row of runs. */
+export const plain = (runs: Run[]): string => runs.map(r => r.text).join('')
+
+const VERDICT_WORD: Record<EdgeStatus, string> = {
+  correct: '✓ correct',
+  wrong_citation: '✗ wrong',
+  unsupported: '? unsupported',
+  ambiguous: '? ambiguous',
+  uncited: '? uncited',
+  inferred: '~ inferred',
+}
+
+/** The legend's check cell for one edge. */
+export function verdictCell(checked: CheckedEdge | null | undefined, dashed: boolean): Run {
+  if (!checked) return dashed ? { text: '╌ inferred', style: { dimColor: true } } : { text: '', style: null }
+  let text = VERDICT_WORD[checked.status]
+  if (checked.status === 'wrong_citation') {
+    const hint = checked.cites.find(c => c.status !== 'correct')?.hint
+    if (hint) text += ` · try ${hint.split('/').pop()}`
+  }
+  return { text, style: edgeStyle(checked.status, dashed) }
+}
+
+/** The label cell: the action; with the endpoints when the marker is not on the drawing. */
+export function labelCell(row: LegendRow, unplaced: Set<string>): string {
+  const act = row.action || (row.cites.length ? '' : row.text)
+  if (row.selfLoop) return `↻ ${row.from}${act ? `: ${act}` : ''}`
+  // An edge with only a citation is named by where it goes.
+  if (unplaced.has(row.tag) || !act) return `${row.from} → ${row.to}${act ? `: ${act}` : ''}`
+  return act
+}
+
+const SEP = ' │ '
+const pad = (s: string, n: number) => s + ' '.repeat(Math.max(0, n - [...s].length))
+
+/**
+ * The legend as an aligned table, marker │ label │ cite │ check, at most
+ * `width` columns (labels, then cites, then checks are cut to fit). The
+ * check column is left out when no row has one. The first row is the header.
+ */
+export function legendTable(
+  legend: LegendRow[],
+  unplaced: Set<string>,
+  checkedOf: (edge: number) => CheckedEdge | null | undefined,
+  width: number,
+): Run[][] {
+  if (!legend.length) return []
+  const rows = legend.map(r => ({
+    row: r,
+    mark: r.tag,
+    label: labelCell(r, unplaced),
+    cite: r.cites.join(', '),
+    check: verdictCell(checkedOf(r.edge), r.dashed),
+  }))
+  const hasCheck = rows.some(r => r.check.text)
+  const len = (s: string) => [...s].length
+  const mw = Math.max(1, ...rows.map(r => len(r.mark)))
+  let lw = Math.max(5, ...rows.map(r => len(r.label)))
+  let cw = Math.max(4, ...rows.map(r => len(r.cite)))
+  let vw = hasCheck ? Math.max(5, ...rows.map(r => len(r.check.text))) : 0
+  const total = () => mw + SEP.length + lw + SEP.length + cw + (hasCheck ? SEP.length + vw : 0)
+  const cut = (get: () => number, set: (n: number) => void, floor: number) => {
+    const over = total() - width
+    if (over > 0) set(Math.max(floor, get() - over))
+  }
+  cut(() => lw, n => (lw = n), 14)
+  cut(() => cw, n => (cw = n), 14)
+  if (hasCheck) cut(() => vw, n => (vw = n), 9)
+  cut(() => lw, n => (lw = n), 6)
+  cut(() => cw, n => (cw = n), 6)
+  const sep: Run = { text: SEP, style: { dimColor: true } }
+  const head: Run[] = [
+    { text: pad('#', mw), style: { dimColor: true } },
+    sep,
+    { text: pad('edge', lw), style: { dimColor: true } },
+    sep,
+    { text: hasCheck ? pad('cite', cw) : 'cite', style: { dimColor: true } },
+    ...(hasCheck ? [sep, { text: 'check', style: { dimColor: true } }] : []),
+  ]
+  const body = rows.map(r => {
+    const st = edgeStyle(checkedOf(r.row.edge)?.status, r.row.dashed)
+    const cite = shorten(r.cite || '—', cw)
+    const out: Run[] = [
+      { text: pad(r.mark, mw), style: { ...(st ?? {}), bold: true } },
+      sep,
+      { text: pad(shorten(r.label, lw), lw), style: r.row.dashed && !st?.color ? { dimColor: true } : null },
+      sep,
+      { text: hasCheck ? pad(cite, cw) : cite, style: r.cite ? null : { dimColor: true } },
+    ]
+    if (hasCheck) out.push(sep, { text: shorten(r.check.text, vw), style: r.check.style })
+    return toRuns(out.flatMap(x => [...x.text].map(ch => ({ ch, style: x.style })))).map(x => x)
+  })
+  return [head, ...body]
+}
+
+/** Each legend row as plain text (tests and the checker's invariants). */
+export function legendLines(layout: Layout, unplaced: Set<string>, width = 200): string[] {
+  return legendTable(layout.legend, unplaced, () => undefined, width).map(plain)
+}
+
+/** The colour of the line under the legend: red with a wrong cite, yellow with an unverified one, else green. */
+export function verdictStyle(edges: CheckedEdge[]): Style {
+  if (edges.some(e => e.status === 'wrong_citation')) return { color: 'error' }
+  if (edges.some(e => e.status === 'unsupported' || e.status === 'ambiguous' || e.status === 'uncited')) return { color: 'warning' }
+  return { color: 'success' }
+}
+
+const KIND: Record<Graph['kind'], string> = { flowchart: 'Flowchart', state: 'State machine' }
+
+/** The title's diagram kind. */
+export function kindName(g: Graph): string {
+  return KIND[g.kind]
 }
 
 export function summary(g: Graph): string {
@@ -280,7 +537,7 @@ export function toSvg(layout: Layout): string {
       const k = 8
       parts.push(`<polygon class="b" points="${x + k},${y} ${x + w - k},${y} ${x + w},${y + h / 2} ${x + w - k},${y + h} ${x + k},${y + h} ${x},${y + h / 2}"/>`)
     } else {
-      const rx = b.shape === 'round' ? 10 : 3
+      const rx = b.shape === 'round' || b.role === 'entry' || b.role === 'end' ? 10 : 3
       parts.push(`<rect class="b" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>`)
       if (b.shape === 'db') parts.push(`<path class="b" d="M${x} ${y + 5}Q${x + w / 2} ${y + 12} ${x + w} ${y + 5}"/>`)
     }
@@ -303,7 +560,8 @@ export function toSvg(layout: Layout): string {
     const marker = r.head === 'end' ? ' marker-end="url(#a)"' : r.head === 'start' ? ' marker-start="url(#a)"' : ''
     const dash = r.dashed ? ' stroke-dasharray="5 4"' : ''
     parts.push(`<polyline class="l" points="${pts.map(p => `${p.x},${p.y}`).join(' ')}"${dash}${marker}/>`)
-    if (r.tag) {
+    const pill = r.label ?? r.tag
+    if (pill) {
       let at = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
       let longest = -1
       for (let k = 0; k + 1 < pts.length; k++) {
@@ -315,10 +573,10 @@ export function toSvg(layout: Layout): string {
           at = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
         }
       }
-      const tw = r.tag.length * 7 + 8
+      const tw = [...pill].length * 7 + 8
       parts.push(
         `<rect class="p" x="${at.x - tw / 2}" y="${at.y - 8}" width="${tw}" height="16" rx="8"/>`,
-        `<text class="pt" x="${at.x}" y="${at.y + 4.5}" text-anchor="middle" font-size="11">${esc(r.tag)}</text>`,
+        `<text class="pt" x="${at.x}" y="${at.y + 4.5}" text-anchor="middle" font-size="11">${esc(pill)}</text>`,
       )
     }
   }

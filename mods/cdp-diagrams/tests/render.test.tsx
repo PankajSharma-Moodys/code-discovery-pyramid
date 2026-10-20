@@ -22,10 +22,14 @@ const props = (text: string) => ({ text, isFirstOfReply: true })
 test('a reply with mermaid blocks draws diagrams with their citations, on terminal and desktop', async $ => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'cdp-diagrams', surface, component: 'AssistantMessage', props: props(REPLY), viewport })
-    expect(await ui.find({ type: 'Markdown', text: /The flow, with citations/ })).toBeDefined()
+    // the line introducing each fence is its title's caption, not text of its own
+    expect(await ui.find({ type: 'Text', text: /^◆ Flowchart {2}The flow, with citations$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^◆ State machine {2}And the states$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Markdown', text: /The flow, with citations|And the states/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /flowchart TD · 6 nodes · 6 edges/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /state diagram · / })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /on exception, Handler\.cs:317 \(dashed\)/ })).toBeDefined()
+    // the legend table: marker │ action │ cite │ check (a dashed edge reads inferred)
+    expect(await ui.find({ type: 'Text', text: /^[①-⑳] │ on exception +│ Handler\.cs:317 +│ ╌ inferred$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /DeleteStoreHandler\.cs:133/ })).toBeDefined()
     if (surface === 'desktop') expect(await ui.find({ type: 'Svg' })).toBeDefined()
     else expect(await ui.find({ type: 'Text', text: /┌/ })).toBeDefined()
@@ -95,4 +99,25 @@ test('a reply from no CDP or diagram turn runs no checker and draws no badges', 
     await ui.unmount()
   }
   expect(runs).toEqual([])
+})
+
+test('a caption under a fence goes in its title; an intro line of the next fence stays the next one\'s', async $ => {
+  const text = [
+    '```mermaid',
+    'flowchart TD',
+    '  A -->|"charge(order) · orders.py:23"| B',
+    '```',
+    'place_order flow: build, charge, ship or cancel.',
+    '',
+    'Then the states:',
+    '',
+    '```mermaid',
+    'stateDiagram-v2',
+    '  [*] --> NEW: Order() · orders.py:18',
+    '```',
+  ].join('\n')
+  const ui = await $.ui.mount({ plugin: 'cdp-diagrams', surface: 'terminal', component: 'AssistantMessage', props: props(text), viewport })
+  expect(await ui.find({ type: 'Text', text: /^◆ Flowchart {2}place_order flow: build, charge, ship or cancel\.$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^◆ State machine {2}Then the states$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Markdown', text: /place_order flow|Then the states/ })).toBeUndefined()
 })

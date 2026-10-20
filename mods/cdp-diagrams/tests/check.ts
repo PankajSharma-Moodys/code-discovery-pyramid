@@ -2,7 +2,8 @@
 // and the local run over real answers (dev/test-samples.sh).
 
 import type { PlacedBox, Pt } from '../hooks/layout.ts'
-import { legendText, prepare } from '../hooks/render.ts'
+import { splitLabel } from '../hooks/mermaid.ts'
+import { legendLines, prepare } from '../hooks/render.ts'
 
 const inBox = (p: Pt, b: PlacedBox) => p.x >= b.x && p.x < b.x + b.w && p.y >= b.y && p.y < b.y + b.h
 const touches = (p: Pt, b: PlacedBox) =>
@@ -44,9 +45,14 @@ export function problems(source: string, columns: number | null): string[] {
     const ok = r.head === 'start' ? touches(first, to) && touches(last, from) : touches(first, from) && touches(last, to)
     if (!ok) out.push(`edge ${r.edge} (${e.from}->${e.to}) does not join its boxes`)
   }
-  const legend = layout.legend.map(row => legendText(row, p.unplaced))
-  for (const e of graph.edges)
-    if (e.label && !legend.some(l => l.includes(e.label))) out.push(`label "${e.label}" missing from the legend`)
+  // Every edge's action and citations are in its legend row.
+  const legend = legendLines(layout, p.unplaced)
+  for (const row of layout.legend) {
+    const line = legend[layout.legend.indexOf(row) + 1] ?? ''
+    const { action, cites } = splitLabel(row.text)
+    for (const part of [action, ...cites]) if (part && !line.includes(part)) out.push(`"${part}" of edge ${row.edge} missing from the legend`)
+    if (!line.startsWith(row.tag)) out.push(`legend row for edge ${row.edge} does not start with ${row.tag}`)
+  }
   if (p.lines) {
     const canvas = p.lines.join('\n')
     for (const line of p.lines) if (columns !== null && [...line].length > columns) out.push(`line wider than ${columns}`)

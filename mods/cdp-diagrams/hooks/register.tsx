@@ -19,8 +19,9 @@ import { hasMermaid, splitBlocks } from './mermaid.ts'
 import { DiagramFollowUp, type DiagramLink } from './followup.ts'
 import { type DiagramChoice, DiagramOffer, type OnChoice } from './offer.ts'
 import { canPlaceAbove, DiagramPlacement, POINTER } from './placement.ts'
-import { altText, legendText, prepare, summary, toSvg } from './render.ts'
+import { altText, kindName, legendTable, prepare, type Run as Styled, styledRows, summary, toSvg, verdictStyle } from './render.ts'
 import { MARK, matchEdges, type Run, type Verdict, verdictLine, Verifier } from './verify.ts'
+import type { Block } from './mermaid.ts'
 
 /** Columns the transcript leaves a reply after its bullet and margins. */
 const INDENT = 4
@@ -170,7 +171,50 @@ export const register: Register = on => {
       }
     }
 
-    const draw = (source: string, k: string) => splitBlocks(source).map((block, j) => {
+    // One row of styled runs as a Text of Texts.
+    const row = (runs: Styled[], wrap: 'truncate-end' | 'wrap' = 'truncate-end') => (
+      <Text wrap={wrap}>
+        {runs.map(r =>
+          r.style ? (
+            <Text color={r.style.color} dimColor={r.style.dimColor} bold={r.style.bold}>
+              {r.text}
+            </Text>
+          ) : (
+            r.text
+          ),
+        )}
+      </Text>
+    )
+
+    const draw = (source: string, k: string) => {
+      const blocks: Block[] = splitBlocks(source)
+      // The model's one line about a diagram is its caption: it goes in the
+      // diagram's title and leaves the text. Either the line that introduces
+      // the fence ("Flowchart of the call flow:"), or else the line under it.
+      const captions = new Map<number, string>()
+      const plainLine = (l: string) => !!l && !/^(```|~~~|#|[-*>] |\d+\. |\|)/.test(l) && l.length <= 240
+      blocks.forEach((b, j) => {
+        if (b.kind !== 'mermaid') return
+        const before = blocks[j - 1]
+        if (before?.kind === 'text') {
+          const m = /(?:^|\n)([^\n]+):[ \t]*\n\s*$/.exec(before.text)
+          const line = m?.[1]?.trim() ?? ''
+          if (m && plainLine(line)) {
+            captions.set(j, line)
+            before.text = before.text.slice(0, m.index)
+            return
+          }
+        }
+        const after = blocks[j + 1]
+        if (after?.kind !== 'text') return
+        const m = /^\s*\n?([^\n]+)/.exec(after.text)
+        const line = m?.[1]?.trim() ?? ''
+        // Not a line that introduces what follows (that one is the next fence's).
+        if (!plainLine(line) || /:$/.test(line)) return
+        captions.set(j, line)
+        after.text = after.text.replace(m![0], '')
+      })
+      return blocks.map((block, j) => {
       const i = `${k}${j}`
       if (block.kind === 'text') {
         return block.text.trim() ? <Markdown key={`m${i}`} text={block.text} /> : null
@@ -184,42 +228,42 @@ export const register: Register = on => {
           </Box>
         )
       }
-      const pad = Math.max(2, ...p.layout.legend.map(r => r.tag.length))
       const verdict = verdictFor(block.source)
       const matched = verdict ? matchEdges(p.graph, verdict) : null
-      const legend = p.layout.legend.map(r => {
-        const row = legendText(r, p.unplaced, pad)
-        if (!matched) return row
-        const m = matched[r.edge]
-        return `${m ? MARK[m.status] : ' '} ${row}`
-      })
+      const checkedOf = (edge: number) => (matched ? matched[edge] : undefined)
+      const dashed = (edge: number) => p.graph.edges[edge]?.dashed ?? false
+      const legend = legendTable(p.layout.legend, p.unplaced, checkedOf, columns)
       const notes = p.graph.notes.map(n => `note ${n}`)
+      const caption = captions.get(j)
+      const ok = verdict ? verdict.edges.every(e => e.status === 'correct' || e.status === 'inferred') : false
       return (
         <Box key={`d${i}`} flexDirection="column">
-          <Text dimColor>{summary(p.graph)}</Text>
+          {row(
+            [
+              { text: `◆ ${kindName(p.graph)}`, style: { bold: true, color: 'claude' } },
+              ...(caption ? [{ text: `  ${caption}`, style: null }] : []),
+            ],
+            'wrap',
+          )}
           {Svg ? (
             <Svg source={toSvg(p.layout)} alt={altText(p.graph)} />
           ) : (
             <Box flexDirection="column">
-              {(p.lines ?? []).map(line => (
-                <Text wrap="truncate-end">{line || ' '}</Text>
-              ))}
+              {styledRows({ lines: p.lines ?? [], owners: p.owners }, e => checkedOf(e)?.status, dashed).map(runs =>
+                runs.length ? row(runs) : <Text> </Text>,
+              )}
             </Box>
           )}
-          {legend.length > 0 && (
-            <Box flexDirection="column">
-              {legend.map(row => (
-                <Text>{row}</Text>
-              ))}
-            </Box>
-          )}
-          {verdict && <Text dimColor>{verdictLine(p.graph, verdict)}</Text>}
+          {legend.length > 0 && <Box flexDirection="column">{legend.map(runs => row(runs))}</Box>}
+          {verdict && row([{ text: `${ok ? MARK.correct : '!'} ${verdictLine(p.graph, verdict)}`, style: verdictStyle(verdict.edges) }], 'wrap')}
+          <Text dimColor>{summary(p.graph)}</Text>
           {notes.map(n => (
             <Text dimColor>{n}</Text>
           ))}
         </Box>
       )
     })
+    }
 
     const own = hasMermaid(text) ? <Box flexDirection="column">{draw(text, 'o')}</Box> : await next(e)
     if (!asAnswer) return own
