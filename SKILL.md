@@ -76,8 +76,8 @@ has no index: `cdp_scan`), answer from the cited lines, quote each `file:line`. 
   performs it (call, assignment, transition; never a declaration, signature or comment) by a repo-unique
   path suffix; given only a declaration, Read it to find the site or dash the edge. Never draw an edge you
   did not find: list steps/states with no writer found apart, dash inferred edges (`-.->`), end with "+N not
-  shown: ...". Notes in block form only (`note ... end note`). Before showing it, run `cdp verify-diagram`
-  and fix or dash every edge not reported correct.
+  shown: ...". Notes in block form only (`note ... end note`). Before showing it, call `cdp_verify_diagram`
+  (CLI: `cdp verify-diagram`) and fix or dash every edge not reported correct.
 
 Full reference (every flag, defaults, examples): `cdp_help` or `run.py help <topic>` / `help reference`
 (source repo: `docs/CDP_REFERENCE.md`).

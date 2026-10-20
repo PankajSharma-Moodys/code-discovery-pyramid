@@ -60,7 +60,7 @@ COMMANDS: Dict[str, Dict] = {
                 "dashed `-.->` edges without a cite are `inferred`. Reads git files only, not the store.",
         "how": "Input: a .mmd file, a markdown answer with ```mermaid fences, or `-` for stdin. Paths "
                "resolve by repo-unique suffix over `git ls-files` of `--repo`. Exit 0 all correct, 3 any "
-               "non-correct, 1 unparseable (incl. a one-line `note X: a:1`). `--json` for tools.",
+               "non-correct, 1 unparseable (incl. a one-line `note X: a:1`). `--json` for tools. Over MCP: `cdp_verify_diagram`.",
         "examples": [ex("verify-diagram diagram.mmd", True), ex("verify-diagram - --json", True)],
         "where": "Last step before an answer carries a diagram. Exit 3: re-cite at the `hint`, then rerun.",
     },

@@ -334,7 +334,7 @@ def install_mcp(target: Path, dest: Optional[Path] = None) -> List[str]:
         "env": {"PYTHONPATH": root},
     }
     _write_settings(mcp_path, config)
-    return ["mcp       server `cdp` (cdp_query, cdp_refresh, cdp_scan, cdp_status, cdp_help, cdp_link) -> %s" % mcp_path]
+    return ["mcp       server `cdp` (cdp_query, cdp_refresh, cdp_scan, cdp_status, cdp_help, cdp_link, cdp_verify_diagram) -> %s" % mcp_path]
 
 
 def _settings_empty(settings: Dict) -> bool:

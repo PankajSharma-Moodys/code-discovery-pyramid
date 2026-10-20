@@ -263,7 +263,39 @@ def cdp_help(topic: Optional[str] = None) -> Dict[str, Any]:
     return {"topic": topic or "overview", "text": helpdoc.help_text(topic or None)}
 
 
+def cdp_verify_diagram(repo: str, diagram: str) -> Dict[str, Any]:
+    """`cdp verify-diagram --json`, compact: per edge id/from/to/status/cite/hint plus counts. Reads the
+    repo's files only (no store). Anything but ok=true: re-cite or dash the listed edges, rerun."""
+    import os
+
+    from cdp import diagram as diagram_mod
+
+    check_str(repo, "repo", 4096)
+    check_str(diagram, "diagram", 200000)
+    root = os.path.abspath(os.path.expanduser(repo))
+    if not os.path.isdir(root):
+        raise ArgError("repo is not a directory: %s" % root)
+    try:
+        results = diagram_mod.grade(diagram, diagram_mod.Repo(root))
+    except diagram_mod.DiagramError as exc:
+        return {"ok": False, "error": str(exc)}
+    out = []
+    for r in results:
+        edges = []
+        for e in r["edges"]:
+            row = {"id": e["id"], "from": e["from"], "to": e["to"], "status": e["status"]}
+            for c in e["cites"]:
+                if c.get("status") != "correct":
+                    row.setdefault("cites", []).append(
+                        {k: c[k] for k in ("text", "status", "hint") if c.get(k)})
+            edges.append(row)
+        out.append({"kind": r["kind"], "errors": r["errors"], "edges": edges})
+    return {"ok": diagram_mod.exit_code(results) == 0, "counts": diagram_mod.summarize(results),
+            "diagrams": out}
+
+
 TOOLS = {
+    "cdp_verify_diagram": cdp_verify_diagram,
     "cdp_query": cdp_query,
     "cdp_refresh": cdp_refresh,
     "cdp_scan": cdp_scan,

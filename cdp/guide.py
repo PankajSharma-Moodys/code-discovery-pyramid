@@ -272,20 +272,19 @@ def help_topics() -> List[str]:
 
 
 MCP_HELP_DESCRIPTION = (
-    "Usage guide for CDP: What / How (every flag, defaults, examples) / Where (which question, what "
+    "Usage guide for CDP: What / How (flags, defaults, examples) / Where (which question, what "
     "next) for a query kind (trace, symbol, ...) or CLI command (scan, link, ...). topic='recipes' "
-    "gives worked sequences (who calls X, what breaks if I change Y, route->tables, config reads, "
-    "two repos, refresh); empty gives the overview. Same text as `cdp help <topic>`."
+    "gives worked sequences (who calls X, what breaks if I change Y, route->tables, ...); "
+    "empty gives the overview."
 )
 
 
 MCP_LINK_DESCRIPTION = (
-    "Cross-repo links across every repo scanned on this machine: which service calls which "
-    "(HTTP route, event topic, table), each as `caller repo:file:line -> callee repo:file:line` "
-    "with verb+path and match exact/heuristic. action=query + service (repo name, path or "
-    "identity prefix): who calls it and what it calls that is unmatched. action=scan: every "
-    "link. action=scan_save: same, and persists them for the CLI `link prompts/run`. "
-    "Always matches the current index; scan each repo first (`cdp_scan`)."
+    "Cross-repo links across every repo scanned on this machine (HTTP route, event topic, table), "
+    "each as `caller repo:file:line -> callee repo:file:line` with verb+path and match "
+    "exact/heuristic. action=query + service (repo name, path or identity prefix): who calls it "
+    "and what it calls that is unmatched. action=scan: every link. action=scan_save: same, and "
+    "persists them for the CLI `link prompts/run`. Scan each repo first (`cdp_scan`)."
 )
 
 
@@ -299,7 +298,7 @@ DIAGRAM_RULE = (
     "by a repo-unique path suffix; given only a declaration, Read it to find the site or dash the edge. "
     "Never draw an edge you did not find: list steps/states with no writer found apart, dash inferred "
     "edges (`-.->`), end with \"+N not shown: ...\". Notes in block form only (`note ... end note`). Before "
-    "showing it, run `cdp verify-diagram` and fix or dash every edge not reported correct."
+    "showing it, call `cdp_verify_diagram` (CLI: `cdp verify-diagram`) and fix or dash every edge not reported correct."
 )
 
 
