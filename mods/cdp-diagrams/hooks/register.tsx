@@ -8,7 +8,9 @@
 // turn main-loop tool calls are denied. Nothing else reaches the model.
 // Fences of CDP turns and of those follow-ups are checked with
 // `cdp verify-diagram` (verify.ts) and their edges badged; that runs on the
-// host and its result only changes the drawing.
+// host and its result only changes the drawing. On the fullscreen terminal a
+// follow-up's drawing moves above the answer it draws and its own row shows a
+// pointer (placement.ts); elsewhere it stays in the follow-up's row.
 
 import type { Elements, Register } from 'claude-code'
 
@@ -16,6 +18,7 @@ import { CdpTurnTracker } from './detect.ts'
 import { hasMermaid, splitBlocks } from './mermaid.ts'
 import { DiagramFollowUp, type DiagramLink } from './followup.ts'
 import { type DiagramChoice, DiagramOffer, type OnChoice } from './offer.ts'
+import { canPlaceAbove, DiagramPlacement, POINTER } from './placement.ts'
 import { altText, legendText, prepare, summary, toSvg } from './render.ts'
 import { MARK, matchEdges, type Run, type Verdict, verdictLine, Verifier } from './verify.ts'
 
@@ -56,6 +59,8 @@ const verifier = new Verifier()
 /** Resolves once every citation check started so far has ended. */
 export const verifySettled = (): Promise<void> => verifier.idle()
 
+const placement = new DiagramPlacement()
+
 export const register: Register = on => {
   on('turn.start', ($, e, next) => {
     tracker.start(e)
@@ -74,6 +79,16 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const used = tracker.complete(e)
     followUp.complete(e)
+    if (e.agentId === undefined) {
+      try {
+        let moved = placement.count(e.answer)
+        const link = followUp.diagramFor(e.turnId)
+        if (link && e.reason === 'answer' && hasMermaid(e.answer)) moved = placement.complete(link.answer, e.answer) || moved
+        if (moved) $.ui.invalidate('ui.render')
+      } catch {
+        // placement is extra; the follow-up's row draws the diagram without it
+      }
+    }
     if (used !== undefined) $.ui.log(`cdp-diagrams: turn ${e.turnId} used CDP: ${used}`, { to: 'debug' })
     // A CDP turn's or a diagram follow-up's fences get their citations checked.
     if (e.agentId === undefined && (used === true || followUp.isDiagramTurn(e.turnId))) {
@@ -105,7 +120,15 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     const text = e.props.text
-    if (e.props.isSummary || !hasMermaid(text)) return next(e)
+    if (e.props.isSummary) return next(e)
+
+    // Fullscreen terminal only: a follow-up's reply row becomes a pointer once
+    // its answer row draws the diagram above itself (placement.ts).
+    const above = canPlaceAbove(e.surface, e.viewport)
+    const asReply = placement.replyRow(text, e.surface, above)
+    const asAnswer = asReply ? null : placement.answerRow(text, e.surface, above)
+    if (asReply?.changed || asAnswer?.changed) $.ui.invalidate('ui.render')
+    if (!asAnswer && asReply?.row.kind !== 'pointer' && !hasMermaid(text)) return next(e)
 
     const t = $.ui.resolve(e)
     const { Box, Text, Markdown } = t
@@ -114,7 +137,9 @@ export const register: Register = on => {
     const Svg = e.surface === 'terminal' ? null : (t as Elements['desktop']).Svg
     const columns = Math.max(30, (e.viewport?.columns ?? 100) - INDENT)
 
-    const blocks = splitBlocks(text)
+    if (asReply?.row.kind === 'pointer') return <Text dimColor>{POINTER}</Text>
+
+    const blocks = [...splitBlocks(text), ...(asAnswer ? splitBlocks(asAnswer.reply) : [])]
     let cwd: string | null = null
     let run: Run | null = null
     if (blocks.some(b => b.kind === 'mermaid' && verifier.isAllowed(b.source))) {
@@ -134,7 +159,8 @@ export const register: Register = on => {
       }
     }
 
-    const parts = blocks.map((block, i) => {
+    const draw = (source: string, k: string) => splitBlocks(source).map((block, j) => {
+      const i = `${k}${j}`
       if (block.kind === 'text') {
         return block.text.trim() ? <Markdown key={`m${i}`} text={block.text} /> : null
       }
@@ -184,6 +210,17 @@ export const register: Register = on => {
       )
     })
 
-    return <Box flexDirection="column">{parts}</Box>
+    const own = hasMermaid(text) ? <Box flexDirection="column">{draw(text, 'o')}</Box> : await next(e)
+    if (!asAnswer) return own
+    // Prepended: the answer below draws as it did.
+    return (
+      <Box flexDirection="column">
+        <Box key="above" flexDirection="column">
+          <Text dimColor>diagram of this answer (asked for below)</Text>
+          {draw(asAnswer.reply, 'a')}
+        </Box>
+        {own}
+      </Box>
+    )
   }).catch(($, e, next) => next(e))
 }
