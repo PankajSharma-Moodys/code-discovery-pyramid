@@ -24,7 +24,7 @@ export function problems(source: string, columns: number | null): string[] {
   for (const n of graph.nodes) {
     const b = boxes.get(n.id)
     if (!b || n.shape === 'start' || n.shape === 'end') continue
-    const want = n.label.join('').replace(/\s/g, '')
+    const want = (n.label.join('') + (n.shape === 'diamond' && !/\?\s*$/.test(n.label.join('')) ? '?' : '')).replace(/\s/g, '')
     if (b.lines.join('').replace(/\s/g, '') !== want) out.push(`box ${n.id} lost label text`)
   }
   for (const r of layout.routes) {
@@ -48,7 +48,7 @@ export function problems(source: string, columns: number | null): string[] {
   // Every edge's action and citations are in its legend row.
   const legend = legendLines(layout, p.unplaced)
   for (const row of layout.legend) {
-    const line = legend[layout.legend.indexOf(row) + 1] ?? ''
+    const line = legend[layout.legend.indexOf(row) + 2] ?? ''
     const { action, cites } = splitLabel(row.text)
     for (const part of [action, ...cites]) if (part && !line.includes(part)) out.push(`"${part}" of edge ${row.edge} missing from the legend`)
     if (!line.startsWith(row.tag)) out.push(`legend row for edge ${row.edge} does not start with ${row.tag}`)

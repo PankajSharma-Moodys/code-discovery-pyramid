@@ -29,9 +29,10 @@ export function followUpPrompt(kinds: readonly DiagramKind[]): string {
   return [
     `Draw your previous answer as ${blocks}.`,
     'Use only facts in that answer and the CDP results above it; use no tools.',
-    'Label each edge "<short action> · file:line" (e.g. "charge(order) · orders.py:23"), citing the line performing it (a call, assignment or transition, never a declaration);',
+    'Label edges "<action> · file:line", citing the performing line, never a declaration.',
+    'Phrase decisions as questions ("charge ok?"); label branches "<condition> → <outcome> · file:line".',
     `${inferred.join('; ')}.`,
-    'No prose beyond one line per diagram, ending "+N not shown: ..." when items are left out.',
+    'One prose line per diagram, ending "+N not shown: ..." when items are left out.',
   ].join(' ')
 }
 

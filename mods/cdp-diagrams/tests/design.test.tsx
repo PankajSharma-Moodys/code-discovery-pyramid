@@ -108,21 +108,40 @@ describe('numbering', () => {
   })
 })
 
-describe('truncation', () => {
-  test('an action longer than 18 is cut with an ellipsis on the edge; the legend has it whole', () => {
-    expect(shorten('validateAndPersistOrderLines(order)', 18)).toBe('validateAndPersis…')
-    expect(shorten('ship(order)', 18)).toBe('ship(order)')
+describe('wrapping', () => {
+  test('a long action wraps beside the edge, never cut; the legend has it whole', () => {
     const src = 'flowchart TD\n  A -->|"validateAndPersistOrderLines(order) · orders.py:40"| B'
     const p = prepare(src, 120)
     if (!p.ok) throw new Error(p.reason)
-    expect(p.lines!.join('\n')).toContain('① validateAndPersis…')
-    expect(legendTable(p.layout.legend, p.unplaced, () => undefined, 120).map(plain)[1]).toContain('validateAndPersistOrderLines(order)')
+    const text = p.lines!.join('\n')
+    expect(text).toContain('① validateAndPersist')
+    expect(text).toContain('OrderLines(order)')
+    expect(text).not.toContain('…')
+    expect(legendTable(p.layout.legend, p.unplaced, () => undefined, 120).map(plain)[2]).toContain('validateAndPersistOrderLines(order)')
+  })
+
+  test('a narrow legend wraps its cells instead of cutting them', () => {
+    const src = 'flowchart TD\n  A -->|"validateAndPersistOrderLines(order) · shop/orders/OrderService.py:40"| B'
+    const p = prepare(src, 120)
+    if (!p.ok) throw new Error(p.reason)
+    const rows = legendTable(p.layout.legend, p.unplaced, () => undefined, 40).map(plain)
+    expect(rows.every(r => [...r].length <= 40)).toBe(true)
+    expect(rows.join('')).not.toContain('…')
+    expect(rows.slice(2).map(r => r.split(' │ ')[1]!.trim()).join('')).toBe('validateAndPersistOrderLines(order)')
+  })
+
+  test('decisions read as questions; branches take their outcome', () => {
+    const p = prepare('flowchart TD\n  A --> D{charge result}\n  D -->|"ok → ship · a.py:1"| S[ship]\n  D -->|"fail → mark FAILED · a.py:2"| F[failed]', 120)
+    if (!p.ok) throw new Error(p.reason)
+    expect(p.lines!.join('\n')).toContain('charge result?')
+    expect(p.layout.routes.map(r => r.outcome)).toEqual([null, 'ok', 'fail'])
+    expect(p.layout.boxes.find(b => b.id === 'F')!.outcome).toBe('fail')
   })
 
   test('with no room for the action, the edge keeps its marker and the legend names it', () => {
     const g = parseMermaid(PLACE)
     const l = layoutGraph(g, { boxWidth: 14, labelWidth: 0 })
-    expect(l.routes.every(r => r.label === null)).toBe(true)
+    expect(l.routes.every(r => r.labelLines === null)).toBe(true)
     const p = prepare(PLACE, 120)
     if (!p.ok) throw new Error(p.reason)
     // a squeezed terminal: actions shrink, then only markers are drawn

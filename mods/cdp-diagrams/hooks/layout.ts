@@ -3,12 +3,14 @@
 // barycenter ordering -> cross placement -> ports -> per-channel tracks.
 // Coordinates are grid cells; the SVG renderer scales the same layout.
 
-import { type GEdge, type GNode, type Graph, type Shape, shorten, splitLabel } from './mermaid.ts'
+import { type GEdge, type GNode, type Graph, type Shape, splitLabel } from './mermaid.ts'
 
 export type Pt = { x: number; y: number }
 /** What a node is in the flow: where it starts, a branch, where it ends, or a step. */
 export type Role = 'entry' | 'decision' | 'end' | 'normal'
-export type PlacedBox = { id: string; x: number; y: number; w: number; h: number; lines: string[]; shape: Shape; role: Role }
+/** What a branch means for the flow, inferred from its words: went well, failed, or was cancelled/skipped. */
+export type Outcome = 'ok' | 'fail' | 'warn'
+export type PlacedBox = { id: string; x: number; y: number; w: number; h: number; lines: string[]; shape: Shape; role: Role; outcome: Outcome | null }
 export type Route = {
   edge: number
   points: Pt[]
@@ -16,8 +18,11 @@ export type Route = {
   head: 'end' | 'start' | 'none'
   /** The edge's marker (①, or [21] past twenty), or null for an unlabelled edge. */
   tag: string | null
-  /** The marker with the edge's action, as drawn on the line when it fits; null when only the marker is drawn. */
+  /** The marker with the edge's whole action; null for an edge with no action. */
   label: string | null
+  /** `label` wrapped to the label width (continuation lines indented under the action); null when only the marker is drawn. */
+  labelLines: string[] | null
+  outcome: Outcome | null
 }
 export type LegendRow = {
   tag: string
@@ -32,6 +37,7 @@ export type LegendRow = {
   to: string
   dashed: boolean
   selfLoop: boolean
+  outcome: Outcome | null
 }
 export type Layout = {
   direction: 'TD' | 'LR'
@@ -44,7 +50,7 @@ export type Layout = {
 
 export const LIMITS = { nodes: 60, edges: 120 }
 
-/** The longest action drawn on an edge before it is cut with an ellipsis. */
+/** The width an action wraps to on an edge. */
 export const LABEL_WIDTH = 18
 
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
@@ -54,9 +60,25 @@ export function marker(n: number, total: number): string {
   return total <= CIRCLED.length ? CIRCLED[n - 1]! : `[${n}]`
 }
 
-/** The text drawn on an edge: its marker, then its action cut to `width` (0: the marker only). */
-export function onEdge(mark: string, action: string, width: number): string {
-  return width > 0 && action ? `${mark} ${shorten(action, width)}` : mark
+/** The lines drawn on an edge: its marker and action wrapped to `width` (0: the marker only), never cut. */
+export function onEdge(mark: string, action: string, width: number): string[] {
+  if (width <= 0 || !action) return [mark]
+  const pad = ' '.repeat([...mark].length + 1)
+  return wrap([action], width).map((l, i) => (i === 0 ? `${mark} ${l}` : pad + l))
+}
+
+/** Words that decide a branch's outcome, in priority order (the first row that matches wins). */
+const OUTCOME_WORDS: [Outcome, RegExp][] = [
+  ['fail', /\b(no|false|fail(s|ed|ure)?|error(s)?|invalid|reject(s|ed)?|den(y|ies|ied)|declin(e|es|ed)|exception|raises?|not found|missing|unauthori[sz]ed)\b/i],
+  ['warn', /\b(cancel(s|led|ed)?|retry|retries|timeout|time out|warn(ing)?|skip(s|ped)?|partial|pending|otherwise|else|abort(s|ed)?)\b/i],
+  ['ok', /\b(yes|ok|okay|success(ful)?|true|pass(es|ed)?|valid|approved?|found|done|complete[sd]?|accepted?|paid)\b/i],
+]
+
+/** A branch's outcome from its words: the condition before an arrow when there is one, else the whole action. */
+export function outcomeOf(action: string): Outcome | null {
+  const cond = action.split(/\s*(?:→|->|=>)\s*/)[0] ?? action
+  for (const text of cond !== action ? [cond, action] : [action]) for (const [o, re] of OUTCOME_WORDS) if (re.test(text)) return o
+  return null
 }
 
 /** Each node's role, from its shape and the edges at it (self-loops aside). */
@@ -139,7 +161,7 @@ type VNode = {
 type Seg = { from: VNode; to: VNode; edge: number; a: number; b: number; track: number }
 
 function firstLine(n: GNode | undefined): string {
-  return (n?.label[0] ?? n?.id ?? '?').slice(0, 30)
+  return n?.label[0] ?? n?.id ?? '?'
 }
 
 /**
@@ -160,9 +182,10 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
   const total = tagged.filter(Boolean).length
   const markWidth = marker(total, total).length
   const split = g.edges.map(e => splitLabel(e.label))
-  const drawnWidth = g.edges.map((_, i) =>
-    tagged[i] ? (labelWidth > 0 && split[i]!.action ? markWidth + 1 + [...shorten(split[i]!.action, labelWidth)].length : markWidth) : 0,
-  )
+  const drawnLines = g.edges.map((_, i) => (tagged[i] ? onEdge('·'.repeat(markWidth), split[i]!.action, labelWidth) : []))
+  const drawnWidth = drawnLines.map(ls => Math.max(0, ...ls.map(l => [...l].length)))
+  const drawnRows = drawnLines.map(ls => ls.length)
+  const maxRows = Math.max(1, ...drawnRows)
 
   // Cycle breaking by DFS: an edge into a node on the stack is reversed.
   const out = new Map<string, number[]>()
@@ -209,7 +232,9 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
   const vmap = new Map<string, VNode>()
   for (const n of g.nodes) {
     const isDot = n.shape === 'start' || n.shape === 'end'
-    const lines = isDot ? [n.label[0] ?? '●'] : wrap(n.label, opts.boxWidth)
+    // A decision reads as a question.
+    const text = n.shape === 'diamond' ? n.label.map((l, i) => (i === n.label.length - 1 && !/\?\s*$/.test(l) ? `${l}?` : l)) : n.label
+    const lines = isDot ? [n.label[0] ?? '●'] : wrap(text, opts.boxWidth)
     const w = isDot ? 1 : Math.max(...lines.map(l => l.length)) + (opts.roomy ? 6 : 4)
     const h = isDot ? 1 : lines.length + 2
     const v: VNode = { id: n.id, real: n, layer: layer.get(n.id) ?? 0, lines, cs: td ? w : h, ms: td ? h : w, pos: 0, order: 0 }
@@ -293,7 +318,7 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
   }
 
   // Cross placement: pack each layer, pulled toward its predecessors' centres.
-  const GAP = opts.roomy ? 4 : 2
+  const GAP = Math.max(opts.roomy ? 4 : 2, td ? 0 : maxRows + 1)
   const center = (v: VNode) => v.pos + (v.cs - 1) / 2
   const place = (l: VNode[], near: Map<VNode, VNode[]> | null) => {
     let end = -GAP
@@ -387,7 +412,8 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
     if (i + 1 < depth) {
       const widest = Math.max(0, ...segs.filter(s => s.from.layer === i).map(s => drawnWidth[s.edge]!))
       // Top-down, one more row so a vertical below its last bend has a clear row for its label.
-      m += channelTracks[i]! + 2 + (opts.roomy ? 1 : 0) + (td ? (anyLabel ? 1 : 0) : widest ? widest + 2 : 0)
+      const rows = Math.max(1, ...segs.filter(s => s.from.layer === i).map(s => drawnRows[s.edge]!))
+      m += channelTracks[i]! + 2 + (opts.roomy ? 1 : 0) + (td ? (anyLabel ? rows : 0) : widest ? widest + 2 : 0)
     }
   }
   const mainSize = m
@@ -408,7 +434,7 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
     }
     points.push(pt(mainStart[dst.layer]! - 1, chain[chain.length - 1]!.b))
     const head = !e.arrow ? 'none' : reversed.has(i) ? 'start' : 'end'
-    routes.push({ edge: i, points, dashed: e.dashed, head, tag: null, label: null })
+    routes.push({ edge: i, points, dashed: e.dashed, head, tag: null, label: null, labelLines: null, outcome: outcomeOf(split[i]!.action) })
   })
 
   const role = roles(g)
@@ -425,8 +451,15 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
         lines: v.lines,
         shape: v.real!.shape,
         role: role.get(v.id) ?? 'normal',
+        outcome: null as Outcome | null,
       }
     })
+  // Where the flow ends takes the outcome of the branch reaching it.
+  for (const b of boxes) {
+    if (b.role !== 'end') continue
+    const into = g.edges.map((e, i) => ({ e, i })).filter(x => x.e.to === b.id && x.e.from !== b.id)
+    b.outcome = into.map(x => outcomeOf(split[x.i]!.action)).find(o => o) ?? (g.nodes.find(n => n.id === b.id)?.label.map(l => outcomeOf(l)).find(o => o) ?? null)
+  }
 
   // Numbers in reading order of the drawing: by the source's rank, then
   // across it (left to right top-down, top to bottom left to right), then
@@ -460,12 +493,15 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
       to: firstLine(byId.get(e.to)),
       dashed: e.dashed,
       selfLoop: e.from === e.to,
+      outcome: outcomeOf(split[i]!.action),
     })
   })
   for (const r of routes) {
     r.tag = tagOf.get(r.edge) ?? null
     const drawn = r.tag ? onEdge(r.tag, split[r.edge]!.action, labelWidth) : null
-    r.label = drawn && drawn !== r.tag ? drawn : null
+    const act = split[r.edge]!.action
+    r.label = r.tag && act ? `${r.tag} ${act}` : null
+    r.labelLines = drawn && labelWidth > 0 && act ? drawn : null
   }
 
   return {

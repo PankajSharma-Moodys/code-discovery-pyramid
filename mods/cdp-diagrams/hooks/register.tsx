@@ -22,6 +22,7 @@ import { canPlaceAbove, DiagramPlacement, POINTER } from './placement.ts'
 import { altText, kindName, legendTable, prepare, type Run as Styled, styledRows, summary, toSvg, verdictStyle } from './render.ts'
 import { MARK, matchEdges, type Run, type Verdict, verdictLine, Verifier } from './verify.ts'
 import type { Block } from './mermaid.ts'
+import type { Outcome } from './layout.ts'
 
 /** Columns the transcript leaves a reply after its bullet and margins. */
 const INDENT = 4
@@ -172,7 +173,7 @@ export const register: Register = on => {
     }
 
     // One row of styled runs as a Text of Texts.
-    const row = (runs: Styled[], wrap: 'truncate-end' | 'wrap' = 'truncate-end') => (
+    const row = (runs: Styled[], wrap: 'truncate-end' | 'wrap' = 'wrap') => (
       <Text wrap={wrap}>
         {runs.map(r =>
           r.style ? (
@@ -233,32 +234,31 @@ export const register: Register = on => {
       const checkedOf = (edge: number) => (matched ? matched[edge] : undefined)
       const dashed = (edge: number) => p.graph.edges[edge]?.dashed ?? false
       const legend = legendTable(p.layout.legend, p.unplaced, checkedOf, columns)
+      const outcomes = p.layout.routes.reduce<(Outcome | null)[]>((a, r) => ((a[r.edge] = r.outcome), a), [])
       const notes = p.graph.notes.map(n => `note ${n}`)
       const caption = captions.get(j)
       const ok = verdict ? verdict.edges.every(e => e.status === 'correct' || e.status === 'inferred') : false
       return (
         <Box key={`d${i}`} flexDirection="column">
-          {row(
-            [
-              { text: `◆ ${kindName(p.graph)}`, style: { bold: true, color: 'claude' } },
-              ...(caption ? [{ text: `  ${caption}`, style: null }] : []),
-            ],
-            'wrap',
-          )}
+          {row([
+            { text: `◆ ${kindName(p.graph)}`, style: { bold: true, color: 'claude' } },
+            ...(caption ? [{ text: `  ${caption}`, style: null }] : []),
+          ])}
+          <Text dimColor>{'─'.repeat(Math.min(columns, Math.max(24, p.layout.width)))}</Text>
           {Svg ? (
             <Svg source={toSvg(p.layout)} alt={altText(p.graph)} />
           ) : (
             <Box flexDirection="column">
-              {styledRows({ lines: p.lines ?? [], owners: p.owners }, e => checkedOf(e)?.status, dashed).map(runs =>
-                runs.length ? row(runs) : <Text> </Text>,
+              {styledRows({ lines: p.lines ?? [], owners: p.owners, outcomes }, e => checkedOf(e)?.status, dashed).map(runs =>
+                runs.length ? row(runs, 'truncate-end') : <Text> </Text>,
               )}
             </Box>
           )}
           {legend.length > 0 && <Box flexDirection="column">{legend.map(runs => row(runs))}</Box>}
-          {verdict && row([{ text: `${ok ? MARK.correct : '!'} ${verdictLine(p.graph, verdict)}`, style: verdictStyle(verdict.edges) }], 'wrap')}
-          <Text dimColor>{summary(p.graph)}</Text>
+          {verdict && row([{ text: `${ok ? MARK.correct : '!'} ${verdictLine(p.graph, verdict)}`, style: verdictStyle(verdict.edges) }])}
+          <Text dimColor wrap="wrap">{summary(p.graph)}</Text>
           {notes.map(n => (
-            <Text dimColor>{n}</Text>
+            <Text dimColor wrap="wrap">{n}</Text>
           ))}
         </Box>
       )

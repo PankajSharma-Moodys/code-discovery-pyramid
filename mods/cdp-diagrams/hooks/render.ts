@@ -1,15 +1,15 @@
 // Turns a Layout into terminal lines (box-drawing characters) or an SVG
 // document, and decides when a block is shown raw instead (and why).
 
-import { LABEL_WIDTH, layoutGraph, LIMITS, TooLarge, type Layout, type LegendRow, type PlacedBox, type Pt, type Role } from './layout.ts'
-import { parseMermaid, ParseError, shorten, type Graph } from './mermaid.ts'
+import { LABEL_WIDTH, layoutGraph, LIMITS, TooLarge, wrap, type Layout, type LegendRow, type Outcome, type PlacedBox, type Pt, type Role } from './layout.ts'
+import { parseMermaid, ParseError, type Graph } from './mermaid.ts'
 import type { CheckedEdge, EdgeStatus } from './verify.ts'
 
 /** Who drew a cell of the terminal drawing, so the mod can colour it. */
 export type Owner =
   | { k: 'edge'; edge: number }
-  | { k: 'tag'; edge: number; mark: boolean }
-  | { k: 'box'; id: string; role: Role; shape: string; label: boolean }
+  | { k: 'tag'; edge: number; mark: boolean; outcome: Outcome | null }
+  | { k: 'box'; id: string; role: Role; shape: string; label: boolean; outcome: Outcome | null }
 
 export type Prepared =
   | { ok: true; graph: Graph; layout: Layout; lines: string[] | null; owners: (Owner | null)[][]; unplaced: Set<string> }
@@ -47,8 +47,11 @@ export function prepare(source: string, maxColumns: number | null): Prepared {
   }
   let narrowest = Infinity
   try {
+    // A wide left-to-right diagram reflows top-down before anything is cut.
+    for (const dir of graph.direction === 'LR' && maxColumns !== null ? (['LR', 'TD'] as const) : ([graph.direction] as const))
     for (const [boxWidth, labelWidth, roomy] of TRIES) {
       for (const compact of [false, true]) {
+        if (dir !== graph.direction) graph.direction = dir
         const layout = layoutGraph(graph, { boxWidth, compact, labelWidth, roomy: roomy ?? false })
         if (maxColumns === null) {
           if (layout.width > 400) return { ok: false, reason: `too wide to draw (${layout.width} cells)` }
@@ -82,7 +85,7 @@ const SOLID: Record<number, string> = {
 const DASHED: Record<number, string> = { [U]: '╎', [D]: '╎', [U | D]: '╎', [L]: '╌', [R]: '╌', [L | R]: '╌' }
 
 const BORDERS: Record<string, string> = {
-  rect: '┌┐└┘─│',
+  rect: '╭╮╰╯─│',
   round: '╭╮╰╯─│',
   db: '╔╗╚╝═║',
   diamond: '╱╲╲╱─│',
@@ -155,8 +158,8 @@ function borderOf(b: PlacedBox): string {
 }
 
 function drawBox(c: Canvas, b: PlacedBox) {
-  const edge: Owner = { k: 'box', id: b.id, role: b.role, shape: b.shape, label: false }
-  const text: Owner = { k: 'box', id: b.id, role: b.role, shape: b.shape, label: true }
+  const edge: Owner = { k: 'box', id: b.id, role: b.role, shape: b.shape, label: false, outcome: b.outcome }
+  const text: Owner = { k: 'box', id: b.id, role: b.role, shape: b.shape, label: true, outcome: b.outcome }
   if (b.shape === 'start' || b.shape === 'end') {
     c.put(b.x, b.y, b.shape === 'start' ? '●' : '◉', edge)
     return
@@ -204,10 +207,16 @@ function drawRoute(c: Canvas, pts: Pt[], dashed: boolean, edge: number) {
 }
 
 /** Owners for a drawn label: the marker's cells, then the action's. */
-const tagOwner = (edge: number, mark: string) => (i: number): Owner => ({ k: 'tag', edge, mark: i < [...mark].length })
+const tagOwner = (edge: number, mark: string, outcome: Outcome | null = null) => (i: number): Owner => ({ k: 'tag', edge, mark: i < [...mark].length, outcome })
 
-function placeTag(c: Canvas, pts: Pt[], text: string, edge: number, mark: string): boolean {
-  const n = [...text].length
+/** Draws a label block (one row per line) at x0, y; the marker is on the first row. */
+function putBlock(c: Canvas, x0: number, y: number, lines: string[], edge: number, mark: string, outcome: Outcome | null) {
+  lines.forEach((l, r) => c.put(x0, y + r, l, tagOwner(edge, r === 0 ? mark : '', outcome)))
+}
+
+function placeTag(c: Canvas, pts: Pt[], lines: string[], edge: number, mark: string, outcome: Outcome | null): boolean {
+  const n = Math.max(...lines.map(l => [...l].length))
+  const k = lines.length
   const segs: [Pt, Pt][] = []
   for (let k = 0; k + 1 < pts.length; k++) segs.push([pts[k]!, pts[k + 1]!])
   // On a horizontal run first: ──① success──
@@ -217,14 +226,26 @@ function placeTag(c: Canvas, pts: Pt[], text: string, edge: number, mark: string
     const hi = Math.max(a.x, b.x) - 1
     if (hi - lo + 1 < n + 2) continue
     const x0 = Math.floor((lo + hi - n + 1) / 2)
-    let ok = true
-    for (let i = 0; i < n; i++) {
-      const j = a.y * c.w + x0 + i
-      if (c.fixed[j] !== null || (c.mask[j] !== (L | R) && c.mask[j] !== 0)) ok = false
-    }
-    if (ok) {
-      c.put(x0, a.y, text, tagOwner(edge, mark))
-      return true
+    if (k === 1) {
+      let ok = true
+      for (let i = 0; i < n; i++) {
+        const j = a.y * c.w + x0 + i
+        if (c.fixed[j] !== null || (c.mask[j] !== (L | R) && c.mask[j] !== 0)) ok = false
+      }
+      if (ok) {
+        putBlock(c, x0, a.y, lines, edge, mark, outcome)
+        return true
+      }
+    } else {
+      // A wrapped label stacks above the run, else below it.
+      for (const y0 of [a.y - k, a.y + 1]) {
+        let ok = true
+        for (let r = 0; r < k && ok; r++) for (let i = 0; i < n; i++) if (!c.free(x0 + i, y0 + r)) ok = false
+        if (ok) {
+          putBlock(c, x0, y0, lines, edge, mark, outcome)
+          return true
+        }
+      }
     }
   }
   // Else beside a vertical run, the one nearest the arrow first, right then
@@ -235,20 +256,23 @@ function placeTag(c: Canvas, pts: Pt[], text: string, edge: number, mark: string
     const hi = Math.max(a.y, b.y)
     const mid = Math.floor((lo + hi) / 2)
     const end = (y: number) => (y === lo || y === hi ? 1 : 0)
-    const rows = [...Array(hi - lo + 1).keys()].map(i => lo + i).sort((p, q) => end(p) - end(q) || Math.abs(p - mid) - Math.abs(q - mid))
+    if (hi - lo + 1 < k) continue
+    const rows = [...Array(hi - lo + 2 - k).keys()].map(i => lo + i).sort((p, q) => end(p) - end(q) || Math.abs(p - mid) - Math.abs(q - mid))
     for (const y of rows) {
       for (const x0 of [a.x + 2, a.x + 1, a.x - n - 1, a.x - n]) {
         let ok = true
-        for (let i = -1; i <= n; i++) {
-          const x = x0 + i
-          if (x === a.x) continue
-          if (i >= 0 && i < n ? !c.free(x, y) : c.inside(x, y) && !c.free(x, y)) ok = false
+        for (let r = 0; r < k && ok; r++) {
+          for (let i = -1; i <= n; i++) {
+            const x = x0 + i
+            if (x === a.x) continue
+            if (i >= 0 && i < n ? !c.free(x, y + r) : c.inside(x, y + r) && !c.free(x, y + r)) ok = false
+          }
+          // The gap beside the line, when there is one, stays blank too.
+          if (x0 === a.x + 2 && !c.free(a.x + 1, y + r)) ok = false
+          if (x0 === a.x - n - 1 && !c.free(a.x - 1, y + r)) ok = false
         }
-        // The gap beside the line, when there is one, stays blank too.
-        if (x0 === a.x + 2 && !c.free(a.x + 1, y)) ok = false
-        if (x0 === a.x - n - 1 && !c.free(a.x - 1, y)) ok = false
         if (ok) {
-          c.put(x0, y, text, tagOwner(edge, mark))
+          putBlock(c, x0, y, lines, edge, mark, outcome)
           return true
         }
       }
@@ -272,8 +296,8 @@ export function drawText(layout: Layout): Drawing {
   const unplaced = new Set<string>()
   // Labelled edges first get their action; then the rest, and any that did
   // not fit, get their marker alone.
-  const pending = layout.routes.filter(r => r.tag && !(r.label && placeTag(c, r.points, r.label, r.edge, r.tag)))
-  for (const r of pending) if (!placeTag(c, r.points, r.tag!, r.edge, r.tag!)) unplaced.add(r.tag!)
+  const pending = layout.routes.filter(r => r.tag && !(r.labelLines && placeTag(c, r.points, r.labelLines, r.edge, r.tag, r.outcome)))
+  for (const r of pending) if (!placeTag(c, r.points, [r.tag!], r.edge, r.tag!, r.outcome)) unplaced.add(r.tag!)
   // A self-loop is marked beside its box: ↻⑤
   for (const row of layout.legend) {
     if (!row.selfLoop) continue
@@ -285,7 +309,7 @@ export function drawText(layout: Layout): Drawing {
       const y = b.y + Math.floor(b.h / 2) + (dy % 2 ? -1 : 1) * Math.ceil(dy / 2)
       const n = [...mark].length
       if ([...Array(n + 1).keys()].every(i => !c.inside(x - 1 + i, y) || c.free(x - 1 + i, y))) {
-        c.put(x, y, mark, tagOwner(row.edge, mark))
+        c.put(x, y, mark, tagOwner(row.edge, mark, row.outcome))
         placed = true
       }
     }
@@ -319,18 +343,26 @@ export function edgeStyle(status: EdgeStatus | null | undefined, dashed: boolean
 }
 
 /**
+ * Outcome roles as theme colours (green, red, amber), so they follow the
+ * person's theme, dark or light. Roles named as in prismantis ({ok:}/{warn:}),
+ * which also resolves them from the theme (MIT, github.com/NahumLitvin/prismantis).
+ */
+const OUTCOME_COLOR: Record<Outcome, string> = { ok: 'success', fail: 'error', warn: 'warning' }
+
+/**
  * A box's look by role (theme colours, so they follow the person's theme):
  * where the flow starts bold in the accent, a branch bold in purple, a step
- * or state in blue or teal, a store in blue, where it ends dim. Verdict
- * colours (green, red, yellow) are kept for edges.
+ * or state in blue or teal, a store in blue; where it ends takes the colour
+ * of the outcome reaching it (dim when it has none).
  */
-export function boxStyle(role: Role, label: boolean, shape = 'rect'): Style | null {
+export function boxStyle(role: Role, label: boolean, shape = 'rect', outcome: Outcome | null = null): Style | null {
   switch (role) {
     case 'entry':
       return label ? { bold: true } : { color: 'claude', bold: true }
     case 'decision':
       return label ? { bold: true, color: 'autoAccept' } : { color: 'autoAccept' }
     case 'end':
+      if (outcome) return label ? { bold: true, color: OUTCOME_COLOR[outcome] } : { color: OUTCOME_COLOR[outcome] }
       return label ? null : { dimColor: true }
     default:
       if (label) return null
@@ -358,7 +390,7 @@ export function toRuns(cells: { ch: string; style: Style | null }[]): Run[] {
  * status (undefined while unchecked); `dashed` whether the edge is dashed.
  */
 export function styledRows(
-  d: { lines: string[]; owners: (Owner | null)[][] },
+  d: { lines: string[]; owners: (Owner | null)[][]; outcomes?: (Outcome | null)[] },
   statusOf: (edge: number) => EdgeStatus | null | undefined,
   dashed: (edge: number) => boolean,
 ): Run[][] {
@@ -369,9 +401,15 @@ export function styledRows(
       chars.map((ch, x) => {
         const o = who[x] ?? null
         if (!o || ch === ' ') return { ch, style: null }
-        if (o.k === 'box') return { ch, style: boxStyle(o.role, o.label, o.shape) }
+        if (o.k === 'box') return { ch, style: boxStyle(o.role, o.label, o.shape, o.outcome) }
         const st = edgeStyle(statusOf(o.edge), dashed(o.edge))
-        if (o.k === 'edge') return { ch, style: st }
+        // An unchecked branch's line takes its outcome's colour.
+        const out = o.k === 'edge' ? null : o.outcome
+        if (o.k === 'edge') {
+          const oc = (d.outcomes ?? [])[o.edge] ?? null
+          return { ch, style: oc && !statusOf(o.edge) && !dashed(o.edge) ? { color: OUTCOME_COLOR[oc] } : st }
+        }
+        if (out) return { ch, style: { color: OUTCOME_COLOR[out], bold: true } }
         if (o.mark) return { ch, style: { ...(st ?? {}), bold: true } }
         return { ch, style: st?.color === 'error' ? st : st?.dimColor ? st : null }
       }),
@@ -416,8 +454,9 @@ const pad = (s: string, n: number) => s + ' '.repeat(Math.max(0, n - [...s].leng
 
 /**
  * The legend as an aligned table, marker │ label │ cite │ check, at most
- * `width` columns (labels, then cites, then checks are cut to fit). The
- * check column is left out when no row has one. The first row is the header.
+ * `width` columns: cells wrap onto further rows rather than being cut. A
+ * header row and a rule open it; the check column is left out when no row
+ * has one.
  */
 export function legendTable(
   legend: LegendRow[],
@@ -436,42 +475,53 @@ export function legendTable(
   const hasCheck = rows.some(r => r.check.text)
   const len = (s: string) => [...s].length
   const mw = Math.max(1, ...rows.map(r => len(r.mark)))
-  let lw = Math.max(5, ...rows.map(r => len(r.label)))
-  let cw = Math.max(4, ...rows.map(r => len(r.cite)))
-  let vw = hasCheck ? Math.max(5, ...rows.map(r => len(r.check.text))) : 0
-  const total = () => mw + SEP.length + lw + SEP.length + cw + (hasCheck ? SEP.length + vw : 0)
-  const cut = (get: () => number, set: (n: number) => void, floor: number) => {
-    const over = total() - width
-    if (over > 0) set(Math.max(floor, get() - over))
+  const w = { l: Math.max(5, ...rows.map(r => len(r.label))), c: Math.max(4, ...rows.map(r => len(r.cite))), v: hasCheck ? Math.max(5, ...rows.map(r => len(r.check.text))) : 0 }
+  const floor = { l: 14, c: 12, v: 10 }
+  const total = () => mw + SEP.length + w.l + SEP.length + w.c + (hasCheck ? SEP.length + w.v : 0)
+  // Narrow the widest column still above its floor, then the floors themselves.
+  for (const fl of [floor, { l: 6, c: 6, v: 6 }]) {
+    while (total() > width) {
+      const keys = (['l', 'c', 'v'] as const).filter(k => (k !== 'v' || hasCheck) && w[k] > fl[k])
+      if (!keys.length) break
+      keys.sort((p, q) => w[q] - w[p])
+      w[keys[0]!]--
+    }
   }
-  cut(() => lw, n => (lw = n), 14)
-  cut(() => cw, n => (cw = n), 14)
-  if (hasCheck) cut(() => vw, n => (vw = n), 9)
-  cut(() => lw, n => (lw = n), 6)
-  cut(() => cw, n => (cw = n), 6)
-  const sep: Run = { text: SEP, style: { dimColor: true } }
+  const dim: Style = { dimColor: true }
+  const sep: Run = { text: SEP, style: dim }
+  const flat = (xs: Run[]) => toRuns(xs.flatMap(x => [...x.text].map(ch => ({ ch, style: x.style }))))
   const head: Run[] = [
-    { text: pad('#', mw), style: { dimColor: true } },
+    { text: pad('#', mw), style: dim },
     sep,
-    { text: pad('edge', lw), style: { dimColor: true } },
+    { text: pad('edge', w.l), style: dim },
     sep,
-    { text: hasCheck ? pad('cite', cw) : 'cite', style: { dimColor: true } },
-    ...(hasCheck ? [sep, { text: 'check', style: { dimColor: true } }] : []),
+    { text: hasCheck ? pad('cite', w.c) : 'cite', style: dim },
+    ...(hasCheck ? [sep, { text: 'check', style: dim }] : []),
   ]
-  const body = rows.map(r => {
+  const bar = (n: number) => '─'.repeat(n)
+  const rule: Run[] = [
+    { text: `${bar(mw)}─┼─${bar(w.l)}─┼─${bar(w.c)}${hasCheck ? `─┼─${bar(w.v)}` : ''}`, style: dim },
+  ]
+  const body = rows.flatMap(r => {
     const st = edgeStyle(checkedOf(r.row.edge)?.status, r.row.dashed)
-    const cite = shorten(r.cite || '—', cw)
-    const out: Run[] = [
-      { text: pad(r.mark, mw), style: { ...(st ?? {}), bold: true } },
-      sep,
-      { text: pad(shorten(r.label, lw), lw), style: r.row.dashed && !st?.color ? { dimColor: true } : null },
-      sep,
-      { text: hasCheck ? pad(cite, cw) : cite, style: r.cite ? null : { dimColor: true } },
-    ]
-    if (hasCheck) out.push(sep, { text: shorten(r.check.text, vw), style: r.check.style })
-    return toRuns(out.flatMap(x => [...x.text].map(ch => ({ ch, style: x.style })))).map(x => x)
+    const oc = r.row.outcome ? { color: OUTCOME_COLOR[r.row.outcome], bold: true } : null
+    const label = wrap([r.label], w.l)
+    const cite = wrap([r.cite || '—'], w.c)
+    const check = hasCheck ? wrap([r.check.text], w.v) : ['']
+    const n = Math.max(label.length, cite.length, check.length)
+    return Array.from({ length: n }, (_, i) => {
+      const out: Run[] = [
+        { text: pad(i === 0 ? r.mark : '', mw), style: { ...(st ?? {}), bold: true } },
+        sep,
+        { text: pad(label[i] ?? '', w.l), style: oc ?? (r.row.dashed && !st?.color ? dim : null) },
+        sep,
+        { text: hasCheck ? pad(cite[i] ?? '', w.c) : (cite[i] ?? ''), style: r.cite ? null : dim },
+      ]
+      if (hasCheck) out.push(sep, { text: check[i] ?? '', style: r.check.style })
+      return flat(out)
+    })
   })
-  return [head, ...body]
+  return [flat(head), flat(rule), ...body]
 }
 
 /** Each legend row as plain text (tests and the checker's invariants). */
