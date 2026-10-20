@@ -236,7 +236,10 @@ COMMANDS: Dict[str, Dict] = {
                "also writes AGENTS.md; headless `claude -p` refuses MCP tools unless allowed: pass `--allowedTools "
                "\"mcp__cdp__*\"` (`--allow-mcp` takes effect only once the workspace is trusted);`--remove-harness` undoes hooks, the MCP entry, the CLAUDE.md "
                "block and the permission (only what install added) and deletes settings files it leaves empty; "
-               "`--self` refreshes this repo's vendored copy (for CDP developers).",
+               "`--self` refreshes this repo's vendored copy (for CDP developers). Also installs the "
+               "`.claude/cdp-diagrams` mod (`--no-diagrams` skips it; start with `claude --plugin-dir "
+               "<repo>/.claude/cdp-diagrams`): after a CDP answer it offers Flowchart/State machine, draws the "
+               "choice in one tools-off follow-up, and badges each edge with `verify-diagram`'s verdict.",
         "examples": [ex("install <target>"), ex("install <target> --harness", True), ex("install <target> --priority", True),
                      ex("install <target> --remove-harness", True)],
         "where": "Once per repo you want Claude to use CDP in. Then `scan --repo <target>`.",
