@@ -13,7 +13,11 @@ const FENCE: Record<DiagramKind, string> = {
 
 export const DENY = 'cdp-diagrams: diagram turn draws from the answer already given; no tools'
 
-/** The follow-up prompt for the chosen kinds, in the order given; wording follows cdp/guide.py DIAGRAM_RULE. */
+/**
+ * The follow-up prompt for the chosen kinds, in the order given; wording follows
+ * cdp/guide.py DIAGRAM_RULE, with edges labelled action · cite so the drawing
+ * shows what happens on the line and the legend where (splitLabel).
+ */
 export function followUpPrompt(kinds: readonly DiagramKind[]): string {
   const ks = kinds.filter((k, i) => kinds.indexOf(k) === i)
   if (!ks.length) throw new RangeError('followUpPrompt: no diagram kinds')
@@ -24,8 +28,8 @@ export function followUpPrompt(kinds: readonly DiagramKind[]): string {
   if (ks.includes('state')) inferred.push('end inferred transition labels with "(inferred)"')
   return [
     `Draw your previous answer as ${blocks}.`,
-    'Use only facts already in that answer and the CDP results above it; use no tools.',
-    'Label each edge with the file:line that performs it (a call, assignment or transition, never a declaration);',
+    'Use only facts in that answer and the CDP results above it; use no tools.',
+    'Label each edge "<short action> · file:line" (e.g. "charge(order) · orders.py:23"), citing the line performing it (a call, assignment or transition, never a declaration);',
     `${inferred.join('; ')}.`,
     'No prose beyond one line per diagram, ending "+N not shown: ..." when items are left out.',
   ].join(' ')

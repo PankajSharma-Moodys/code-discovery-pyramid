@@ -155,6 +155,9 @@ describe('placement through the engine', () => {
       await r.redraw()
       expect(await a.findAll(DIAGRAM)).toHaveLength(1)
       expect(await a.find(BADGES)).toBeDefined()
+      // badged edges are coloured by verdict: the wrong cite red, the correct ones green
+      expect((await a.findAll({ type: 'Text', text: /✗ wrong/ })).some(t => t.props.color === 'error')).toBe(true)
+      expect((await a.findAll({ type: 'Text', text: /✓ correct/ })).some(t => t.props.color === 'success')).toBe(true)
       expect(await r.findAll(DIAGRAM)).toHaveLength(0)
       expect(await r.drawn()).toMatchObject({ type: 'Text', children: [POINTER] })
       expect(await r.findAll({ type: 'Markdown' })).toHaveLength(0)

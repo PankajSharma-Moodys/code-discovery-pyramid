@@ -3,18 +3,36 @@
 // barycenter ordering -> cross placement -> ports -> per-channel tracks.
 // Coordinates are grid cells; the SVG renderer scales the same layout.
 
-import type { GEdge, GNode, Graph, Shape } from './mermaid.ts'
+import { type GEdge, type GNode, type Graph, type Shape, shorten, splitLabel } from './mermaid.ts'
 
 export type Pt = { x: number; y: number }
-export type PlacedBox = { id: string; x: number; y: number; w: number; h: number; lines: string[]; shape: Shape }
+/** What a node is in the flow: where it starts, a branch, where it ends, or a step. */
+export type Role = 'entry' | 'decision' | 'end' | 'normal'
+export type PlacedBox = { id: string; x: number; y: number; w: number; h: number; lines: string[]; shape: Shape; role: Role }
 export type Route = {
   edge: number
   points: Pt[]
   dashed: boolean
   head: 'end' | 'start' | 'none'
+  /** The edge's marker (①, or [21] past twenty), or null for an unlabelled edge. */
   tag: string | null
+  /** The marker with the edge's action, as drawn on the line when it fits; null when only the marker is drawn. */
+  label: string | null
 }
-export type LegendRow = { tag: string; edge: number; text: string; fromId: string; from: string; to: string; dashed: boolean; selfLoop: boolean }
+export type LegendRow = {
+  tag: string
+  edge: number
+  /** The whole label, as written. */
+  text: string
+  /** What happens on the edge (`charge(order)`), and where (`orders.py:23`). */
+  action: string
+  cites: string[]
+  fromId: string
+  from: string
+  to: string
+  dashed: boolean
+  selfLoop: boolean
+}
 export type Layout = {
   direction: 'TD' | 'LR'
   width: number
@@ -25,6 +43,48 @@ export type Layout = {
 }
 
 export const LIMITS = { nodes: 60, edges: 120 }
+
+/** The longest action drawn on an edge before it is cut with an ellipsis. */
+export const LABEL_WIDTH = 18
+
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
+
+/** Edge `n`'s marker among `total`: ①..⑳ (one cell each), or [n] for every edge past twenty. */
+export function marker(n: number, total: number): string {
+  return total <= CIRCLED.length ? CIRCLED[n - 1]! : `[${n}]`
+}
+
+/** The text drawn on an edge: its marker, then its action cut to `width` (0: the marker only). */
+export function onEdge(mark: string, action: string, width: number): string {
+  return width > 0 && action ? `${mark} ${shorten(action, width)}` : mark
+}
+
+/** Each node's role, from its shape and the edges at it (self-loops aside). */
+export function roles(g: Graph): Map<string, Role> {
+  const ins = new Map<string, number>()
+  const outs = new Map<string, number>()
+  for (const e of g.edges) {
+    if (e.from === e.to) continue
+    outs.set(e.from, (outs.get(e.from) ?? 0) + 1)
+    ins.set(e.to, (ins.get(e.to) ?? 0) + 1)
+  }
+  const out = new Map<string, Role>()
+  for (const n of g.nodes) {
+    const i = ins.get(n.id) ?? 0
+    const o = outs.get(n.id) ?? 0
+    let r: Role = 'normal'
+    if (n.shape === 'start') r = 'entry'
+    else if (n.shape === 'end') r = 'end'
+    else if (n.shape === 'diamond') r = 'decision'
+    else if (g.kind === 'flowchart') {
+      if (i === 0 && o > 0) r = 'entry'
+      else if (o === 0 && i > 0) r = 'end'
+      else if (o >= 2) r = 'decision'
+    }
+    out.set(n.id, r)
+  }
+  return out
+}
 
 export class TooLarge extends Error {}
 
@@ -82,30 +142,27 @@ function firstLine(n: GNode | undefined): string {
   return (n?.label[0] ?? n?.id ?? '?').slice(0, 30)
 }
 
-export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolean }): Layout {
+/**
+ * `labelWidth` is the longest action drawn on an edge (0: markers only); the
+ * layout leaves room beside each edge for it. `roomy` pads boxes and spaces
+ * nodes and layers wider, for when the terminal has the columns.
+ */
+export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolean; labelWidth?: number; roomy?: boolean }): Layout {
   if (g.nodes.length > LIMITS.nodes) throw new TooLarge(`${g.nodes.length} nodes (limit ${LIMITS.nodes})`)
   if (g.edges.length > LIMITS.edges) throw new TooLarge(`${g.edges.length} edges (limit ${LIMITS.edges})`)
   const td = g.direction === 'TD'
   const byId = new Map(g.nodes.map(n => [n.id, n]))
+  const labelWidth = opts.labelWidth ?? LABEL_WIDTH
 
-  // Tags and legend, in source order, so the numbers read top to bottom.
-  const legend: LegendRow[] = []
-  const tags: (string | null)[] = g.edges.map((e, edge) => {
-    const self = e.from === e.to
-    if (!e.label && !self) return null
-    const tag = String(legend.length + 1)
-    legend.push({
-      tag,
-      edge,
-      text: e.label,
-      fromId: e.from,
-      from: firstLine(byId.get(e.from)),
-      to: firstLine(byId.get(e.to)),
-      dashed: e.dashed,
-      selfLoop: self,
-    })
-    return tag
-  })
+  // Which edges carry a marker (a label, or a self-loop), and how wide their
+  // drawn text is; the numbers themselves follow the placed drawing (below).
+  const tagged = g.edges.map(e => !!e.label || e.from === e.to)
+  const total = tagged.filter(Boolean).length
+  const markWidth = marker(total, total).length
+  const split = g.edges.map(e => splitLabel(e.label))
+  const drawnWidth = g.edges.map((_, i) =>
+    tagged[i] ? (labelWidth > 0 && split[i]!.action ? markWidth + 1 + [...shorten(split[i]!.action, labelWidth)].length : markWidth) : 0,
+  )
 
   // Cycle breaking by DFS: an edge into a node on the stack is reversed.
   const out = new Map<string, number[]>()
@@ -153,7 +210,7 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
   for (const n of g.nodes) {
     const isDot = n.shape === 'start' || n.shape === 'end'
     const lines = isDot ? [n.label[0] ?? '●'] : wrap(n.label, opts.boxWidth)
-    const w = isDot ? 1 : Math.max(...lines.map(l => l.length)) + 4
+    const w = isDot ? 1 : Math.max(...lines.map(l => l.length)) + (opts.roomy ? 6 : 4)
     const h = isDot ? 1 : lines.length + 2
     const v: VNode = { id: n.id, real: n, layer: layer.get(n.id) ?? 0, lines, cs: td ? w : h, ms: td ? h : w, pos: 0, order: 0 }
     vnodes.push(v)
@@ -225,8 +282,18 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
   bestOrder.forEach((l, i) => (layers[i] = l))
   renumber()
 
+  // Room for edge labels. Top-down, a label sits beside the vertical that
+  // enters a node, so the node keeps that much clear on its right; left to
+  // right, it sits on the run across the channel, which is widened for it.
+  const labelIn = new Map<VNode, number>()
+  for (const s of segs) labelIn.set(s.to, Math.max(labelIn.get(s.to) ?? 0, drawnWidth[s.edge]!))
+  const reserve = (v: VNode) => {
+    const w = labelIn.get(v) ?? 0
+    return td && w ? Math.max(0, w + 2 - Math.floor(v.cs / 2)) : 0
+  }
+
   // Cross placement: pack each layer, pulled toward its predecessors' centres.
-  const GAP = 2
+  const GAP = opts.roomy ? 4 : 2
   const center = (v: VNode) => v.pos + (v.cs - 1) / 2
   const place = (l: VNode[], near: Map<VNode, VNode[]> | null) => {
     let end = -GAP
@@ -234,19 +301,38 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
       const ns = near?.get(v) ?? []
       const want = ns.length && !opts.compact ? Math.round(ns.reduce((s, x) => s + center(x), 0) / ns.length - (v.cs - 1) / 2) : 0
       v.pos = Math.max(want, end + GAP)
-      end = v.pos + v.cs
+      end = v.pos + v.cs + reserve(v)
     }
   }
   place(layers[0]!, null)
   for (let i = 1; i < depth; i++) place(layers[i]!, preds)
   if (opts.compact) {
-    const span = (l: VNode[]) => (l.length ? l[l.length - 1]!.pos + l[l.length - 1]!.cs : 0)
+    const span = (l: VNode[]) => (l.length ? l[l.length - 1]!.pos + l[l.length - 1]!.cs + reserve(l[l.length - 1]!) : 0)
     const widest = Math.max(...layers.map(span))
     for (const l of layers) {
       const shift = Math.floor((widest - span(l)) / 2)
       for (const v of l) v.pos += shift
     }
   }
+  // Straighten one-to-one links: a node whose one neighbour across a channel
+  // has only it moves so the two ports line up (the edge drops straight),
+  // when that keeps its layer's order and gaps and stays on the canvas.
+  const port = (v: VNode) => (v.cs >= 3 ? v.pos + 1 + Math.floor((v.cs - 2) / 2) : v.pos)
+  const limit = Math.max(...vnodes.map(v => v.pos + v.cs + reserve(v)))
+  const align = (l: VNode[], near: Map<VNode, VNode[]>, back: Map<VNode, VNode[]>) => {
+    l.forEach((v, k) => {
+      const ns = near.get(v) ?? []
+      if (ns.length !== 1 || (back.get(ns[0]!) ?? []).length !== 1) return
+      const want = v.pos + port(ns[0]!) - port(v)
+      const left = l[k - 1]
+      const right = l[k + 1]
+      const lo = left ? left.pos + left.cs + reserve(left) + GAP : 0
+      const hi = (right ? right.pos - GAP : limit) - v.cs - reserve(v)
+      if (want >= lo && want <= hi) v.pos = want
+    })
+  }
+  for (let i = 1; i < depth; i++) align(layers[i]!, preds, succs)
+  for (let i = depth - 2; i >= 0; i--) align(layers[i]!, succs, preds)
 
   // Ports: spread a node's outgoing and incoming segments along its side.
   const spread = (v: VNode, list: Seg[], side: 'a' | 'b', other: (s: Seg) => VNode) => {
@@ -293,14 +379,19 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
   // Main-axis positions: layer extents and the channels between them.
   const mainStart: number[] = []
   const extent = layers.map(l => Math.max(1, ...l.map(v => v.ms)))
+  const anyLabel = drawnWidth.some(w => w > 1)
   let m = 0
   for (let i = 0; i < depth; i++) {
     mainStart.push(m)
     m += extent[i]!
-    if (i + 1 < depth) m += channelTracks[i]! + 2
+    if (i + 1 < depth) {
+      const widest = Math.max(0, ...segs.filter(s => s.from.layer === i).map(s => drawnWidth[s.edge]!))
+      // Top-down, one more row so a vertical below its last bend has a clear row for its label.
+      m += channelTracks[i]! + 2 + (opts.roomy ? 1 : 0) + (td ? (anyLabel ? 1 : 0) : widest ? widest + 2 : 0)
+    }
   }
   const mainSize = m
-  const crossSize = Math.max(1, ...vnodes.map(v => v.pos + v.cs))
+  const crossSize = Math.max(1, ...vnodes.map(v => v.pos + v.cs + reserve(v)))
   const pt = (main: number, cross: number): Pt => (td ? { x: cross, y: main } : { x: main, y: cross })
 
   const routes: Route[] = []
@@ -317,9 +408,10 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
     }
     points.push(pt(mainStart[dst.layer]! - 1, chain[chain.length - 1]!.b))
     const head = !e.arrow ? 'none' : reversed.has(i) ? 'start' : 'end'
-    routes.push({ edge: i, points, dashed: e.dashed, head, tag: tags[i] ?? null })
+    routes.push({ edge: i, points, dashed: e.dashed, head, tag: null, label: null })
   })
 
+  const role = roles(g)
   const boxes: PlacedBox[] = vnodes
     .filter(v => v.real)
     .map(v => {
@@ -332,8 +424,49 @@ export function layoutGraph(g: Graph, opts: { boxWidth: number; compact?: boolea
         h: td ? v.ms : v.cs,
         lines: v.lines,
         shape: v.real!.shape,
+        role: role.get(v.id) ?? 'normal',
       }
     })
+
+  // Numbers in reading order of the drawing: by the source's rank, then
+  // across it (left to right top-down, top to bottom left to right), then
+  // by where the edge lands; the legend follows the same order.
+  const at = new Map(boxes.map(b => [b.id, b]))
+  const key = (id: string) => {
+    const b = at.get(id)!
+    return td ? [b.y, b.x] : [b.x, b.y]
+  }
+  const order = g.edges
+    .map((e, i) => ({ i, k: [...key(e.from), ...key(e.to), i] }))
+    .filter(x => tagged[x.i])
+    .sort((p, q) => {
+      for (let j = 0; j < p.k.length; j++) if (p.k[j] !== q.k[j]) return p.k[j]! - q.k[j]!
+      return 0
+    })
+  const legend: LegendRow[] = []
+  const tagOf = new Map<number, string>()
+  order.forEach(({ i }, n) => {
+    const e = g.edges[i]!
+    const tag = marker(n + 1, total)
+    tagOf.set(i, tag)
+    legend.push({
+      tag,
+      edge: i,
+      text: e.label,
+      action: split[i]!.action,
+      cites: split[i]!.cites,
+      fromId: e.from,
+      from: firstLine(byId.get(e.from)),
+      to: firstLine(byId.get(e.to)),
+      dashed: e.dashed,
+      selfLoop: e.from === e.to,
+    })
+  })
+  for (const r of routes) {
+    r.tag = tagOf.get(r.edge) ?? null
+    const drawn = r.tag ? onEdge(r.tag, split[r.edge]!.action, labelWidth) : null
+    r.label = drawn && drawn !== r.tag ? drawn : null
+  }
 
   return {
     direction: g.direction,
