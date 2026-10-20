@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from .base import ExtractContext, FileFacts, anchor_at
 from .java_body import ALL_CAPS, FileInfo, Scan, TExpr
 from .java_types import split_type
+from .scala_glue import is_glue
 from .scala_decl import ScType, ScalaDeclParser, scala_type_text
 from .scala_tokens import ScTokens
 
@@ -44,6 +45,7 @@ class ScFileInfo(FileInfo):
         super().__init__(ctx, facts, tk, resolver, types, members, list(resolver.wildcards),
                          lambda *a: False, None)
         self.http_types = frozenset()
+        self.declared = frozenset(m.name for jt in types for m in jt.members)
         self.parser = ScalaDeclParser(tk, lines)
 
     def norm_scala(self, text: str, tvars) -> str:
@@ -59,6 +61,11 @@ class ScScan(Scan):
         self.nopush: Set[int] = set()                  # for-header brackets: bindings stay in the for scope
         self.for_ends: List[Tuple[int, int]] = []      # (token index the for expression ends, scope depth)
         self.due: List[Tuple[int, str, object]] = []   # (token index, kind, payload): bindings applied once their rhs is scanned
+
+    def emit(self, base, name, line, how, steps, strict=False, *a, **kw):
+        if strict and is_glue(name, self.fi.declared):
+            return                                   # xref drops it anyway (scala_glue)
+        super().emit(base, name, line, how, steps, strict, *a, **kw)
 
     # ------------------------------------------------------------- walking
 
@@ -410,6 +417,8 @@ class ScScan(Scan):
             self.emit(self.cls_type, name, tk.line[i], "invoke", (), strict=True, alts=alts)
             self._open = None
             self.consumed.add(i)
+        if is_glue(name, fi.declared):
+            return None                              # `when(..).thenReturn(..)`: nothing to type the chain on
         return self.apply((self.cls_type, ()), "m:" + name)
 
     def _skip_args(self, j: int) -> int:
