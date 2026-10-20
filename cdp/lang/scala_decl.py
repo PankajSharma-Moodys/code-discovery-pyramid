@@ -95,6 +95,11 @@ def _first_list_arity(m: "ScMember", plist) -> None:
     m.arity = (lo, None if star else n)
 
 
+# test-double factories whose result is a T, written `f[T]`/`f[T](..)` or `f(classOf[T], ..)`; data, not code
+FACTORY_CALLS = frozenset(("mock", "spy", "stub"))
+FACTORY_QUALIFIERS = ("Mockito", "MockitoSugar", "MockFactory")
+
+
 class ScalaDeclParser:
     def __init__(self, tk: ScTokens, lines: List[str]) -> None:
         self.tk = tk
@@ -354,7 +359,7 @@ class ScalaDeclParser:
         anonymous `new T(..) { .. }` starting at `i` (token `new`); None for anything chained or compound."""
         tk = self.tk
         if tk.at(i) != "new":
-            return None
+            return self._factory_type(i, stop)
         r = self._parse_type(i + 1)
         if r is None:
             return None
@@ -369,6 +374,35 @@ class ScalaDeclParser:
             return x >= stop or x >= tk.n or (tk.line[x] > tk.line[x - 1] and tk.at(x) != ".") \
                 or tk.at(x) in (";", ")", "}", ",")
         return r[1] if done(k) and (k > e or done(e)) else None
+
+    def _factory_type(self, i: int, stop: int) -> Optional[str]:
+        """T of a test-double factory initializer (`FACTORY_CALLS`): `mock[T]`, `mock[T](..)`, `spy[T]`,
+        `stub[T]`, `mock(classOf[T])`, optionally qualified (`Mockito.mock`, `MockitoSugar.mock`)."""
+        tk = self.tk
+        j = i
+        if tk.at(j) in FACTORY_QUALIFIERS and tk.at(j + 1) == "." and tk.is_id(j + 2):
+            j += 2
+        if tk.at(j) not in FACTORY_CALLS or not tk.is_id(j):
+            return None
+        j += 1
+        typ = None
+        if tk.at(j) == "[":
+            r = self._parse_type(j + 1)
+            if r is None or tk.at(r[0]) != "]":
+                return None
+            typ, j = r[1], r[0] + 1
+        elif tk.at(j) == "(" and tk.at(j + 1) == "classOf" and tk.at(j + 2) == "[":
+            r = self._parse_type(j + 3)
+            if r is None or tk.at(r[0]) != "]" or tk.at(r[0] + 1) not in (")", ","):
+                return None
+            typ = r[1]
+        if typ is None:
+            return None
+        if tk.at(j) == "(":
+            j = tk.close(j) + 1
+        end = j >= stop or j >= tk.n or (tk.line[j] > tk.line[j - 1] and tk.at(j) != ".") \
+            or tk.at(j) in (";", ")", "}", ",")
+        return typ if end else None
 
     # ------------------------------------------------------- ctor and params
 
