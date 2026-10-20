@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..anchor import build_anchor
+from ..anchor import build_fact_anchor
 from ..util import normalise_ws
 
 # Import prefixes that are never internal to a repository. The resolve phase
@@ -171,7 +171,9 @@ class Extractor:
 
 
 def anchor_at(ctx: ExtractContext, index: int) -> Optional[Dict]:
-    return build_anchor(ctx.path, ctx.lines, index)
+    """A deterministic fact cites its line exactly (`build_fact_anchor`): never None on a
+    non-blank line, so a call on a line repeated many times is kept, not dropped."""
+    return build_fact_anchor(ctx.path, ctx.lines, index)
 
 
 class Ann(tuple):

@@ -234,6 +234,39 @@ def build_anchor(
     return None
 
 
+#: Key on an anchor that cites its line exactly but whose text is not unique enough to
+#: survive an edit (§5.4). Only deterministic facts carry it; a claim must never cite one.
+EXACT = "exact"
+
+
+def build_fact_anchor(
+    rel_path: str,
+    lines: Sequence[str],
+    index: int,
+) -> Optional[Dict[str, object]]:
+    """The anchor of a deterministic extractor fact at 0-based `index`.
+
+    A fact is re-extracted whenever its blob changes, so it never has to survive an edit:
+    it cites `(file, index + 1)` exactly. Text uniqueness (`build_anchor`) is still tried
+    first, because claims derived from facts reuse their anchors and claims must survive
+    edits; the fact keeps its own line even when that text grew upward from an earlier
+    line. When no span qualifies (the line repeats more than `MAX_MATCHES_IN_FILE` times,
+    or twice within the window), the fact keeps the line's own text and is marked `EXACT`
+    instead of being dropped.
+    """
+    if not (0 <= index < len(lines)):
+        return None
+    anchor = build_anchor(rel_path, lines, index)
+    if anchor is not None:
+        if anchor["line"] != index + 1:
+            anchor["line"] = index + 1
+        return anchor
+    text = normalise_ws(lines[index])[:MAX_ANCHOR_LEN]
+    if not text:
+        return None
+    return {"file": rel_path, "line": index + 1, "anchor": text, EXACT: True}
+
+
 def build_anchor_for_text(
     rel_path: str,
     lines: Sequence[str],

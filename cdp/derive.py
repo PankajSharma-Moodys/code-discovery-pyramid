@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+from .anchor import EXACT
 from .inventory import ROOT_MODULE
 from . import schedfacts
 from .rules import all_edges
@@ -94,7 +95,8 @@ def _claim(
     confidence: str = "high",
     id_parts: Sequence[str] = (),
 ) -> Optional[Dict]:
-    evidence = [e for e in evidence if e]
+    # a fact anchor marked EXACT is not unique text: it cannot survive an edit, so a claim drops it
+    evidence = [e for e in evidence if e and not e.get(EXACT)]
     if not evidence or len(statement) < 12:
         return None
     claim = {
