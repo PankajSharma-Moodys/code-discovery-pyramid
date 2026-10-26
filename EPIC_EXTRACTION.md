@@ -14,7 +14,7 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 
 **Shared done-definition for every task except X0:**
 0. Before coding, classify the misses of your target cells (all, or >= 30 by recorded seed) as real vs scorer error. Scorer errors are fixed in the scorer first, with a fixture, and the baseline re-taken. Report the split.
-1. Scorecard run before and after (same command, same corpus).
+1. Scorecard run before and after (same command). The corpus is read live from ~/git: both reports must show identical repo HEADs; if they differ the comparison is void and you re-run both.
 2. Target cells reach the pass mark (95% S/G/M/R/U, 90% F), or the report says which did not and why.
 3. No other cell drops.
 4. Existing tests pass.
