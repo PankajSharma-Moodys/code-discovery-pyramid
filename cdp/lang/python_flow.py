@@ -27,9 +27,10 @@ from __future__ import annotations
 import ast
 import builtins
 import sys
+import warnings
 from typing import Dict, List, Optional, Set, Tuple
 
-from .base import ExtractContext, FileFacts, anchor_at, mk_define, mk_use
+from .base import Ann, ExtractContext, FileFacts, anchor_at, mk_define, mk_use
 
 Ex = Tuple[str, Tuple[str, ...]]
 
@@ -149,7 +150,7 @@ class Flow:
         self.facts.uses.append(row)
 
     def define(self, fqn: str, kind: str, vis: str, node, value: Optional[str] = None,
-               ret: Optional[Ex] = None, line: Optional[int] = None):
+               ret: Optional[Ex] = None, line: Optional[int] = None, annotations=()):
         """One define per fqn per file (a property's setter, a conditional redefinition
         are the same symbol). Returns the row, or None when the line is not citable."""
         prior = self.defined.get(fqn)
@@ -159,7 +160,7 @@ class Flow:
         if anchor is None:
             return None
         end = getattr(node, "end_lineno", None) or node.lineno
-        row = mk_define(fqn, kind, vis, anchor, value=value, end_line=end)
+        row = mk_define(fqn, kind, vis, anchor, value=value, end_line=end, annotations=annotations)
         if ret is not None:
             row["ret"] = ex_str(ret)
         self.defined[fqn] = row
@@ -615,7 +616,8 @@ class Flow:
         sc.has_yield = _has_yield(node)
         # `@overload` stubs describe the signature; the implementation is the symbol
         fresh = fqn not in self.defined and "overload" not in decs
-        row = self.define(fqn, kind, visibility(node.name), node) if fresh else None
+        row = self.define(fqn, kind, visibility(node.name), node,
+                          annotations=self.decorator_anns(node)) if fresh else None
         self.body(node.body)
         self.stack.pop()
         if row is not None:
@@ -630,6 +632,60 @@ class Flow:
         if not found or any(r is None for r in found):
             return None
         return found[0] if all(r == found[0] for r in found) else None
+
+    def src(self, node) -> str:
+        """Exact source text of an expression node (`col_offset` counts UTF-8 bytes)."""
+        l0, l1 = node.lineno - 1, node.end_lineno - 1
+        if not (0 <= l0 <= l1 < len(self.lines)):
+            return ""
+        parts = [x.encode("utf-8") for x in self.lines[l0:l1 + 1]]
+        parts[-1] = parts[-1][:node.end_col_offset]
+        parts[0] = parts[0][node.col_offset:]
+        return b"\n".join(parts).decode("utf-8", "replace")
+
+    def _wrapped(self, d) -> bool:
+        pre = self.lines[d.lineno - 1].encode("utf-8")[:d.col_offset].decode("utf-8", "replace")
+        return pre.rstrip().endswith("(") or not pre.strip()
+
+    def _wide(self, d, start: int, end: int, text: str):
+        """A decorator whose expression sits inside parentheses (`@(lambda f: f)`, or the
+        parens spread over lines): widen to the `@` line and the balancing `)`."""
+        while start > 0 and not self.lines[start].lstrip().startswith("@"):
+            start -= 1
+        for e in range(end, min(end + 50, len(self.lines))):
+            chunk = "\n".join(x[:] for x in self.lines[start:e + 1]).lstrip()
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    ast.parse(chunk + "\ndef _(): pass")
+            except SyntaxError:
+                continue
+            return chunk.rstrip(), start, e
+        return text, d.lineno - 1, end
+
+    def decorator_anns(self, node) -> List[Ann]:
+        """One annotation per decorator (PEP 318; any expression since 3.9, PEP 614). `name` is
+        the dotted chain of `@a.b.c` / `@a.b.c(...)`, else the expression's source text."""
+        out = []
+        for d in node.decorator_list:
+            body = self.src(d)
+            if not body:
+                continue
+            t = d.func if isinstance(d, ast.Call) else d
+            parts = []
+            while isinstance(t, ast.Attribute):
+                parts.append(t.attr)
+                t = t.value
+            if isinstance(t, ast.Name):
+                name = ".".join([t.id] + parts[::-1])
+            else:
+                name = " ".join(body.split())
+            text, start, end = "@" + body, d.lineno - 1, d.end_lineno - 1
+            first = self.lines[start]
+            if not first.lstrip().startswith("@") or self._wrapped(d):
+                text, start, end = self._wide(d, start, end, text)
+            out.append(Ann(name, text, start, end))
+        return out
 
     def decorator(self, d, owner_node) -> None:
         target = d.func if isinstance(d, ast.Call) else d
@@ -649,7 +705,7 @@ class Flow:
         fqn = parent.owner + ("#" if parent.kind == "func" else ".") + node.name
         for d in node.decorator_list:
             self.decorator(d, node)
-        self.define(fqn, "class", visibility(node.name), node)
+        self.define(fqn, "class", visibility(node.name), node, annotations=self.decorator_anns(node))
         for b in node.bases:
             self.expr(b)
             while isinstance(b, ast.Subscript):          # `Base[T]`, `Generic[T]`: the class itself
