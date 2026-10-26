@@ -128,7 +128,8 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
         anchor = anchor_at(ctx, jt.line)
         tv = jt.all_tparams()
         if anchor is not None:
-            row = mk_define(jt.fqn, TYPE_KIND.get(jt.kind, jt.kind), jt.visibility, anchor)
+            row = mk_define(jt.fqn, TYPE_KIND.get(jt.kind, jt.kind), jt.visibility, anchor,
+                             annotations=jt.anns)
             if jt.tparams:
                 row["tparams"] = jt.tparams
             if jt.kind in TYPE_KIND:
@@ -164,7 +165,8 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
             vis = m.visibility
             if m.kind in ("method", "ctor"):
                 name = "<init>" if m.kind == "ctor" else m.name
-                row = mk_define(jt.fqn + "#" + name, "method", vis, anchor, end_line=m.end_line + 1)
+                row = mk_define(jt.fqn + "#" + name, "method", vis, anchor, end_line=m.end_line + 1,
+                                 annotations=m.anns)
                 if m.kind == "method":
                     typed(row, m.ret, tv | set(m.tparams))
                     row["pmax"] = 99 if m.params and m.params[-1][0].endswith("[]") else len(m.params)
@@ -175,7 +177,8 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 sigs.define_fields(row, m)
                 facts.defines.append(row)
             elif m.kind == "enum_const":
-                row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1)
+                row = mk_define(jt.fqn + "." + m.name, "field", "public", anchor, end_line=m.end_line + 1,
+                                 annotations=m.anns)
                 row["ftype"] = jt.fqn
                 facts.defines.append(row)
             elif m.kind == "field":
@@ -184,9 +187,9 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 if const and m.init and not m.prop:
                     value = _constant_value(tk, m, jt, values)
                     values[m.name] = value
-                    row = mk_define(fqn, "constant", vis, anchor, value=value)
+                    row = mk_define(fqn, "constant", vis, anchor, value=value, annotations=m.anns)
                 else:
-                    row = mk_define(fqn, "field", vis, anchor)
+                    row = mk_define(fqn, "field", vis, anchor, annotations=m.anns)
                 facts.defines.append(typed(row, m.ftype, tv))
             _type_refs(facts, anchor, m, jt, resolver)
     return None
