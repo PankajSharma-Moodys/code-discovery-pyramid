@@ -67,13 +67,14 @@ class CMember(JMember):
 
 
 class CType(JType):
-    __slots__ = ("ns", "pparams", "bases", "partial", "delegate_params", "primary_line", "primary_sig")
+    __slots__ = ("ns", "pparams", "bases", "base_global", "partial", "delegate_params", "primary_line", "primary_sig")
 
     def __init__(self, kind: str, name: str, fqn: str, outer: Optional["CType"]) -> None:
         super().__init__(kind, name, fqn, outer)
         self.ns = ""
         self.pparams: Optional[List[Tuple[str, str]]] = None
         self.bases: List[str] = []
+        self.base_global: List[bool] = []   # parallel to `bases`: written `global::X`
         self.partial = False
         self.primary_line = 0
         self.primary_sig: Optional[str] = None     # the primary constructor's sig when `<init>` is overloaded
@@ -443,12 +444,14 @@ class DeclParser:
         if tk.at(j) == ":":
             j += 1
             while j < end and tk.at(j) not in ("{", ";") and tk.text[j] != "where":
+                glob = tk.at(j) == "global" and tk.at(j + 1) == "::"
                 r = parse_type(tk, j)
                 if r is None:
                     j += 1
                     continue
                 j, text = r
                 jt.bases.append(text)
+                jt.base_global.append(glob)
                 if tk.at(j) == "(":
                     j = tk.close(j) + 1
                 if tk.at(j) == ",":

@@ -144,6 +144,10 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 row["route_parent"] = [guess] + [w + "." + guess.rsplit(".", 1)[-1] for w in resolver.wildcards]
             if jt.kind == "class" and "abstract" in jt.mods:
                 row["abstract"] = True
+            if jt.bases and jt.kind != "enum":   # `enum E : byte` is an underlying type, not a base
+                # same shape as Java/Scala: source order, resolved fqn, type arguments kept
+                row["supertypes"] = [norm_type(t, _base_resolver(resolver, t, g), tv) or t
+                                     for t, g in zip(jt.bases, jt.base_global)]
             facts.defines.append(row)
         values = consts.setdefault(jt.fqn, {})
         if jt.pparams is not None:
@@ -226,6 +230,12 @@ def _empty_args(facts: FileFacts) -> None:
         for row in d.get("annotations") or ():
             if "(" in row["text"] and "args" not in row:
                 row["args"] = {}
+
+
+def _base_resolver(resolver: Resolver, text: str, glob: bool):
+    """Name resolver for one base; a `global::X` base is already fully qualified (only its own name, not type arguments)."""
+    own = text.split("<", 1)[0]
+    return lambda n: n if glob and n == own else _resolve(resolver, n)
 
 
 def _resolve(resolver: Resolver, name: str) -> str:
