@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set, Tuple
 
 from .base import Ann
+from .csharp_annotations import attribute_args, name_end, qualified_name
 from .csharp_tokens import CsTokens
 from .java_decl import JMember, JType, join_tokens
 
@@ -348,6 +349,8 @@ class DeclParser:
         a = j
         depth = 0
         while j <= c:
+            if j == a and tk.is_id(j):
+                j = max(j, name_end(tk, a, c))   # `Foo<A, B>`: its commas are not attribute separators
             t = tk.text[j] if j < c else ","
             if tk.kind[j] == "op" and t in "([{":
                 j = tk.close(j)
@@ -357,13 +360,16 @@ class DeclParser:
                     name = ""
                     while tk.is_id(name_i):
                         name = tk.text[name_i]
-                        if tk.at(name_i + 1) == ".":
+                        if tk.at(name_i + 1) in (".", "::"):
                             name_i += 2
                             continue
                         break
                     if name.endswith("Attribute") and len(name) > 9:
                         name = name[:-9]
-                    anns.append(Ann(name, join_tokens(tk, a, j), tk.line[a], tk.line[max(a, j - 1)]))
+                    ann = Ann(name, join_tokens(tk, a, j), tk.line[a], tk.line[max(a, j - 1)],
+                              attribute_args(tk, a, j))
+                    ann.qname = qualified_name(tk, a, j)
+                    anns.append(ann)
                 a = j + 1
             j += 1
         return c + 1

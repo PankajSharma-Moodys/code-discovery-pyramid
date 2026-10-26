@@ -67,7 +67,9 @@ class CSharpExtractor(Extractor):
             if t.kind == "delegate":
                 continue
         sigs.assign(types, lambda t, tv: norm_type(t, lambda n: _resolve(resolver, n), tv) or t)
+        _resolve_attributes(types, resolver)
         _declarations(ctx, facts, tk, types, resolver)
+        _empty_args(facts)
         _emit_import_edges(facts)
         _emit_routes(ctx, facts, types, tk)
         _emit_ef(ctx, facts, tk, types, primary)
@@ -193,6 +195,37 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 facts.defines.append(typed(row, m.ftype, tv))
             _type_refs(facts, anchor, m, jt, resolver)
     return None
+
+
+def _resolve_attributes(types: List[CType], resolver: Resolver) -> None:
+    """Set `fqn` on every attribute where the file says what it is, as `java.py` does for
+    annotations: a dotted name (through an alias or a type declared here), an alias, or a type
+    declared in this file; `Name` also tries `NameAttribute`. A simple name that only a
+    `using` namespace or the enclosing namespace could supply stays without `fqn`."""
+    def one(ann) -> None:
+        name = getattr(ann, "qname", "") or ann[0]
+        if name.startswith("global::"):
+            ann.fqn = name[8:]
+        elif "." in name or "::" in name:
+            ann.fqn = None if "::" in name else resolver.resolve(name)[0]
+        else:
+            table = {**resolver.simple_to_fqn, **resolver.local_types}
+            ann.fqn = table.get(name) or table.get(name + "Attribute")
+
+    for jt in types:
+        for ann in jt.anns:
+            one(ann)
+        for m in jt.members:
+            for ann in m.anns:
+                one(ann)
+
+
+def _empty_args(facts: FileFacts) -> None:
+    """Empty parentheses emit `args: {}` (owner decision X24); `annotation_rows` drops an empty map."""
+    for d in facts.defines:
+        for row in d.get("annotations") or ():
+            if "(" in row["text"] and "args" not in row:
+                row["args"] = {}
 
 
 def _resolve(resolver: Resolver, name: str) -> str:
