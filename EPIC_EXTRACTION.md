@@ -56,8 +56,8 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 | X17 | Java text-block constant values | queued | java*.py | X0 |
 | X18 | C# 14 extension members | queued | csharp*.py | X4 |
 | X19 | Explicit "unsupported" per field: a Java b C# c Scala d Python e JS | queued | per-language file | X1-X8 |
-| X20 | TS decorators, supertypes, params, accessor | blocked: TS never labelled `typescript` (H4 0/72); split once unblocked | typescript*.py | owner call |
-| X21 | TS member separator `.` -> `#.`; fresh rescans, SQLite + Postgres, no migration | blocked as X20 | TS extractor + store/query (report first) | X20 |
+| X20 | TS/JS extraction: split into atomic tasks X30-X46 in EPIC_EXTRACTION_TSJS.md (decisions D1-D6 made upfront there) | split, queued | web*.py | X26 done |
+| X21 | TS member separator `.` -> `#`: now X30 (class members) and X31 (free functions, use fqns aligned; rescans on SQLite + Postgres) | split, queued | web.py, web_decl.py | X30 |
 | X22 | Version check, per language; scope set after X19 | parked | - | X19 |
 
 ## X0 done-definition (additional)
