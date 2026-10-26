@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extraction scorecard (task X0): implements sections 2-7 of EXTRACTION_METRICS.md.
 
-    python3 scripts/extraction_scorecard.py            # scores ~/git/{data-lake,unified-store,workflow-service}
+    python3 scripts/extraction_scorecard.py            # scores every repo in REPOS under ~/git
 
 Writes SCORECARD.md and scorecard.json in the repo root. Measures only: it never changes cdp/ or the
 scanned repos. Facts come the way a real scan does (build_inventory, run_extract, rules.apply); H3 is
@@ -30,7 +30,7 @@ os.environ.setdefault("CDP_HOME", str(Path.home() / ".cdp-phase1" / "x0"))
 
 LANGS = ["java", "csharp", "scala", "python", "typescript", "javascript"]
 PROVISIONAL = {"python", "typescript", "javascript"}
-REPOS = ["data-lake", "unified-store", "workflow-service"]
+REPOS = ["data-lake", "unified-store", "workflow-service", "dispatch", "CTFd"]
 PASS_MARK = {"S": 95, "G": 95, "M": 95, "R": 95, "U": 95, "F": 90}
 MEMBER_KINDS = {"method", "function", "field", "constant", "table"}
 SEED = 20261026
@@ -1679,8 +1679,8 @@ def build_report(args, sc, fw_cells, h4, h1, h3_info, h3, u3_sample, u4_sample, 
     for r in before:
         md.append("- %s before == after: **%s**" % (r, "yes" if before[r] == after[r] else "NO"))
     md.append("\n```\n" + "\n".join("%s: %s" % (r, before[r].replace("\n", " | ")) for r in before) + "\n```\n")
-    md.append("All three repos unchanged: **%s**\n" % ("yes" if same else "NO"))
-    md.append(HOW_PRODUCED)
+    md.append("All %d repos unchanged: **%s**\n" % (len(before), "yes" if same else "NO"))
+    md.append(HOW_PRODUCED.replace("\n\n", "\n\n- **Corpus (%d repos, ~/git/<name>):** %s.\n" % (len(repo_info), ", ".join(repo_info)), 1))
     md.append(READING)
     (out_dir / "SCORECARD.md").write_text("\n".join(md) + "\n")
 
