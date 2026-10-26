@@ -52,7 +52,7 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 | X26 | Inventory labels .ts/.tsx `typescript` (H4 0/72 -> 72/72) | done, verified (991d99e, merged); TS cells now real: S4 60%, G1 0/54, G2 0/58, G3 0/13 | cdp/inventory.py, cdp/lang/__init__.py | X0 |
 | X27 | Python corpus: dispatch (FastAPI, dd2837e82a0b) + CTFd (Flask, 66d49ae1c433) added to ~/git and the scorer corpus (5 repos) | done, verified (4259b34, merged); Python cells now real: G1 0/2560, R1 0/1115, M2 0/950, F3 0/2012 | scripts/extraction_scorecard.py | X0 |
 | X28 | F1 covers Flask (spec row + scorer rule, 14 fixtures); Python U3 (49 y, 1 x) / U4 (3 n) samples judged | done, verified (d94c0ab, 7cb4c88, merged); F1 Flask 59/144 40%: misses look like flask_restx `ns.route` on Resource classes, not triaged | EXTRACTION_METRICS.md, scripts/ | X27 |
-| X29 | Flask route emission (F1 Flask 40%); triage the 85 misses first (rule 0) | queued | python*.py, rules (report first) | X28 |
+| X29 | Flask route emission (F1 Flask 40%); owner 2026-10-27: flask_restx `@ns.route` on Resource classes counts as Flask (spec F1 row + scorer + extractor); triage the 85 misses first (rule 0) | queued | python*.py, rules (report first) | X28 |
 | X17 | Java text-block constant values | queued | java*.py | X0 |
 | X18 | C# 14 extension members | queued | csharp*.py | X4 |
 | X19 | Explicit "unsupported" per field: a Java b C# c Scala d Python e JS | queued | per-language file | X1-X8 |
@@ -74,7 +74,7 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 ## Owner decisions 2026-10-26
 - Companion objects count (X23). Empty-paren annotations emit `args: {}` (X24). Void return: investigate first, owner leans a null/enum value (X25).
 - No holdout repos. Triage inside each task (rule 0). Scorer stays in `scripts/`. Full suite runs during tasks. R2 (extends vs implements) dropped: `uses` rows already carry the kinds.
-- Corpus changes by owner: deleted Python files and one Java file; added dispatch and CTFd. Baseline retaken on 7cb4c88.
+- Corpus changes by owner: deleted Python files and one Java file; added dispatch and CTFd. Baseline retaken on 7cb4c88. 2026-10-27: C# annotation fqn (M3) accepted as is, 3 swagger files stay scored, branches kept.
 
 ## Open points
 - Task scope is from the baseline; owns paths are guesses, agents report before touching others. X20/X21 (TS work) need splitting into atomic tasks; X6/X7 are ready.
