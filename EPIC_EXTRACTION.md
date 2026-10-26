@@ -32,7 +32,7 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 | X0 | Scorecard script | done; X0b scorer fix 83f2471 (epic/x0b-scorer-fix: C# property attrs, collection exprs, multi-line attrs; 8 fixture checks); baseline retaken 2026-10-26 on b14daae | scripts/extraction_scorecard.py | - |
 | X1 | C# annotations M1 0/2519 on fixed scorer (name, text, line, end_line) | done, verified (59ca47f on epic/x1-csharp-annotations; 100% (2519/2519) with X0b scorer; 68 old misses were all scorer errors, TRIAGE_X1_M1.md); unmerged | cdp/lang/csharp*.py | X0 |
 | X2 | C# annotation args + fqn (M2, M3) | done, verified (905323c, merged): M2 0/2475 -> 100%, M3 0/2969 -> 20 (no pass mark; most names come via namespace `using`, unresolvable without a symbol table) | csharp*.py | X1 |
-| X3 | C# supertypes R1 0/832 | queued | csharp*.py | X0 |
+| X3 | C# supertypes R1 0/833 -> 833/833 | done, verified (5f1225b, merged; full suite 1622 pass + known artefact). Known gap: names unresolved by the extractor are qualified into the local namespace (46% of unified-store entries match no repo type, e.g. framework bases supplied by `using`); resolve-phase effect unmeasured, X3b proposed | csharp*.py | X0 |
 | X4 | C# structured params G1 0/5473 | queued | csharp*.py | X3 |
 | X5 | Python decorators -> annotations M1 (provisional) | done (5c507ac on epic/x5-py-annotations; 0/11 -> 11/11 before the owner deleted the Python files from the corpus; now 0 present, fixture tests only); unmerged | python*.py | X0 |
 | X6 | Python bases -> supertypes R1 0/7 (provisional) | queued | python*.py | X27 |
