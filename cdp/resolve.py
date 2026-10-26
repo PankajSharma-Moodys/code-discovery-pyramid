@@ -100,7 +100,7 @@ def symbol_entry(fqn: str, rows: List[Dict], role_of: Dict[str, str], constants:
     `build_xref` computes for it, for a store that looks symbols up one at a time."""
     table: Dict[str, Dict] = {}
     for row in rows:
-        if scope is not None and row["file"].endswith(".java"):
+        if scope is not None and row["file"].endswith((".java", ".cs")):
             row = scope.fix_row(row, DEFINE_TYPE_FIELDS)    # as `settle_extraction` did at scan
         _add_define(table, row, role_of)
     _finish_symbol(fqn, table[fqn])

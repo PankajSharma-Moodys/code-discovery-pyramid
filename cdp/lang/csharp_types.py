@@ -173,6 +173,7 @@ class Resolver:
         self.pkg = ns
         self.aliases = aliases
         self.local_types: Dict[str, str] = {}
+        self.guessed: set = set()   # names qualified by the own-namespace guess (not written so)
         parents: List[str] = []
         cur = ns
         while cur:
@@ -181,6 +182,18 @@ class Resolver:
         # enclosing namespaces (innermost first), then `using` namespaces
         self.wildcards: List[str] = parents[1:] + [u for u in usings if u not in parents]
         self.simple_to_fqn: Dict[str, str] = dict(aliases)
+
+    def note_guess(self, name: str) -> None:
+        """Record `Ns.<name>` as a guess when `resolve` could only qualify `name` into the file's own
+        namespace (a dotted name too: its head may be a namespace the file only reaches from outside)."""
+        name = name.strip().split("<", 1)[0].strip().replace("[]", "").strip()
+        head, dot, rest = name.partition(".")
+        if (not self.pkg or not name or name in PRIMS or name.startswith("global::")
+                or head in self.local_types or head in self.aliases):
+            return
+        if (canon_bcl(head) if dot and head in BCL and not rest[:1].islower() else canon_bcl(name) if not dot else None):
+            return
+        self.guessed.add(self.pkg + "." + name)
 
     def resolve(self, name: str) -> Tuple[str, str]:
         name = name.strip().split("<", 1)[0].strip().replace("[]", "").strip()

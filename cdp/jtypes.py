@@ -230,9 +230,10 @@ class SigScope:
     among them` (a set lookup at scan time, an indexed query in the store).
     """
 
-    def __init__(self, scope_of, probe) -> None:
+    def __init__(self, scope_of, probe, cs=None) -> None:
         self.scope_of = scope_of
         self.probe = probe
+        self.cs = cs        # `lang.csharp_scope.CsSigScope`: settles the base types of C# files
         self.known: Dict[str, bool] = {}
 
     def _names(self, texts: Iterable[str], pkg: str, wilds: Sequence[str], guessed) -> Dict[str, List[str]]:
@@ -267,7 +268,10 @@ class SigScope:
 
     def fix_row(self, row: Dict, fields: Sequence[str]) -> Dict:
         """`row` with each type-bearing field (`sig`, `ret`, `ftype`, `from_sig`, `argt` and the
-        `type` of each of `params`) settled; the same row when nothing changes."""
+        `type` of each of `params`) settled; the same row when nothing changes. A C# row has only
+        its `supertypes` settled (`csharp_scope`)."""
+        if row["file"].endswith(".cs"):
+            return self.cs.fix_row(row) if self.cs else row
         texts: List[str] = []
         for key in fields:
             v = row.get(key)
@@ -300,26 +304,39 @@ USE_TYPE_FIELDS = ("from_sig", "argt")
 
 
 def sig_scope_from_extraction(extraction: Dict) -> Optional[SigScope]:
-    """A `SigScope` over a whole extraction (None when it holds no Java)."""
-    if not any(f.endswith(".java") for f in extraction.get("files", {})):
+    """A `SigScope` over a whole extraction (None when it holds no Java and no C#)."""
+    paths = extraction.get("files", {})
+    java = any(f.endswith(".java") for f in paths)
+    csharp = any(f.endswith(".cs") for f in paths)
+    if not java and not csharp:
         return None
     wild: Dict[str, List[str]] = {}
+    imports: Dict[str, List[str]] = {}
     for row in extraction["imports"]:
         if row["fqn"].endswith(".*"):
             wild.setdefault(row["file"], []).append(row["fqn"][:-2])
+        if row["file"].endswith(".cs"):
+            imports.setdefault(row["file"], []).append(row["fqn"])
     pkgs = {f: info.get("package") or "" for f, info in extraction["files"].items()}
     guess = {f: frozenset(g[len(GUESS_PREFIX):] for g in info.get("signals") or () if g.startswith(GUESS_PREFIX))
              for f, info in extraction["files"].items()}
     classes = {r["fqn"] for r in extraction["defines"] if r.get("kind") in CLASS_KINDS}
-    return SigScope(lambda f: (pkgs.get(f, ""), wild.get(f, ()), guess.get(f, frozenset())), lambda cands: classes.intersection(cands))
+
+    def probe(cands):
+        return classes.intersection(cands)
+    cs = None
+    if csharp:
+        from .lang.csharp_scope import CsSigScope
+        cs = CsSigScope(lambda f: (pkgs.get(f, ""), imports.get(f, ()), guess.get(f, frozenset())), probe)
+    return SigScope(lambda f: (pkgs.get(f, ""), wild.get(f, ()), guess.get(f, frozenset())), probe, cs)
 
 
 def settle_extraction(extraction: Dict) -> Dict:
-    """`extraction` with Java signature type names settled (rows copied, never mutated)."""
+    """`extraction` with Java signature type names and C# base types settled (rows copied, never mutated)."""
     scope = sig_scope_from_extraction(extraction)
     if scope is None:
         return extraction
-    defines = [scope.fix_row(r, DEFINE_TYPE_FIELDS) if r["file"].endswith(".java") else r
+    defines = [scope.fix_row(r, DEFINE_TYPE_FIELDS) if r["file"].endswith((".java", ".cs")) else r
                for r in extraction["defines"]]
     uses = [scope.fix_row(r, USE_TYPE_FIELDS) if r["file"].endswith(".java") and (r.get("from_sig") or r.get("argt")) else r
             for r in extraction["uses"]]

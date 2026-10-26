@@ -145,7 +145,18 @@ class ObjectReadMixin:
 
             def probe(cands):
                 return {f for f, rs in self.defines_of(sorted(cands)).items() if any(r["kind"] in CLASS_KINDS for r in rs)}
-            self._derived[key] = SigScope(scope_of, probe)
+
+            from ..lang.csharp_scope import CsSigScope
+            cs_files: Dict[str, Tuple] = {}
+
+            def cs_scope_of(path):
+                if path not in cs_files:
+                    part = self.file_part("extract", path) or {}
+                    meta = part.get("meta") or {}
+                    cs_files[path] = (meta.get("package") or "", [r["fqn"] for r in part.get("imports", ())],
+                                      frozenset(g[len("guess:"):] for g in meta.get("signals") or () if g.startswith("guess:")))
+                return cs_files[path]
+            self._derived[key] = SigScope(scope_of, probe, CsSigScope(cs_scope_of, probe))
         return self._derived[key]
 
     def used_by_keys(self) -> List[str]:

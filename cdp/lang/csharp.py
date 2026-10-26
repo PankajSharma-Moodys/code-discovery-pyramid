@@ -41,6 +41,7 @@ ROUTE_VERBS = {
     "HttpGet": "GET", "HttpPost": "POST", "HttpPut": "PUT", "HttpDelete": "DELETE",
     "HttpPatch": "PATCH", "HttpHead": "HEAD", "HttpOptions": "OPTIONS",
 }
+GUESS_PREFIX = "guess:"   # file signal: a base-type name the extractor qualified by guess
 TYPE_KIND = {"struct": "class", "delegate": "class"}
 BUILTIN_TYPES = frozenset(["string", "int", "long", "bool", "void", "object", "double", "float", "decimal", "byte",
                            "short", "char", "var", "dynamic", "uint", "ulong", "ushort", "sbyte"])
@@ -148,6 +149,7 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 # same shape as Java/Scala: source order, resolved fqn, type arguments kept
                 row["supertypes"] = [norm_type(t, _base_resolver(resolver, t, g), tv) or t
                                      for t, g in zip(jt.bases, jt.base_global)]
+                facts.signals.extend(GUESS_PREFIX + n for n in _guessed_in(row["supertypes"], resolver.guessed))
             facts.defines.append(row)
         values = consts.setdefault(jt.fqn, {})
         if jt.pparams is not None:
@@ -235,7 +237,19 @@ def _empty_args(facts: FileFacts) -> None:
 def _base_resolver(resolver: Resolver, text: str, glob: bool):
     """Name resolver for one base; a `global::X` base is already fully qualified (only its own name, not type arguments)."""
     own = text.split("<", 1)[0]
-    return lambda n: n if glob and n == own else _resolve(resolver, n)
+
+    def resolve(n: str) -> str:
+        if glob and n == own:
+            return n
+        resolver.note_guess(n)
+        return _resolve(resolver, n)
+    return resolve
+
+
+def _guessed_in(types: List[str], guessed) -> List[str]:
+    """The guessed names that these type texts carry (`jtypes.SigScope` settles them in resolve)."""
+    found = {n for t in types for n in re.findall(r"[A-Za-z_$][\w$.]*", t)}
+    return sorted(guessed & found)
 
 
 def _resolve(resolver: Resolver, name: str) -> str:
