@@ -1046,7 +1046,8 @@ FW = [
     ("F1", "Express", JS, r"\b(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*['\"`]", "call", ("http_in",), "route:"),
     ("F2", "HttpClient (C#)", CS, r"\.(?:GetAsync|PostAsync|PutAsync|DeleteAsync|PatchAsync|SendAsync)\s*\(", "call", ("http_out",), "http:"),
     ("F2", "JAX-RS client", JVM, r"\.target\s*\(", "call", ("http_out",), "http:"),
-    ("F2", "axios/fetch", JS, r"\baxios\s*(?:\.\s*(?:get|post|put|delete|patch|request)\s*)?\(|\bfetch\s*\(", "call", ("http_out",), "http:"),
+    # D5: `fetch(` is bare or has the receiver window/globalThis/self; any other `X.fetch(` (project wrapper) is not counted
+    ("F2", "axios/fetch", JS, r"\baxios\s*(?:\.\s*(?:get|post|put|delete|patch|request)\s*)?\(|(?<![\w$.])(?:(?:window|globalThis|self)\s*\.\s*)?fetch\s*\(", "call", ("http_out",), "http:"),
     ("F3", "JPA", JVM, r"@(?:Entity|Table)\b", "ann", ("persist",), None),
     ("F3", "Spring Data", JVM, r"\bextends\s+(?:[\w.]+\.)?(?:JpaRepository|CrudRepository)\b", "decl", ("persist",), None),
     ("F3", "JDBI", JVM, r"@(?:SqlQuery|SqlUpdate)\b", "ann", ("persist",), None),

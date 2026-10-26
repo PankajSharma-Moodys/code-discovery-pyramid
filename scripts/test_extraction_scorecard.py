@@ -101,9 +101,37 @@ D4 = [
 ]
 CASES += [(n, "d4", (p_, sib), want) for n, p_, sib, want in D4]
 
+def f2_js(src):
+    """Marker lines of the JS F2 row (axios/fetch) on an inline snippet, over blanked source."""
+    class C:
+        def lang(self, rel):
+            return "javascript"
+    scan = sc.Scan("javascript", ".js", src.strip("\n").split("\n"))
+    return sorted(ln for (fid, fw, _k), site in sc.framework_sites(C(), "a.js", scan).items()
+                  if fid == "F2" and fw == "axios/fetch" for ln in site["lines"])
+
+
+for _n, _src, _want in [
+    ("d5 bare fetch counts", "fetch('/a')", [1]),
+    ("d5 window.fetch counts", "window.fetch('/a')", [1]),
+    ("d5 globalThis.fetch counts", "globalThis.fetch('/a')", [1]),
+    ("d5 self.fetch counts", "self.fetch('/a')", [1]),
+    ("d5 CTFd.fetch does not count", "CTFd.fetch('/a')", []),
+    ("d5 this.fetch does not count", "this.fetch('/a')", []),
+    ("d5 other.window.fetch does not count", "foo.window.fetch('/a')", []),
+    ("d5 axios.get still counts", "axios.get('/a')", [1]),
+    ("d5 fetch in a comment does not count", "// fetch('/a')\nx = 1", []),
+    ("d5 fetch in a string does not count", "x = \"fetch('/a')\"", []),
+    ("d5 prefixed name does not count", "prefetch('/a')", []),
+]:
+    CASES.append((_n, "d5", _src, _want))
+
 fails = 0
 for case in CASES:
-    if case[1] == "d4":
+    if case[1] == "d5":
+        name, _, src, want = case
+        got = f2_js(src)
+    elif case[1] == "d4":
         name, _, (path, sib), want = case
         got = sc.is_bundled_asset(path, set(sib))
     elif case[1] is None:
