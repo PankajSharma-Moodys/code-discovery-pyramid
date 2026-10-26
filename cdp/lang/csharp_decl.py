@@ -342,6 +342,8 @@ class DeclParser:
         j = i + 1
         if tk.is_id(j) and tk.at(j + 1) == ":" and tk.at(j) in (
                 "assembly", "module", "return", "field", "property", "method", "param", "type", "event"):
+            if tk.text[j] in ("assembly", "module"):
+                return c + 1    # applies to the assembly/module, not to the declaration that follows
             j += 2
         a = j
         depth = 0
