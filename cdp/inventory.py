@@ -23,7 +23,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .lang import classify_role, extract_file, get_extractor, is_manifest
+from .lang import classify_role, extract_file, get_extractor, is_manifest, language_of
 from .util import (
     CdpError,
     count_disk_files,
@@ -112,7 +112,7 @@ def build_inventory(repo: Path, extra_excludes: Tuple[str, ...] = ()) -> Dict:
             {
                 "path": rel,
                 "module": _module_for(rel, module_roots, root_name),
-                "language": extractor.language if extractor.language != "build" else _build_language(rel),
+                "language": language_of(rel, extractor) if extractor.language != "build" else _build_language(rel),
                 "role": classify_role(rel, extractor),
                 "loc": loc,
                 "bytes": size,
@@ -360,7 +360,7 @@ GENERATED_MIN_FILES = 20
 GENERATED_RATIO = 4
 
 #: Languages whose files are program source (a generated module is generated *code*).
-SOURCE_LANGUAGES = frozenset("csharp go java javascript python scala".split())
+SOURCE_LANGUAGES = frozenset("csharp go java javascript python scala typescript".split())
 
 #: Never counted as generated sources: dependency installs and tool caches.
 _NOT_GENERATED_DIRS = frozenset(

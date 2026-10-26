@@ -93,6 +93,19 @@ def get_extractor(path: str) -> Extractor:
     return _FALLBACK
 
 
+_TS_SUFFIXES = frozenset({"ts", "tsx", "mts", "cts"})   # `.d.ts` ends in `ts`
+
+
+def language_of(path: str, extractor: Extractor) -> str:
+    """Inventory language label. The web extractor serves JS and TS; the label follows the
+    extension (`.ts .tsx .mts .cts .d.ts` -> typescript, the rest javascript)."""
+    if extractor.language == "javascript":
+        name = path.rsplit("/", 1)[-1]
+        if "." in name and name.rsplit(".", 1)[-1].lower() in _TS_SUFFIXES:
+            return "typescript"
+    return extractor.language
+
+
 def classify_role(path: str, extractor: Extractor) -> str:
     """One of: test, build, schema, config, docs, asset, ci, source."""
     if any(p.search(path) for p in _TEST_PATTERNS):
