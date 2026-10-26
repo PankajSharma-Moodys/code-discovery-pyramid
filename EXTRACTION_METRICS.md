@@ -22,7 +22,7 @@ Budget: ≤ 200 lines. Audience: agents doing the scoring. Read all of it before
 | **anchor** | The citation: `{"file", "line", "anchor"}`. `line` is **1-based**. |
 | **present** | The source code contains the thing (decided by the "Present when" rule). |
 | **emitted** | The file facts contain it in the exact shape given (decided by the "Emitted when" rule). |
-| **production file** | A file whose inventory `role` is `source`. Test files are never scored (section 8). |
+| **production file** | A file whose inventory `role` is `source`. Test files are never scored (section 8). For the coverage rows (S, G, M, R, U, F) JS files that are minified or bundled are also not scored: basename `*.min.{js,mjs,cjs}`; a `bundle` word in the basename; `X.dev.js` with a sibling `X.min.js`; or a build-hash suffix (`name.<8+ hex with a digit>`, `name-<8 base64url chars>`) under a `static`/`assets`/`dist`/`build`/`vendor` directory. H rows keep all files (section 8, item 5). |
 
 ## 2. Where the facts come from
 
@@ -198,3 +198,5 @@ Budget: ≤ 200 lines. Audience: agents doing the scoring. Read all of it before
 2. **Tests stay test.** Score production files only (`role` = `source`).
 3. **Pass marks confirmed:** 95% for S, G, M, R, U facts and 90% for F facts.
 4. **Scope:** Java, C#, Scala, Python, TS/JS. Go and Kotlin are out until a repo needs them.
+5. **Minified and bundled JS is not scored by coverage rows** (owner decision 2026-10-26, D4). The file-name rule is in the
+   'production file' row of section 1; H1-H4 still count every production file.

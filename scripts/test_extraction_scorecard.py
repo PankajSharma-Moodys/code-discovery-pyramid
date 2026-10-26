@@ -79,9 +79,62 @@ CASES += [
      None, FLASK_IMP + "def g():\n    return app.config.get('X')", {}),
 ]
 
+# D4: is_bundled_asset on inline path strings (second arg = sibling paths for the `.dev.js` twin rule)
+D4 = [
+    ("d4 keep app file", "src/app/store.js", (), False),
+    ("d4 keep app file under assets dir", "CTFd/themes/admin/assets/js/pages/challenges.js", (), False),
+    ("d4 keep camelCase name under static dir", "static/js/userController.js", (), False),
+    ("d4 keep config file", "vite.config.js", (), False),
+    ("d4 exclude .min.js", "static/js/core.min.js", (), True),
+    ("d4 exclude .min.mjs", "lib/x.min.mjs", (), True),
+    ("d4 exclude bundle word", "static/js/vendor.bundle.dev.js", (), True),
+    ("d4 exclude x-bundle-core", "res/swagger-ui-es-bundle-core.js", (), True),
+    ("d4 exclude hex hash under static", "themes/core/static/assets/index.0eace8c9.js", (), True),
+    ("d4 exclude base64 hash under assets", "themes/admin/static/assets/pages/main-OdxfRQdf.js", (), True),
+    ("d4 hash name outside asset dirs is kept", "src/index.0eace8c9.js", (), False),
+    ("d4 dev twin of min is excluded", "static/js/helpers.dev.js", ("static/js/helpers.min.js",), True),
+    ("d4 dev file without min twin is kept", "static/js/helpers.dev.js", (), False),
+    # decision: a bare `vendor.js` has no minified/bundle/hash signal in its name, so it stays scored (a `vendor/`
+    # directory alone is not enough: vendored-but-readable code cannot be told from the project's own by name)
+    ("d4 file named vendor.js is kept", "static/js/vendor.js", (), False),
+    ("d4 ts file never excluded", "static/assets/main-OdxfRQdf.ts", (), False),
+]
+CASES += [(n, "d4", (p_, sib), want) for n, p_, sib, want in D4]
+
+def f2_js(src):
+    """Marker lines of the JS F2 row (axios/fetch) on an inline snippet, over blanked source."""
+    class C:
+        def lang(self, rel):
+            return "javascript"
+    scan = sc.Scan("javascript", ".js", src.strip("\n").split("\n"))
+    return sorted(ln for (fid, fw, _k), site in sc.framework_sites(C(), "a.js", scan).items()
+                  if fid == "F2" and fw == "axios/fetch" for ln in site["lines"])
+
+
+for _n, _src, _want in [
+    ("d5 bare fetch counts", "fetch('/a')", [1]),
+    ("d5 window.fetch counts", "window.fetch('/a')", [1]),
+    ("d5 globalThis.fetch counts", "globalThis.fetch('/a')", [1]),
+    ("d5 self.fetch counts", "self.fetch('/a')", [1]),
+    ("d5 CTFd.fetch does not count", "CTFd.fetch('/a')", []),
+    ("d5 this.fetch does not count", "this.fetch('/a')", []),
+    ("d5 other.window.fetch does not count", "foo.window.fetch('/a')", []),
+    ("d5 axios.get still counts", "axios.get('/a')", [1]),
+    ("d5 fetch in a comment does not count", "// fetch('/a')\nx = 1", []),
+    ("d5 fetch in a string does not count", "x = \"fetch('/a')\"", []),
+    ("d5 prefixed name does not count", "prefetch('/a')", []),
+]:
+    CASES.append((_n, "d5", _src, _want))
+
 fails = 0
 for case in CASES:
-    if case[1] is None:
+    if case[1] == "d5":
+        name, _, src, want = case
+        got = f2_js(src)
+    elif case[1] == "d4":
+        name, _, (path, sib), want = case
+        got = sc.is_bundled_asset(path, set(sib))
+    elif case[1] is None:
         name, _, src, want = case
         got = routes(src)
     else:

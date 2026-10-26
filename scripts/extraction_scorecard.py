@@ -727,6 +727,44 @@ class Cell:
         return 100.0 * self.e / self.p if self.p else None
 
 
+_JS_EXT = r"\.(?:js|mjs|cjs)$"
+_ASSET_DIRS = {"static", "assets", "dist", "build", "vendor"}
+_HASH_HEX = re.compile(r"[.\-]([0-9a-f]{8,})$")
+_HASH_B64 = re.compile(r"[.\-]([0-9A-Za-z_][0-9A-Za-z_\-]{7})$")
+
+
+def is_bundled_asset(path, all_paths=()):
+    """Owner decision D4 (EXTRACTION_METRICS.md section 1, 'production file'): minified, bundled and hashed-asset JS
+    files are not scored by the coverage rows. Generic file-name rules, no repo names:
+      1. basename `*.min.{js,mjs,cjs}`;
+      2. basename has a `bundle` word (`x.bundle.js`, `x-bundle.js`, `x-bundle-core.js`);
+      3. `X.dev.js` whose sibling `X.min.js` exists (the unminified twin of a minified build output);
+      4. stem ends in a build hash (`name.<8+ hex with a digit>`, or `name-<8 base64url chars>` with an uppercase letter and
+         a digit or 2+ uppercase) AND a directory segment is one of static/assets/dist/build/vendor.
+    A plain `vendor.js` / `bundle`-free name is kept (no evidence it is a build output)."""
+    base = path.rsplit("/", 1)[-1]
+    if not re.search(_JS_EXT, base):
+        return False
+    stem = re.sub(_JS_EXT, "", base)
+    if re.search(r"\.min$", stem):
+        return True
+    if re.search(r"(?:^|[.\-_])bundle(?:$|[.\-_])", stem):
+        return True
+    if stem.endswith(".dev") and (path[: -len(base)] + stem[:-4] + ".min.js") in all_paths:
+        return True
+    if _ASSET_DIRS & set(path.split("/")[:-1]):
+        m = _HASH_HEX.search(stem)
+        if m and re.search(r"\d", m.group(1)):
+            return True
+        m = _HASH_B64.search(stem)
+        if m:
+            t = m.group(1)
+            up = sum(c.isupper() for c in t)
+            if up and (re.search(r"\d", t) or up >= 2):
+                return True
+    return False
+
+
 class Ctx:
     """Everything scored for one repo."""
 
@@ -737,7 +775,10 @@ class Ctx:
         self.t, self.loc = data["t"], data["loc"]
         self.read_lines = data["read_lines"]
         self.files = {f["path"]: f for f in self.inv["files"]}
-        self.prod = sorted(p for p, f in self.files.items() if f["role"] == "source" and f["language"] in LANGS and not f["binary"])
+        self.prod_all = sorted(p for p, f in self.files.items() if f["role"] == "source" and f["language"] in LANGS and not f["binary"])
+        self.excluded = [p for p in self.prod_all if is_bundled_asset(p, self.files)]    # D4: coverage rows skip these
+        _ex = set(self.excluded)
+        self.prod = [p for p in self.prod_all if p not in _ex]
         self.defs_at = collections.defaultdict(list)
         self.defs_in = collections.defaultdict(list)
         for d in self.ex["defines"]:
@@ -1005,7 +1046,8 @@ FW = [
     ("F1", "Express", JS, r"\b(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*['\"`]", "call", ("http_in",), "route:"),
     ("F2", "HttpClient (C#)", CS, r"\.(?:GetAsync|PostAsync|PutAsync|DeleteAsync|PatchAsync|SendAsync)\s*\(", "call", ("http_out",), "http:"),
     ("F2", "JAX-RS client", JVM, r"\.target\s*\(", "call", ("http_out",), "http:"),
-    ("F2", "axios/fetch", JS, r"\baxios\s*(?:\.\s*(?:get|post|put|delete|patch|request)\s*)?\(|\bfetch\s*\(", "call", ("http_out",), "http:"),
+    # D5: `fetch(` is bare or has the receiver window/globalThis/self; any other `X.fetch(` (project wrapper) is not counted
+    ("F2", "axios/fetch", JS, r"\baxios\s*(?:\.\s*(?:get|post|put|delete|patch|request)\s*)?\(|(?<![\w$.])(?:(?:window|globalThis|self)\s*\.\s*)?fetch\s*\(", "call", ("http_out",), "http:"),
     ("F3", "JPA", JVM, r"@(?:Entity|Table)\b", "ann", ("persist",), None),
     ("F3", "Spring Data", JVM, r"\bextends\s+(?:[\w.]+\.)?(?:JpaRepository|CrudRepository)\b", "decl", ("persist",), None),
     ("F3", "JDBI", JVM, r"@(?:SqlQuery|SqlUpdate)\b", "ann", ("persist",), None),
@@ -1394,11 +1436,11 @@ def score_h1(ctx, out):
     production files are re-extracted one by one (same `extract_file` the scan uses) to attribute them to files."""
     notes = [n for v in ctx.ex["module_notes"].values() for n in v if n.startswith("extractor_error")]
     out["notes"][ctx.name] = notes
-    for rel in ctx.prod:
+    for rel in ctx.prod_all:
         out["H1files"][ctx.lang(rel)] += 1
     if notes:
         from cdp.lang import extract_file
-        for rel in ctx.prod:
+        for rel in ctx.prod_all:
             facts = extract_file(rel, ctx.read_lines(ctx.repo / rel), ctx.files[rel]["module"])
             for n in facts.notes:
                 if n.startswith("extractor_error"):
@@ -1489,8 +1531,8 @@ def main():
         u3_all += u3_candidates(ctx)
         u4_all += u4_candidates(ctx)
         parsed_loc = sum(f["loc"] for f in ctx.ex["files"].values())
-        repo_info[name] = {"head": ctx.inv["head"], "production_files": len(ctx.prod), "files": len(ctx.files),
-                           "by_language_production": dict(collections.Counter(ctx.lang(p) for p in ctx.prod)),
+        repo_info[name] = {"head": ctx.inv["head"], "production_files": len(ctx.prod_all), "scored_files": len(ctx.prod), "excluded_d4": len(ctx.excluded), "files": len(ctx.files),
+                           "by_language_production": dict(collections.Counter(ctx.lang(p) for p in ctx.prod_all)),
                            "timing_s": {k: round(v, 2) for k, v in ctx.t.items()}, "parsed_loc": parsed_loc,
                            "kloc_per_s_extract": round(parsed_loc / 1000 / ctx.t["extract"], 2),
                            "workers": os.cpu_count(), "extractor_error_notes": len(notes)}
