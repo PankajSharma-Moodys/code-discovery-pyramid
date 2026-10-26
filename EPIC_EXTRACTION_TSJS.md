@@ -23,8 +23,8 @@ extractor emits only fqn, kind, visibility, anchor, end_line, value (no params, 
 ## Tasks (cells: baseline count -> target)
 | Task | Scope | Files | Verified on | After |
 |---|---|---|---|---|
-| X44 | Scorer: D4 exclusion + spec text | scripts/extraction_scorecard.py, EXTRACTION_METRICS.md | corpus | - |
-| X45 | Scorer: D5 F2 present rule | scripts/extraction_scorecard.py | corpus (F2 JS 3/121 -> 3/13 by arithmetic from the gap analysis: 121-35 minified/bundled-73 wrapper; not re-run) | - |
+| X44 | DONE (merged fe74f28; 68 JS files excluded from coverage rows, 3 unified-store swagger files kept). Scorer: D4 exclusion + spec text | scripts/extraction_scorecard.py, EXTRACTION_METRICS.md | corpus | - |
+| X45 | DONE (merged fe74f28; F2 JS 3/121 -> 2/12, the 10 misses are X43 cases). Scorer: D5 F2 present rule | scripts/extraction_scorecard.py | corpus (F2 JS 3/121 -> 3/13 by arithmetic from the gap analysis: 121-35 minified/bundled-73 wrapper; not re-run) | - |
 | X30 | JS class member fqn `Cls.m` -> `Cls#m`, kind method: S4 80 misses | web.py | corpus | X44 |
 | X31 | Free functions/arrows: kind `function`, `mod#name`; use fqns aligned; S4 TS 84, JS 460. Report resolved% before/after on a scanned repo | web.py, web_decl.py | corpus | X30 |
 | X32 | Params G1: TS 0/60, JS 0/351 (function, arrow, method, ctor) | web_decl.py, web.py | corpus | X31 |
