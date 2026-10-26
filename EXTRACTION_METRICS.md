@@ -167,7 +167,7 @@ Budget: ≤ 200 lines. Audience: agents doing the scoring. Read all of it before
 
 | ID | Channel and exact target format | Framework: present when |
 |---|---|---|
-| F1 | `http_in`, target `route:<VERB> <full path>`. The full path includes the class-level prefix. | JAX-RS (Java and Scala): `@GET`/`@POST`/`@PUT`/`@DELETE`/`@PATCH` on a method. Spring MVC: `@GetMapping` etc. or `@RequestMapping`. ASP.NET: `[HttpGet]` etc. Django: `path(` / `re_path(` in `urls.py`. FastAPI: `@<router>.get(` etc. Express: `app.get(` / `router.get(` etc. with a string path. |
+| F1 | `http_in`, target `route:<VERB> <full path>`. The full path includes the class-level prefix. | JAX-RS (Java and Scala): `@GET`/`@POST`/`@PUT`/`@DELETE`/`@PATCH` on a method. Spring MVC: `@GetMapping` etc. or `@RequestMapping`. ASP.NET: `[HttpGet]` etc. Django: `path(` / `re_path(` in `urls.py`. FastAPI: `@<router>.get(` etc. Flask: `@app.route(` or `@<blueprint>.route(` with a string path (verbs from `methods=[...]`, default GET), and the Flask 2.0 shortcuts `@app.get(` / `@bp.post(` etc. with a string path. Express: `app.get(` / `router.get(` etc. with a string path. |
 | F2 | `http_out`, target `http:<VERB> <url>` | C# `HttpClient.GetAsync`/`PostAsync`/`SendAsync`. JAX-RS client `.target(...)`. TS `axios.get` etc. and `fetch(`. |
 | F3 | `persist` (any target) | JPA `@Entity`/`@Table`. Spring Data `extends JpaRepository`/`CrudRepository`. JDBI `@SqlQuery`/`@SqlUpdate` (Java and Scala). EF Core `: DbContext` and `DbSet<T>`. Django `models.Model`. SQLAlchemy `declarative_base`/`Column(`. |
 | F4 | `schedule` (any target) | Dropwizard Jobs `@Every`/`@On`/`@OnApplicationStart`. Quartz `implements Job`. Hangfire `RecurringJob.`/`BackgroundJob.`. `: BackgroundService` / `IHostedService`. |

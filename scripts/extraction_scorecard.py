@@ -1001,6 +1001,7 @@ FW = [
     ("F1", "ASP.NET", CS, r"\[\s*Http(?:Get|Post|Put|Delete|Patch)\b", "ann", ("http_in",), "route:"),
     ("F1", "Django", PY, r"\b(?:re_)?path\s*\(", "urls", ("http_in",), "route:"),
     ("F1", "FastAPI", PY, r"@\w+\.(?:get|post|put|delete|patch)\s*\(", "ann", ("http_in",), "route:"),
+    ("F1", "Flask", PY, r"@\w+\.(?:route|get|post|put|delete|patch)\s*\(\s*['\"]", "ann", ("http_in",), "route:"),
     ("F1", "Express", JS, r"\b(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*['\"`]", "call", ("http_in",), "route:"),
     ("F2", "HttpClient (C#)", CS, r"\.(?:GetAsync|PostAsync|PutAsync|DeleteAsync|PatchAsync|SendAsync)\s*\(", "call", ("http_out",), "http:"),
     ("F2", "JAX-RS client", JVM, r"\.target\s*\(", "call", ("http_out",), "http:"),
@@ -1027,6 +1028,22 @@ FILE_FILTER = {   # marker only counts when the file also mentions the framework
     ("F2", "JAX-RS client"): re.compile(r"WebTarget|ws\.rs\.client"),
     ("F6", "C# IConfiguration"): re.compile(r"IConfiguration|Extensions\.Configuration"),
 }
+PY_FLASK_IMP = re.compile(r"^\s*(?:from\s+flask\b|import\s+flask\b)", re.M)
+PY_FASTAPI_IMP = re.compile(r"^\s*(?:from\s+fastapi\b|import\s+fastapi\b)", re.M)
+FLASK_PATH = re.compile(r"@\w+\.\w+\s*\(\s*['\"]([^'\"]*)['\"]")
+
+
+def py_route_owner(whole, code):
+    """Attribute a Python route decorator line to 'Flask' or 'FastAPI' (never both).
+    `.route(` is Flask only. Verb shortcuts (`.get(` etc.) are Flask when the file imports flask and not fastapi,
+    FastAPI otherwise."""
+    if re.search(r"@\w+\.route\s*\(", code):
+        return "Flask" if PY_FLASK_IMP.search(whole) else None
+    if PY_FLASK_IMP.search(whole) and not PY_FASTAPI_IMP.search(whole):
+        return "Flask"
+    return "FastAPI"
+
+
 F_ROWS = ["F1", "F2", "F3", "F4", "F5", "F6", "F7"]
 
 
@@ -1083,6 +1100,9 @@ def framework_sites(ctx, rel, scan):
             ff = FILE_FILTER.get((fid, fw))
             if ff is not None and not ff.search(whole):
                 continue
+            if fw in ("Flask", "FastAPI") and lang == "python":
+                if py_route_owner(whole, code) != fw:
+                    continue
             if mode == "urls" and base != "urls.py":
                 continue
             if mode == "call" and fw == "Express" and False:
@@ -1151,6 +1171,10 @@ def score_frameworks(ctx, sc: Score, fw_cells):
                         continue
                     if s["tp"] and not e["target"].startswith(s["tp"]):
                         continue
+                    if fw == "Flask":
+                        fm = FLASK_PATH.search(line_text(ctx, rel, min(s["lines"]), scan))
+                        if fm and not e["target"].endswith(fm.group(1)):
+                            continue
                     if carrier is not None and not (e["source"] == carrier["fqn"] or e["source"].startswith(carrier["fqn"] + "#")
                                                     or e["source"].startswith(carrier["fqn"] + ".")):
                         continue

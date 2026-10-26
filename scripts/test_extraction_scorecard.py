@@ -48,9 +48,45 @@ CASES = [
      {("type", "C"): 1}),
 ]
 
+class _Ctx:
+    def lang(self, rel):
+        return "python"
+
+
+def routes(src):
+    """{framework: [decorator lines]} for the Python F1 rows (Flask/FastAPI) on an inline snippet."""
+    scan = sc.Scan("python", ".py", src.strip("\n").split("\n"))
+    out = {}
+    for (fid, fw, _k), site in sc.framework_sites(_Ctx(), "app.py", scan).items():
+        if fid == "F1":
+            out.setdefault(fw, []).append(min(site["lines"]))
+    return out
+
+
+FLASK_IMP = "from flask import Flask, Blueprint\napp = Flask(__name__)\nbp = Blueprint('b', __name__)\n"
+CASES += [
+    ("flask route with methods list",
+     None, FLASK_IMP + "@app.route('/a', methods=['POST', 'PUT'])\ndef a():\n    pass", {"Flask": [4]}),
+    ("flask route default GET",
+     None, FLASK_IMP + "@app.route(\"/b\")\ndef b():\n    pass", {"Flask": [4]}),
+    ("flask blueprint route",
+     None, FLASK_IMP + "@bp.route('/c')\ndef c():\n    pass", {"Flask": [4]}),
+    ("flask 2 shortcut",
+     None, FLASK_IMP + "@bp.post('/d')\ndef d():\n    pass\n@app.get('/e')\ndef e():\n    pass", {"Flask": [4, 7]}),
+    ("fastapi route is not flask",
+     None, "from fastapi import APIRouter\nrouter = APIRouter()\n@router.get('/f')\ndef f():\n    pass", {"FastAPI": [3]}),
+    ("flask file without routes",
+     None, FLASK_IMP + "def g():\n    return app.config.get('X')", {}),
+]
+
 fails = 0
-for name, src, want in CASES:
-    got = present(src)
+for case in CASES:
+    if case[1] is None:
+        name, _, src, want = case
+        got = routes(src)
+    else:
+        name, src, want = case
+        got = present(src)
     ok = got == want
     fails += not ok
     print(("PASS " if ok else "FAIL ") + name + ("" if ok else f"  got={got} want={want}"))
