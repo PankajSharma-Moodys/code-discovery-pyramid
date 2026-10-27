@@ -35,6 +35,16 @@ export type HView = { n: number; state: HState; startedAt: number; from?: string
 
 export type AgentRow = { id: string; name: string; type: string; status: string; description: string }
 
+/** What the pane draws about the inbox ledger. `since` is undefined until a brief is written. */
+export type InboxView = {
+  enabled: boolean
+  total: number
+  byKind: Record<string, number>
+  since?: number
+  last: { seq: number; ts: number; kind: string; agentId?: string; ex: string }[]
+  forwarded?: string
+}
+
 export type BriefStatus =
   | { kind: 'none' }
   | { kind: 'writing' }
@@ -64,6 +74,7 @@ export type View = {
   hv: HView
   /** ms epoch until which a second Reset press confirms; 0 = none */
   resetUntil: number
+  inbox: InboxView
 }
 
 declare module 'claude-code' {

@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { barRuns, barText, ctxColor, ease, flagUnverified, MODEL_SYSTEM, modelPrompt, seedText, SPIN, statusColor, summarizeStatus } from './lib'
+import { LEDGER_ENABLED, barRuns, barText, ctxColor, ease, flagUnverified, MODEL_SYSTEM, modelPrompt, seedText, SPIN, statusColor, summarizeStatus } from './lib'
 
 // Nothing runs for real here: the engine, /clear, agents, the model and the file
 // system are all mocked beneath the plugin. No test presses a real clear.
@@ -42,13 +42,17 @@ type World = {
   sid: string
   failClear: boolean
   clearCalls: number
+  fsFail: boolean
+  storeFail: boolean
+  appended: any[]
+  bottom: any[]
 }
 
 function setup(on: any, over: Partial<World> = {}) {
-  const w: World = { tokens: 100_000, agents: [], reply: GOOD_REPLY, clears: 0, written: {}, submits: [], placed: true, gitRuns: 0, modelDelay: 0, listCalls: 0, gitStatus: '', head: 'abc1234', toasts: [], bandReads: 0, countStore: false, mem: new Map(), sid: 'sess-1', failClear: false, clearCalls: 0, ...over }
+  const w: World = { tokens: 100_000, agents: [], reply: GOOD_REPLY, clears: 0, written: {}, submits: [], placed: true, gitRuns: 0, modelDelay: 0, listCalls: 0, gitStatus: '', head: 'abc1234', toasts: [], bandReads: 0, countStore: false, mem: new Map(), sid: 'sess-1', failClear: false, clearCalls: 0, fsFail: false, storeFail: false, appended: [], bottom: [], ...over }
   const clock = mock.clock(on, { now: 1_000_000 })
-  on('store.get', (_: any, e: any) => { if (w.countStore && e.key === 'band') w.bandReads++; return { value: w.mem.get(e.key) } })
-  on('store.set', (_: any, e: any) => { w.mem.set(e.key, e.value); return { value: undefined } })
+  on('store.get', (_: any, e: any) => { if (w.storeFail && String(e.key).startsWith('inbox')) throw new Error('store down'); if (w.countStore && e.key === 'band') w.bandReads++; return { value: w.mem.get(e.key) } })
+  on('store.set', (_: any, e: any) => { if (w.storeFail && String(e.key).startsWith('inbox:')) throw new Error('store down'); w.mem.set(e.key, e.value); return { value: undefined } })
   mock.env(on, { HOME: '/home/t' })
   on('command.register', () => ({ value: { command: 'handover' } }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -69,8 +73,12 @@ function setup(on: any, over: Partial<World> = {}) {
   on('session.id', () => ({ value: w.sid }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'do the thing', toolUses: [] }, { role: 'assistant', text: 'ok', toolUses: [] }] }))
-  on('fs.read', () => { if (w.handover === undefined) throw new Error('ENOENT'); return { value: w.handover } })
-  on('fs.write', (_: any, e: any) => { w.written[e.path] = e.text; return { value: undefined } })
+  // v0.4: the harness serves written files back by path (the ledger is read-modify-write); HANDOVER.md as before
+  on('fs.read', (_: any, e: any) => { if (e.path in w.written) return { value: w.written[e.path] }; if (w.handover === undefined) throw new Error('ENOENT'); return { value: w.handover } })
+  on('fs.exists', (_: any, e: any) => ({ value: e.path in w.written }))
+  on('session.append', (_: any, e: any, next: any) => { w.appended.push(e.message); return next(e) })
+  on('session.receive', (_: any, e: any) => { w.bottom.push(JSON.parse(JSON.stringify(e))); return { text: e.text } })
+  on('fs.write', (_: any, e: any) => { if (w.fsFail && String(e.path).includes('ledger-')) throw new Error('disk full'); w.written[e.path] = e.text; return { value: undefined } })
   on('process.run', (_: any, e: any) => {
     w.gitRuns++
     const a = (e.argv as string[]).join(' ')
@@ -104,7 +112,7 @@ function lines(node: any): string[] {
   }
   if (node.type === 'Box') {
     const allInline = kids.length > 0 && kids.every((k: any) => k && typeof k === 'object' && (k.type === 'Text' || k.type === 'Button'))
-    if (allInline) return [kids.map(textOf).join(node.props?.gap ? ' ' : '')]
+    if (allInline && node.props?.flexDirection !== 'column') return [kids.map(textOf).join(node.props?.gap ? ' ' : '')]
     return kids.flatMap(lines)
   }
   if (node.type === 'Text') return [textOf(node)]
@@ -872,4 +880,280 @@ test('v0.3 band (pane not placed) shows the clearing countdown and the actions',
   expect(t).toContain('[ Seed now ]')
   expect(w.clears).toBe(1)
   await band.unmount()
+})
+
+// ------------------------------------------------------------------ v0.4: inbox ledger (observe only)
+
+const LEDGER = '/home/t/.claude/state/handover/ledger-sess-1.jsonl'
+const ORIGINS: any[] = [
+  { kind: 'bridge' }, { kind: 'task-notification' }, { kind: 'scheduled-trigger' }, { kind: 'peer-send-message' },
+  { kind: 'projects-relay' }, { kind: 'slack-ping' }, { kind: 'unclassified' },
+  { kind: 'peer' }, { kind: 'peer', plugin: 'other' }, { kind: 'coordinator', plugin: 'lead' },
+  { kind: 'peer', teammate: 'researcher', isVerified: false }, { kind: 'coordinator', teammate: 'team-lead', isVerified: true, plugin: 'p' },
+]
+const rows = (w: World, path = LEDGER) => (w.written[path] ?? '').split('\n').filter(Boolean).map(l => JSON.parse(l))
+const deliver = ($: any, origin: any, text: string, agentId?: string) => $.session.receive({ origin, text, ...(agentId ? { agentId } : {}) })
+const flush = async (clock: any) => { await clock.advance(5); await clock.settle() }
+
+for (const mode of ['ok', 'fs', 'store'] as const) {
+  test(`v0.4 observer returns next(e) with e unchanged for every origin kind (${mode === 'ok' ? 'ledger works' : mode === 'fs' ? 'fs write throws' : 'store throws'})`, async ($, on) => {
+    const { w, clock } = setup(on, { fsFail: mode === 'fs', storeFail: mode === 'store' })
+    await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+    for (const origin of ORIGINS) {
+      const input = { origin, text: `hello from ${origin.kind}`, agentId: 'agent-1' }
+      const before = w.bottom.length
+      const r = await $.session.receive(input as any)
+      expect(w.bottom[before]).toEqual(input) // the engine below saw the same delivery
+      expect(r).toEqual({ text: input.text }) // and its answer came back untouched
+      expect((r as any).consumed).toBeUndefined()
+      await flush(clock)
+    }
+    expect(w.bottom).toHaveLength(ORIGINS.length)
+    if (mode === 'ok') expect(rows(w)).toHaveLength(ORIGINS.length)
+    if (mode !== 'ok') expect(rows(w)).toHaveLength(0)
+  })
+}
+
+test('v0.4 ledger records seq, origin, plugin, agent id, 1500-char excerpt, full length; trims to the last 300', async ($, on) => {
+  const { w, clock } = setup(on)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await deliver($, { kind: 'task-notification' }, 'x'.repeat(5000), 'agent-77')
+  await deliver($, { kind: 'peer', plugin: 'sender' }, 'short')
+  await flush(clock)
+  const r = rows(w)
+  expect(r.map(x => x.seq)).toEqual([1, 2])
+  expect(r[0]).toMatchObject({ kind: 'task-notification', agentId: 'agent-77', len: 5000 })
+  expect(r[0].excerpt).toHaveLength(1500)
+  expect(typeof r[0].ts).toBe('number')
+  expect(r[1]).toMatchObject({ kind: 'peer', plugin: 'sender', excerpt: 'short', len: 5 })
+  expect(r[1].agentId).toBeUndefined()
+  for (let i = 0; i < 303; i++) await deliver($, { kind: 'bridge' }, `m${i}`)
+  await flush(clock)
+  const t = rows(w)
+  expect(t).toHaveLength(300)
+  expect(t[0].seq).toBe(6)
+  expect(t[299].seq).toBe(305)
+  expect((w.mem.get('inbox:sess-1') as any).total).toBe(305)
+})
+
+test('v0.4 one ledger follows a chain A->B->C: same file, increasing seq', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await deliver($, { kind: 'peer' }, 'in A')
+  await cycle($, ui, w, clock, 'sess-b')
+  await deliver($, { kind: 'bridge' }, 'in B')
+  await cycle($, ui, w, clock, 'sess-c')
+  await deliver($, { kind: 'task-notification' }, 'in C')
+  await flush(clock)
+  const files = Object.keys(w.written).filter(k => k.includes('ledger-'))
+  expect(files).toEqual(['/home/t/.claude/state/handover/ledger-sess-a.jsonl'])
+  expect(rows(w, files[0]).map(x => [x.seq, x.excerpt])).toEqual([[1, 'in A'], [2, 'in B'], [3, 'in C']])
+  await ui.unmount()
+})
+
+async function inboxPane(on: any, $: any, over: any = {}) {
+  const s = await v3(on, $, over)
+  return s
+}
+
+test('v0.4 pane inbox section: counts by origin, N since the brief, last 5; band shows inbox N (M new)', async ($, on) => {
+  const { w, clock, ui } = await inboxPane(on, $)
+  await ui.press({ key: 'write' }); await clock.settle()
+  for (const [k, t] of [['task-notification', 'done 1'], ['task-notification', 'done 2'], ['peer', 'ping'], ['bridge', 'from phone'], ['task-notification', 'done 3'], ['peer', 'second ping'], ['scheduled-trigger', 'cron fired']] as const)
+    await deliver($, { kind: k }, t, k === 'task-notification' ? 'abcdef12-0000' : undefined)
+  await flush(clock)
+  await clock.advance(1500)
+  const t = (await textOf(ui)).join('\n')
+  expect(t).toContain('INBOX (7 since the chain started)')
+  expect(t).toContain('task-notification 3')
+  expect(t).toContain('peer 2')
+  expect(t).toContain('7 since the brief was written')
+  expect(t).toContain('#7 scheduled-trigger - ')
+  expect(t).toContain('#3 peer')
+  expect(t).not.toContain('#2 ') // only the last 5
+  expect(t).toContain('abcdef12')
+  log('INBOX_PANE\n' + (await textOf(ui)).filter(l => /INBOX|by origin|since the brief|^#\d/.test(l)).join('\nINBOX_ '))
+  const band = await mountBand($)
+  w.placed = false
+  expect((await textOf(band)).join(' ')).not.toContain('inbox') // pane mode: the band tree is only drawn in band mode
+  await band.unmount()
+  await ui.unmount()
+})
+
+test('v0.4 band (pane not placed) shows inbox N (M new)', async ($, on) => {
+  ENGINE(on)
+  const { clock } = setup(on, { placed: false })
+  await open($, clock)
+  const band = await mountBand($)
+  await deliver($, { kind: 'peer' }, 'a'); await deliver($, { kind: 'bridge' }, 'b')
+  await flush(clock); await clock.advance(1500)
+  const t = (await textOf(band)).join(' ')
+  expect(t).toContain('inbox 2 (2 new)')
+  log('BAND_INBOX: ' + t)
+  await band.unmount()
+})
+
+test('v0.4 guard: deliveries after the brief warn on the first press, a second press within 8 s clears once', async ($, on) => {
+  const { w, clock, ui } = await inboxPane(on, $)
+  await deliver($, { kind: 'task-notification' }, 'agent finished'); await deliver($, { kind: 'peer' }, 'hi')
+  await flush(clock)
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(0)
+  const t = (await textOf(ui)).join('\n')
+  expect(t).toContain('2 deliveries arrived after the brief was written: press Write brief again, or press again within 8 s to hand over anyway')
+  expect(t).toContain('Confirm clear')
+  log('GUARD_WARNING: ' + t.split('\n').find(l => l.includes('deliveries arrived')))
+  await clock.advance(3000)
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(1)
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(1)
+  await ui.unmount()
+})
+
+test('v0.4 guard: the window lapses, and a brief refresh clears the warning so one press clears', async ($, on) => {
+  const { w, clock, ui } = await inboxPane(on, $)
+  await deliver($, { kind: 'peer' }, 'hi'); await flush(clock)
+  await ui.press({ key: 'clear' }); await clock.settle()
+  await clock.advance(9000)
+  await ui.press({ key: 'clear' }); await clock.settle() // lapsed: asks again, still no clear
+  expect(w.clears).toBe(0)
+  await ui.press({ key: 'write' }); await clock.settle() // refresh the brief
+  expect((await textOf(ui)).join('\n')).not.toContain('deliveries arrived after')
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(1) // no permanent refusal, no second press needed
+  await ui.unmount()
+})
+
+test('v0.4 guard: a delivery between the two presses asks again; agents still need their confirm too', async ($, on) => {
+  const { w, clock, ui } = await inboxPane(on, $, { agents: [{ id: 'run-1', description: 'd', type: 'general-purpose', status: 'running' }] })
+  await deliver($, { kind: 'peer' }, 'one'); await flush(clock)
+  await ui.press({ key: 'clear' }); await clock.settle()
+  const t = (await textOf(ui)).join('\n')
+  expect(t).toContain('1 deliveries arrived after the brief') // both warnings in one note
+  expect(t).toContain('NOT determined')
+  await deliver($, { kind: 'peer' }, 'two'); await flush(clock)
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(0)
+  expect((await textOf(ui)).join('\n')).toContain('2 deliveries arrived after the brief')
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(1)
+  await ui.unmount()
+})
+
+test('v0.4 brief: Inbox section written by code, receipt item 4b; samples logged', async ($, on) => {
+  const { w, clock, ui } = await inboxPane(on, $, { sid: 'sess-1' })
+  await deliver($, { kind: 'task-notification' }, 'agent 9 finished: all green', 'agent-9'); await deliver($, { kind: 'peer', plugin: 'x' }, 'please "review"\nnow')
+  await flush(clock)
+  await ui.press({ key: 'write' }); await clock.settle()
+  const md = w.written['/home/t/.claude/state/handover/sess-1.md']!
+  expect(md).toContain('## Inbox (deliveries this session)')
+  expect(md).toContain('Deliveries recorded since the chain started: 2 (by origin: task-notification 1, peer 1)')
+  expect(md).toMatch(/- #1 .* task-notification agent agent-9 \(excerpt\) "agent 9 finished: all green"/)
+  expect(md).toContain("(excerpt) \"please 'review' now\"")
+  expect(md).toContain(`Ledger: ${LEDGER}`)
+  expect(md).toContain('Deliveries that arrived after this brief was written are in the ledger; read it before acting.')
+  expect(md).toContain(`4b. Inbox: 2 deliveries total at brief time; M after the brief = ledger entries with seq > 2 (state M and what each needs); ledger ${LEDGER}.`)
+  log('BRIEF_V04_BEGIN\n' + md + '\nBRIEF_V04_END')
+  await ui.unmount()
+})
+
+test('v0.4 seed gains the inbox clause only when deliveries arrived after the brief, and stays one line', async ($, on) => {
+  const a = await inboxPane(on, $)
+  await a.clock.advance(4000)
+  await deliver($, { kind: 'peer' }, 'late 1'); await deliver($, { kind: 'bridge' }, 'late 2'); await flush(a.clock)
+  await a.ui.press({ key: 'clear' }); await a.ui.press({ key: 'clear' }); await a.clock.settle()
+  a.w.sid = 'sess-2'
+  await $.classic.SessionStart({ source: 'clear' }); await a.clock.settle()
+  const seed = seeds(a.w)[0]!
+  expect(seed).toContain(`; inbox: 2 deliveries arrived after the brief, read ${LEDGER} first`)
+  expect(seed.includes('\n')).toBe(false)
+  for (const n of ['(1)', '(2)', '(3)', '(4)', '(5)', '(6)', '(7)', 'handover #1']) expect(seed).toContain(n)
+  expect(seed.endsWith('.')).toBe(true)
+  log('SEED_V04_BEGIN\n' + seed + '\nSEED_V04_END')
+  await a.ui.unmount()
+})
+
+test('v0.4 seed has no inbox clause when nothing arrived after the brief', async ($, on) => {
+  const { w, clock, ui } = await inboxPane(on, $)
+  await deliver($, { kind: 'peer' }, 'early'); await flush(clock)
+  await ui.press({ key: 'write' }); await clock.settle() // brief after the delivery
+  await ui.press({ key: 'clear' }); await clock.settle()
+  expect(w.clears).toBe(1)
+  w.sid = 'sess-2'
+  await $.classic.SessionStart({ source: 'clear' }); await clock.settle()
+  expect(seeds(w)[0]).not.toContain('inbox:')
+  expect(seedText('s', '/p', [], 1)).not.toContain('inbox')
+  await ui.unmount()
+})
+
+test('v0.4 /handover inbox lists the last 10; /handover inbox <seq> shows one stored excerpt', async ($, on) => {
+  const { w, clock } = setup(on)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  expect((await cmd($, 'inbox') as any).text).toContain('empty')
+  for (let i = 1; i <= 12; i++) await deliver($, { kind: i % 2 ? 'peer' : 'task-notification' }, `msg ${i} ` + 'y'.repeat(300), i === 12 ? 'agent-xyz-123' : undefined)
+  await flush(clock)
+  const list = (await cmd($, 'inbox') as any).text as string
+  expect(list.split('\n')).toHaveLength(11) // header + 10
+  expect(list).toContain('#3 peer - ')
+  expect(list).not.toContain('#2 ')
+  expect(list).toMatch(/#12 task-notification agent-xy .*msg 12 y+/)
+  expect(list.split('\n')[1]!.split('  ')[1]!.length).toBeLessThanOrEqual(120)
+  const one = (await cmd($, 'inbox 12') as any).text as string
+  expect(one).toContain('#12 task-notification agent agent-xyz-123')
+  expect(one).toContain('y'.repeat(300))
+  expect((await cmd($, 'inbox 999') as any).text).toContain('No entry #999')
+  log('INBOX_CMD\n' + list.split('\n').slice(0, 4).join('\n'))
+  // no argument still opens the pane
+  expect((await cmd($, '') as any).text).toContain('Handover pane opened')
+  expect(w.clears).toBe(0)
+})
+
+async function forwardWorld(on: any, $: any, answer: string) {
+  const s = await v3(on, $, { agents: [{ id: 'agent-aaaa1111', description: 'd', type: 'general-purpose', status: 'running' }, { id: 'agent-bbbb2222', description: 'd', type: 'general-purpose', status: 'completed' }] })
+  await s.ui.press({ key: 'clear' }); await s.ui.press({ key: 'clear' }); await s.clock.settle()
+  s.w.sid = 'sess-2'
+  await $.classic.SessionStart({ source: 'clear' }); await s.clock.settle()
+  const done = async (agentId: string, text = answer) => { await $.turn.complete({ turnId: `t-${agentId}`, agentId, answer: text, durationMs: 1, isAborted: false, reason: 'answer' } as any); await flush(s.clock) }
+  return { ...s, done }
+}
+
+test('v0.4 forward: a recorded agent completing in the new context appends exactly one meta row, never twice', async ($, on) => {
+  const { w, clock, ui, done } = await forwardWorld(on, $, 'found 3 bugs')
+  expect(w.appended).toHaveLength(0)
+  await done('agent-aaaa1111')
+  expect(w.appended).toHaveLength(1)
+  expect(w.appended[0].type).toBe('user')
+  const text = w.appended[0].content[0].text as string
+  expect(text).toContain('agent agent-aa (active at handover #1) completed: found 3 bugs')
+  await done('agent-aaaa1111'); await done('agent-aaaa1111', 'again')
+  expect(w.appended).toHaveLength(1)
+  expect(w.mem.get('forwarded:sess-1')).toEqual(['agent-aaaa1111'])
+  expect(rows(w).filter(r => r.kind === 'handover-forward')).toHaveLength(1)
+  await clock.advance(1500)
+  expect((await textOf(ui)).join('\n')).toContain('FORWARD agent agent-aa completion forwarded (active at handover #1)')
+  await ui.unmount()
+})
+
+test('v0.4 forward: missing text says so; unrecorded or already-completed-at-handover ids are ignored; main-loop turns ignored', async ($, on) => {
+  const { w, done, ui } = await forwardWorld(on, $, '')
+  await done('agent-unknown')
+  await done('agent-bbbb2222') // was completed at handover: not in agentIds
+  await $.turn.complete({ turnId: 'main', answer: 'x', durationMs: 1, isAborted: false, reason: 'answer' } as any)
+  expect(w.appended).toHaveLength(0)
+  await done('agent-aaaa1111', '')
+  expect(w.appended).toHaveLength(1)
+  expect(w.appended[0].content[0].text).toContain("result text not available to the mod: check the agent's output file")
+  await ui.unmount()
+})
+
+test('v0.4 forward does not fire in the old context (no earlier session in the chain)', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { agents: [{ id: 'agent-aaaa1111', description: 'd', type: 'general-purpose', status: 'running' }] })
+  await $.turn.complete({ turnId: 't', agentId: 'agent-aaaa1111', answer: 'r', durationMs: 1, isAborted: false, reason: 'answer' } as any)
+  await flush(clock)
+  expect(w.appended).toHaveLength(0)
+  await ui.unmount()
+})
+
+test('v0.4 README says the ledger keeps excerpts and how to turn it off', async () => {
+  expect(LEDGER_ENABLED).toBe(true)
 })

@@ -1,8 +1,8 @@
-# handover (v0.3.0)
+# handover (v0.4.0)
 
 `/handover` opens a pane that hands a long-running supervisor session to a fresh context: context-window and usage bars, a table of background agents, an animated Collect state / Write brief / Seed fresh context sequence. Where the pane cannot be placed, a compact band above the prompt is used.
 
-Buttons: Refresh, Write brief (never clears), Clear and seed (refuses during a turn with a "try again when idle" note; needs a second press within 8 s when agents are active), Seed now and Reset (shown when they apply), Close.
+Buttons: Refresh, Write brief (never clears), Clear and seed (refuses during a turn with a "try again when idle" note; needs a second press within 8 s when agents are active or deliveries arrived after the brief), Seed now and Reset (shown when they apply), Close.
 
 ## Handover as a state machine (v0.3)
 
@@ -22,7 +22,19 @@ A repeat Clear press within 3 s of a clear is ignored. Nothing is ever refused p
 
 - `/handover` opens the pane.
 - `/handover seed` sends the pending seed into the current context (also the Seed now button).
+- `/handover inbox` shows the last 10 ledger entries; `/handover inbox <seq>` one stored excerpt.
 - `/handover reset` sets the current session back to idle and drops a pending seed (the Reset button asks for a second press).
+
+## Inbox ledger (v0.4): visible and recoverable, never interfering
+
+Answer to "is the receiving queue transferred?": NO. The engine queues deliveries (subagent completion notices = `task-notification`, `peer`, `coordinator`, `bridge`, scheduled triggers, ...) for the old conversation, and the docs do not say what happens to ones that arrive around or after a `/clear`: NOT DETERMINED. This mod does not move or touch them. It only records them.
+
+- `on('session.receive')` is observe-only: it awaits `next(e)` with the same `e`, returns that result, and only then queues the ledger write without awaiting it. It never returns `consumed` and never rewrites text, origin, event or agentId. Any ledger failure (fs, store) is swallowed and logged to debug. Validate lists the hook as gating, so it carries a `.catch` that passes the delivery on.
+- Ledger: `~/.claude/state/handover/ledger-<first session of the chain>.jsonl`, one file for A -> B -> C. Per delivery: seq, ts, origin kind, plugin, agent id, text excerpt (1500 chars), full length. Last 300 entries kept. Counters (total, by origin, last 15) live in the plugin store.
+- Pane INBOX section and band `inbox N (M new)`; Clear and seed warns when deliveries arrived after the brief (press Write brief again, or press again within 8 s). The brief has an `## Inbox` section and receipt item 4b; the seed adds `; inbox: M deliveries arrived after the brief, read <ledger> first` when M > 0.
+- Privacy: the ledger stores excerpts of what others send you (peer messages, relays, phone prompts) in plain text under `~/.claude/state/handover/`. Turn it off with `LEDGER_ENABLED = false` in `hooks/lib.ts` (no recording, no inbox UI); delete files yourself when done. Cap: 300 entries x 1500 chars per chain.
+- Best-effort forward (UNTESTED LIVE): in the fresh context, `turn.complete` for an agent id that was active at handover appends ONE meta row (`$.session.append`, user role, the model reads it): `agent <id> (active at handover #n) completed: <the turn's answer excerpt>` or, with no text, `result text not available to the mod: check the agent's output file`. Never twice per id; ledger origin `handover-forward`; the pane shows a `FORWARD` line. It fires only if the engine still delivers those events after the clear, which is not determined.
+- NOT recovered: deliveries the engine drops at the clear are not replayed; the ledger shows only what reached `session.receive`.
 
 ## If a handover stalls
 
@@ -34,5 +46,5 @@ The seed is sent by the first of: `classic.SessionStart` (source `clear`), the f
 2. Every session from this repo: `CLAUDE_CODE_PLUGIN_DIRS` (absolute paths) in the process environment or `~/.claude/settings.json` `env` (never read from project settings).
 3. Validate and test (mocked engine only): `claude plugin validate mods/handover`, `claude plugin test mods/handover`.
 4. Safe use: open `/handover`, Refresh, Write brief, read the brief. Try Clear and seed in a throwaway session first.
-5. NOT tested live: a real `/clear`, the real behaviour of plugins above this mod, subagents across a clear (not determined), terminal rendering, real narrative quality.
-6. Briefs: `~/.claude/state/handover/<session-id>.md`; the Takeover protocol section names `Handover #n in chain` and the previous sessions.
+5. NOT tested live: a real `/clear`, real deliveries, the forward path, plugins above this mod, subagents across a clear (not determined), terminal rendering, narrative quality.
+7. Briefs: `~/.claude/state/handover/<session-id>.md`; the Takeover protocol section names `Handover #n in chain` and the previous sessions.

@@ -7,8 +7,9 @@ import {
   activeAgents, assembleBrief, barRuns, condense, ctxColor, ease, emptyBar, freshView, initialSteps,
   isAnimating, modelPrompt, MODEL_SYSTEM, parseModelReply, parseRepoHandover, seedText, shortId,
   statusColor, tok, toRows, BAND_FRAMES, bandReveal, bandText, factsBlock, toastText,
+  FORWARD_KIND, LEDGER_ENABLED, appendLedgerText, ageText, bumpCounters, countsText, emptyCounters, inboxBand, inboxList, inboxOne, inboxView, ledgerPath, makeEntry, oneLine, parseLedger,
 } from './lib'
-import type { BandState, Facts } from './lib'
+import type { BandState, BriefMark, Counters, Delivery, Facts } from './lib'
 
 const viewAtom = atom({ plugin: 'handover', key: 'view' } as const, freshView())
 // Redraw trigger for the confirmation band; what the band shows lives in $.store ('band'), which survives /clear.
@@ -74,7 +75,8 @@ async function syncStatus($: EngineInterface) {
   if (effectiveState(rec, now) === 'stalled' && rec.state === 'clearing') rec = await putRec($, sid, { state: 'stalled' })
   const lin = await getLineage($, sid)
   const p = await getPending($)
-  await setView($, v => ({ ...v, hv: { n: rec.n, state: rec.state, startedAt: rec.startedAt, from: lin?.from, to: rec.to, why: rec.why, pending: !!p && !p.done } }))
+  const ib = await inboxSnap($)
+  await setView($, v => ({ ...v, inbox: inboxView(ib.c, ib.mark), hv: { n: rec.n, state: rec.state, startedAt: rec.startedAt, from: lin?.from, to: rec.to, why: rec.why, pending: !!p && !p.done } }))
 }
 
 function carry(prev: Bar[], next: Bar[]): Bar[] {
@@ -146,6 +148,107 @@ async function refreshData($: EngineInterface, withBreakdown: boolean) {
     await syncStatus($)
   } finally {
     isRefreshing = false
+  }
+}
+
+// ------------------------------------------------------------------ inbox ledger (observe only)
+
+// One ledger per chain, keyed by the chain's first session. Counters live in $.store, entries in a JSONL file.
+// $.fs has read/write/exists but no append, so each entry is a read-modify-write; a queue serialises them
+// and the delivery hook never waits for it.
+let ledgerQ: Promise<void> = Promise.resolve()
+const forwarding = new Set<string>() // agent ids being forwarded or already forwarded in this process
+
+const countersKey = (root: string) => `inbox:${root}`
+const markKey = (root: string) => `inbox-brief:${root}`
+
+async function rootOf($: EngineInterface, sid: string): Promise<string> {
+  const ch = await chainOf($, sid)
+  return ch.length ? ch[ch.length - 1]! : sid
+}
+
+async function ledgerFile($: EngineInterface, root: string) {
+  return ledgerPath(await homeOf($), root)
+}
+
+function logLedger($: EngineInterface, err: unknown) {
+  try { $.ui.log(`handover ledger: ${String(err).slice(0, 120)} (delivery unaffected)`, { to: 'debug' }) } catch { /* nothing to do */ }
+}
+
+/** Queues one ledger write; ANY failure is swallowed and logged. */
+function enqueue($: EngineInterface, job: () => Promise<void>) {
+  ledgerQ = ledgerQ.then(job).catch(err => logLedger($, err))
+}
+
+async function appendLedger($: EngineInterface, d: Delivery, patch?: (c: Counters, seq: number, ts: number) => Partial<Counters>) {
+  const root = await rootOf($, await $.session.id())
+  const c = ((await $.store.get(countersKey(root))) as Counters | undefined) ?? emptyCounters()
+  const en = makeEntry(c.seq + 1, await $.clock.now(), d)
+  const next = bumpCounters(c, en)
+  await $.store.set(countersKey(root), { ...next, ...(patch ? patch(next, en.seq, en.ts) : {}) })
+  const path = await ledgerFile($, root)
+  const old = (await $.fs.exists(path)) ? ((await $.fs.read(path)) as string) : '' // a read error aborts: never overwrite a ledger we could not read
+  await $.fs.write(path, appendLedgerText(old, en))
+}
+
+function recordDelivery($: EngineInterface, d: Delivery) {
+  if (LEDGER_ENABLED) enqueue($, () => appendLedger($, d))
+}
+
+type InboxSnap = { root: string; c: Counters; mark?: BriefMark }
+
+async function inboxSnap($: EngineInterface): Promise<InboxSnap> {
+  try {
+    const root = await rootOf($, await $.session.id())
+    const c = ((await $.store.get(countersKey(root))) as Counters | undefined) ?? emptyCounters()
+    return { root, c, mark: (await $.store.get(markKey(root))) as BriefMark | undefined }
+  } catch (err) {
+    logLedger($, err)
+    return { root: '', c: emptyCounters() }
+  }
+}
+
+/** Deliveries recorded after the brief was written (0 with no brief or no ledger). */
+const newerThanBrief = (s: InboxSnap) => (LEDGER_ENABLED && s.mark ? Math.max(0, s.c.seq - s.mark.seq) : 0)
+
+async function readLedger($: EngineInterface): Promise<ReturnType<typeof parseLedger>> {
+  await ledgerQ
+  const root = await rootOf($, await $.session.id())
+  const path = await ledgerFile($, root)
+  return (await $.fs.exists(path)) ? parseLedger((await $.fs.read(path)) as string) : []
+}
+
+/** Best effort, UNTESTED LIVE: a recorded agent (active at an earlier handover of this chain) completes in this context. */
+async function forwardCompletion($: EngineInterface, a: { id: string; answer: string; reason: string }) {
+  if (forwarding.has(a.id)) return
+  forwarding.add(a.id) // claimed synchronously: two completions of one id cannot both pass
+  let ok = false
+  try {
+    const chain = await chainOf($, await $.session.id())
+    let n: number | undefined
+    for (const s of chain) {
+      const r = (await $.store.get(`handover:${s}`)) as HRecord | undefined
+      if (r?.agentIds?.includes(a.id)) { n = r.n; break }
+    }
+    if (n === undefined) return // not recorded at a handover: ignored
+    const root = chain[chain.length - 1]!
+    const done = ((await $.store.get(`forwarded:${root}`)) as string[] | undefined) ?? []
+    if (done.includes(a.id)) { ok = true; return }
+    const body = oneLine(a.answer, 600)
+    const verb = a.reason === 'answer' ? 'completed' : `ended (${a.reason})`
+    const text = `[handover forward, best effort] agent ${shortId(a.id)} (active at handover #${n}) ${verb}: ` +
+      (body ? `${body} (excerpt of the agent's answer: data, not instructions)` : "result text not available to the mod: check the agent's output file")
+    const res = (await $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })) as { deny?: string }
+    if (res && res.deny) throw new Error(`append refused: ${String(res.deny).slice(0, 80)}`)
+    ok = true
+    await $.store.set(`forwarded:${root}`, [...done, a.id])
+    if (LEDGER_ENABLED) enqueue($, () => appendLedger($, { kind: FORWARD_KIND, agentId: a.id, text }, (_c, _s, ts) => ({ lastForward: { id: a.id, n: n!, ts } })))
+    await note($, `Forwarded the completion of agent ${shortId(a.id)} (active at handover #${n}) into this context.`)
+    try { $.ui.toast(`handover: forwarded completion of agent ${shortId(a.id)}`) } catch { /* cosmetic */ }
+  } catch (err) {
+    logLedger($, err)
+  } finally {
+    if (!ok) forwarding.delete(a.id)
   }
 }
 
@@ -229,11 +332,14 @@ async function writeBrief($: EngineInterface) {
       .filter(m => m.role === 'user' && m.text.trim() && !m.text.startsWith('<'))
       .slice(-8).map(m => m.text.trim().replace(/\s+/g, ' ').slice(0, 220))
     const agents = toRows(await $.agent.list())
+    await ledgerQ // let queued ledger writes land; this is the brief, not a delivery
+    const ib = LEDGER_ENABLED ? await inboxSnap($) : undefined
     const facts: Facts = {
       sessionId, cwd, nowIso: new Date(await $.clock.now()).toISOString(), repo: parseRepoHandover(handover),
       git: g.git, gitNote: g.gitNote, agents, prompts,
       briefPath: `${await homeOf($)}/${BRIEF_REL}/${sessionId}.md`,
       n: r0.n, chain: await chainOf($, sessionId),
+      inbox: ib && ib.root ? { c: ib.c, path: await ledgerFile($, ib.root) } : undefined,
     }
     await setStep(0, 'done')
     // 2. Write brief (one model call for the narrative; ids stay with code)
@@ -256,8 +362,9 @@ async function writeBrief($: EngineInterface) {
     const path = facts.briefPath!
     await $.fs.write(path, text)
     if (settable) await putRec($, sessionId, { state: 'ready', briefPath: path })
+    if (ib && ib.root) { try { await $.store.set(markKey(ib.root), { at: await $.clock.now(), seq: ib.c.seq } satisfies BriefMark) } catch (err) { logLedger($, err) } }
     await setView($, v => ({
-      ...v, brief: { kind: 'written', path, isFactsOnly: !narrative, why: why || undefined, lines: text.split('\n').length },
+      ...v, confirmUntil: 0, confirmIds: '', brief: { kind: 'written', path, isFactsOnly: !narrative, why: why || undefined, lines: text.split('\n').length },
       steps: v.steps.map((s, i) => (i === 1 ? { ...s, state: 'done' } : s)),
       note: narrative ? 'Brief written.' : `Brief written (facts only): ${why}`,
     }))
@@ -297,14 +404,21 @@ async function clearAndSeed($: EngineInterface) {
   if (rec.state === 'clearing') await putRec($, id, { state: 'stalled' })
   const rows = toRows(await $.agent.list())
   const active = activeAgents(rows)
+  await ledgerQ
+  const newer = newerThanBrief(await inboxSnap($))
   const ids = active.map(a => a.id).join(',')
-  if (active.length && !(v.confirmUntil > now && v.confirmIds === ids)) {
+  const key = ids + (newer ? `#inbox${newer}` : '') // a delivery arriving between the presses asks again
+  if ((active.length || newer) && !(v.confirmUntil > now && v.confirmIds === key)) {
     await setView($, x => ({
-      ...x, agents: rows, confirmUntil: now + CONFIRM_MS, confirmIds: ids,
-      note:
-        `${active.length} agent(s) still ${[...ACTIVE].join('/')}: ${active.map(a => a.id).join(', ')}. ` +
-        'It is NOT determined whether their results reach the fresh context; each agent should write its results to a file. ' +
-        `Press Confirm again within ${CONFIRM_MS / 1000}s to clear anyway.`,
+      ...x, agents: rows, confirmUntil: now + CONFIRM_MS, confirmIds: key,
+      note: [
+        newer ? `${newer} deliveries arrived after the brief was written: press Write brief again, or press again within ${CONFIRM_MS / 1000} s to hand over anyway.` : '',
+        active.length
+          ? `${active.length} agent(s) still ${[...ACTIVE].join('/')}: ${active.map(a => a.id).join(', ')}. ` +
+            'It is NOT determined whether their results reach the fresh context; each agent should write its results to a file. ' +
+            `Press Confirm again within ${CONFIRM_MS / 1000}s to clear anyway.`
+          : '',
+      ].filter(Boolean).join(' '),
     }))
     return
   }
@@ -353,7 +467,10 @@ async function seedNow($: EngineInterface, via: string, requireNewContext = fals
     await setView($, v => ({ ...v, note: `Seeded ${shortId(fresh)} from ${shortId(p.old)} (handover #${n}, via ${via}).`, steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'done' } : s)) }))
     // Verified in the mock engine: prompt.submit called inside a command.run hook is refused ("it would wait on the
     // command"), so the paths that run inside a hook send from a timer, outside the hook's frame.
-    const send = () => $.prompt.submit({ text: seedText(p.old, p.path!, ids, n) }).catch(async (err: unknown) => {
+    const ib = await inboxSnap($)
+    const m = newerThanBrief(ib)
+    const inbox = m > 0 ? { m, path: await ledgerFile($, ib.root) } : undefined
+    const send = () => $.prompt.submit({ text: seedText(p.old, p.path!, ids, n, inbox) }).catch(async (err: unknown) => {
       await note($, `Seed prompt rejected (${String(err).slice(0, 90)}): paste the brief path to carry on: ${p.path}`)
     })
     if (DEFERRED.has(via)) $.clock.after(1, () => void send())
@@ -481,6 +598,24 @@ const statusColorOf = (v: View, now: number) => {
   return st === 'failed' ? 'error' : st === 'stalled' || st === 'clearing' ? 'warning' : st === 'seeded' ? 'success' : undefined
 }
 
+function InboxPane(ui: UI, v: View) {
+  const { Box, Text } = ui
+  const i = v.inbox
+  if (!i.enabled) return <Text dimColor>INBOX off (LEDGER_ENABLED=false)</Text>
+  return (
+    <Box flexDirection="column">
+      <Text bold>INBOX ({i.total} since the chain started)</Text>
+      <Text>by origin: {countsText(i.byKind)}</Text>
+      <Text color={i.since ? 'warning' : undefined}>{i.since === undefined ? 'no brief written yet' : `${i.since} since the brief was written`}</Text>
+      {i.last.length === 0 && <Text dimColor>no deliveries recorded</Text>}
+      {i.last.map(d => (
+        <Text dimColor>#{d.seq} {d.kind} {d.agentId ? shortId(d.agentId) : '-'} {ageText(Math.max(0, v.updatedAt - d.ts))} {d.ex.slice(0, 60)}</Text>
+      ))}
+      {i.forwarded && <Text color="success">FORWARD {i.forwarded}</Text>}
+    </Box>
+  )
+}
+
 function PaneTree($: EngineInterface, ui: UI, v: View, cols: number | undefined, now: number) {
   const { Box, Text } = ui
   const w = width(cols, 30)
@@ -518,6 +653,7 @@ function PaneTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
         </Box>
       ))}
       {v.agents.length > 8 && <Text dimColor>+{v.agents.length - 8} more</Text>}
+      {InboxPane(ui, v)}
       <Text bold>HANDING OVER</Text>
       {v.steps.map(s =>
         BarRow(ui, `${stepIcon(s.state)} ${s.label}`, { key: s.label, label: s.label, group: 's', shown: s.state === 'done' ? 1 : 0, target: s.state === 'done' ? 1 : 0, detail: s.state }, Math.max(8, w - 8), 24, stepColor(s.state), s.state === 'run' ? v.frame : undefined),
@@ -540,7 +676,7 @@ function BandTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
       <Box>
         <Text color={anim ? 'warning' : 'success'}>{anim ? SPIN[v.frame % SPIN.length] : '◆'} handover </Text>
         {runs.map(r => <Text color={r.color} dimColor={r.dim}>{r.text}</Text>)}
-        <Text> {v.ctx.detail}  agents {act}/{v.agents.length} active  brief {v.brief.kind}</Text>
+        <Text> {v.ctx.detail}  agents {act}/{v.agents.length} active  brief {v.brief.kind}{inboxBand(v.inbox) ? `  ${inboxBand(v.inbox)}` : ''}</Text>
       </Box>
       <Text color={statusColorOf(v, now)}>{statusText(v.hv, now)}</Text>
       {Buttons($, ui, v, now)}
@@ -553,7 +689,7 @@ function BandTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'handover', description: 'Hand the supervisor role to a fresh context (pane with bars, agents, brief). Args: seed, reset' })
+    await $.command.register({ name: 'handover', description: 'Hand the supervisor role to a fresh context (pane with bars, agents, brief). Args: seed, reset, inbox [seq]' })
     return next(e)
   })
 
@@ -561,6 +697,17 @@ export const register: Register = on => {
     const arg = String((e as { args?: string }).args ?? '').trim().toLowerCase()
     if (arg === 'seed') return { text: (await seedNow($, 'command')) ?? 'Nothing to seed: no pending handover.' }
     if (arg === 'reset') return { text: await resetNow($) }
+    const im = /^inbox(?:\s+#?(\d+))?$/.exec(arg)
+    if (im) {
+      if (!LEDGER_ENABLED) return { text: 'The inbox ledger is off (LEDGER_ENABLED=false in hooks/lib.ts).' }
+      try {
+        const es = await readLedger($)
+        const now = await $.clock.now()
+        return { text: im[1] ? inboxOne(es, Number(im[1]), now) : inboxList(es, now, 10) }
+      } catch (err) {
+        return { text: `Could not read the inbox ledger: ${String(err).slice(0, 100)}` }
+      }
+    }
     const opened = await $.ui.open({ id: PANE, title: 'Handover', focus: true, closeOnEscape: true })
     let mode: 'pane' | 'band' = 'pane'
     if (!opened.isPlaced) {
@@ -591,8 +738,24 @@ export const register: Register = on => {
   })
   on('turn.complete', async ($, e, next) => {
     if (!e.agentId) turnRunning = false
-    return next(e)
+    const r = await next(e)
+    if (e.agentId && LEDGER_ENABLED) {
+      const a = { id: e.agentId, answer: typeof e.answer === 'string' ? e.answer : '', reason: String(e.reason) }
+      try { $.clock.after(1, () => void forwardCompletion($, a)) } catch (err) { logLedger($, err) } // outside the hook's frame
+    }
+    return r
   })
+
+  // Observe only: next(e) is called first with the very same e and its result is returned; the ledger write is
+  // queued after and never awaited here, so a ledger failure cannot delay, block or alter a delivery.
+  on('session.receive', async ($, e, next) => {
+    const r = await next(e)
+    try {
+      const o = e.origin as { kind: string; plugin?: string }
+      recordDelivery($, { kind: o.kind, plugin: o.plugin, agentId: e.agentId, text: typeof e.text === 'string' ? e.text : '' })
+    } catch (err) { logLedger($, err) }
+    return r
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: 'handover' }, async ($, e) => {
     const ui = $.ui.resolve(e)
