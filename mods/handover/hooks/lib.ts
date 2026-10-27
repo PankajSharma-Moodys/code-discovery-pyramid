@@ -133,7 +133,7 @@ export function section(md: string, heading: RegExp): string | undefined {
   return lines.slice(start + 1, end).join('\n').trim()
 }
 
-export type RepoHandover = { readFirst?: string; role?: string; rules?: string }
+export type RepoHandover = { readFirst?: string; role?: string; rules?: string; state?: string; readyLines?: string[] }
 
 export function parseRepoHandover(md: string | undefined): RepoHandover {
   if (!md) return {}
@@ -147,7 +147,10 @@ export function parseRepoHandover(md: string | undefined): RepoHandover {
     for (let j = i + 1; j < lines.length && lines[j]!.trim() !== '' && !/^#/.test(lines[j]!); j++) parts.push(lines[j]!)
     readFirst = parts.join('\n')
   }
-  return { readFirst, role: section(md, /role/i), rules: section(md, /rules/i) }
+  const state = section(md, /^##\s+state\b/i)
+  // READY / queue lines outside the State section, copied verbatim
+  const readyLines = lines.filter(l => /\bREADY\b|^\s*[-*]?\s*queue\b/i.test(l) && !(state && state.split('\n').includes(l)))
+  return { readFirst, role: section(md, /role/i), rules: section(md, /rules/i), state, readyLines }
 }
 
 export const DEFAULT_ROLE =
@@ -160,15 +163,17 @@ export const MODEL_HEADINGS = ['Task table', 'Decisions', 'Pending for the user'
 export const MODEL_SYSTEM =
   'You write the narrative sections of a handover brief for a supervisor agent that is being replaced by a fresh context. ' +
   'Use only what the transcript says. Never invent agent ids, commit hashes, numbers or file paths; if unknown write "unknown". ' +
-  'Do not write agent ids: a table of them is added separately.'
+  'Do not write agent ids: a table of them is added separately. ' +
+  'Never write a commit hash, a line count, a file count, a test count or a worktree count unless that exact figure appears in the FACTS block you are given.'
 
-export function modelPrompt(transcript: string): string {
+export function modelPrompt(transcript: string, facts = ''): string {
   return (
     'From the transcript below write EXACTLY these five markdown sections, each starting with a level-2 heading, in this order:\n' +
     MODEL_HEADINGS.map(h => `## ${h}`).join('\n') +
     '\n\n"Task table": a markdown table | task | state (DONE/RUNNING/READY) | note |. "Decisions": bullets of decisions the owner made. ' +
     '"Pending for the user": open questions awaiting the owner. "Next actions": ordered bullets. "How to verify": commands or checks to re-verify claims. ' +
-    'Be concise (under 60 lines total). No preamble, no other headings.\n\nTRANSCRIPT:\n' + transcript
+    'Be concise (under 60 lines total). No preamble, no other headings. ' +
+    'Do NOT write commit hashes, line counts, file counts, test counts or worktree counts unless they appear in the FACTS block.\n\nFACTS:\n' + facts.slice(0, 6000) + '\n\nTRANSCRIPT:\n' + transcript
   )
 }
 
@@ -201,18 +206,94 @@ export type Facts = {
   cwd: string
   nowIso: string
   repo: RepoHandover
+  /** status = every `git status --short` line; the brief summarises it */
   git?: { branch?: string; head?: string; status?: string[] }
   gitNote: string
   agents: AgentRow[]
   prompts: string[]
+  briefPath?: string
+}
+
+export const STATUS_SHOWN = 8
+
+/** Counts by status code (`D`, `M`, `??`, ...) and the first STATUS_SHOWN lines. */
+export function summarizeStatus(lines: readonly string[]): { counts: string; shown: string[]; more: number } {
+  const c: Record<string, number> = { D: 0, M: 0, '??': 0 }
+  for (const l of lines) {
+    const xy = l.slice(0, 2)
+    const code = xy === '??' ? '??' : xy[0] !== ' ' ? xy[0]! : (xy[1] ?? '?')
+    c[code] = (c[code] ?? 0) + 1
+  }
+  const counts = Object.entries(c).filter(([k, n]) => n > 0 || k === 'D' || k === 'M' || k === '??').map(([k, n]) => `${k} ${n}`).join(', ')
+  return { counts, shown: lines.slice(0, STATUS_SHOWN), more: Math.max(0, lines.length - STATUS_SHOWN) }
+}
+
+// ---------- unverified-figure flags ----------
+
+export const UNVERIFIED = ' [unverified: not in facts]'
+const HASH = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/gi
+const FIGURE = /\b(\d[\d,]*)\s+(lines?|files?|tests?|worktrees?)\b/gi
+const figKey = (n: string, unit: string) => `${n.replace(/,/g, '')} ${unit.toLowerCase().replace(/s$/, '')}`
+
+/** Appends UNVERIFIED to each line of `text` holding a hash or a count figure absent from `facts`. */
+export function flagUnverified(text: string, facts: string): string {
+  const low = facts.toLowerCase()
+  const known = new Set<string>()
+  for (const m of facts.matchAll(FIGURE)) known.add(figKey(m[1]!, m[2]!))
+  return text
+    .split('\n')
+    .map(line => {
+      if (line.endsWith(UNVERIFIED)) return line
+      const badHash = [...line.matchAll(HASH)].some(m => !low.includes(m[0].toLowerCase()))
+      const badFig = [...line.matchAll(FIGURE)].some(m => !known.has(figKey(m[1]!, m[2]!)))
+      return badHash || badFig ? line + UNVERIFIED : line
+    })
+    .join('\n')
+}
+
+// ---------- brief ----------
+
+/** The code-written parts of the brief that carry facts; also the FACTS block the model is given. */
+export function factsBlock(f: Facts): string {
+  const L: string[] = [`cwd: ${f.cwd}`, `session: ${f.sessionId}, written ${f.nowIso}`]
+  if (f.git) {
+    const sm = summarizeStatus(f.git.status ?? [])
+    L.push(`branch: ${f.git.branch || 'unknown'}, head: ${f.git.head || 'unknown'}`, `git status counts: ${sm.counts}`, ...sm.shown)
+  }
+  if (f.repo.state) L.push(f.repo.state)
+  if (f.repo.readyLines?.length) L.push(...f.repo.readyLines)
+  for (const a of f.agents) L.push(`${a.id} ${a.type} ${a.status} ${a.description}`)
+  return L.join('\n')
+}
+
+export function takeoverProtocol(f: Facts, short: string): string[] {
+  const recorded = f.git ? `${f.git.branch || 'unknown'} @ ${f.git.head || 'unknown'}` : 'unknown (git was not read)'
+  const act = activeAgents(f.agents)
+  return [
+    '## Takeover protocol',
+    'Before doing anything else, open your FIRST reply with this receipt, one numbered item each, then stop and wait:',
+    `1. Took over from session ${short}; brief ${f.briefPath ?? '(this file)'}; written ${f.nowIso}.`,
+    `2. Branch and head you see now (git branch --show-current; git rev-parse --short HEAD) compared with the brief's recorded ${recorded}: say MATCH or STALE.`,
+    '3. Your role, in one line (from ## Role).',
+    `4. Agents active at handover: ${act.length ? act.map(a => a.id).join(', ') : 'none'}. Their results may not reach you: check their output files.`,
+    '5. Verify at least 5 claims from this brief against the repo or filesystem with read-only commands; list each claim and any that fail.',
+    '6. Questions you still need answered by the owner.',
+    '7. Your first action. Do not start it without the owner\'s yes.',
+  ]
 }
 
 export function assembleBrief(f: Facts, narrative: Record<string, string> | undefined, why?: string): string {
+  const facts = factsBlock(f)
+  const mdl = (t: string) => flagUnverified(t, facts)
+  const short = shortId(f.sessionId)
   const L: string[] = []
   L.push(`# HANDOVER: supervisor brief (session ${f.sessionId}, written ${f.nowIso})`)
   L.push('')
   L.push('Facts (ids, statuses, git, prompts) come from code. Sections marked (model) are written by a model from the transcript and are unverified.')
   if (!narrative) L.push(`FACTS-ONLY BRIEF: narrative sections not generated (${why ?? 'unknown'}). Reconstruct from the transcript and the owner.`)
+  L.push('')
+  L.push('## Takeover protocol')
+  L.push(...takeoverProtocol(f, short).slice(1))
   L.push('')
   L.push('## Role')
   L.push(f.repo.role ?? DEFAULT_ROLE)
@@ -220,15 +301,27 @@ export function assembleBrief(f: Facts, narrative: Record<string, string> | unde
   L.push('## Read first')
   L.push(f.repo.readFirst ?? `No HANDOVER.md in ${f.cwd}. Read CLAUDE.md and the memory index if present.`)
   L.push('')
+  L.push('## Ready queue and state (from HANDOVER.md)')
+  if (f.repo.state || f.repo.readyLines?.length) {
+    if (f.repo.state) L.push(f.repo.state)
+    if (f.repo.readyLines?.length) { L.push(''); L.push(...f.repo.readyLines) }
+  } else L.push('HANDOVER.md not found (or it has no State section). Continue from the sections below and ask the owner.')
+  L.push('')
   L.push('## State')
   L.push(`- cwd: ${f.cwd}`)
   if (f.git) {
     L.push(`- branch: ${f.git.branch || 'unknown'}, head: ${f.git.head || 'unknown'}`)
-    const st = f.git.status ?? []
-    L.push(st.length ? `- git status --short (first ${st.length}):` : '- git status --short: clean')
-    for (const s of st) L.push(`    ${s}`)
+    const sm = summarizeStatus(f.git.status ?? [])
+    const total = (f.git.status ?? []).length
+    L.push(total ? `- git status --short, counts by code: ${sm.counts}` : '- git status --short: clean')
+    for (const s of sm.shown) L.push(`    ${s}`)
+    if (sm.more) L.push(`    (${sm.more} more not shown)`)
   } else L.push(`- git: not read (${f.gitNote})`)
-  if (narrative) { L.push(''); L.push('Task table (model):'); L.push(narrative['Task table']!) }
+  if (narrative) { L.push(''); L.push('Task table (model):'); L.push(mdl(narrative['Task table']!)) }
+  L.push('')
+  L.push('## Verify before trusting')
+  L.push(`- Written on branch ${f.git?.branch || 'unknown'} at head ${f.git?.head || 'unknown'}. Re-check with: git rev-parse --short HEAD`)
+  L.push('- Sections marked (model) are unverified; a line ending "[unverified: not in facts]" holds a hash or figure the code could not match to the facts above.')
   L.push('')
   L.push('## Running agents')
   if (!f.agents.length) L.push('None listed by the session at write time.')
@@ -243,16 +336,16 @@ export function assembleBrief(f: Facts, narrative: Record<string, string> | unde
   }
   L.push('')
   L.push('## Decisions (model)')
-  L.push(narrative ? narrative['Decisions']! : 'Not generated.')
+  L.push(narrative ? mdl(narrative['Decisions']!) : 'Not generated.')
   L.push('')
   L.push('## Pending for the user (model)')
-  L.push(narrative ? narrative['Pending for the user']! : 'Not generated.')
+  L.push(narrative ? mdl(narrative['Pending for the user']!) : 'Not generated.')
   L.push('')
   L.push('## Next actions (model)')
-  L.push(narrative ? narrative['Next actions']! : 'Not generated.')
+  L.push(narrative ? mdl(narrative['Next actions']!) : 'Not generated.')
   L.push('')
   L.push('## How to verify (model)')
-  L.push(narrative ? narrative['How to verify']! : 'Not generated. Re-run git status and re-check each agent claim yourself.')
+  L.push(narrative ? mdl(narrative['How to verify']!) : 'Not generated. Re-run git status and re-check each agent claim yourself.')
   L.push('')
   L.push('## Rules')
   L.push(f.repo.rules ?? DEFAULT_RULES)
@@ -264,10 +357,30 @@ export function assembleBrief(f: Facts, narrative: Record<string, string> | unde
   return L.join('\n')
 }
 
+/** One line (no newline) sent as the first prompt of the fresh context; the full receipt template is in the brief's Takeover protocol. */
 export function seedText(oldId: string, path: string, ids: string[]): string {
+  const short = shortId(oldId)
   return (
-    `${SEED_PREFIX} you are the new supervisor taking over from session ${shortId(oldId)}. Read the brief at ${path} first and follow its Role, Rules and Next actions` +
-    (ids.length ? `; agents active at handover: ${ids.join(', ')} (results not guaranteed to reach you: check their output files)` : '') +
-    '. Reply with a short status before acting.'
+    `${SEED_PREFIX} you are the new supervisor taking over from session ${short}. Read the brief at ${path} first (follow its Role, Rules and Next actions), ` +
+    'then open your FIRST reply with the receipt defined in its "## Takeover protocol" section, before doing anything else: ' +
+    `(1) "Took over from session ${short}", the brief path and when it was written; ` +
+    '(2) the branch and head you see now vs the brief\'s recorded head: MATCH or STALE; ' +
+    '(3) your role in one line; ' +
+    `(4) agents active at handover: ${ids.length ? ids.join(', ') : 'none'} (results may not reach you: check their output files); ` +
+    '(5) verify at least 5 claims from the brief with read-only commands and list any that fail; ' +
+    '(6) questions you still need answered; ' +
+    '(7) your first action, which you must not start without the owner\'s yes.'
   )
 }
+
+// ---------- confirmation band ----------
+
+export const BAND_FRAMES = 10
+export type BandState = { old: string; lines: number; agents: number; cleared: boolean }
+
+export function bandText(b: BandState): string {
+  return `✓ handed over · from ${shortId(b.old)} · brief ${b.lines} lines · ${b.agents} agents active`
+}
+export const toastText = (lines: number, agents: number) => `handed over: seed sent (brief ${lines} lines, ${agents} agents active)`
+/** Typewriter reveal: the share of the band text shown at `frame`. */
+export const bandReveal = (text: string, frame: number) => text.slice(0, Math.ceil(text.length * Math.min(1, (frame + 1) / BAND_FRAMES)))

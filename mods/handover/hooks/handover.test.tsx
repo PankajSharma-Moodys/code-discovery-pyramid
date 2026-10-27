@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { barRuns, barText, ctxColor, ease, SPIN, statusColor } from './lib'
+import { barRuns, barText, ctxColor, ease, flagUnverified, MODEL_SYSTEM, modelPrompt, seedText, SPIN, statusColor, summarizeStatus } from './lib'
 
 // Nothing runs for real here: the engine, /clear, agents, the model and the file
 // system are all mocked beneath the plugin. No test presses a real clear.
@@ -32,12 +32,22 @@ type World = {
   gitRuns: number
   modelDelay: number
   listCalls: number
+  handover?: string
+  gitStatus: string
+  head: string
+  toasts: string[]
+  bandReads: number
+  countStore: boolean
 }
 
 function setup(on: any, over: Partial<World> = {}) {
-  const w: World = { tokens: 100_000, agents: [], reply: GOOD_REPLY, clears: 0, written: {}, submits: [], placed: true, gitRuns: 0, modelDelay: 0, listCalls: 0, ...over }
+  const w: World = { tokens: 100_000, agents: [], reply: GOOD_REPLY, clears: 0, written: {}, submits: [], placed: true, gitRuns: 0, modelDelay: 0, listCalls: 0, gitStatus: '', head: 'abc1234', toasts: [], bandReads: 0, countStore: false, ...over }
   const clock = mock.clock(on, { now: 1_000_000 })
-  mock.store(on)
+  if (w.countStore) {
+    const mem = new Map<string, unknown>()
+    on('store.get', (_: any, e: any) => { if (e.key === 'band') w.bandReads++; return { value: mem.get(e.key) } })
+    on('store.set', (_: any, e: any) => { mem.set(e.key, e.value); return { value: undefined } })
+  } else mock.store(on)
   mock.env(on, { HOME: '/home/t' })
   on('command.register', () => ({ value: { command: 'handover' } }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -58,9 +68,15 @@ function setup(on: any, over: Partial<World> = {}) {
   on('session.id', () => ({ value: 'sess-1' }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'do the thing', toolUses: [] }, { role: 'assistant', text: 'ok', toolUses: [] }] }))
-  on('fs.read', () => { throw new Error('ENOENT') })
+  on('fs.read', () => { if (w.handover === undefined) throw new Error('ENOENT'); return { value: w.handover } })
   on('fs.write', (_: any, e: any) => { w.written[e.path] = e.text; return { value: undefined } })
-  on('process.run', () => { w.gitRuns++; return { value: { exitCode: 0, stdout: 'main\n', stderr: '' } } })
+  on('process.run', (_: any, e: any) => {
+    w.gitRuns++
+    const a = (e.argv as string[]).join(' ')
+    const out = a.includes('rev-parse') ? w.head + '\n' : a.includes('status') ? w.gitStatus : a.includes('branch') ? 'main\n' : ''
+    return { value: { exitCode: 0, stdout: out, stderr: '' } }
+  })
+  on('ui.toast', (_: any, e: any) => { w.toasts.push(e.text); return { value: undefined } })
   on('model.complete', async () => {
     if (w.modelDelay) await clock.sleep(w.modelDelay)
     return w.reply === 'fail'
@@ -353,5 +369,191 @@ test('layout snapshot', async ($, on) => {
   await ui.press({ key: 'clear' })
   await clock.settle()
   log('SNAPSHOT (after first Clear press with active agents)\n' + (await textOf(ui)).slice(-8).join('\n'))
+  await ui.unmount()
+})
+
+// ------------------------------------------------------------------ v0.2
+
+const REPO_MD = [
+  '# HANDOVER', '## Role', 'Supervise.', '## State (branch main, head 2e48444)', '- DONE: X0', '- READY: X4 C# params', '## Rules', '- verify',
+].join('\n')
+const STATUS_30 = [...Array(4).fill('D  gone.md').map((l, i) => `D  gone${i}.md`), ...Array.from({ length: 21 }, (_, i) => `?? new${i}.md`)].join('\n')
+
+async function writeAndRead($: any, on: any, over: any = {}) {
+  const { w, clock } = setup(on, over)
+  await open($, clock)
+  const ui = await draw($)
+  await ui.press({ key: 'write' })
+  await clock.settle()
+  const md = w.written['/home/t/.claude/state/handover/sess-1.md']!
+  await ui.unmount()
+  return { w, clock, md }
+}
+
+test('v0.2 brief: HANDOVER.md State and READY lines are copied verbatim', async ($, on) => {
+  const { md } = await writeAndRead($, on, { handover: REPO_MD })
+  const sec = md.split('## Ready queue and state (from HANDOVER.md)')[1]!.split('\n## ')[0]!
+  expect(sec).toContain('- DONE: X0')
+  expect(sec).toContain('- READY: X4 C# params')
+})
+
+test('v0.2 brief: missing HANDOVER.md says so and the brief still writes', async ($, on) => {
+  const { md } = await writeAndRead($, on)
+  expect(md).toContain('## Ready queue and state (from HANDOVER.md)')
+  expect(md).toContain('HANDOVER.md not found')
+  expect(md).toContain('## Takeover protocol')
+})
+
+test('v0.2 git summary: counts by code and at most 8 lines with (N more not shown)', async ($, on) => {
+  const { md } = await writeAndRead($, on, { gitStatus: STATUS_30 + '\n' })
+  expect(md).toContain('counts by code: D 4, M 0, ?? 21')
+  expect(md).toContain('(17 more not shown)')
+  const st = md.split('## State')[1]!.split('\n## ')[0]!
+  expect(st.split('\n').filter(l => /^ {4}(D |\?\?) /.test(l))).toHaveLength(8)
+  expect(summarizeStatus([' M a', 'MM b', 'A  c']).counts).toBe('D 0, M 2, ?? 0, A 1')
+})
+
+test('v0.2 brief: Verify before trusting section is code-written', async ($, on) => {
+  const { md } = await writeAndRead($, on, { head: 'f00dcafe' })
+  const sec = md.split('## Verify before trusting')[1]!.split('\n## ')[0]!
+  expect(sec).toContain('branch main')
+  expect(sec).toContain('f00dcafe')
+  expect(sec).toContain('git rev-parse --short HEAD')
+  expect(sec).toContain('(model) are unverified')
+})
+
+test('v0.2 unverified flags: hash and figures not in facts are flagged, ones in facts are not', async ($, on) => {
+  const facts = 'head: 3c53550\n12 files changed'
+  expect(flagUnverified('fixed at deadbee1 done', facts)).toBe('fixed at deadbee1 done [unverified: not in facts]')
+  expect(flagUnverified('read 123 lines of it', facts)).toBe('read 123 lines of it [unverified: not in facts]')
+  expect(flagUnverified('9 tests and 2 worktrees', facts)).toContain('[unverified')
+  expect(flagUnverified('at 3c53550 with 12 files', facts)).toBe('at 3c53550 with 12 files')
+  expect(flagUnverified('no figures here, defaced', facts)).toBe('no figures here, defaced')
+  const reply = GOOD_REPLY.replace('- keep own extractors', '- merged deadbee1 (123 lines) and abc1234 ok')
+  const { md } = await writeAndRead($, on, { reply, head: 'abc1234' })
+  const line = md.split('\n').find(l => l.includes('merged deadbee1'))!
+  expect(line.endsWith(' [unverified: not in facts]')).toBe(true)
+})
+
+test('v0.2 seed is one line, carries the seven receipt items and points at the Takeover protocol', async () => {
+  const seed = seedText('821a9aa2-da0c', '/h/.claude/state/handover/x.md', ['run-1', 'run-2'])
+  expect(seed.includes('\n')).toBe(false)
+  expect(seed).toContain('## Takeover protocol')
+  expect(seed).toContain('/h/.claude/state/handover/x.md')
+  for (const part of ['(1) "Took over from session 821a9aa2"', 'MATCH or STALE', '(3) your role', 'run-1, run-2', 'check their output files', 'at least 5 claims', 'questions', 'without the owner\'s yes']) expect(seed).toContain(part)
+})
+
+async function handOver($: any, on: any, over: any = {}) {
+  const s = setup(on, over)
+  on('classic.SessionStart', () => ({}))
+  await open($, s.clock)
+  const ui = await draw($)
+  await ui.press({ key: 'write' })
+  await s.clock.settle()
+  return { ...s, ui }
+}
+
+test('v0.2 toast shown once after the seed, and the old pane step turns done', async ($, on) => {
+  const { w, clock, ui } = await handOver($, on, { agents: [{ id: 'run-9', description: 'd', type: 'general-purpose', status: 'waiting' }] })
+  expect(w.toasts).toEqual([])
+  await ui.press({ key: 'clear' })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.toasts).toEqual([]) // nothing is announced before the clear happens
+  await $.classic.SessionStart({ source: 'clear' })
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.settle()
+  expect(w.submits).toHaveLength(1)
+  expect(w.toasts).toHaveLength(1)
+  expect(w.toasts[0]).toMatch(/^handed over: seed sent \(brief \d+ lines, 1 agents active\)$/)
+  expect((await textOf(ui)).join('\n')).toContain('✓ Seed fresh context')
+  await ui.unmount()
+})
+
+test('v0.2 band: appears in the fresh context, fades in, stops its clock, clears on the first user prompt', async ($, on) => {
+  on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> }) // stands for the engine beneath the plugin
+  const { w, clock, ui } = await handOver($, on, { agents: [{ id: 'run-9', description: 'd', type: 'general-purpose', status: 'waiting' }] })
+  await ui.press({ key: 'clear' })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.settle()
+  const mount = () => $.ui.mount({ plugin: 'handover', component: 'AbovePrompt', requestId: 'band', surface: 'terminal', props: { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6 }, view: {} } })
+  let band = await mount()
+  const early = (await textOf(band)).join('')
+  expect(early.length).toBeGreaterThan(0)
+  expect(early.length).toBeLessThan('✓ handed over · from sess-1 · brief 1 lines · 1 agents active'.length) // mid-fade: partly revealed
+  await band.unmount()
+  await clock.advance(2000)
+  band = await mount()
+  const full = (await textOf(band)).join('')
+  expect(full).toMatch(/^✓ handed over · from sess-1 · brief \d+ lines · 1 agents active$/)
+  await band.unmount()
+  await $.prompt.submit({ text: 'the seed again', origin: { kind: 'sdk' }, wait: false }) // not a user prompt: band stays
+  band = await mount()
+  expect((await textOf(band)).join('')).toContain('handed over')
+  await band.unmount()
+  await $.prompt.submit({ text: 'hello', origin: { kind: 'composer' }, wait: false })
+  await clock.settle()
+  band = await mount()
+  expect((await textOf(band)).join('')).not.toContain('handed over')
+  await band.unmount()
+  expect(w.clears).toBe(1)
+  await ui.unmount()
+})
+
+test('v0.2 band clock stops when the fade ends (a mounted band is redrawn only during the fade)', async ($, on) => {
+  on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
+  const { w, clock, ui } = await handOver($, on, { countStore: true })
+  await ui.press({ key: 'clear' }) // no agents: one press clears
+  await clock.settle()
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.settle()
+  const band = await $.ui.mount({ plugin: 'handover', component: 'AbovePrompt', requestId: 'band', surface: 'terminal', props: { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6 }, view: {} } })
+  await clock.advance(1500) // fade (10 frames of 100 ms) is over
+  const settled = w.bandReads
+  expect(settled).toBeGreaterThan(2) // it was redrawn during the fade
+  await clock.advance(10_000)
+  expect(w.bandReads).toBe(settled) // and not afterwards: the clock stopped
+  await band.unmount()
+  await ui.unmount()
+})
+
+test('v0.2 model prompt forbids invented hashes and counts and carries the facts block', async () => {
+  for (const t of [MODEL_SYSTEM, modelPrompt('t', 'branch: main, head: abc1234')]) expect(t).toMatch(/commit hash/i)
+  expect(modelPrompt('t', 'branch: main, head: abc1234')).toContain('FACTS:\nbranch: main, head: abc1234')
+})
+
+test('v0.2 safety: no clear without a press, and never from SessionStart alone', async ($, on) => {
+  const { w, clock, ui } = await handOver($, on, { agents: [{ id: 'r', description: 'd', type: 'general-purpose', status: 'running' }] })
+  await $.classic.SessionStart({ source: 'clear' }) // no clear was ever requested: no seed, no toast, no band
+  await clock.advance(20_000)
+  expect(w.clears).toBe(0)
+  expect(w.submits).toHaveLength(0)
+  expect(w.toasts).toHaveLength(0)
+  await ui.press({ key: 'clear' }) // first press with an active agent only asks
+  await clock.settle()
+  expect(w.clears).toBe(0)
+  await ui.unmount()
+})
+
+test('v0.2 samples (logged for review)', async ($, on) => {
+  on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
+  const agents = [{ id: 'a1b2c3d4-0001', description: 'X4 C# params', type: 'general-purpose', status: 'running' }]
+  const { w, clock, ui } = await handOver($, on, { handover: REPO_MD, gitStatus: STATUS_30 + '\n', agents, head: '3c53550', reply: GOOD_REPLY.replace('- keep own extractors', '- merged deadbee1 (123 lines) at 3c53550') })
+  log('BRIEF_SAMPLE_BEGIN\n' + w.written['/home/t/.claude/state/handover/sess-1.md'] + '\nBRIEF_SAMPLE_END')
+  await ui.press({ key: 'clear' })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.settle()
+  log('SEED_SAMPLE_BEGIN\n' + w.submits[0] + '\nSEED_SAMPLE_END')
+  log('TOAST: ' + w.toasts[0])
+  const band = await $.ui.mount({ plugin: 'handover', component: 'AbovePrompt', requestId: 'band', surface: 'terminal', props: { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6 }, view: {} } })
+  log('BAND mid-fade: ' + (await textOf(band)).join(''))
+  await clock.advance(2000)
+  log('BAND settled: ' + (await textOf(band)).join(''))
+  await band.unmount()
+  log('PANE_AFTER_SEED\n' + (await textOf(ui)).slice(-8).join('\nPANE_ '))
   await ui.unmount()
 })

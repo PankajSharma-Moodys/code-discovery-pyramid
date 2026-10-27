@@ -1,6 +1,6 @@
 {
   "name": "handover",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": { "name": "sharmp49" },
   "license": "MIT",
   "description": "Supervisor handover pane: context-window and usage bars, agent table, animated brief writing, guarded clear-and-seed into a fresh context.",

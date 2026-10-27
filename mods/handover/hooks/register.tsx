@@ -6,14 +6,17 @@ import {
   ACTIVE, BRIEF_REL, CONFIRM_MS, DEFAULT_WINDOW, FRAME_MS, PANE, REFRESH_MS, SPIN,
   activeAgents, assembleBrief, barRuns, condense, ctxColor, ease, emptyBar, freshView, initialSteps,
   isAnimating, modelPrompt, MODEL_SYSTEM, parseModelReply, parseRepoHandover, seedText, shortId,
-  statusColor, tok, toRows,
+  statusColor, tok, toRows, BAND_FRAMES, bandReveal, bandText, factsBlock, toastText,
 } from './lib'
-import type { Facts } from './lib'
+import type { BandState, Facts } from './lib'
 
 const viewAtom = atom({ plugin: 'handover', key: 'view' } as const, freshView())
+// Redraw trigger for the confirmation band; what the band shows lives in $.store ('band'), which survives /clear.
+const bandAtom = atom({ plugin: 'handover', key: 'band' } as const, 0)
 
 // Not drawing state, so module variables (a hot reload only loses the timer handle).
 let tick: { cancel(): void } | undefined
+let bandTick: { cancel(): void } | undefined
 let tickN = 0
 let isStepping = false
 let isRefreshing = false
@@ -140,15 +143,15 @@ async function homeOf($: EngineInterface) {
 
 async function gitFacts($: EngineInterface): Promise<Pick<Facts, 'git' | 'gitNote'>> {
   try {
-    const run = async (argv: string[]) => {
+    const run = async (argv: string[], raw = false) => {
       const r = await $.process.run(argv, { timeoutMs: 8000 })
-      return r.exitCode === 0 ? r.stdout.trim() : undefined
+      return r.exitCode === 0 ? (raw ? r.stdout : r.stdout.trim()) : undefined
     }
     const branch = await run(['git', 'branch', '--show-current'])
     const head = await run(['git', 'rev-parse', '--short', 'HEAD'])
-    const st = await run(['git', 'status', '--short'])
+    const st = await run(['git', 'status', '--short'], true)
     if (branch === undefined && head === undefined) return { gitNote: 'not a git repository or git failed', git: undefined }
-    return { git: { branch, head, status: (st ?? '').split('\n').filter(Boolean).slice(0, 25) }, gitNote: '' }
+    return { git: { branch, head, status: (st ?? '').split('\n').filter(Boolean) }, gitNote: '' }
   } catch (err) {
     return { gitNote: `process.run refused: ${String(err).slice(0, 80)}`, git: undefined }
   }
@@ -176,6 +179,7 @@ async function writeBrief($: EngineInterface) {
     const facts: Facts = {
       sessionId, cwd, nowIso: new Date(await $.clock.now()).toISOString(), repo: parseRepoHandover(handover),
       git: g.git, gitNote: g.gitNote, agents, prompts,
+      briefPath: `${await homeOf($)}/${BRIEF_REL}/${sessionId}.md`,
     }
     await setStep(0, 'done')
     // 2. Write brief (one model call for the narrative; ids stay with code)
@@ -184,7 +188,7 @@ async function writeBrief($: EngineInterface) {
     let why = ''
     try {
       const r = await $.model.complete({
-        model: 'haiku', system: MODEL_SYSTEM, prompt: modelPrompt(condense(rows)), maxTokens: 3000, timeoutMs: 60_000,
+        model: 'haiku', system: MODEL_SYSTEM, prompt: modelPrompt(condense(rows), factsBlock(facts)), maxTokens: 3000, timeoutMs: 60_000,
       })
       if (!r.isAnswered) why = `model call failed: ${r.reason}`
       else {
@@ -195,10 +199,10 @@ async function writeBrief($: EngineInterface) {
       why = `model call threw: ${String(err).slice(0, 80)}`
     }
     const text = assembleBrief(facts, narrative, why)
-    const path = `${await homeOf($)}/${BRIEF_REL}/${sessionId}.md`
+    const path = facts.briefPath!
     await $.fs.write(path, text)
     await setView($, v => ({
-      ...v, brief: { kind: 'written', path, isFactsOnly: !narrative, why: why || undefined },
+      ...v, brief: { kind: 'written', path, isFactsOnly: !narrative, why: why || undefined, lines: text.split('\n').length },
       steps: v.steps.map((s, i) => (i === 1 ? { ...s, state: 'done' } : s)),
       note: narrative ? 'Brief written.' : `Brief written (facts only): ${why}`,
     }))
@@ -237,7 +241,7 @@ async function clearAndSeed($: EngineInterface) {
     return
   }
   await $.store.set(`fired:${id}`, 'clearing')
-  await $.store.set('seed-pending', { old: id, path: v.brief.path, ids: active.map(a => a.id), done: false })
+  await $.store.set('seed-pending', { old: id, path: v.brief.path, ids: active.map(a => a.id), lines: v.brief.lines ?? 0, done: false })
   await setView($, x => ({
     ...x, confirmUntil: 0, confirmIds: '', note: 'Clearing: the seed prompt follows in the fresh context.',
     steps: x.steps.map((s, i) => (i === 2 ? { ...s, state: 'run' } : s)),
@@ -247,6 +251,29 @@ async function clearAndSeed($: EngineInterface) {
     await $.store.set('seed-pending', { old: id, done: true })
     await setView($, x => ({ ...x, note: `/clear was rejected: ${String(err).slice(0, 80)}`, steps: x.steps.map((s, i) => (i === 2 ? { ...s, state: 'fail' } : s)) }))
   })
+}
+
+// ------------------------------------------------------------------ confirmation band
+
+async function startBand($: EngineInterface, b: BandState) {
+  await $.store.set('band', b)
+  bandTick?.cancel()
+  await update($, bandAtom, () => 0)
+  let n = 0
+  bandTick = $.clock.every(FRAME_MS, () => {
+    n++
+    if (n >= BAND_FRAMES) { bandTick?.cancel(); bandTick = undefined } // clock stops when the fade is done
+    void update($, bandAtom, () => n)
+  })
+}
+
+async function endBand($: EngineInterface) {
+  bandTick?.cancel()
+  bandTick = undefined
+  const b = (await $.store.get('band')) as BandState | undefined
+  if (!b || b.cleared) return
+  await $.store.set('band', { ...b, cleared: true })
+  await update($, bandAtom, n => n + 1) // redraw without the band
 }
 
 // ------------------------------------------------------------------ drawing
@@ -417,24 +444,47 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const frame = await read($, bandAtom)
+    const b = (await $.store.get('band')) as BandState | undefined
+    if (b && !b.cleared && !e.props.hasSurvey) {
+      const { Box, Text } = $.ui.resolve(e)
+      const done = frame >= BAND_FRAMES
+      return (
+        <Box>
+          <Text color="success" dimColor={!done}>{bandReveal(bandText(b), frame)}</Text>
+        </Box>
+      )
+    }
     const v = await read($, viewAtom)
     if (!v.isOpen || v.mode !== 'band' || e.props.hasSurvey) return next(e)
     return BandTree($, $.ui.resolve(e), v, e.props.bodyColumns, await $.clock.now())
   })
 
-  // After /clear: seed the fresh context with one line pointing at the brief.
+  // After /clear: seed the fresh context with one line pointing at the brief, then confirm visibly.
   on('classic.SessionStart', async ($, e, next) => {
     const r = await next(e)
     if (e.source !== 'clear') return r
-    const p = (await $.store.get('seed-pending')) as { old: string; path?: string; ids?: string[]; done: boolean } | undefined
+    const p = (await $.store.get('seed-pending')) as { old: string; path?: string; ids?: string[]; lines?: number; done: boolean } | undefined
     if (!p || p.done || !p.path) return r
     await $.store.set('seed-pending', { ...p, done: true })
     const fresh = await $.session.id()
     await $.store.set(`fired:${p.old}`, `seeded:${fresh}`)
+    const ids = p.ids ?? []
+    const lines = p.lines ?? 0
+    // the old pane's third step turns done (the pane may be gone: setView only writes the atom)
     await setView($, v => ({ ...v, note: `Seeded ${shortId(fresh)} from ${shortId(p.old)}.`, steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'done' } : s)) }))
-    $.prompt.submit({ text: seedText(p.old, p.path, p.ids ?? []) }).catch(async () => {
+    $.prompt.submit({ text: seedText(p.old, p.path, ids) }).catch(async () => {
       await note($, `Seed prompt rejected: paste the brief path to carry on: ${p.path}`)
     })
+    $.ui.toast(toastText(lines, ids.length))
+    await startBand($, { old: p.old, lines, agents: ids.length, cleared: false })
     return r
   }).catch(($, e, next) => next(e))
+
+  // The band stays until the person's first prompt (the plugin's own seed is not one).
+  on('prompt.submit', async ($, e, next) => {
+    const kind = (e as { origin?: { kind?: string } }).origin?.kind
+    if (kind === 'composer' || kind === 'bridge') await endBand($)
+    return next(e)
+  }).catch(($, e, next) => (next.called ? undefined : next(e)))
 }

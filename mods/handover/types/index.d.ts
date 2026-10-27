@@ -18,7 +18,7 @@ export type AgentRow = { id: string; name: string; type: string; status: string;
 export type BriefStatus =
   | { kind: 'none' }
   | { kind: 'writing' }
-  | { kind: 'written'; path: string; isFactsOnly: boolean; why?: string }
+  | { kind: 'written'; path: string; isFactsOnly: boolean; why?: string; lines?: number }
   | { kind: 'failed'; reason: string }
 
 export type View = {
@@ -45,6 +45,6 @@ export type View = {
 
 declare module 'claude-code' {
   interface PluginState {
-    handover: { view: View }
+    handover: { view: View; band: number }
   }
 }
