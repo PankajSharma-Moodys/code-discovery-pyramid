@@ -38,16 +38,17 @@ type World = {
   toasts: string[]
   bandReads: number
   countStore: boolean
+  mem: Map<string, unknown>
+  sid: string
+  failClear: boolean
+  clearCalls: number
 }
 
 function setup(on: any, over: Partial<World> = {}) {
-  const w: World = { tokens: 100_000, agents: [], reply: GOOD_REPLY, clears: 0, written: {}, submits: [], placed: true, gitRuns: 0, modelDelay: 0, listCalls: 0, gitStatus: '', head: 'abc1234', toasts: [], bandReads: 0, countStore: false, ...over }
+  const w: World = { tokens: 100_000, agents: [], reply: GOOD_REPLY, clears: 0, written: {}, submits: [], placed: true, gitRuns: 0, modelDelay: 0, listCalls: 0, gitStatus: '', head: 'abc1234', toasts: [], bandReads: 0, countStore: false, mem: new Map(), sid: 'sess-1', failClear: false, clearCalls: 0, ...over }
   const clock = mock.clock(on, { now: 1_000_000 })
-  if (w.countStore) {
-    const mem = new Map<string, unknown>()
-    on('store.get', (_: any, e: any) => { if (e.key === 'band') w.bandReads++; return { value: mem.get(e.key) } })
-    on('store.set', (_: any, e: any) => { mem.set(e.key, e.value); return { value: undefined } })
-  } else mock.store(on)
+  on('store.get', (_: any, e: any) => { if (w.countStore && e.key === 'band') w.bandReads++; return { value: w.mem.get(e.key) } })
+  on('store.set', (_: any, e: any) => { w.mem.set(e.key, e.value); return { value: undefined } })
   mock.env(on, { HOME: '/home/t' })
   on('command.register', () => ({ value: { command: 'handover' } }))
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
@@ -65,7 +66,7 @@ function setup(on: any, over: Partial<World> = {}) {
     },
   }))
   on('agent.list', () => { w.listCalls++; return { value: w.agents } })
-  on('session.id', () => ({ value: 'sess-1' }))
+  on('session.id', () => ({ value: w.sid }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'do the thing', toolUses: [] }, { role: 'assistant', text: 'ok', toolUses: [] }] }))
   on('fs.read', () => { if (w.handover === undefined) throw new Error('ENOENT'); return { value: w.handover } })
@@ -83,7 +84,10 @@ function setup(on: any, over: Partial<World> = {}) {
       ? { value: { isAnswered: false, reason: 'api-error', status: 500, error: 'server_error', usage: ZERO } }
       : { value: { isAnswered: true, text: w.reply, usage: ZERO } }
   })
-  on('command.run', (_: any, e: any) => { if (e.command === 'clear') w.clears++; return { value: { text: '' } } })
+  on('command.run', (_: any, e: any) => {
+    if (e.command === 'clear') { w.clearCalls++; if (w.failClear) throw new Error('clear refused'); w.clears++ }
+    return { value: { text: '' } }
+  })
   on('prompt.submit', (_: any, e: any) => { w.submits.push(e.text); return { text: e.text } })
   return { w, clock }
 }
@@ -280,7 +284,7 @@ test('Clear and seed: refused with running agents on the first press, needs a se
   await clock.settle()
   expect(w.clears).toBe(1)
   t = (await textOf(ui)).join('\n')
-  expect(t).toContain('already handed over')
+  expect(t).toContain('Clear requested, waiting for the session to go idle') // v0.3: no permanent refusal; a fresh clear blocks a double clear
   await ui.unmount()
 })
 
@@ -482,12 +486,12 @@ test('v0.2 band: appears in the fresh context, fades in, stops its clock, clears
   let band = await mount()
   const early = (await textOf(band)).join('')
   expect(early.length).toBeGreaterThan(0)
-  expect(early.length).toBeLessThan('✓ handed over · from sess-1 · brief 1 lines · 1 agents active'.length) // mid-fade: partly revealed
+  expect(early.length).toBeLessThan('✓ handed over #1 · from sess-1 · brief 1 lines · 1 agents active'.length) // mid-fade: partly revealed
   await band.unmount()
   await clock.advance(2000)
   band = await mount()
   const full = (await textOf(band)).join('')
-  expect(full).toMatch(/^✓ handed over · from sess-1 · brief \d+ lines · 1 agents active$/)
+  expect(full).toMatch(/^✓ handed over #1 · from sess-1 · brief \d+ lines · 1 agents active$/)
   await band.unmount()
   await $.prompt.submit({ text: 'the seed again', origin: { kind: 'sdk' }, wait: false }) // not a user prompt: band stays
   band = await mount()
@@ -556,4 +560,316 @@ test('v0.2 samples (logged for review)', async ($, on) => {
   await band.unmount()
   log('PANE_AFTER_SEED\n' + (await textOf(ui)).slice(-8).join('\nPANE_ '))
   await ui.unmount()
+})
+
+// ------------------------------------------------------------------ v0.3: handover as a state machine
+
+const cmd = ($: any, args: string) => $.command.run({ command: 'handover', args, origin: { kind: 'user' } } as any)
+const seeds = (w: World) => w.submits.filter(t => t.startsWith('HANDOVER SEED:'))
+const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6 }, view: {} }
+const mountBand = ($: any) => $.ui.mount({ plugin: 'handover', component: 'AbovePrompt', requestId: 'band', surface: 'terminal', props: BAND_PROPS })
+const rec = async (w: World, sid: string) => w.mem.get(`handover:${sid}`) as any
+const ENGINE = (on: any) => on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
+
+async function v3(on: any, $: any, over: any = {}) {
+  ENGINE(on)
+  on('turn.start', (_: any, e: any) => ({ turnId: e.turnId, text: e.text }))
+  on('turn.complete', () => ({ text: '' }))
+  return handOver($, on, over)
+}
+async function writeBriefNow(ui: any, clock: any) { await ui.press({ key: 'write' }); await clock.settle() }
+/** One handover via the first path (classic.SessionStart): write, press clear, the new session id appears, SessionStart fires. */
+async function cycle($: any, ui: any, w: World, clock: any, nextSid: string) {
+  await clock.advance(4000) // past the debounce, and the refresh tick drops the old session's brief
+  await writeBriefNow(ui, clock)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  w.sid = nextSid
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.settle()
+}
+
+test('v0.3 chain A->B->C: each seeds once, n increments, previous ids are recorded', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await cycle($, ui, w, clock, 'sess-b')
+  expect(seeds(w)).toHaveLength(1)
+  expect(seeds(w)[0]).toContain('handover #1, previous session sess-a')
+  expect((await rec(w, 'sess-a')).state).toBe('seeded')
+  expect(w.mem.get('lineage:sess-b')).toEqual({ from: 'sess-a', n: 1 })
+  expect((await rec(w, 'sess-b')).n).toBe(2)
+  expect((await rec(w, 'sess-b')).state).toBe('idle')
+  await cycle($, ui, w, clock, 'sess-c')
+  expect(seeds(w)).toHaveLength(2)
+  expect(seeds(w)[1]).toContain('handover #2, previous session sess-b')
+  expect(w.mem.get('lineage:sess-c')).toEqual({ from: 'sess-b', n: 2 })
+  await clock.advance(4000)
+  await writeBriefNow(ui, clock)
+  const md = w.written['/home/t/.claude/state/handover/sess-c.md']!
+  expect(md).toContain('Handover #3 in chain: previous sessions sess-b <- sess-a') // item 5
+  expect(w.clears).toBe(2)
+  await ui.unmount()
+})
+
+test('v0.3 clearing younger than STALL_MS blocks a double clear; older becomes stalled and Retry issues exactly one new clear', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(1)
+  expect((await rec(w, 'sess-1')).state).toBe('clearing')
+  await clock.advance(10_000)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(1) // blocked
+  let t = (await textOf(ui)).join('\n')
+  expect(t).toMatch(/Clear requested, waiting for the session to go idle \(1\ds\)/)
+  expect(t).not.toContain('Retry clear')
+  await clock.advance(40_000) // 50 s in: the refresh tick marks it stalled
+  expect((await rec(w, 'sess-1')).state).toBe('stalled')
+  t = (await textOf(ui)).join('\n')
+  expect(t).toContain('STATUS stalled')
+  for (const a of ['[ Retry clear ]', '[ Seed now ]', '[ Reset ]']) expect(t).toContain(a)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(2) // exactly one new clear
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(2)
+  expect((await rec(w, 'sess-1')).state).toBe('clearing')
+  await ui.unmount()
+})
+
+test('v0.3 SessionStart skipped: the first turn.start in the new context seeds, once', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await ui.press({ key: 'clear' })
+  await clock.advance(20)
+  await $.turn.start({ text: 'in the old context', turnId: 'x0' }) // same session id: the clear has not happened, no seed
+  expect(seeds(w)).toHaveLength(0)
+  w.sid = 'sess-b' // the clear happened; classic.SessionStart never fires
+  await $.turn.start({ text: 'hello', turnId: 't1' })
+  await clock.advance(20)
+  expect(seeds(w)).toHaveLength(1)
+  expect(seeds(w)[0]).toContain('handover #1')
+  await $.turn.start({ text: 'again', turnId: 't2' })
+  await $.prompt.submit({ text: 'more', origin: { kind: 'composer' }, wait: false })
+  await $.classic.SessionStart({ source: 'clear' }) // a late SessionStart finds the nonce done
+  await clock.advance(20)
+  expect(seeds(w)).toHaveLength(1)
+  expect(w.toasts).toHaveLength(1)
+  await ui.unmount()
+})
+
+test('v0.3 SessionStart skipped: the first user prompt.submit in the new context seeds, once', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await ui.press({ key: 'clear' })
+  await clock.advance(20)
+  w.sid = 'sess-b'
+  await $.prompt.submit({ text: 'first prompt', origin: { kind: 'composer' }, wait: false })
+  await clock.advance(20)
+  await $.prompt.submit({ text: 'second prompt', origin: { kind: 'composer' }, wait: false })
+  await clock.advance(20)
+  expect(seeds(w)).toHaveLength(1)
+  await ui.unmount()
+})
+
+test('v0.3 /handover seed sends the pending seed in the current context and marks it done', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $)
+  await ui.press({ key: 'clear' })
+  await clock.advance(20)
+  const run = (args: string) => cmd($, args)
+  const r = await run('seed')
+  await clock.advance(20)
+  expect(JSON.stringify(r)).toContain('Seeded handover #1')
+  expect(seeds(w)).toHaveLength(1)
+  expect((w.mem.get('seed-pending') as any).done).toBe(true)
+  expect(JSON.stringify(await run('seed'))).toContain('Nothing to seed')
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.advance(20)
+  expect(seeds(w)).toHaveLength(1)
+  await ui.unmount()
+})
+
+test('v0.3 Seed now button seeds a stalled handover once', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $)
+  await ui.press({ key: 'clear' })
+  await clock.advance(50_000)
+  await ui.press({ key: 'seed' })
+  await clock.settle()
+  expect(seeds(w)).toHaveLength(1)
+  expect((await textOf(ui)).join('\n')).not.toContain('[ Seed now ]')
+  await ui.unmount()
+})
+
+test('v0.3 /handover reset after a stalled attempt returns to idle and a new handover works', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await ui.press({ key: 'clear' })
+  await clock.advance(50_000)
+  expect((await rec(w, 'sess-a')).state).toBe('stalled')
+  await cmd($, 'reset')
+  await clock.settle()
+  expect((await rec(w, 'sess-a')).state).toBe('idle')
+  expect((w.mem.get('seed-pending') as any).done).toBe(true)
+  w.sid = 'sess-b'
+  await $.classic.SessionStart({ source: 'clear' }) // the dropped attempt must not seed
+  expect(seeds(w)).toHaveLength(0)
+  w.sid = 'sess-a'
+  await cycle($, ui, w, clock, 'sess-b')
+  expect(w.clears).toBe(2)
+  expect(seeds(w)).toHaveLength(1)
+  await ui.unmount()
+})
+
+test('v0.3 Reset button needs a second press', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $)
+  await ui.press({ key: 'clear' })
+  await clock.advance(50_000)
+  await ui.press({ key: 'reset' })
+  await clock.settle()
+  expect((await rec(w, 'sess-1')).state).toBe('stalled')
+  expect((await textOf(ui)).join('\n')).toContain('Confirm reset')
+  await ui.press({ key: 'reset' })
+  await clock.settle()
+  expect((await rec(w, 'sess-1')).state).toBe('idle')
+  await ui.unmount()
+})
+
+test('v0.3 failed and seeded records allow a new handover; no permanent refusal', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a', failClear: true })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect((await rec(w, 'sess-a')).state).toBe('failed')
+  expect((await textOf(ui)).join('\n')).toContain('STATUS failed')
+  w.failClear = false
+  await clock.advance(4000)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(1)
+  w.sid = 'sess-b'
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.settle()
+  expect((await rec(w, 'sess-a')).state).toBe('seeded')
+  w.sid = 'sess-a' // back in a session whose record says 'seeded'
+  await clock.advance(4000)
+  await writeBriefNow(ui, clock)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(2)
+  await ui.unmount()
+})
+
+test('v0.3 no path ever double-seeds the same nonce (all paths at once)', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await ui.press({ key: 'clear' })
+  await clock.advance(20)
+  w.sid = 'sess-b'
+  await Promise.all([
+    $.classic.SessionStart({ source: 'clear' }),
+    $.turn.start({ text: 'hi', turnId: 't1' }),
+    $.prompt.submit({ text: 'hello', origin: { kind: 'composer' }, wait: false }),
+    cmd($, 'seed'),
+  ])
+  await clock.advance(20)
+  expect(seeds(w)).toHaveLength(1)
+  expect(w.toasts).toHaveLength(1)
+  await ui.unmount()
+})
+
+test('v0.3 debounce: a repeat press within 3 s is ignored, a later press works', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { failClear: true })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clearCalls).toBe(1)
+  await clock.advance(1000)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clearCalls).toBe(1) // ignored
+  w.failClear = false
+  await clock.advance(3000)
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clearCalls).toBe(2) // later press works
+  await ui.unmount()
+})
+
+test('v0.3 active-agent confirm guard still needs the second press; turn-running refusal is not permanent', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { agents: [{ id: 'run-1', description: 'd', type: 'general-purpose', status: 'running' }] })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(0)
+  await $.turn.start({ text: 'working', turnId: 'tt' })
+  await ui.press({ key: 'clear' })
+  expect(w.clears).toBe(0)
+  expect((await textOf(ui)).join('\n')).toContain('Try again when the session is idle')
+  await $.turn.complete({ turnId: 'tt', answer: 'done', durationMs: 1, isAborted: false, reason: 'answer' })
+  await ui.press({ key: 'clear' })
+  await clock.settle()
+  expect(w.clears).toBe(1)
+  await ui.unmount()
+})
+
+test('v0.3 nothing clears or seeds without a press (hooks, commands and ticks alone)', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $)
+  await $.classic.SessionStart({ source: 'clear' })
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.prompt.submit({ text: 'hello', origin: { kind: 'composer' }, wait: false })
+  await cmd($, 'seed')
+  await cmd($, 'reset')
+  await clock.advance(60_000)
+  expect(w.clearCalls).toBe(0)
+  expect(seeds(w)).toHaveLength(0)
+  await ui.unmount()
+})
+
+test('v0.3 pane shows #n, chain position and the countdown', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: 'sess-a' })
+  await ui.press({ key: 'clear' })
+  await clock.advance(12_000)
+  expect((await textOf(ui)).join('\n')).toMatch(/STATUS Clear requested, waiting for the session to go idle \(1[2-3]s\); handover #1/)
+  w.sid = 'sess-b'
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.advance(2000)
+  const t = (await textOf(ui)).join('\n')
+  expect(t).toContain('STATUS idle: this session is handover #1, from sess-a…; next is handover #2')
+  const band = await mountBand($)
+  expect((await textOf(band)).join('')).toMatch(/^✓ handed over #1 · from sess-a · brief \d+ lines · 0 agents active$/)
+  await band.unmount()
+  await ui.unmount()
+})
+
+function paneTail(t: string[]) { return t.filter(l => /STATUS|\[ |^Refused|^Clear|^Reset|^Seeded|^Press/.test(l)).join('\nPANE_ ') }
+
+test('v0.3 samples (logged for review)', async ($, on) => {
+  const { w, clock, ui } = await v3(on, $, { sid: '8a1f77c0-aaaa', reply: GOOD_REPLY, head: '3c53550', agents: [] })
+  const snap = async (label: string) => log(`PANE_SNAPSHOT ${label}\nPANE_ ${paneTail(await textOf(ui))}`)
+  await snap('ready (brief written, session 8a1f77c0, first in chain)')
+  await ui.press({ key: 'clear' })
+  await clock.advance(12_000)
+  await snap('clearing, 12 s in')
+  await clock.advance(40_000)
+  await snap('stalled, 52 s in')
+  w.sid = 'b2c3d4e5-bbbb'
+  await $.classic.SessionStart({ source: 'clear' })
+  await clock.advance(2000)
+  log('SEED_SAMPLE_BEGIN\n' + seeds(w)[0] + '\nSEED_SAMPLE_END')
+  await snap('seeded (new session b2c3d4e5, handover #1 done; pane is the old one, now in the new session)')
+  const band = await mountBand($)
+  log('BAND_SAMPLE: ' + (await textOf(band)).join(' | '))
+  await band.unmount()
+  await ui.unmount()
+})
+
+test('v0.3 band (pane not placed) shows the clearing countdown and the actions', async ($, on) => {
+  ENGINE(on)
+  const { w, clock } = setup(on, { placed: false })
+  await open($, clock)
+  const band = await mountBand($)
+  await band.press({ key: 'write' })
+  await clock.settle()
+  await band.press({ key: 'clear' })
+  await clock.advance(50_000)
+  const t = (await textOf(band)).join('\n')
+  expect(t).toContain('STATUS stalled: no fresh context after 50s; handover #1')
+  expect(t).toContain('[ Retry clear ]')
+  expect(t).toContain('[ Seed now ]')
+  expect(w.clears).toBe(1)
+  await band.unmount()
 })

@@ -1,4 +1,4 @@
-import type { AgentRow, Bar, Step, View } from '../types'
+import type { AgentRow, Bar, HRecord, HState, HView, Step, View } from '../types'
 
 // Constants (no userConfig in v0.1: the reference shows no manifest syntax for it).
 export const PANE = 'handover'
@@ -6,6 +6,8 @@ export const FRAME_MS = 100 // animation frame
 export const REFRESH_MS = 1000 // agents / usage refresh
 export const CONFIRM_MS = 8000 // window for the second "Clear and seed" press
 export const DEFAULT_WINDOW = 200_000 // only used if usage() reports no window
+export const STALL_MS = 45_000 // a clear still 'clearing' after this long is stalled
+export const DEBOUNCE_MS = 3000 // a repeat Clear press this soon after a clear was issued is ignored
 export const BRIEF_REL = '.claude/state/handover'
 export const SEED_PREFIX = 'HANDOVER SEED:'
 
@@ -94,6 +96,8 @@ export function freshView(): View {
     confirmUntil: 0,
     confirmIds: '',
     updatedAt: 0,
+    hv: { n: 1, state: 'idle', startedAt: 0, pending: false },
+    resetUntil: 0,
   }
 }
 
@@ -212,6 +216,9 @@ export type Facts = {
   agents: AgentRow[]
   prompts: string[]
   briefPath?: string
+  /** handover number this brief creates, and the earlier session ids (nearest first) */
+  n?: number
+  chain?: string[]
 }
 
 export const STATUS_SHOWN = 8
@@ -271,6 +278,7 @@ export function takeoverProtocol(f: Facts, short: string): string[] {
   const act = activeAgents(f.agents)
   return [
     '## Takeover protocol',
+    `Handover #${f.n ?? 1} in chain: previous sessions ${f.chain?.length ? f.chain.map(shortId).join(' <- ') : 'none'}`,
     'Before doing anything else, open your FIRST reply with this receipt, one numbered item each, then stop and wait:',
     `1. Took over from session ${short}; brief ${f.briefPath ?? '(this file)'}; written ${f.nowIso}.`,
     `2. Branch and head you see now (git branch --show-current; git rev-parse --short HEAD) compared with the brief's recorded ${recorded}: say MATCH or STALE.`,
@@ -358,10 +366,10 @@ export function assembleBrief(f: Facts, narrative: Record<string, string> | unde
 }
 
 /** One line (no newline) sent as the first prompt of the fresh context; the full receipt template is in the brief's Takeover protocol. */
-export function seedText(oldId: string, path: string, ids: string[]): string {
+export function seedText(oldId: string, path: string, ids: string[], n = 1): string {
   const short = shortId(oldId)
   return (
-    `${SEED_PREFIX} you are the new supervisor taking over from session ${short}. Read the brief at ${path} first (follow its Role, Rules and Next actions), ` +
+    `${SEED_PREFIX} handover #${n}, previous session ${short}: you are the new supervisor taking over. Read the brief at ${path} first (follow its Role, Rules and Next actions), ` +
     'then open your FIRST reply with the receipt defined in its "## Takeover protocol" section, before doing anything else: ' +
     `(1) "Took over from session ${short}", the brief path and when it was written; ` +
     '(2) the branch and head you see now vs the brief\'s recorded head: MATCH or STALE; ' +
@@ -376,11 +384,47 @@ export function seedText(oldId: string, path: string, ids: string[]): string {
 // ---------- confirmation band ----------
 
 export const BAND_FRAMES = 10
-export type BandState = { old: string; lines: number; agents: number; cleared: boolean }
+export type BandState = { old: string; lines: number; agents: number; cleared: boolean; n?: number }
 
 export function bandText(b: BandState): string {
-  return `✓ handed over · from ${shortId(b.old)} · brief ${b.lines} lines · ${b.agents} agents active`
+  return `✓ handed over${b.n ? ` #${b.n}` : ''} · from ${shortId(b.old)} · brief ${b.lines} lines · ${b.agents} agents active`
 }
 export const toastText = (lines: number, agents: number) => `handed over: seed sent (brief ${lines} lines, ${agents} agents active)`
 /** Typewriter reveal: the share of the band text shown at `frame`. */
 export const bandReveal = (text: string, frame: number) => text.slice(0, Math.ceil(text.length * Math.min(1, (frame + 1) / BAND_FRAMES)))
+
+// ---------- handover state machine ----------
+
+export const idleRecord = (n: number, now: number): HRecord => ({ n, nonce: '', state: 'idle', startedAt: 0, updatedAt: now, agentIds: [] })
+
+/** 'clearing' older than STALL_MS reads as 'stalled' wherever it is looked at. */
+export function effectiveState(r: { state: HState; startedAt: number }, now: number): HState {
+  return r.state === 'clearing' && now - r.startedAt >= STALL_MS ? 'stalled' : r.state
+}
+
+/** Only a clearing record that is still fresh blocks a new clear (the first may still be queued). */
+export const blocksClear = (r: { state: HState; startedAt: number }, now: number) => effectiveState(r, now) === 'clearing' && r.state === 'clearing'
+
+export const secs = (ms: number) => Math.max(0, Math.floor(ms / 1000))
+
+/** The record in plain words, with chain position and countdown. */
+export function statusText(h: HView, now: number): string {
+  const st = effectiveState(h, now)
+  const age = secs(now - h.startedAt)
+  const pos = h.from ? `this session is handover #${h.n - 1}, from ${shortId(h.from)}…; ` : ''
+  switch (st) {
+    case 'idle': return `STATUS idle: ${pos}next is handover #${h.n}${h.pending ? '; a seed is pending' : ''}`
+    case 'writing': return `STATUS writing the brief for handover #${h.n}`
+    case 'ready': return `STATUS ready: brief written; next is handover #${h.n}`
+    case 'clearing': return `STATUS Clear requested, waiting for the session to go idle (${age}s); handover #${h.n}`
+    case 'stalled': return `STATUS stalled: no fresh context after ${age}s; handover #${h.n}. Retry clear, Seed now or Reset`
+    case 'seeded': return `STATUS seeded handover #${h.n}${h.to ? ` into ${shortId(h.to)}…` : ''}; a new handover is allowed`
+    default: return `STATUS failed handover #${h.n}: ${h.why ?? 'unknown'}; a new handover is allowed`
+  }
+}
+
+/** Which actions the pane offers for this record. */
+export function actionsFor(h: HView, now: number): { retry: boolean; seed: boolean; reset: boolean } {
+  const st = effectiveState(h, now)
+  return { retry: st === 'stalled', seed: h.pending, reset: st !== 'idle' || h.pending }
+}

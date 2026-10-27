@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Bar, View } from '../types'
+import type { Bar, HRecord, HState, View } from '../types'
 import {
-  ACTIVE, BRIEF_REL, CONFIRM_MS, DEFAULT_WINDOW, FRAME_MS, PANE, REFRESH_MS, SPIN,
+  ACTIVE, BRIEF_REL, CONFIRM_MS, DEBOUNCE_MS, STALL_MS, actionsFor, blocksClear, effectiveState, idleRecord, secs, statusText, DEFAULT_WINDOW, FRAME_MS, PANE, REFRESH_MS, SPIN,
   activeAgents, assembleBrief, barRuns, condense, ctxColor, ease, emptyBar, freshView, initialSteps,
   isAnimating, modelPrompt, MODEL_SYSTEM, parseModelReply, parseRepoHandover, seedText, shortId,
   statusColor, tok, toRows, BAND_FRAMES, bandReveal, bandText, factsBlock, toastText,
@@ -31,6 +31,51 @@ type UI = { Box: any; Text: any; Button: any }
 
 const setView = ($: EngineInterface, fn: (v: View) => View) => update($, viewAtom, fn)
 const note = ($: EngineInterface, text: string) => setView($, v => ({ ...v, note: text }))
+
+// ------------------------------------------------------------------ handover records (store)
+
+type Pending = { nonce: string; old: string; n: number; path?: string; ids?: string[]; lines?: number; done: boolean }
+type Lineage = { from: string; n: number }
+
+const getPending = async ($: EngineInterface) => (await $.store.get('seed-pending')) as Pending | undefined
+const getLineage = async ($: EngineInterface, sid: string) => (await $.store.get(`lineage:${sid}`)) as Lineage | undefined
+
+async function getRec($: EngineInterface, sid: string): Promise<HRecord> {
+  const stored = (await $.store.get(`handover:${sid}`)) as HRecord | undefined
+  if (stored) return stored
+  const lin = await getLineage($, sid)
+  return idleRecord(lin ? lin.n + 1 : 1, await $.clock.now())
+}
+
+async function putRec($: EngineInterface, sid: string, patch: Partial<HRecord>): Promise<HRecord> {
+  const rec = { ...(await getRec($, sid)), ...patch, updatedAt: await $.clock.now() }
+  await $.store.set(`handover:${sid}`, rec)
+  return rec
+}
+
+/** Earlier sessions of the chain, nearest first (bounded, cycle-safe). */
+async function chainOf($: EngineInterface, sid: string): Promise<string[]> {
+  const out: string[] = []
+  let cur = sid
+  for (let i = 0; i < 12; i++) {
+    const lin = await getLineage($, cur)
+    if (!lin || lin.from === cur || out.includes(lin.from)) break
+    out.push(lin.from)
+    cur = lin.from
+  }
+  return out
+}
+
+/** Copies the record into the view; a clearing record past STALL_MS becomes stalled here (refresh tick, pane open). */
+async function syncStatus($: EngineInterface) {
+  const sid = await $.session.id()
+  const now = await $.clock.now()
+  let rec = await getRec($, sid)
+  if (effectiveState(rec, now) === 'stalled' && rec.state === 'clearing') rec = await putRec($, sid, { state: 'stalled' })
+  const lin = await getLineage($, sid)
+  const p = await getPending($)
+  await setView($, v => ({ ...v, hv: { n: rec.n, state: rec.state, startedAt: rec.startedAt, from: lin?.from, to: rec.to, why: rec.why, pending: !!p && !p.done } }))
+}
 
 function carry(prev: Bar[], next: Bar[]): Bar[] {
   return next.map(b => ({ ...b, shown: prev.find(p => p.key === b.key)?.shown ?? 0 }))
@@ -77,6 +122,7 @@ async function refreshData($: EngineInterface, withBreakdown: boolean) {
       agents = undefined
     }
     const now = await $.clock.now()
+    const sid = await $.session.id()
     await setView($, v => {
       const w = usage?.context.window || DEFAULT_WINDOW
       const tokens = usage?.context.tokens
@@ -88,13 +134,16 @@ async function refreshData($: EngineInterface, withBreakdown: boolean) {
       }
       const bars = carry(v.bars, [...breakdownBars, ...rate])
       const expired = v.confirmUntil > 0 && now > v.confirmUntil
+      const stale = v.brief.kind === 'written' && !v.brief.path.endsWith(`/${sid}.md`) // a brief of an earlier session
       return {
-        ...v, ctx, bars, ctxTokens: tokens, ctxWindow: w, ctxPercent: pct,
+        ...v, ...(stale ? { brief: { kind: 'none' as const }, steps: initialSteps() } : {}), ctx, bars, ctxTokens: tokens, ctxWindow: w, ctxPercent: pct,
         costUsd: usage?.cost?.usd, agents: agents ?? v.agents, updatedAt: now,
         confirmUntil: expired ? 0 : v.confirmUntil, confirmIds: expired ? '' : v.confirmIds,
         note: expired ? 'Confirmation window ended; nothing was cleared.' : v.note,
+        resetUntil: v.resetUntil > 0 && now > v.resetUntil ? 0 : v.resetUntil,
       }
     })
+    await syncStatus($)
   } finally {
     isRefreshing = false
   }
@@ -166,6 +215,10 @@ async function writeBrief($: EngineInterface) {
     await setView($, v => ({ ...v, brief: { kind: 'writing' }, note: '', steps: initialSteps().map((s, i) => (i === 0 ? { ...s, state: 'run' } : s)) }))
     // 1. Collect state (facts, in code)
     const sessionId = await $.session.id()
+    const r0 = await getRec($, sessionId)
+    const settable = !['clearing', 'stalled'].includes(r0.state)
+    if (settable) await putRec($, sessionId, { state: 'writing' })
+    await syncStatus($)
     const cwd = await $.session.cwd()
     let handover: string | undefined
     try { handover = (await $.fs.read(`${cwd}/HANDOVER.md`)) as string } catch { handover = undefined }
@@ -180,6 +233,7 @@ async function writeBrief($: EngineInterface) {
       sessionId, cwd, nowIso: new Date(await $.clock.now()).toISOString(), repo: parseRepoHandover(handover),
       git: g.git, gitNote: g.gitNote, agents, prompts,
       briefPath: `${await homeOf($)}/${BRIEF_REL}/${sessionId}.md`,
+      n: r0.n, chain: await chainOf($, sessionId),
     }
     await setStep(0, 'done')
     // 2. Write brief (one model call for the narrative; ids stay with code)
@@ -201,35 +255,49 @@ async function writeBrief($: EngineInterface) {
     const text = assembleBrief(facts, narrative, why)
     const path = facts.briefPath!
     await $.fs.write(path, text)
+    if (settable) await putRec($, sessionId, { state: 'ready', briefPath: path })
     await setView($, v => ({
       ...v, brief: { kind: 'written', path, isFactsOnly: !narrative, why: why || undefined, lines: text.split('\n').length },
       steps: v.steps.map((s, i) => (i === 1 ? { ...s, state: 'done' } : s)),
       note: narrative ? 'Brief written.' : `Brief written (facts only): ${why}`,
     }))
   } catch (err) {
+    try {
+      const sid = await $.session.id()
+      if ((await getRec($, sid)).state === 'writing') await putRec($, sid, { state: 'idle' })
+    } catch { /* store unavailable: the view still says failed */ }
     await setView($, v => ({
       ...v, brief: { kind: 'failed', reason: String(err).slice(0, 120) },
       steps: v.steps.map(s => (s.state === 'run' ? { ...s, state: 'fail' } : s)),
     }))
   } finally {
     isWriting = false
+    await syncStatus($)
   }
 }
 
 // ------------------------------------------------------------------ guarded clear and seed
 
+const claimed = new Set<string>() // nonces a path has claimed this process (checked and added in one synchronous step); the store's done flag covers a hot reload
+
 async function clearAndSeed($: EngineInterface) {
   const v = await read($, viewAtom)
-  if (turnRunning) return note($, 'Refused: a turn is running. Wait for it to finish.')
-  if (isWriting) return note($, 'Refused: the brief is still being written.')
+  if (turnRunning) return note($, 'Not now: a turn is running. Try again when the session is idle.')
+  if (isWriting) return note($, 'Not now: the brief is still being written.')
   if (v.brief.kind !== 'written') return note($, 'Refused: write the brief first.')
   const id = await $.session.id()
-  const fired = await $.store.get(`fired:${id}`)
-  if (typeof fired === 'string' && !fired.startsWith('failed')) return note($, `Refused: this session already handed over (${fired}).`)
+  const now = await $.clock.now()
+  const rec = await getRec($, id)
+  const last = ((await $.store.get('last-clear')) as number | undefined) ?? 0
+  if (now - last < DEBOUNCE_MS && now >= last) return // a repeat press right after a clear was issued
+  if (blocksClear(rec, now)) {
+    await syncStatus($)
+    return note($, `Clear requested, waiting for the session to go idle (${secs(now - rec.startedAt)}s). Retry is offered after ${secs(STALL_MS)}s.`)
+  }
+  if (rec.state === 'clearing') await putRec($, id, { state: 'stalled' })
   const rows = toRows(await $.agent.list())
   const active = activeAgents(rows)
   const ids = active.map(a => a.id).join(',')
-  const now = await $.clock.now()
   if (active.length && !(v.confirmUntil > now && v.confirmIds === ids)) {
     await setView($, x => ({
       ...x, agents: rows, confirmUntil: now + CONFIRM_MS, confirmIds: ids,
@@ -240,17 +308,89 @@ async function clearAndSeed($: EngineInterface) {
     }))
     return
   }
-  await $.store.set(`fired:${id}`, 'clearing')
-  await $.store.set('seed-pending', { old: id, path: v.brief.path, ids: active.map(a => a.id), lines: v.brief.lines ?? 0, done: false })
+  const nonce = `${now}-${Math.random().toString(36).slice(2, 8)}`
+  await putRec($, id, { nonce, state: 'clearing', startedAt: now, briefPath: v.brief.path, agentIds: active.map(a => a.id), to: undefined, why: undefined })
+  await $.store.set('seed-pending', { nonce, old: id, n: rec.n, path: v.brief.path, ids: active.map(a => a.id), lines: v.brief.lines ?? 0, done: false } satisfies Pending)
+  await $.store.set('last-clear', now)
   await setView($, x => ({
-    ...x, confirmUntil: 0, confirmIds: '', note: 'Clearing: the seed prompt follows in the fresh context.',
+    ...x, confirmUntil: 0, confirmIds: '', note: 'Clear requested: the seed prompt follows in the fresh context.',
     steps: x.steps.map((s, i) => (i === 2 ? { ...s, state: 'run' } : s)),
   }))
+  await syncStatus($)
   $.command.run({ command: 'clear' }).catch(async (err: unknown) => {
-    await $.store.set(`fired:${id}`, `failed:${String(err).slice(0, 60)}`)
-    await $.store.set('seed-pending', { old: id, done: true })
+    await putRec($, id, { state: 'failed', why: `/clear rejected: ${String(err).slice(0, 60)}` })
+    const p = await getPending($)
+    if (p && p.nonce === nonce) await $.store.set('seed-pending', { ...p, done: true })
     await setView($, x => ({ ...x, note: `/clear was rejected: ${String(err).slice(0, 80)}`, steps: x.steps.map((s, i) => (i === 2 ? { ...s, state: 'fail' } : s)) }))
+    await syncStatus($)
   })
+}
+
+/**
+ * Sends the pending seed into the CURRENT context. Every path (SessionStart, first turn/prompt, /handover seed,
+ * the Seed now button) comes through here; the nonce is marked done before anything is sent, so only one path wins.
+ */
+const DEFERRED = new Set(['turn.start', 'prompt.submit', 'command']) // paths that run inside a hook
+
+async function seedNow($: EngineInterface, via: string, requireNewContext = false): Promise<string | undefined> {
+  const p = await getPending($)
+  if (!p || p.done || !p.path || claimed.has(p.nonce)) return undefined
+  const fresh = await $.session.id()
+  if (requireNewContext && fresh === p.old) return undefined
+  if (claimed.has(p.nonce)) return undefined
+  claimed.add(p.nonce)
+  try {
+    await $.store.set('seed-pending', { ...p, done: true })
+    const ids = p.ids ?? []
+    const lines = p.lines ?? 0
+    const n = p.n ?? 1
+    if (fresh !== p.old) {
+      await putRec($, p.old, { state: 'seeded', to: fresh })
+      await $.store.set(`lineage:${fresh}`, { from: p.old, n } satisfies Lineage)
+    }
+    await $.store.set(`handover:${fresh}`, { ...idleRecord(n + 1, await $.clock.now()) } satisfies HRecord)
+    // the old pane's third step turns done (the pane may be gone: setView only writes the atom)
+    await setView($, v => ({ ...v, note: `Seeded ${shortId(fresh)} from ${shortId(p.old)} (handover #${n}, via ${via}).`, steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'done' } : s)) }))
+    // Verified in the mock engine: prompt.submit called inside a command.run hook is refused ("it would wait on the
+    // command"), so the paths that run inside a hook send from a timer, outside the hook's frame.
+    const send = () => $.prompt.submit({ text: seedText(p.old, p.path!, ids, n) }).catch(async (err: unknown) => {
+      await note($, `Seed prompt rejected (${String(err).slice(0, 90)}): paste the brief path to carry on: ${p.path}`)
+    })
+    if (DEFERRED.has(via)) $.clock.after(1, () => void send())
+    else void send()
+    $.ui.toast(toastText(lines, ids.length))
+    await startBand($, { old: p.old, lines, agents: ids.length, cleared: false, n })
+    await syncStatus($)
+    return `Seeded handover #${n} from ${shortId(p.old)} (via ${via}).`
+  } catch (err) {
+    claimed.delete(p.nonce) // nothing was sent: another path may try
+    await $.store.set('seed-pending', p)
+    throw err
+  }
+}
+
+/** Back to idle: the current record forgets its attempt and any pending seed is dropped. */
+async function resetNow($: EngineInterface): Promise<string> {
+  const sid = await $.session.id()
+  const rec = await getRec($, sid)
+  await $.store.set(`handover:${sid}`, idleRecord(rec.n, await $.clock.now()))
+  const p = await getPending($)
+  if (p && !p.done) await $.store.set('seed-pending', { ...p, done: true })
+  await setView($, v => ({ ...v, confirmUntil: 0, confirmIds: '', resetUntil: 0, note: 'Reset: idle. A new handover is allowed.', steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'todo' } : s)) }))
+  await syncStatus($)
+  return `Reset to idle (handover #${rec.n} next).`
+}
+
+async function resetPressed($: EngineInterface) {
+  const v = await read($, viewAtom)
+  const now = await $.clock.now()
+  if (v.resetUntil > now) return void (await resetNow($))
+  await setView($, x => ({ ...x, resetUntil: now + CONFIRM_MS, note: `Press Confirm reset within ${CONFIRM_MS / 1000}s: the record returns to idle and a pending seed is dropped.` }))
+}
+
+async function seedPressed($: EngineInterface) {
+  const r = await seedNow($, 'button')
+  if (!r) await note($, 'Nothing to seed: no pending handover.')
 }
 
 // ------------------------------------------------------------------ confirmation band
@@ -314,12 +454,16 @@ function Title(ui: UI, v: View) {
 function Buttons($: EngineInterface, ui: UI, v: View, now: number) {
   const { Box, Button } = ui
   const confirm = v.confirmUntil > now
-  const label = confirm ? `Confirm clear (${Math.max(0, Math.ceil((v.confirmUntil - now) / 1000))}s)` : 'Clear and seed'
+  const act = actionsFor(v.hv, now)
+  const label = confirm ? `Confirm clear (${Math.max(0, Math.ceil((v.confirmUntil - now) / 1000))}s)` : act.retry ? 'Retry clear' : 'Clear and seed'
+  const resetLabel = v.resetUntil > now ? `Confirm reset (${Math.max(0, Math.ceil((v.resetUntil - now) / 1000))}s)` : 'Reset'
   return (
     <Box gap={1}>
       <Button key="refresh" label="Refresh" hotkey="r" onPress={async () => { await setView($, x => ({ ...x, confirmUntil: 0, confirmIds: '', note: 'Refreshed.' })); await refreshData($, true) }} />
       <Button key="write" label="Write brief" hotkey="w" onPress={() => writeBrief($)} />
       <Button key="clear" label={label} onPress={() => clearAndSeed($)} />
+      {act.seed && <Button key="seed" label="Seed now" onPress={() => seedPressed($)} />}
+      {act.reset && <Button key="reset" label={resetLabel} onPress={() => resetPressed($)} />}
       <Button key="close" label="Close" hotkey="x" onPress={() => closeAll($)} />
     </Box>
   )
@@ -330,6 +474,11 @@ async function closeAll($: EngineInterface) {
   stopTick()
   await setView($, x => ({ ...x, isOpen: false }))
   if (v.mode === 'pane') await $.ui.close({ id: PANE })
+}
+
+const statusColorOf = (v: View, now: number) => {
+  const st = effectiveState(v.hv, now)
+  return st === 'failed' ? 'error' : st === 'stalled' || st === 'clearing' ? 'warning' : st === 'seeded' ? 'success' : undefined
 }
 
 function PaneTree($: EngineInterface, ui: UI, v: View, cols: number | undefined, now: number) {
@@ -374,6 +523,7 @@ function PaneTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
         BarRow(ui, `${stepIcon(s.state)} ${s.label}`, { key: s.label, label: s.label, group: 's', shown: s.state === 'done' ? 1 : 0, target: s.state === 'done' ? 1 : 0, detail: s.state }, Math.max(8, w - 8), 24, stepColor(s.state), s.state === 'run' ? v.frame : undefined),
       )}
       <Text>STATE: <Text color={v.brief.kind === 'failed' ? 'error' : v.brief.kind === 'written' ? 'success' : 'warning'}>{briefLine}</Text></Text>
+      <Text color={statusColorOf(v, now)}>{statusText(v.hv, now)}</Text>
       {Buttons($, ui, v, now)}
       {v.note !== '' && <Text color={v.confirmUntil > now ? 'warning' : undefined}>{v.note}</Text>}
     </Box>
@@ -392,6 +542,7 @@ function BandTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
         {runs.map(r => <Text color={r.color} dimColor={r.dim}>{r.text}</Text>)}
         <Text> {v.ctx.detail}  agents {act}/{v.agents.length} active  brief {v.brief.kind}</Text>
       </Box>
+      <Text color={statusColorOf(v, now)}>{statusText(v.hv, now)}</Text>
       {Buttons($, ui, v, now)}
       {v.note !== '' && <Text>{v.note}</Text>}
     </Box>
@@ -402,11 +553,14 @@ function BandTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'handover', description: 'Hand the supervisor role to a fresh context (pane with bars, agents, brief)' })
+    await $.command.register({ name: 'handover', description: 'Hand the supervisor role to a fresh context (pane with bars, agents, brief). Args: seed, reset' })
     return next(e)
   })
 
-  on('command.run', { command: 'handover' }, async $ => {
+  on('command.run', { command: 'handover' }, async ($, e) => {
+    const arg = String((e as { args?: string }).args ?? '').trim().toLowerCase()
+    if (arg === 'seed') return { text: (await seedNow($, 'command')) ?? 'Nothing to seed: no pending handover.' }
+    if (arg === 'reset') return { text: await resetNow($) }
     const opened = await $.ui.open({ id: PANE, title: 'Handover', focus: true, closeOnEscape: true })
     let mode: 'pane' | 'band' = 'pane'
     if (!opened.isPlaced) {
@@ -416,6 +570,7 @@ export const register: Register = on => {
     }
     await setView($, v => ({ ...v, isOpen: true, mode, note: '' }))
     await refreshData($, true)
+    await syncStatus($)
     startTick($)
     return { text: mode === 'pane' ? 'Handover pane opened.' : 'Pane not placed at this width; showing the handover band above the prompt.' }
   })
@@ -426,10 +581,12 @@ export const register: Register = on => {
       await setView($, v => ({ ...v, isOpen: false }))
     }
     return next(e)
-  }).catch(($, e, next) => (next.called ? undefined : next(e)))
+  }).catch(($, e, next) => next(e)) // next(e) replays what next settled to when it was called; else passes on
 
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) turnRunning = true
+    // Fallback seed: the clear happened (new session id) but classic.SessionStart never reached this mod.
+    if (!e.agentId) await seedNow($, 'turn.start', true).catch(() => undefined) // never breaks the turn
     return next(e)
   })
   on('turn.complete', async ($, e, next) => {
@@ -461,23 +618,11 @@ export const register: Register = on => {
   })
 
   // After /clear: seed the fresh context with one line pointing at the brief, then confirm visibly.
+  // First of several paths (turn.start, prompt.submit, /handover seed, Seed now): a plugin above this mod can
+  // continue past this hook with next.to ("bypassed by <plugin>"), which this mod cannot prevent.
   on('classic.SessionStart', async ($, e, next) => {
     const r = await next(e)
-    if (e.source !== 'clear') return r
-    const p = (await $.store.get('seed-pending')) as { old: string; path?: string; ids?: string[]; lines?: number; done: boolean } | undefined
-    if (!p || p.done || !p.path) return r
-    await $.store.set('seed-pending', { ...p, done: true })
-    const fresh = await $.session.id()
-    await $.store.set(`fired:${p.old}`, `seeded:${fresh}`)
-    const ids = p.ids ?? []
-    const lines = p.lines ?? 0
-    // the old pane's third step turns done (the pane may be gone: setView only writes the atom)
-    await setView($, v => ({ ...v, note: `Seeded ${shortId(fresh)} from ${shortId(p.old)}.`, steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'done' } : s)) }))
-    $.prompt.submit({ text: seedText(p.old, p.path, ids) }).catch(async () => {
-      await note($, `Seed prompt rejected: paste the brief path to carry on: ${p.path}`)
-    })
-    $.ui.toast(toastText(lines, ids.length))
-    await startBand($, { old: p.old, lines, agents: ids.length, cleared: false })
+    if (e.source === 'clear') await seedNow($, 'classic.SessionStart')
     return r
   }).catch(($, e, next) => next(e))
 
@@ -485,6 +630,8 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     const kind = (e as { origin?: { kind?: string } }).origin?.kind
     if (kind === 'composer' || kind === 'bridge') await endBand($)
-    return next(e)
-  }).catch(($, e, next) => (next.called ? undefined : next(e)))
+    const r = await next(e)
+    await seedNow($, 'prompt.submit', true).catch(() => undefined) // fallback; a no-op once any path has seeded this nonce
+    return r
+  }).catch(($, e, next) => next(e)) // next(e) replays what next settled to when it was called; else passes on
 }

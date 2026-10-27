@@ -13,6 +13,26 @@ export type Bar = {
   detail: string
 }
 
+export type HState = 'idle' | 'writing' | 'ready' | 'clearing' | 'seeded' | 'stalled' | 'failed'
+
+/** Store `handover:<sid>`: one record per session in the chain. */
+export type HRecord = {
+  /** sequence number of the handover this session's next attempt creates (A->B is #1) */
+  n: number
+  nonce: string
+  state: HState
+  startedAt: number
+  updatedAt: number
+  briefPath?: string
+  agentIds: string[]
+  /** session seeded into / failure text, when known */
+  to?: string
+  why?: string
+}
+
+/** What the pane draws about the record (a snapshot; the countdown is computed at draw time). */
+export type HView = { n: number; state: HState; startedAt: number; from?: string; to?: string; why?: string; pending: boolean }
+
 export type AgentRow = { id: string; name: string; type: string; status: string; description: string }
 
 export type BriefStatus =
@@ -41,6 +61,9 @@ export type View = {
   /** agent ids the pending confirmation was shown for */
   confirmIds: string
   updatedAt: number
+  hv: HView
+  /** ms epoch until which a second Reset press confirms; 0 = none */
+  resetUntil: number
 }
 
 declare module 'claude-code' {
