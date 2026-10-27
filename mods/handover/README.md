@@ -1,0 +1,3 @@
+# handover
+
+Run `/handover` to open a pane that hands a long-running supervisor session to a fresh context. It shows the context window as a bar, usage bars (last response tokens, rate limits, context categories), a table of background agents with coloured status, and an animated Collect state, Write brief, Seed fresh context sequence. Buttons: Refresh, Write brief (writes `~/.claude/state/handover/<session-id>.md`, does not clear), Clear and seed (guarded: refuses during a turn, needs a second press within 8 s when agents are active, once per session), Close. Where the pane cannot be placed, a compact band above the prompt is shown instead. Nothing is ever cleared automatically.
