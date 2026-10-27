@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from .. import sigs
+from ..prompts import visible_signals
 from ..util import NO_REVIEW_NOTE, truncate
 from .common import AS_OF_NOTE, INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line
 
@@ -177,8 +178,9 @@ def render(result: Dict) -> str:
             )
             if entry.get("package"):
                 lines.append("  package %s" % entry["package"])
-            if entry["signals"]:
-                lines.append("  signals: %s" % ", ".join(entry["signals"]))
+            shown = visible_signals(entry["signals"])
+            if shown:
+                lines.append("  signals: %s" % ", ".join(shown))
             if entry["defines"]:
                 lines.append("  defines:")
                 for d in entry["defines"]:

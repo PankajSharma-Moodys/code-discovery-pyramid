@@ -11,6 +11,7 @@ from .budget import Budget
 from .common import ann_view, annotations_of, _claim_module, _fair_split_budget, _finish, _matches, make_matcher, _role_index, _tally, cite, route_inputs
 from .views import state_rows, state_section
 from .store import LazyMap, Store, code_text, edges_where, extract_where, file_edges, file_rows, prefetch_symbols, symbols_of, used_by_of, xref_field, xref_get, xref_uses_of
+from ..prompts import visible_signals
 from ..rules import all_edges
 
 
@@ -411,7 +412,7 @@ def q_file(store: Store, path: str, budget: Optional[Budget] = None,
                 "loc": entry["loc"],
                 "package": info.get("package"),
                 "primary": info.get("primary"),
-                "signals": info.get("signals", []),
+                "signals": visible_signals(info.get("signals", [])),
                 "defines_count": len(defines),
                 "defines": [
                     {"fqn": d["fqn"], "kind": d["kind"], "at": cite(d["anchor"]),
