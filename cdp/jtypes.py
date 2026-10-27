@@ -214,6 +214,11 @@ class TypeIndex:
 # ------------------------------------------------------------ signature scope
 
 
+def _is_lang(cand: str) -> bool:
+    """`java.lang.<Name>` itself, not a type of a `java.lang.*` subpackage (`java.lang.annotation.<Name>`)."""
+    return cand.startswith(LANG_PREFIX) and cand[len(LANG_PREFIX):] in JAVA_LANG
+
+
 class SigScope:
     """Settles the type names an extractor guessed into a file's own package.
 
@@ -255,7 +260,7 @@ class SigScope:
         if not pkg or not guessed:
             return {}
         names = self._names(texts, pkg, wilds, guessed)
-        need = {c for cands in names.values() for c in cands if c not in self.known and not c.startswith(LANG_PREFIX)}
+        need = {c for cands in names.values() for c in cands if c not in self.known and not _is_lang(c)}
         if need:
             hit = set(self.probe(need))
             for c in need:
@@ -264,7 +269,7 @@ class SigScope:
         for n, cands in names.items():
             if self.known[n]:
                 continue
-            owners = [c for c in cands[1:] if c.startswith(LANG_PREFIX) or self.known[c]]
+            owners = [c for c in cands[1:] if _is_lang(c) or self.known[c]]
             if len(owners) == 1:
                 out[n] = owners[0]
             elif not owners:
