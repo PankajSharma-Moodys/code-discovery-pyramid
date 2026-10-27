@@ -17,9 +17,10 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .lang.java_types import is_jdk, jdk_step, split_type
+from .lang.java_types import JAVA_LANG, is_jdk, jdk_step, split_type
 
 GUESS_PREFIX = "guess:"   # file signal set by lang/java.py: a name qualified by guess
+LANG_PREFIX = "java.lang."
 CLASS_KINDS = frozenset(["class", "interface", "enum", "record", "annotation"])
 NAME_RE = re.compile(r"[A-Za-z_$][\w$.]*")
 OBJECT_METHODS = frozenset(["toString", "equals", "hashCode", "getClass", "notify", "notifyAll",
@@ -219,9 +220,11 @@ class SigScope:
     `_Resolver.resolve` (one file, no symbol table) names an unimported simple type
     `<package>.<Name>`; that is right for a same-package class and a phantom for a type a
     wildcard import brings in or one outside the repository. Here, with the declared classes
-    in view, a name under the file's package settles in Java's order: the declared
-    same-package class; else the one declared class a wildcard import owns; else (a JDK or
-    third-party type) the bare name. A name several wildcards could own stays as it was.
+    in view, a name under the file's package settles in Java's order (JLS 6.4.1, 7.5): the declared
+    same-package class; else the one owner among the declared classes a wildcard import owns and
+    `java.lang` (implicit, JLS 7.3; `JAVA_LANG`); else (a JDK or third-party type) the bare name.
+    A name several owners could own stays as it was (javac rejects it). Not seen: a member type
+    inherited from a supertype in another file, which shadows all of these.
 
     Only names the extractor guessed (a `guess:` file signal) are settled; a qualified name
     the source wrote is kept as written.
@@ -241,7 +244,9 @@ class SigScope:
         for t in texts:
             for n in NAME_RE.findall(t):
                 if n in guessed and n.startswith(pkg + "."):
-                    found[n] = [n] + [w + "." + n[len(pkg) + 1:] for w in wilds]
+                    w = n[len(pkg) + 1:]
+                    # JLS 7.3: `java.lang.*` is an implicit on-demand import, an owner like any wildcard
+                    found[n] = [n] + [x + "." + w for x in wilds if x + "." != LANG_PREFIX] + ([LANG_PREFIX + w] if w in JAVA_LANG else [])
         return found
 
     def settle(self, texts: Sequence[str], file: str) -> Dict[str, str]:
@@ -250,7 +255,7 @@ class SigScope:
         if not pkg or not guessed:
             return {}
         names = self._names(texts, pkg, wilds, guessed)
-        need = {c for cands in names.values() for c in cands if c not in self.known}
+        need = {c for cands in names.values() for c in cands if c not in self.known and not c.startswith(LANG_PREFIX)}
         if need:
             hit = set(self.probe(need))
             for c in need:
@@ -259,7 +264,7 @@ class SigScope:
         for n, cands in names.items():
             if self.known[n]:
                 continue
-            owners = [c for c in cands[1:] if self.known[c]]
+            owners = [c for c in cands[1:] if c.startswith(LANG_PREFIX) or self.known[c]]
             if len(owners) == 1:
                 out[n] = owners[0]
             elif not owners:
@@ -299,7 +304,7 @@ class SigScope:
         return new
 
 
-DEFINE_TYPE_FIELDS = ("sig", "ret", "ftype", "params")
+DEFINE_TYPE_FIELDS = ("sig", "ret", "ftype", "params", "supertypes")
 USE_TYPE_FIELDS = ("from_sig", "argt")
 
 

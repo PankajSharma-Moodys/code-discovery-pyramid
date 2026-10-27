@@ -188,3 +188,27 @@ def wildcard_alts(resolver, fqn: str, suffix: str = "") -> List[str]:
     base = fqn.split("#", 1)[0]
     rel = base[len(pkg) + 1:] if pkg and base.startswith(pkg + ".") else base.rsplit(".", 1)[-1]
     return [w + "." + rel + suffix for w in resolver.wildcards]
+
+
+# Top-level types of `java.lang` as of Java 8 (JDK 8 API package summary). JLS 7.3: a compilation unit implicitly
+# imports `java.lang.*`. Types added later (Record, Module, ProcessHandle, ...) are left out on purpose: a
+# codebase on an older Java may own that name through a wildcard import, so it stays unsettled.
+JAVA_LANG = frozenset("""
+Appendable AutoCloseable CharSequence Cloneable Comparable Iterable Readable Runnable Boolean Byte
+Character Class ClassLoader ClassValue Double Enum Float InheritableThreadLocal Integer Long Math
+Number Object Package Process ProcessBuilder Runtime RuntimePermission SecurityManager Short
+StackTraceElement StrictMath String StringBuffer StringBuilder System Thread ThreadGroup ThreadLocal
+Throwable Void ArithmeticException ArrayIndexOutOfBoundsException ArrayStoreException
+ClassCastException ClassNotFoundException CloneNotSupportedException EnumConstantNotPresentException
+Exception IllegalAccessException IllegalArgumentException IllegalMonitorStateException
+IllegalStateException IllegalThreadStateException IndexOutOfBoundsException InstantiationException
+InterruptedException NegativeArraySizeException NoSuchFieldException NoSuchMethodException
+NullPointerException NumberFormatException ReflectiveOperationException RuntimeException
+SecurityException StringIndexOutOfBoundsException TypeNotPresentException
+UnsupportedOperationException AbstractMethodError AssertionError BootstrapMethodError
+ClassCircularityError ClassFormatError Error ExceptionInInitializerError IllegalAccessError
+IncompatibleClassChangeError InstantiationError InternalError LinkageError NoClassDefFoundError
+NoSuchFieldError NoSuchMethodError OutOfMemoryError StackOverflowError ThreadDeath UnknownError
+UnsatisfiedLinkError UnsupportedClassVersionError VerifyError VirtualMachineError Deprecated
+FunctionalInterface Override SafeVarargs SuppressWarnings
+""".split())

@@ -486,7 +486,7 @@ def _guessed_in_sigs(facts: FileFacts, guessed) -> List[str]:
         return []
     texts: List[str] = []
     for row in facts.defines + facts.uses:
-        for key in ("sig", "ret", "ftype", "from_sig", "argt", "params"):
+        for key in ("sig", "ret", "ftype", "from_sig", "argt", "params", "supertypes"):
             v = row.get(key)
             if isinstance(v, str):
                 texts.append(v)
