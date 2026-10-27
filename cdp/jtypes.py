@@ -273,10 +273,10 @@ class SigScope:
 
     def fix_row(self, row: Dict, fields: Sequence[str]) -> Dict:
         """`row` with each type-bearing field (`sig`, `ret`, `ftype`, `from_sig`, `argt` and the
-        `type` of each of `params`) settled; the same row when nothing changes. A C# row has only
-        its `supertypes` settled (`csharp_scope`)."""
+        `type` of each of `params`) settled; the same row when nothing changes. A C# row goes to
+        `csharp_scope`, which reads the fields it knows."""
         if row["file"].endswith(".cs"):
-            return self.cs.fix_row(row) if self.cs else row
+            return self.cs.fix_row(row) if self.cs else row     # every field `csharp_scope.SIG_FIELDS` names
         texts: List[str] = []
         for key in fields:
             v = row.get(key)
@@ -316,12 +316,12 @@ def sig_scope_from_extraction(extraction: Dict) -> Optional[SigScope]:
     if not java and not csharp:
         return None
     wild: Dict[str, List[str]] = {}
-    imports: Dict[str, List[str]] = {}
+    cs_imports: Dict[str, List[Dict]] = {}
     for row in extraction["imports"]:
         if row["fqn"].endswith(".*"):
             wild.setdefault(row["file"], []).append(row["fqn"][:-2])
         if row["file"].endswith(".cs"):
-            imports.setdefault(row["file"], []).append(row["fqn"])
+            cs_imports.setdefault(row["file"], []).append(row)
     pkgs = {f: info.get("package") or "" for f, info in extraction["files"].items()}
     guess = {f: frozenset(g[len(GUESS_PREFIX):] for g in info.get("signals") or () if g.startswith(GUESS_PREFIX))
              for f, info in extraction["files"].items()}
@@ -331,18 +331,39 @@ def sig_scope_from_extraction(extraction: Dict) -> Optional[SigScope]:
         return classes.intersection(cands)
     cs = None
     if csharp:
-        from .lang.csharp_scope import CsSigScope
-        cs = CsSigScope(lambda f: (pkgs.get(f, ""), imports.get(f, ()), guess.get(f, frozenset())), probe)
+        from .lang.csharp_scope import CsSigScope, global_usings
+        modules = {r["file"]: r["module"] for r in extraction["defines"] if r["file"].endswith(".cs")}
+        glob = global_usings(r for rows in cs_imports.values() for r in rows)
+        arities: Dict[str, set] = {}
+        for r in extraction["defines"]:
+            if r["file"].endswith(".cs") and r.get("kind") in CLASS_KINDS:
+                arities.setdefault(r["fqn"], set()).add(len(r.get("tparams") or ()))
+
+        def usings(f):
+            return list(cs_imports.get(f, ())) + glob.get(modules.get(f, ""), [])
+        cs = CsSigScope(lambda f: (pkgs.get(f, ""), usings(f), guess.get(f, frozenset())), probe,
+                        arity=lambda fqn: arities.get(fqn))
     return SigScope(lambda f: (pkgs.get(f, ""), wild.get(f, ()), guess.get(f, frozenset())), probe, cs)
 
 
 def settle_extraction(extraction: Dict) -> Dict:
-    """`extraction` with Java signature type names and C# base types settled (rows copied, never mutated)."""
+    """`extraction` with Java signature type names and C# type names settled (rows copied, never mutated)."""
     scope = sig_scope_from_extraction(extraction)
     if scope is None:
         return extraction
-    defines = [scope.fix_row(r, DEFINE_TYPE_FIELDS) if r["file"].endswith((".java", ".cs")) else r
-               for r in extraction["defines"]]
-    uses = [scope.fix_row(r, USE_TYPE_FIELDS) if r["file"].endswith(".java") and (r.get("from_sig") or r.get("argt")) else r
-            for r in extraction["uses"]]
+    def first(r):       # C# members wait for the settled base lists of their types
+        return r["file"].endswith(".java") or (r["file"].endswith(".cs") and r.get("kind") in CLASS_KINDS)
+    defines = [scope.fix_row(r, DEFINE_TYPE_FIELDS) if first(r) else r for r in extraction["defines"]]
+    if scope.cs:
+        # the settled base lists first: a nested type is also a member of the bases of its enclosing type
+        bases: Dict[str, List[str]] = {}
+        for r in defines:
+            if r["file"].endswith(".cs") and r.get("kind") in CLASS_KINDS:
+                bases.setdefault(r["fqn"], []).extend(n for s in r.get("supertypes") or () for n in NAME_RE.findall(s))
+        scope.cs.bases = bases.get
+        defines = [scope.fix_row(r, DEFINE_TYPE_FIELDS) if r["file"].endswith(".cs") and r.get("kind") not in CLASS_KINDS else r
+                   for r in defines]
+    uses = [scope.fix_row(r, USE_TYPE_FIELDS) if r["file"].endswith(".java") and (r.get("from_sig") or r.get("argt"))
+            else scope.fix_row(r, USE_TYPE_FIELDS) if scope.cs and r["file"].endswith(".cs") and r.get("kind")
+            else r for r in extraction["uses"]]
     return dict(extraction, defines=defines, uses=uses)

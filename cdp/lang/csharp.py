@@ -80,6 +80,7 @@ class CSharpExtractor(Extractor):
 
         from .csharp_flow import emit_flow
         emit_flow(ctx, facts, tk, parser, types, resolver, [u for u in imports if u["static"]], ns)
+        facts.signals.extend(GUESS_PREFIX + n for n in _guessed_in(facts, resolver.guessed))
         facts.signals = sorted(set(facts.signals))
         return facts
 
@@ -166,7 +167,6 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 # same shape as Java/Scala: source order, resolved fqn, type arguments kept
                 row["supertypes"] = [norm_type(t, _base_resolver(resolver, t, g), tv) or t
                                      for t, g in zip(jt.bases, jt.base_global)]
-                facts.signals.extend(GUESS_PREFIX + n for n in _guessed_in(row["supertypes"], resolver.guessed))
             facts.defines.append(row)
         values = consts.setdefault(jt.fqn, {})
         if jt.pparams is not None:
@@ -267,13 +267,26 @@ def _base_resolver(resolver: Resolver, text: str, glob: bool):
     return resolve
 
 
-def _guessed_in(types: List[str], guessed) -> List[str]:
-    """The guessed names that these type texts carry (`jtypes.SigScope` settles them in resolve)."""
-    found = {n for t in types for n in re.findall(r"[A-Za-z_$][\w$.]*", t)}
+def _guessed_in(facts: FileFacts, guessed) -> List[str]:
+    """The guessed names that a type-bearing field of this file carries (the only place
+    `csharp_scope` reads them), so a file records no guess it never needs."""
+    if not guessed:
+        return []
+    found = set()
+    for row in facts.defines + facts.uses:
+        # a define's own `fqn` is its name; a use's names the type it targets (`Type#member`)
+        for key in ("sig", "ret", "ftype", "params", "supertypes", "from_sig", "argt", "recv") + (
+                ("fqn",) if row.get("from_symbol") or row.get("kind") in ("call", "type", "extends", "implements") else ()):
+            v = row.get(key)
+            texts = [v] if isinstance(v, str) else [x if isinstance(x, str) else str(x.get("type") or "")
+                                                    for x in v or () if isinstance(x, (str, dict))]
+            for t in texts:
+                found.update(re.findall(r"[A-Za-z_$][\w$.]*", t))
     return sorted(guessed & found)
 
 
 def _resolve(resolver: Resolver, name: str) -> str:
+    resolver.note_guess(name)
     head, dot, rest = name.partition(".")
     fqn, _ = resolver.resolve(head)
     return fqn + dot + rest if dot else fqn

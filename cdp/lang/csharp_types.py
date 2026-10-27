@@ -208,11 +208,14 @@ class Resolver:
             return self.aliases[head] + dot + rest, "external"
         if dot:
             canon = canon_bcl(head) if head in BCL and not rest[:1].islower() else None
+            if not canon and self.pkg and head[:1].isupper() and not name.startswith(self.pkg + "."):
+                self.guessed.add(name)      # written relative to a scope the file may enclose
             return (canon + dot + rest if canon else name), "external"
         bcl = canon_bcl(name)
         if bcl:
             return bcl, "third_party"
         if self.pkg:
+            self.guessed.add(self.pkg + "." + name)
             return self.pkg + "." + name, "local"
         return name, "unresolved"
 
