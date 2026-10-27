@@ -193,7 +193,7 @@ async function appendLedger($: EngineInterface, d: Delivery, patch?: (c: Counter
 }
 
 function recordDelivery($: EngineInterface, d: Delivery) {
-  if (LEDGER_ENABLED) enqueue($, () => appendLedger($, d))
+  if (LEDGER_ENABLED) enqueue($, async () => { await appendLedger($, d) })
 }
 
 type InboxSnap = { root: string; c: Counters; mark?: BriefMark }
