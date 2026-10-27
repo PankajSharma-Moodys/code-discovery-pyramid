@@ -35,13 +35,14 @@ OPS = frozenset(["+", "-", "*", "/", "%", "&", "|", "^", "!", "~", "<", ">", "="
 
 
 class CMember(JMember):
-    __slots__ = ("prop", "bodies", "ctor_init", "ext", "explicit", "nodef", "pnull", "psig")
+    __slots__ = ("prop", "bodies", "ctor_init", "ext", "explicit", "nodef", "pnull", "psig", "pinfo")
 
     def __init__(self, kind: str, name: str, owner: "CType") -> None:
         super().__init__(kind, name, owner)
         self.pnull: Optional[List[bool]] = None   # per parameter: declared `T?` (cdp/sigs.py)
         self.psig: Optional[str] = None           # a partial class's would-be sig (sigs.partial_overloads)
         self.prop = False
+        self.pinfo: List[Tuple[str, str]] = []    # per parameter: (modifiers, default value text)
         self.bodies: List[Tuple[int, int]] = []
         self.ctor_init: Optional[Tuple[int, int, str]] = None   # args span, "base"/"this"
         self.ext = ""
@@ -67,7 +68,7 @@ class CMember(JMember):
 
 
 class CType(JType):
-    __slots__ = ("ns", "pparams", "bases", "base_global", "partial", "delegate_params", "primary_line", "primary_sig")
+    __slots__ = ("ns", "pparams", "bases", "base_global", "partial", "delegate_params", "primary_line", "primary_sig", "pinfo", "param_anns")
 
     def __init__(self, kind: str, name: str, fqn: str, outer: Optional["CType"]) -> None:
         super().__init__(kind, name, fqn, outer)
@@ -77,6 +78,8 @@ class CType(JType):
         self.base_global: List[bool] = []   # parallel to `bases`: written `global::X`
         self.partial = False
         self.primary_line = 0
+        self.pinfo: List[Tuple[str, str]] = []     # primary-constructor parameters: (modifiers, default text)
+        self.param_anns: List[List] = []
         self.primary_sig: Optional[str] = None     # the primary constructor's sig when `<init>` is overloaded
 
     @property
@@ -439,6 +442,7 @@ class DeclParser:
         if tk.at(j) == "(" and kind in ("class", "struct", "record"):
             c = tk.close(j)
             jt.pparams = self._params(j + 1, c)
+            jt.pinfo, jt.param_anns = self.pinfo, self.pann
             jt.primary_line = tk.line[j]
             j = c + 1
         if tk.at(j) == ":":
@@ -655,18 +659,30 @@ class DeclParser:
     def _params(self, a: int, b: int) -> List[Tuple[str, str]]:
         tk = self.tk
         out: List[Tuple[str, str]] = []
+        self.pinfo: List[Tuple[str, str]] = []
+        self.pann: List[List] = []
         self.pnull: List[bool] = []        # per parameter: declared nullable (`long?`), which `parse_type` drops
         i = a
         while i < b:
             anns: List = []
             while tk.at(i) == "[":
                 i = self._attr_list(i, anns)
+            mods: List[str] = []
             while tk.at(i) in ("this", "ref", "out", "in", "params", "scoped", "readonly") and i < b:
+                mods.append(tk.text[i])
                 i += 1
             r = parse_type(tk, i)
             if r is not None and r[0] < b + 1 and tk.is_id(r[0]) and r[0] < b:
                 j, ptype = r
                 out.append((ptype, tk.text[j]))
+                default = ""
+                if tk.at(j + 1) == "=":
+                    e = j + 2
+                    while e < b and tk.text[e] != ",":
+                        e = tk.close(e) + 1 if tk.kind[e] == "op" and tk.text[e] in "([{" else e + 1
+                    default = join_tokens(tk, j + 2, e)
+                self.pinfo.append((" ".join(mods), default))
+                self.pann.append(anns)
                 self.pnull.append(tk.at(j - 1) == "?")
                 i = j + 1
             else:
@@ -732,6 +748,7 @@ class DeclParser:
         pc = tk.close(po)
         plist = self._params(po + 1, pc)
         m.params = plist
+        m.pinfo, m.param_anns = self.pinfo, self.pann
         m.pnull = self.pnull
         if any(tk.text[q] == "this" and tk.kind[q] == "id" for q in range(po + 1, min(pc, po + 3))) and plist:
             m.ext = plist[0][0]

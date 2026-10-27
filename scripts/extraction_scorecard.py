@@ -118,7 +118,7 @@ def blank(text: str, lang: str) -> str:
                     continue
                 if text[j] == q:
                     break
-                if text[j] == "\n" and q != "`":
+                if text[j] == "\n" and q != "`" and not verbatim:   # C# verbatim strings span lines
                     break
                 j += 1
             wipe(i + 1, j)
@@ -157,7 +157,9 @@ RECORD_FIX = re.compile(r"record\s+\w+\s*[(<]")
 
 JAVA_METHOD = re.compile(r"^" + J_MODS + r"(?:<[^;{}]*?>\s+)?(?P<type>[\w.$]+(?:\s*<.*>)?(?:\s*\[\s*\])*)\s+(?P<name>" + ID + r")\s*\(")
 JAVA_FIELD = re.compile(r"^" + J_MODS + r"(?P<type>[\w.$]+(?:\s*<.*>)?(?:\s*\[\s*\])*)\s+(?P<name>" + ID + r")\s*(?:=(?!=)|;|,|\[)")
-CS_METHOD = re.compile(r"^" + CS_MODS + r"(?P<type>[\w.]+(?:\s*<.*>)?\??(?:\s*\[[,\s]*\])*)\s+(?P<name>" + ID + r"(?:\.\w+)*)\s*(?:<[^>()]*>)?\s*\(")
+CS_MOD_WORDS = {"public", "protected", "private", "internal", "static", "readonly", "const", "abstract", "virtual",
+                "override", "async", "sealed", "partial", "extern", "new", "unsafe", "volatile", "required", "file", "ref"}
+CS_METHOD = re.compile(r"^" + CS_MODS + r"(?P<type>(?:[\w.]+|\([^()]*\))(?:\s*<.*>)?\??(?:\s*\[[,\s]*\])*)\s+(?P<name>" + ID + r"(?:\.\w+)*)\s*(?:<[^>()]*>)?\s*\(")
 CS_FIELD = re.compile(r"^" + CS_MODS + r"(?P<type>[\w.]+(?:\s*<.*>)?\??(?:\s*\[[,\s]*\])*)\s+(?P<name>" + ID + r")\s*(?:=(?!>)|;|,)")
 CS_PROP = re.compile(r"^" + CS_MODS + r"(?P<type>[\w.]+(?:\s*<.*>)?\??(?:\s*\[[,\s]*\])*)\s+(?P<name>" + ID + r")\s*(?:\{|=>)")
 SC_DEF = re.compile(r"^" + SC_MODS + r"def\s+(?P<name>`[^`]+`|\w+|[^\s\w(\[:=]+)")
@@ -247,7 +249,10 @@ class Scan:
         return " ".join(buf)
 
     def decl_text(self, i, upto=12):
-        """Joined blanked text from line i, long enough to hold the whole parameter list."""
+        """Joined blanked text from line i, long enough to hold the whole parameter list
+        (C#: one parameter per line is common, so a constructor with 15+ parameters needs more than 12 lines)."""
+        if self.lang == "csharp":
+            upto = 60
         return " ".join(self.code[i:i + upto])
 
     def params_of(self, i, name):
@@ -513,6 +518,9 @@ class Scan:
 
     def _cs_member(self, i, rest):
         m = CS_METHOD.match(rest)
+        # `private static (A a, B b) M(...)`: the modifier `static` is not a method name (tuple return type / field)
+        if m and m.group("name") in CS_MOD_WORDS:
+            m = None
         if m and m.group("type") not in KEYWORD_TYPES and m.group("type") not in ("operator",):
             n, params, after = self._params_after(i, rest, m)
             return {"cat": "method", "name": m.group("name"), "np": n, "params": params, "ret": m.group("type"), "ctor": False}

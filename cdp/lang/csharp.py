@@ -23,6 +23,7 @@ from .base import (
     Extractor,
     FileFacts,
     anchor_at,
+    annotation_rows,
     channel_for_import,
     count_loc,
     is_third_party,
@@ -118,6 +119,22 @@ def _vis(v: str) -> str:
     return v
 
 
+def _param_rows(params, pinfo, pann, resolver, tvars) -> List[Dict]:
+    """One dict per parameter (name, type, annotations) plus the C# extras: `modifier` (`ref`, `out`, `in`,
+    `params`, `this`, `scoped`, `readonly`; combined as written) and `default` (the text after `=`)."""
+    rows = []
+    for (ptype, pname), (mods, default), anns in zip(params, pinfo, pann):
+        row = {"name": pname, "type": norm_type(ptype, lambda n: _resolve(resolver, n), tvars) or ptype}
+        if mods:
+            row["modifier"] = mods
+        if default:
+            row["default"] = default
+        if anns:
+            row["annotations"] = annotation_rows(anns)
+        rows.append(row)
+    return rows
+
+
 def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> None:
     consts: Dict[str, Dict[str, Optional[str]]] = {}
 
@@ -158,6 +175,8 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                 row = mk_define(jt.fqn + "#<init>", "method", "public", a2, end_line=jt.line + 1)
                 if jt.primary_sig:
                     row["sig"] = jt.primary_sig
+                if jt.pparams:
+                    row["params"] = _param_rows(jt.pparams, jt.pinfo, jt.param_anns, resolver, tv)
                 facts.defines.append(row)
             if jt.kind == "record":
                 for ptype, pname in jt.pparams:
@@ -182,6 +201,8 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
                         row["ext"] = norm_type(m.ext, lambda n: _resolve(resolver, n), tv | set(m.tparams))
                     if m.tparams:
                         row["tparams"] = m.tparams
+                if m.params:
+                    row["params"] = _param_rows(m.params, m.pinfo, m.param_anns, resolver, tv | set(m.tparams))
                 sigs.define_fields(row, m)
                 facts.defines.append(row)
             elif m.kind == "enum_const":

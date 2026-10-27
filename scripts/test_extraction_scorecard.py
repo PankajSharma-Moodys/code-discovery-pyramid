@@ -126,9 +126,30 @@ for _n, _src, _want in [
 ]:
     CASES.append((_n, "d5", _src, _want))
 
+def g1(src):
+    """[(name, np)] of C# methods/ctors the scorer counts as G1-present."""
+    scan = sc.Scan("csharp", ".cs", src.strip("\n").split("\n"))
+    return [(m["name"], m["np"]) for m in scan.members if m["cat"] == "method"]
+
+
+for _n, _src, _want in [
+    ("g1 tuple return type is not a method named static",
+     "class C {\n  private static (string A, string B) M(string x) { return default; }\n}", [("M", 1)]),
+    ("g1 tuple-typed field is not a method",
+     "class C {\n  private static readonly (string P, string[] K)[] s_k =\n  { };\n}", []),
+    ("g1 verbatim string spanning lines is blanked",
+     "class C {\n  const string Q = @\"\n    SELECT MAX(x) AS y FROM t\n  \";\n  void M(int a) { }\n}", [("M", 1)]),
+    ("g1 constructor with 15 one-per-line parameters",
+     "class C {\n  public C(" + ",\n".join("int p%d" % k for k in range(15)) + ")\n  { }\n}", [("C", 15)]),
+]:
+    CASES.append((_n, "g1", _src, _want))
+
 fails = 0
 for case in CASES:
-    if case[1] == "d5":
+    if case[1] == "g1":
+        name, _, src, want = case
+        got = g1(src)
+    elif case[1] == "d5":
         name, _, src, want = case
         got = f2_js(src)
     elif case[1] == "d4":
