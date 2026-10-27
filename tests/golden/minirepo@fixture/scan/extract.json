@@ -544,6 +544,7 @@
       "primary": "com.example.mini.core.WidgetRepository",
       "signals": [
         "di:Repository",
+        "guess:com.example.mini.core.WidgetEntity",
         "repository"
       ]
     },
