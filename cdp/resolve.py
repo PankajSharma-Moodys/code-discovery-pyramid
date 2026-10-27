@@ -301,6 +301,17 @@ def _resolve_by_language(extraction, module_set, symbol_owner, namespace_owner, 
     return out, counts
 
 
+def _namespace_parents(namespace_owner: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    """Every dotted ancestor of a namespace -> the modules declaring anything below it."""
+    out: Dict[str, Set[str]] = {}
+    for ns, mods in namespace_owner.items():
+        head = ns
+        while "." in head:
+            head = head.rsplit(".", 1)[0]
+            out.setdefault(head, set()).update(mods)
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def _resolve_uses(
     extraction: Dict,
     module_set: Set[str],
@@ -313,6 +324,7 @@ def _resolve_uses(
     counts = {"local": 0, "matched": 0, "third_party": 0, "ambiguous": 0, "unresolved": 0}
     out: List[Dict] = []
     types = PyIndex(extraction, symbols, paths)
+    parents: Optional[Dict[str, List[str]]] = None
     pending: List[Tuple[Dict, List]] = []    # state-evidence rows that are call arguments
     cstypes = CsTypeIndex(extraction, symbols) if any(f.endswith(".cs") for f in extraction["files"]) else None
 
@@ -370,6 +382,17 @@ def _resolve_uses(
         else:
             owners = owners_of(fqn, symbol_owner, namespace_owner)
             internal = [o for o in owners if o in module_set]
+            if not internal and row["file"].endswith(".py"):
+                # written against an import root (`src/`, a namespace portion): the repo's name for it
+                canon = types.canon_dotted(fqn)
+                if canon:
+                    owners = owners_of(canon, symbol_owner, namespace_owner)
+                    internal = [o for o in owners if o in module_set]
+                    if not internal:
+                        # a package whose symbols all live in submodules owns no namespace of its own
+                        if parents is None:
+                            parents = _namespace_parents(namespace_owner)
+                        internal = [o for o in parents.get(canon, ()) if o in module_set]
             if internal:
                 resolved = "local" if internal == [module] else "matched"
                 target_modules = internal
