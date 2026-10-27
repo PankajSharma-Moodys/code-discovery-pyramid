@@ -146,17 +146,59 @@ class ObjectReadMixin:
             def probe(cands):
                 return {f for f, rs in self.defines_of(sorted(cands)).items() if any(r["kind"] in CLASS_KINDS for r in rs)}
 
-            from ..lang.csharp_scope import CsSigScope
+            from ..lang.csharp_scope import CLASS_KINDS as CS_CLASSES, NAME_RE, SIG_FIELDS, CsSigScope
+            glob = self._cs_global_usings()
             cs_files: Dict[str, Tuple] = {}
 
             def cs_scope_of(path):
+                # what `jtypes.sig_scope_from_extraction` hands the scan: the file's own import rows
+                # (kind/alias/static read from their anchors) and the module's `global using`s
                 if path not in cs_files:
                     part = self.file_part("extract", path) or {}
                     meta = part.get("meta") or {}
-                    cs_files[path] = (meta.get("package") or "", [r["fqn"] for r in part.get("imports", ())],
+                    module = (self.current_files().get(path) or {}).get("module") or ""
+                    cs_files[path] = (meta.get("package") or "", list(part.get("imports", ())) + glob.get(module, []),
                                       frozenset(g[len("guess:"):] for g in meta.get("signals") or () if g.startswith("guess:")))
                 return cs_files[path]
-            self._derived[key] = SigScope(scope_of, probe, CsSigScope(cs_scope_of, probe))
+
+            def cs_classes(fqn):
+                return [r for r in self.defines_of([fqn]).get(fqn, ()) if r["file"].endswith(".cs") and r["kind"] in CS_CLASSES]
+
+            arities: Dict[str, Optional[frozenset]] = {}
+
+            def arity(fqn):
+                if fqn not in arities:
+                    arities[fqn] = frozenset(len(r.get("tparams") or ()) for r in cs_classes(fqn)) or None
+                return arities[fqn]
+
+            class StoreCs(CsSigScope):
+                def fix_row(self, row, fields=SIG_FIELDS):
+                    if "from_symbol" not in row and row.get("kind") in CS_CLASSES:    # a base list settles before bases exist
+                        saved, self.bases = self.bases, None
+                        try:
+                            return super().fix_row(row, fields)
+                        finally:
+                            self.bases = saved
+                    return super().fix_row(row, fields)
+
+            bases: Dict[str, Optional[List[str]]] = {}
+
+            def base_names(fqn):    # the settled base lists of the type's declarations, as `settle_extraction` collects them
+                if fqn not in bases:
+                    rows = [cs.fix_row(r) for r in cs_classes(fqn)]
+                    bases[fqn] = [n for r in rows for t in r.get("supertypes") or () for n in NAME_RE.findall(t)] if rows else None
+                return bases[fqn]
+            cs = StoreCs(cs_scope_of, probe, arity=arity, bases=base_names)
+            self._derived[key] = SigScope(scope_of, probe, cs)
+        return self._derived[key]
+
+    def _cs_global_usings(self) -> Dict[str, List[str]]:
+        """`module -> names` of every `global using` in the snapshot (they apply to the whole compilation)."""
+        from ..lang.csharp_scope import global_usings
+        key = (id(self._view()), "cs-global-usings")
+        if key not in self._derived:     # only the segments holding a string that opens with `global`
+            self._derived[key] = global_usings(r for part in self.extract_heads(["global"]).values()
+                                               for r in part.get("imports", ()) if r["file"].endswith(".cs"))
         return self._derived[key]
 
     def used_by_keys(self) -> List[str]:
