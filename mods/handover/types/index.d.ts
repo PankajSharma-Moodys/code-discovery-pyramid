@@ -13,6 +13,9 @@ export type Bar = {
   detail: string
 }
 
+/** Which trigger got the seed accepted: the post-clear watcher, classic.SessionStart, session.end, the first turn/prompt in the new context, or a press / command. */
+export type SeedPath = 'watcher' | 'session.start' | 'session.end' | 'first-turn' | 'manual'
+
 export type HState = 'idle' | 'writing' | 'ready' | 'clearing' | 'seeded' | 'stalled' | 'failed'
 
 /** Store `handover:<sid>`: one record per session in the chain. */
@@ -28,10 +31,13 @@ export type HRecord = {
   /** session seeded into / failure text, when known */
   to?: string
   why?: string
+  /** ms from the clear request to the accepted seed, and which trigger sent it */
+  seedLatencyMs?: number
+  seedPath?: SeedPath
 }
 
 /** What the pane draws about the record (a snapshot; the countdown is computed at draw time). */
-export type HView = { n: number; state: HState; startedAt: number; from?: string; to?: string; why?: string; pending: boolean }
+export type HView = { n: number; state: HState; startedAt: number; from?: string; to?: string; why?: string; pending: boolean; seedLatencyMs?: number; seedPath?: SeedPath; retry?: { k: number; reason: string } }
 
 export type AgentRow = { id: string; name: string; type: string; status: string; description: string }
 

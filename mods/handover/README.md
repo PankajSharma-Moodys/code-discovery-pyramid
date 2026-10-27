@@ -1,4 +1,4 @@
-# handover (v0.4.0)
+# handover (v0.5.0)
 
 `/handover` opens a pane that hands a long-running supervisor session to a fresh context: context-window and usage bars, a table of background agents, an animated Collect state / Write brief / Seed fresh context sequence. Where the pane cannot be placed, a compact band above the prompt is used.
 
@@ -36,9 +36,17 @@ Answer to "is the receiving queue transferred?": NO. The engine queues deliverie
 - Best-effort forward (UNTESTED LIVE): in the fresh context, `turn.complete` for an agent id that was active at handover writes the answer excerpt to the ledger (origin `handover-forward`) first, then appends ONE meta row (`$.session.append`, user role) holding only facts the mod computed: `agent <id> (active at handover #n) completed. Its answer is NOT included here (N chars)... run /handover inbox <seq>`. Answers are kept out of the model-visible row because they are model output that may carry untrusted file text, and a user-role row would give it user authority; `/handover inbox <seq>` prints it under `UNTRUSTED DATA`. Never twice per id; the pane shows a `FORWARD` line. It fires only if the engine still delivers those events after the clear (not determined).
 - NOT recovered: deliveries the engine drops at the clear are not replayed; the ledger shows only what reached `session.receive`.
 
+## Seeded right after the clear (v0.5): the post-clear watcher
+
+The seed does not wait for a session-start hook or for you to type. In the live test of v0.4.1 the plugin that sits above this mod bypassed `classic.SessionStart`, so the seed went out only at your first prompt (42 s after the clear). Now, the moment `/clear` is requested, a watcher runs `$.clock.every(250)`: each tick reads `$.session.id()`; when it differs from the old id the fresh context exists, the watcher stops and the seed is submitted at once. The watcher lives up to 120 s (longer than the 45 s `stalled` mark, so a late clear is still seeded); after that use Seed now or Reset. A hot reload restarts it from the store (`seed-pending` + record `clearing`/`stalled`, younger than 120 s); if the id already changed it seeds immediately. Ticks never overlap.
+
+Every trigger calls one idempotent `trySeed`: the watcher, `classic.SessionStart` (source `clear`), `session.end` (reason `clear`, checked from timers at 50 and 500 ms), the first `turn.start` / `prompt.submit` in the new context, `/handover seed`, Seed now. The nonce is claimed synchronously, so exactly one submits. The submit always runs from a clock callback, never inside a hook frame. If `$.prompt.submit` resolves `{ drop }` or throws, the claim is released and it retries after 0, 300, 700, 1500, 3000, 6000, 10000 ms, then every 10 s, up to 60 s; the old pane/band shows `STATUS Seed retry k (reason: ...)` and each failure is logged to debug. `done` and state `seeded` are written only after the submit is accepted.
+
+`seedPath` (record and lineage) says which trigger got the seed accepted: `watcher`, `session.start`, `session.end`, `first-turn` (turn.start or prompt.submit), `manual` (command or button). `seedLatencyMs` is clear-requested to accepted. The band reads `✓ handed over #1 · from 8a1f77c0 · seeded in 1.2 s via watcher · brief 66 lines · 0 agents active`, the toast `handed over: seed sent in 1.2 s via watcher (...)`, and the pane STATUS of the new session `..., seeded in 1.2 s via watcher`. `watcher` with about 0.3 s means the hooks were not needed; `first-turn` means the watcher did not see the id change.
+
 ## If a handover stalls
 
-The seed is sent by the first of: `classic.SessionStart` (source `clear`), the first `turn.start` or `prompt.submit` in the new context, `/handover seed`, Seed now. A plugin above this mod can continue past a hook with `next.to` ("bypassed by <plugin>" in `claude --debug`), which is why SessionStart can be skipped. Each seed is sent once. If the conversation did not clear: wait for the stall countdown, press Retry clear, or use `/handover reset`. If it did clear but nothing was seeded: `/handover seed`. A retry plus a late original clear can clear twice; the seed goes to the first fresh context only.
+Still `clearing` after 45 s shows `stalled`; the watcher keeps running. Wait, press Retry clear, or `/handover reset`. If it did clear but nothing was seeded: `/handover seed`. A retry plus a late original clear can clear twice; the seed goes to the first fresh context only. The mod never clears by itself.
 
 ## Use it in this repo
 
@@ -46,5 +54,5 @@ The seed is sent by the first of: `classic.SessionStart` (source `clear`), the f
 2. Every session from this repo: `CLAUDE_CODE_PLUGIN_DIRS` (absolute paths) in the process environment or `~/.claude/settings.json` `env` (never read from project settings).
 3. Validate and test (mocked engine only): `claude plugin validate mods/handover`, `claude plugin test mods/handover`.
 4. Safe use: open `/handover`, Refresh, Write brief, read the brief. Try Clear and seed in a throwaway session first.
-5. NOT tested live: a real `/clear`, real deliveries, the forward path, plugins above this mod, subagents across a clear (not determined), terminal rendering, narrative quality.
+5. NOT tested live: a real `/clear`, when `$.session.id()` changes after it, the real engine's timing, real deliveries, the forward path, plugins above this mod, subagents across a clear (not determined), terminal rendering, narrative quality.
 7. Briefs: `~/.claude/state/handover/<session-id>.md`; the Takeover protocol section names `Handover #n in chain` and the previous sessions.

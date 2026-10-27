@@ -1,4 +1,4 @@
-import type { AgentRow, Bar, HRecord, HState, HView, InboxView, Step, View } from '../types'
+import type { AgentRow, Bar, HRecord, HState, HView, InboxView, SeedPath, Step, View } from '../types'
 
 // Constants (no userConfig in v0.1: the reference shows no manifest syntax for it).
 export const PANE = 'handover'
@@ -7,6 +7,12 @@ export const REFRESH_MS = 1000 // agents / usage refresh
 export const CONFIRM_MS = 8000 // window for the second "Clear and seed" press
 export const DEFAULT_WINDOW = 200_000 // only used if usage() reports no window
 export const STALL_MS = 45_000 // a clear still 'clearing' after this long is stalled
+export const WATCH_MS = 250 // post-clear watcher period: how often the session id is compared with the old one
+export const WATCH_MAX_MS = 120_000 // the watcher gives up this long after the clear was requested (longer than STALL_MS)
+export const SEED_BACKOFF = [0, 300, 700, 1500, 3000, 6000, 10_000] // ms before attempt 0, 1, 2 ...; later attempts wait 10 s
+export const SEED_GIVEUP_MS = 60_000 // no further seed attempt is scheduled past this long after the first
+export const seedDelay = (i: number) => SEED_BACKOFF[i] ?? 10_000
+export const latText = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)} s`
 export const DEBOUNCE_MS = 3000 // a repeat Clear press this soon after a clear was issued is ignored
 export const BRIEF_REL = '.claude/state/handover'
 export const SEED_PREFIX = 'HANDOVER SEED:'
@@ -469,12 +475,14 @@ export function inboxOne(es: LedgerEntry[], seq: number, now: number): string {
 }
 
 export const BAND_FRAMES = 10
-export type BandState = { old: string; lines: number; agents: number; cleared: boolean; n?: number }
+export type BandState = { old: string; lines: number; agents: number; cleared: boolean; n?: number; latencyMs?: number; seedPath?: SeedPath }
 
 export function bandText(b: BandState): string {
-  return `✓ handed over${b.n ? ` #${b.n}` : ''} · from ${shortId(b.old)} · brief ${b.lines} lines · ${b.agents} agents active`
+  const how = b.latencyMs !== undefined && b.seedPath ? ` · seeded in ${latText(b.latencyMs)} via ${b.seedPath}` : ''
+  return `✓ handed over${b.n ? ` #${b.n}` : ''} · from ${shortId(b.old)}${how} · brief ${b.lines} lines · ${b.agents} agents active`
 }
-export const toastText = (lines: number, agents: number) => `handed over: seed sent (brief ${lines} lines, ${agents} agents active)`
+export const toastText = (lines: number, agents: number, latencyMs?: number, seedPath?: SeedPath) =>
+  `handed over: seed sent${latencyMs !== undefined && seedPath ? ` in ${latText(latencyMs)} via ${seedPath}` : ''} (brief ${lines} lines, ${agents} agents active)`
 /** Typewriter reveal: the share of the band text shown at `frame`. */
 export const bandReveal = (text: string, frame: number) => text.slice(0, Math.ceil(text.length * Math.min(1, (frame + 1) / BAND_FRAMES)))
 
@@ -496,14 +504,16 @@ export const secs = (ms: number) => Math.max(0, Math.floor(ms / 1000))
 export function statusText(h: HView, now: number): string {
   const st = effectiveState(h, now)
   const age = secs(now - h.startedAt)
-  const pos = h.from ? `this session is handover #${h.n - 1}, from ${shortId(h.from)}…; ` : ''
+  const how = h.seedLatencyMs !== undefined && h.seedPath ? `seeded in ${latText(h.seedLatencyMs)} via ${h.seedPath}` : ''
+  const pos = h.from ? `this session is handover #${h.n - 1}, from ${shortId(h.from)}…${how ? `, ${how}` : ''}; ` : ''
+  if (h.retry && (st === 'clearing' || st === 'stalled')) return `STATUS Seed retry ${h.retry.k} (reason: ${h.retry.reason}); handover #${h.n}`
   switch (st) {
     case 'idle': return `STATUS idle: ${pos}next is handover #${h.n}${h.pending ? '; a seed is pending' : ''}`
     case 'writing': return `STATUS writing the brief for handover #${h.n}`
     case 'ready': return `STATUS ready: brief written; next is handover #${h.n}`
     case 'clearing': return `STATUS Clear requested, waiting for the session to go idle (${age}s); handover #${h.n}`
     case 'stalled': return `STATUS stalled: no fresh context after ${age}s; handover #${h.n}. Retry clear, Seed now or Reset`
-    case 'seeded': return `STATUS seeded handover #${h.n}${h.to ? ` into ${shortId(h.to)}…` : ''}; a new handover is allowed`
+    case 'seeded': return `STATUS seeded handover #${h.n}${h.to ? ` into ${shortId(h.to)}…` : ''}${how ? `, ${how}` : ''}; a new handover is allowed`
     default: return `STATUS failed handover #${h.n}: ${h.why ?? 'unknown'}; a new handover is allowed`
   }
 }

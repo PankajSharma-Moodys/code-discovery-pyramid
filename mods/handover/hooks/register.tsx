@@ -1,12 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Bar, HRecord, HState, View } from '../types'
+import type { Bar, HRecord, HState, SeedPath, View } from '../types'
 import {
   ACTIVE, BRIEF_REL, CONFIRM_MS, DEBOUNCE_MS, STALL_MS, actionsFor, blocksClear, effectiveState, idleRecord, secs, statusText, DEFAULT_WINDOW, FRAME_MS, PANE, REFRESH_MS, SPIN,
   activeAgents, assembleBrief, barRuns, condense, ctxColor, ease, emptyBar, freshView, initialSteps,
   isAnimating, modelPrompt, MODEL_SYSTEM, parseModelReply, parseRepoHandover, seedText, shortId,
-  statusColor, tok, toRows, BAND_FRAMES, bandReveal, bandText, factsBlock, toastText,
+  statusColor, tok, toRows, BAND_FRAMES, bandReveal, bandText, factsBlock, toastText, SEED_GIVEUP_MS, WATCH_MAX_MS, WATCH_MS, latText, seedDelay,
   FORWARD_KIND, LEDGER_ENABLED, appendLedgerText, ageText, bumpCounters, countsText, emptyCounters, inboxBand, inboxList, inboxOne, inboxView, ledgerPath, makeEntry, oneLine, parseLedger,
 } from './lib'
 import type { BandState, BriefMark, Counters, Delivery, Facts } from './lib'
@@ -35,8 +35,8 @@ const note = ($: EngineInterface, text: string) => setView($, v => ({ ...v, note
 
 // ------------------------------------------------------------------ handover records (store)
 
-type Pending = { nonce: string; old: string; n: number; path?: string; ids?: string[]; lines?: number; done: boolean }
-type Lineage = { from: string; n: number }
+type Pending = { nonce: string; old: string; n: number; path?: string; ids?: string[]; lines?: number; done: boolean; startedAt?: number; retry?: { k: number; reason: string } }
+type Lineage = { from: string; n: number; seedLatencyMs?: number; seedPath?: SeedPath }
 
 const getPending = async ($: EngineInterface) => (await $.store.get('seed-pending')) as Pending | undefined
 const getLineage = async ($: EngineInterface, sid: string) => (await $.store.get(`lineage:${sid}`)) as Lineage | undefined
@@ -71,12 +71,18 @@ async function chainOf($: EngineInterface, sid: string): Promise<string[]> {
 async function syncStatus($: EngineInterface) {
   const sid = await $.session.id()
   const now = await $.clock.now()
-  let rec = await getRec($, sid)
-  if (effectiveState(rec, now) === 'stalled' && rec.state === 'clearing') rec = await putRec($, sid, { state: 'stalled' })
-  const lin = await getLineage($, sid)
   const p = await getPending($)
+  // while a seed is being retried the session id is already the new one: the status stays that of the record being handed over
+  const shown = p && !p.done && p.retry ? p.old : sid
+  let rec = await getRec($, shown)
+  if (effectiveState(rec, now) === 'stalled' && rec.state === 'clearing') rec = await putRec($, shown, { state: 'stalled' })
+  const lin = await getLineage($, shown)
   const ib = await inboxSnap($)
-  await setView($, v => ({ ...v, inbox: inboxView(ib.c, ib.mark), hv: { n: rec.n, state: rec.state, startedAt: rec.startedAt, from: lin?.from, to: rec.to, why: rec.why, pending: !!p && !p.done } }))
+  const retry = shown !== sid || (p && !p.done) ? p?.retry : undefined
+  await setView($, v => ({
+    ...v, inbox: inboxView(ib.c, ib.mark),
+    hv: { n: rec.n, state: rec.state, startedAt: rec.startedAt, from: lin?.from, to: rec.to, why: rec.why, pending: !!p && !p.done, seedLatencyMs: rec.seedLatencyMs ?? lin?.seedLatencyMs, seedPath: rec.seedPath ?? lin?.seedPath, retry },
+  }))
 }
 
 function carry(prev: Bar[], next: Bar[]): Bar[] {
@@ -432,14 +438,17 @@ async function clearAndSeed($: EngineInterface) {
   }
   const nonce = `${now}-${Math.random().toString(36).slice(2, 8)}`
   await putRec($, id, { nonce, state: 'clearing', startedAt: now, briefPath: v.brief.path, agentIds: active.map(a => a.id), to: undefined, why: undefined })
-  await $.store.set('seed-pending', { nonce, old: id, n: rec.n, path: v.brief.path, ids: active.map(a => a.id), lines: v.brief.lines ?? 0, done: false } satisfies Pending)
+  const pending = { nonce, old: id, n: rec.n, path: v.brief.path, ids: active.map(a => a.id), lines: v.brief.lines ?? 0, done: false, startedAt: now } satisfies Pending
+  await $.store.set('seed-pending', pending)
   await $.store.set('last-clear', now)
   await setView($, x => ({
     ...x, confirmUntil: 0, confirmIds: '', note: 'Clear requested: the seed prompt follows in the fresh context.',
     steps: x.steps.map((s, i) => (i === 2 ? { ...s, state: 'run' } : s)),
   }))
   await syncStatus($)
+  startWatch($, pending, now) // the moment the clear is requested: the seed does not wait for any hook or prompt
   $.command.run({ command: 'clear' }).catch(async (err: unknown) => {
+    if (watchNonce === nonce) stopWatch()
     await putRec($, id, { state: 'failed', why: `/clear rejected: ${String(err).slice(0, 60)}` })
     const p = await getPending($)
     if (p && p.nonce === nonce) await $.store.set('seed-pending', { ...p, done: true })
@@ -448,49 +457,175 @@ async function clearAndSeed($: EngineInterface) {
   })
 }
 
-/**
- * Sends the pending seed into the CURRENT context. Every path (SessionStart, first turn/prompt, /handover seed,
- * the Seed now button) comes through here; the nonce is marked done before anything is sent, so only one path wins.
- */
-const DEFERRED = new Set(['turn.start', 'prompt.submit', 'command']) // paths that run inside a hook
+// ------------------------------------------------------------------ post-clear watcher
 
-async function seedNow($: EngineInterface, via: string, requireNewContext = false): Promise<string | undefined> {
+/** Debug log that can neither throw nor reject. */
+function dbg($: EngineInterface, text: string) {
+  try { void Promise.resolve($.ui.log(text, { to: 'debug' })).catch(() => undefined) } catch { /* cosmetic */ }
+}
+
+// Module variables (the watcher handle, the claim set) are not drawing state. The docs say the process goes on under a
+// new session id after /clear (session.end: "the conversation ends, the process goes on under a new session id"); that module
+// variables and timers outlive the clear is the community mod's own comment, NOT a docs sentence, so the watcher is also
+// restarted from the store (resumeWatch) on every load and reload.
+let watch: { cancel(): void } | undefined
+let watchNonce = ''
+let watchBusy = false
+let seedRun: { nonce: string; t0: number; i: number; timer?: { cancel(): void } } | undefined
+
+function stopWatch() {
+  watch?.cancel()
+  watch = undefined
+  watchNonce = ''
+}
+
+/** Every WATCH_MS: has the session id left `old`? Then the fresh context exists and the seed goes now. */
+function startWatch($: EngineInterface, p: Pending, startedAt: number) {
+  stopWatch()
+  watchNonce = p.nonce
+  const nonce = p.nonce
+  const deadline = startedAt + WATCH_MAX_MS
+  watch = $.clock.every(WATCH_MS, () => void watchTick($, nonce, p.old, deadline))
+}
+
+async function watchTick($: EngineInterface, nonce: string, old: string, deadline: number) {
+  if (watchBusy) return // never overlap: a tick is skipped while the previous one is awaiting
+  if (watchNonce !== nonce) return
+  watchBusy = true
+  try {
+    if (claimed.has(nonce)) return stopWatch()
+    if ((await $.clock.now()) >= deadline) {
+      if (watchNonce === nonce) stopWatch()
+      await note($, `No fresh context ${secs(WATCH_MAX_MS)}s after the clear: the watcher stopped. Use Seed now (if it did clear) or Reset.`)
+      return
+    }
+    if ((await $.session.id()) === old) return // one cheap op per tick
+    if (watchNonce === nonce) stopWatch()
+    await trySeed($, 'watcher', true)
+  } catch (err) {
+    dbg($, `handover watcher: ${String(err).slice(0, 120)}`)
+  } finally {
+    watchBusy = false
+  }
+}
+
+/** Load / reload: a clearing or stalled attempt younger than WATCH_MAX_MS gets its watcher back (the store survives, module variables do not). */
+async function resumeWatch($: EngineInterface) {
+  try {
+    const p = await getPending($)
+    if (!p || p.done || !p.path || claimed.has(p.nonce) || (watch && watchNonce === p.nonce)) return
+    const rec = await getRec($, p.old)
+    if (rec.nonce !== p.nonce || (rec.state !== 'clearing' && rec.state !== 'stalled')) return
+    const t0 = p.startedAt ?? rec.startedAt
+    if ((await $.clock.now()) - t0 >= WATCH_MAX_MS) return
+    if ((await $.session.id()) !== p.old) return void (await trySeed($, 'watcher', true))
+    startWatch($, p, t0)
+  } catch (err) {
+    dbg($, `handover resume: ${String(err).slice(0, 120)}`)
+  }
+}
+
+// ------------------------------------------------------------------ seed
+
+/**
+ * Sends the pending seed into the CURRENT context. EVERY trigger (watcher tick, classic.SessionStart, session.end,
+ * first turn/prompt, /handover seed, Seed now) comes through here and is idempotent: the nonce is claimed in one
+ * synchronous step (module set), so only the first caller submits; the store's done flag and the record state
+ * 'seeded' are written only after $.prompt.submit was ACCEPTED. A refused submit releases the claim and retries.
+ */
+async function trySeed($: EngineInterface, via: SeedPath, requireNewContext = false): Promise<string | undefined> {
   const p = await getPending($)
   if (!p || p.done || !p.path || claimed.has(p.nonce)) return undefined
   const fresh = await $.session.id()
   if (requireNewContext && fresh === p.old) return undefined
   if (claimed.has(p.nonce)) return undefined
   claimed.add(p.nonce)
+  if (watchNonce === p.nonce) stopWatch()
+  seedRun?.timer?.cancel()
   try {
-    await $.store.set('seed-pending', { ...p, done: true })
+    // the chain link exists before the seed text is built (the inbox clause reads the chain's ledger through it)
+    if (fresh !== p.old) await $.store.set(`lineage:${fresh}`, { from: p.old, n: p.n ?? 1 } satisfies Lineage)
+    seedRun = { nonce: p.nonce, t0: await $.clock.now(), i: 0 }
+  } catch (err) {
+    claimed.delete(p.nonce) // nothing was sent: another trigger may try
+    throw err
+  }
+  // The submit is never made inside the caller's hook frame (v0.3: it would wait on itself): a clock callback sends it.
+  $.clock.after(1, () => void sendAttempt($, p.nonce, via, true))
+  return `Seeding handover #${p.n ?? 1} from ${shortId(p.old)} (via ${via}): submitting now.`
+}
+
+async function sendAttempt($: EngineInterface, nonce: string, via: SeedPath, held: boolean) {
+  if (!held) {
+    const p0 = await getPending($)
+    if (!p0 || p0.done || p0.nonce !== nonce || claimed.has(nonce)) return
+    claimed.add(nonce) // checked and added with no await between
+  }
+  let reason = ''
+  let p: Pending | undefined
+  try {
+    p = await getPending($)
+    if (!p || p.done || p.nonce !== nonce) return
     const ids = p.ids ?? []
-    const lines = p.lines ?? 0
-    const n = p.n ?? 1
-    if (fresh !== p.old) {
-      await putRec($, p.old, { state: 'seeded', to: fresh })
-      await $.store.set(`lineage:${fresh}`, { from: p.old, n } satisfies Lineage)
-    }
-    await $.store.set(`handover:${fresh}`, { ...idleRecord(n + 1, await $.clock.now()) } satisfies HRecord)
-    // the old pane's third step turns done (the pane may be gone: setView only writes the atom)
-    await setView($, v => ({ ...v, note: `Seeded ${shortId(fresh)} from ${shortId(p.old)} (handover #${n}, via ${via}).`, steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'done' } : s)) }))
-    // Verified in the mock engine: prompt.submit called inside a command.run hook is refused ("it would wait on the
-    // command"), so the paths that run inside a hook send from a timer, outside the hook's frame.
     const ib = await inboxSnap($)
     const m = newerThanBrief(ib)
     const inbox = m > 0 ? { m, path: await ledgerFile($, ib.root) } : undefined
-    const send = () => $.prompt.submit({ text: seedText(p.old, p.path!, ids, n, inbox) }).catch(async (err: unknown) => {
-      await note($, `Seed prompt rejected (${String(err).slice(0, 90)}): paste the brief path to carry on: ${p.path}`)
-    })
-    if (DEFERRED.has(via)) $.clock.after(1, () => void send())
-    else void send()
-    $.ui.toast(toastText(lines, ids.length))
-    await startBand($, { old: p.old, lines, agents: ids.length, cleared: false, n })
-    await syncStatus($)
-    return `Seeded handover #${n} from ${shortId(p.old)} (via ${via}).`
+    // Refusal shapes: the call RESOLVES `{ drop: string }` (PromptSubmitResult: "The prompt did not enter: a hook's
+    // refusal, a settings hook's block beneath, or the engine's own") or it REJECTS (e.g. "it would wait on the command").
+    const res = (await $.prompt.submit({ text: seedText(p.old, p.path!, ids, p.n ?? 1, inbox) })) as { drop?: string } | undefined
+    if (res && res.drop !== undefined) reason = `refused: ${String(res.drop).slice(0, 80)}`
   } catch (err) {
-    claimed.delete(p.nonce) // nothing was sent: another path may try
-    await $.store.set('seed-pending', p)
-    throw err
+    reason = `threw: ${String(err).slice(0, 80)}`
+  }
+  if (!p || p.done || p.nonce !== nonce) return
+  if (!reason) return finishSeed($, p, via)
+  claimed.delete(nonce) // nothing was accepted: this retry or any other trigger may try again
+  await refused($, p, via, reason)
+}
+
+async function refused($: EngineInterface, p: Pending, via: SeedPath, reason: string) {
+  const run = seedRun && seedRun.nonce === p.nonce ? seedRun : (seedRun = { nonce: p.nonce, t0: await $.clock.now(), i: 0 })
+  run.i++
+  const k = run.i
+  dbg($, `handover seed attempt ${k} failed (${via}): ${reason}`)
+  const cur = await getPending($)
+  if (cur && !cur.done && cur.nonce === p.nonce) await $.store.set('seed-pending', { ...cur, retry: { k, reason: reason.slice(0, 80) } })
+  await note($, `Seed retry ${k} (reason: ${reason})`)
+  await syncStatus($)
+  if (run.timer) return // a retry is already scheduled
+  const delay = seedDelay(k)
+  if ((await $.clock.now()) - run.t0 + delay > SEED_GIVEUP_MS) {
+    seedRun = undefined
+    await note($, `Seed not accepted after ${secs(SEED_GIVEUP_MS)}s (last: ${reason}). Use Seed now, or paste the brief path: ${p.path}`)
+    return
+  }
+  run.timer = $.clock.after(Math.max(1, delay), () => { run.timer = undefined; void sendAttempt($, p.nonce, via, false) })
+}
+
+/** The submit was accepted: now, and only now, the nonce is done and the records say seeded. */
+async function finishSeed($: EngineInterface, p: Pending, via: SeedPath) {
+  seedRun = undefined
+  const now = await $.clock.now()
+  const ids = p.ids ?? []
+  const lines = p.lines ?? 0
+  const n = p.n ?? 1
+  const fresh = await $.session.id()
+  const startedAt = p.startedAt ?? (await getRec($, p.old)).startedAt
+  const latencyMs = Math.max(0, now - startedAt)
+  try {
+    await $.store.set('seed-pending', { ...p, done: true, retry: undefined })
+    if (fresh !== p.old) {
+      await putRec($, p.old, { state: 'seeded', to: fresh, seedLatencyMs: latencyMs, seedPath: via })
+      await $.store.set(`lineage:${fresh}`, { from: p.old, n, seedLatencyMs: latencyMs, seedPath: via } satisfies Lineage)
+    } else await putRec($, p.old, { seedLatencyMs: latencyMs, seedPath: via })
+    await $.store.set(`handover:${fresh}`, { ...idleRecord(n + 1, now) } satisfies HRecord)
+    // the old pane's third step turns done (the pane may be gone: setView only writes the atom)
+    await setView($, v => ({ ...v, note: `Seeded ${shortId(fresh)} from ${shortId(p.old)} (handover #${n}, ${latText(latencyMs)} via ${via}).`, steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'done' } : s)) }))
+    $.ui.toast(toastText(lines, ids.length, latencyMs, via))
+    await startBand($, { old: p.old, lines, agents: ids.length, cleared: false, n, latencyMs, seedPath: via })
+    await syncStatus($)
+  } catch (err) {
+    dbg($, `handover finish after accepted seed: ${String(err).slice(0, 120)}`)
   }
 }
 
@@ -501,6 +636,9 @@ async function resetNow($: EngineInterface): Promise<string> {
   await $.store.set(`handover:${sid}`, idleRecord(rec.n, await $.clock.now()))
   const p = await getPending($)
   if (p && !p.done) await $.store.set('seed-pending', { ...p, done: true })
+  stopWatch()
+  seedRun?.timer?.cancel()
+  seedRun = undefined
   await setView($, v => ({ ...v, confirmUntil: 0, confirmIds: '', resetUntil: 0, note: 'Reset: idle. A new handover is allowed.', steps: v.steps.map((s, i) => (i === 2 ? { ...s, state: 'todo' } : s)) }))
   await syncStatus($)
   return `Reset to idle (handover #${rec.n} next).`
@@ -514,7 +652,7 @@ async function resetPressed($: EngineInterface) {
 }
 
 async function seedPressed($: EngineInterface) {
-  const r = await seedNow($, 'button')
+  const r = await trySeed($, 'manual')
   if (!r) await note($, 'Nothing to seed: no pending handover.')
 }
 
@@ -699,12 +837,20 @@ function BandTree($: EngineInterface, ui: UI, v: View, cols: number | undefined,
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'handover', description: 'Hand the supervisor role to a fresh context (pane with bars, agents, brief). Args: seed, reset, inbox [seq]' })
+    await resumeWatch($) // a reload during a clear: the store has the pending seed, the module lost its watcher
     return next(e)
   })
 
+  // The other trigger of the same idempotent trySeed. A /clear fires session.end (reason 'clear') in the OLD id; the
+  // check runs from a timer, outside this hook's frame and its 1.5 s bound, and only seeds once the id has changed.
+  on('session.end', async ($, e, next) => {
+    if (e.reason === 'clear') for (const ms of [50, 500]) $.clock.after(ms, () => void trySeed($, 'session.end', true).catch(() => undefined))
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('command.run', { command: 'handover' }, async ($, e) => {
     const arg = String((e as { args?: string }).args ?? '').trim().toLowerCase()
-    if (arg === 'seed') return { text: (await seedNow($, 'command')) ?? 'Nothing to seed: no pending handover.' }
+    if (arg === 'seed') return { text: (await trySeed($, 'manual')) ?? 'Nothing to seed: no pending handover (or a seed is already being sent).' }
     if (arg === 'reset') return { text: await resetNow($) }
     const im = /^inbox(?:\s+#?(\d+))?$/.exec(arg)
     if (im) {
@@ -742,7 +888,7 @@ export const register: Register = on => {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) turnRunning = true
     // Fallback seed: the clear happened (new session id) but classic.SessionStart never reached this mod.
-    if (!e.agentId) await seedNow($, 'turn.start', true).catch(() => undefined) // never breaks the turn
+    if (!e.agentId) await trySeed($, 'first-turn', true).catch(() => undefined) // never breaks the turn
     return next(e)
   })
   on('turn.complete', async ($, e, next) => {
@@ -794,7 +940,7 @@ export const register: Register = on => {
   // continue past this hook with next.to ("bypassed by <plugin>"), which this mod cannot prevent.
   on('classic.SessionStart', async ($, e, next) => {
     const r = await next(e)
-    if (e.source === 'clear') await seedNow($, 'classic.SessionStart')
+    if (e.source === 'clear') await trySeed($, 'session.start')
     return r
   }).catch(($, e, next) => next(e))
 
@@ -803,7 +949,7 @@ export const register: Register = on => {
     const kind = (e as { origin?: { kind?: string } }).origin?.kind
     if (kind === 'composer' || kind === 'bridge') await endBand($)
     const r = await next(e)
-    await seedNow($, 'prompt.submit', true).catch(() => undefined) // fallback; a no-op once any path has seeded this nonce
+    await trySeed($, 'first-turn', true).catch(() => undefined) // fallback; a no-op once any path has claimed this nonce
     return r
   }).catch(($, e, next) => next(e)) // next(e) replays what next settled to when it was called; else passes on
 }
