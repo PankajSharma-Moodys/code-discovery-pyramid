@@ -794,7 +794,9 @@ class Flow:
             first = self.lines[start]
             if not first.lstrip().startswith("@") or self._wrapped(d):
                 text, start, end = self._wide(d, start, end, text)
-            out.append(Ann(name, text, start, end))
+            ann = Ann(name, text, start, end)
+            ann.parses_args = False   # decorator arguments are not parsed: no `args` key, empty or not
+            out.append(ann)
         return out
 
     def decorator(self, d, owner_node) -> None:

@@ -186,6 +186,7 @@ class Ann(tuple):
         self = tuple.__new__(cls, (name, text))
         self.line, self.end_line = line, end_line
         self.arg_map: Dict = arg_map or {}   # parsed element values (annotation_args.py)
+        self.parses_args = True             # False: the language never parses element values (Python)
         self.fqn: Optional[str] = None      # set by the language extractor when imports resolve it
         return self
 
@@ -193,6 +194,7 @@ class Ann(tuple):
 #: Longest annotation text kept on a define row; a longer one (a multi-line `@Query`) is cut
 #: with `...`, and its cited lines hold the rest.
 ANNOTATION_TEXT_MAX = 400
+EMPTY_PARENS = re.compile(r"^[^()]*\(\s*\)$")
 
 
 def annotation_rows(anns: Sequence) -> List[Dict]:
@@ -210,6 +212,8 @@ def annotation_rows(anns: Sequence) -> List[Dict]:
             row["line"], row["end_line"] = ann.line + 1, ann.end_line + 1
             if ann.arg_map:
                 row["args"] = ann.arg_map
+            elif ann.parses_args and EMPTY_PARENS.match(text):
+                row["args"] = {}   # `@A()` is not `@A` (owner decision X24)
         rows.append(row)
     return rows
 

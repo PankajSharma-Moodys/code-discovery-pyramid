@@ -67,9 +67,9 @@ class ValueShapeTest(unittest.TestCase):
         self.assertEqual(args_of("value = compute(1, 2)"), {"value": {"text": "compute(1,2)"}})
         self.assertEqual(args_of("a = cond ? 1 : 2, b = 1"), {"a": {"text": "cond?1:2"}, "b": 1})
 
-    def test_no_arguments_means_no_args_key(self):
+    def test_no_parentheses_means_no_args_key_and_empty_ones_mean_empty_args(self):
         self.assertNotIn("args", ann("package a;\n@X\nclass C {}\n"))
-        self.assertNotIn("args", ann("package a;\n@X()\nclass C {}\n"))
+        self.assertEqual(ann("package a;\n@X()\nclass C {}\n")["args"], {})   # X24
 
     def test_nested_annotation_array(self):
         a = ann('package a;\n@Schedules({@Scheduled(cron="0 0 * * * *"), @Scheduled(fixedRate=5000, zone="UTC")})\n'
