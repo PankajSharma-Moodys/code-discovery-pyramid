@@ -20,6 +20,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .inventory import ROOT_MODULE
 from .lang.build import PLATFORM_PREFIX
+from .lang.python import _module_path
 
 SYMBOL_KINDS = frozenset(["class", "interface", "enum", "record", "annotation"])
 
@@ -69,8 +70,51 @@ def build_graph(inventory: Dict, extraction: Dict) -> Dict:
 # -------------------------------------------------------------- symbol index
 
 
+class _NamespaceIndex(dict):
+    """`namespace -> modules`, plus which keys are Python modules (`python_modules`).
+
+    A plain dict to every caller; `owners_of` alone reads the extra attribute.
+    """
+
+    python_modules: frozenset = frozenset()
+
+
+def _python_module_owners(extraction: Dict) -> Dict[str, Set[str]]:
+    """Dotted Python module name -> build modules, for every Python file.
+
+    A Python module is importable by its dotted name whatever it defines (a file of
+    functions or constants, or a package `__init__` of imports): the data model makes the
+    module itself the namespace, not the classes inside it. The name is the extractor's own
+    (`_module_path`), so it matches the names `defines` and `imports` already carry; it comes
+    from the path of every `.py` file, including one the scan classes as build (`setup.py`),
+    whose `files[f]["package"]` is empty.
+    A file that produced no define/import rows cannot say which build module holds it; it
+    takes the modules of the other files in its directory (one package is one build module
+    in practice), and is left out when the directory has no other row.
+    """
+    files = extraction.get("files") or {}
+    py = {f: _module_path(f) for f in files if f.endswith(".py")}
+    if not py:
+        return {}
+    by_file: Dict[str, Set[str]] = {}
+    for key in ("defines", "imports"):
+        for row in extraction.get(key, ()):
+            if row["file"].endswith(".py"):
+                by_file.setdefault(row["file"], set()).add(row["module"])
+    by_dir: Dict[str, Set[str]] = {}
+    for f, mods in by_file.items():
+        by_dir.setdefault(f.rpartition("/")[0], set()).update(mods)
+    out: Dict[str, Set[str]] = {}
+    for f, name in py.items():
+        mods = by_file.get(f) or by_dir.get(f.rpartition("/")[0])
+        if mods:
+            out.setdefault(name, set()).update(mods)
+    return out
+
+
 def build_symbol_index(extraction: Dict) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
-    """`fqn -> modules` and `namespace -> modules`, both from `defines[]` only.
+    """`fqn -> modules` and `namespace -> modules`, both from `defines[]` only
+    (plus the Python files, whose module names are namespaces: see `_python_module_owners`).
 
     Two maps rather than one because an import may name a type (`...domain.DServer`)
     or a package (`...domain.*`), and collapsing them would make a wildcard
@@ -86,10 +130,12 @@ def build_symbol_index(extraction: Dict) -> Tuple[Dict[str, List[str]], Dict[str
             namespace.setdefault(fqn.rsplit(".", 1)[0], set()).add(module)
         if "/" in fqn:
             namespace.setdefault(fqn.rsplit("/", 1)[0], set()).add(module)
-    return (
-        {k: sorted(v) for k, v in sorted(symbol.items())},
-        {k: sorted(v) for k, v in sorted(namespace.items())},
-    )
+    pymods = _python_module_owners(extraction)
+    for name, mods in pymods.items():
+        namespace.setdefault(name, set()).update(mods)
+    index = _NamespaceIndex((k, sorted(v)) for k, v in sorted(namespace.items()))
+    index.python_modules = frozenset(pymods)
+    return {k: sorted(v) for k, v in sorted(symbol.items())}, index
 
 
 def owners_of(
@@ -100,12 +146,21 @@ def owners_of(
     Exact symbol first, then progressively shorter namespace prefixes. Returning
     a list rather than a winner is deliberate: §6.4 forbids the resolver from
     picking when an FQN is declared in more than one place.
+
+    Python imports name a module exactly, so the trim never settles on a Python
+    module: `import pkg.missing` is a miss, not an import of `pkg`. A path-shaped
+    name (JS/TS, `a/b`) is not a Python name and keeps the trim. (Java/C#/Scala
+    namespaces keep the trim: `pkg.Outer.Inner` is a member of `pkg.Outer`.)
     """
+    pymods = getattr(namespace_owner, "python_modules", ())
     if fqn in symbol_owner:
         return symbol_owner[fqn]
     candidate = fqn[:-2] if fqn.endswith(".*") else fqn
+    exact = candidate
     for _ in range(12):
         if candidate in namespace_owner:
+            if candidate in pymods and candidate != exact and "/" not in exact:
+                return []
             return namespace_owner[candidate]
         if candidate in symbol_owner:
             return symbol_owner[candidate]
