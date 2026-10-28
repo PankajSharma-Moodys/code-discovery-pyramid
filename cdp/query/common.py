@@ -5,12 +5,19 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from ..jtypes import GUESS_PREFIX
 from .budget import Budget
 from .store import Store, symbols_of
 
 
 #: What `--as-of` does and does not rewind, said on every such answer (`session.apply_as_of`).
 AS_OF_NOTE = "claims as of %s; files, symbols and routes are HEAD's (only the claim log is replayed)"
+
+
+def visible_signals(signals: Iterable[str]) -> List[str]:
+    """File signals meant for people and prompts: the extractors' internal `guess:` marks (read only
+    by settle and the store) are dropped."""
+    return [s for s in signals or () if not s.startswith(GUESS_PREFIX)]
 
 
 def _as_of(store: Store) -> Dict:

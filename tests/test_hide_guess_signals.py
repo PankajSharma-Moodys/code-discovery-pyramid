@@ -12,6 +12,7 @@ from pathlib import Path
 from helpers import have_git  # noqa: F401  (sets sys.path)
 
 from cdp import prompts
+from cdp.query.common import visible_signals
 from cdp.cli import main
 from cdp.jtypes import GUESS_PREFIX, settle_extraction
 from cdp.query import Store
@@ -84,13 +85,13 @@ class HideGuessSignalsTest(unittest.TestCase):
         self.assertEqual(ex, before)  # input untouched
         stripped = copy.deepcopy(ex)
         for info in stripped["files"].values():
-            info["signals"] = prompts.visible_signals(info["signals"])
+            info["signals"] = visible_signals(info["signals"])
         # the guess marks drive settle: without them the settled output differs from the scan's
         self.assertNotEqual(settle_extraction(stripped), with_marks)
 
     def test_visible_signals(self) -> None:
-        self.assertEqual(prompts.visible_signals(["a", "guess:x", "b"]), ["a", "b"])
-        self.assertEqual(prompts.visible_signals(None), [])
+        self.assertEqual(visible_signals(["a", "guess:x", "b"]), ["a", "b"])
+        self.assertEqual(visible_signals(None), [])
 
 
 if __name__ == "__main__":

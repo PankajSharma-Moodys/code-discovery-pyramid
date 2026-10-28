@@ -27,8 +27,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from .jtypes import GUESS_PREFIX
 from .partition import DEFAULT_MAX_INHERITED
+from .query.common import visible_signals
 from .rules import all_edges
 from .tiering import compute_tier
 from .util import CdpError, sha256_text, truncate
@@ -261,12 +261,6 @@ def _inherit(
 
 
 # ------------------------------------------------------------- structure
-
-
-def visible_signals(signals: Iterable[str]) -> List[str]:
-    """File signals meant for people and prompts: the extractors' internal `guess:` marks (read only
-    by settle and the store) are dropped."""
-    return [s for s in signals or () if not s.startswith(GUESS_PREFIX)]
 
 
 def _structure(extraction: Dict, scope_files: Set[str]) -> Dict:

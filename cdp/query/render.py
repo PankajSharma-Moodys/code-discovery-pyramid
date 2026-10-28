@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import Dict, List
 
 from .. import sigs
-from ..prompts import visible_signals
 from ..util import NO_REVIEW_NOTE, truncate
-from .common import AS_OF_NOTE, INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line
+from .common import AS_OF_NOTE, INPUT_SIMPLE, _claim_lines, _more, cite, inputs_line, visible_signals
 
 
 def _match_note(result: Dict) -> str:
