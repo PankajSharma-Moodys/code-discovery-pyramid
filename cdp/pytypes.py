@@ -247,6 +247,31 @@ class PyIndex(TypeIndex):
             self._starring.discard((mod, name))
         return found[0] if len(found) == 1 else None
 
+    def star_blockers(self, mod: str, name: str) -> List[str]:
+        """The star sources of `mod` that keep `name` unsettled: an outside module, a source whose
+        `__all__` is not literal, or each of two sources that both supply it. Empty when `star_member`
+        settles the name or no source could have supplied it."""
+        if self.star_member(mod, name) is not None:
+            return []
+        out: List[str] = []
+        suppliers: List[Tuple[str, Val]] = []
+        for src in self.stars.get(mod) or ():
+            real = self.mod_canon(src)
+            if real is None or (real in self.dunder_all and self.dunder_all[real] is None):
+                out.append(src)
+                continue
+            if real in self.dunder_all:
+                if name not in self.dunder_all[real]:
+                    continue
+            elif name.startswith("_"):
+                continue
+            v = self.in_module(real, name)
+            if v is not None and all(v != w for _, w in suppliers):
+                suppliers.append((src, v))
+        if len(suppliers) > 1:
+            out.extend(src for src, _ in suppliers)
+        return sorted(set(out))
+
     def member(self, cls: str, name: str, skip_self: bool = False) -> Optional[Val]:
         for t in self.hierarchy(cls)[1 if skip_self else 0:]:
             fn = t + "#" + name

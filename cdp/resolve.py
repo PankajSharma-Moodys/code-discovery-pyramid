@@ -37,6 +37,7 @@ from .cfgwrap import wrapped_reads
 from .cstypes import CsTypeIndex
 from .jtypes import DEFINE_TYPE_FIELDS, settle_extraction
 from .pytypes import PyIndex
+from .wildcards import add_wildcard_signals
 from .lang.base import is_third_party
 from .routes_cs import expand_routes
 
@@ -56,6 +57,7 @@ def build_xref(inventory: Dict, extraction: Dict, graph: Dict) -> Dict:
     cfg_calls: List[Tuple[str, Dict]] = []
     uses, counts = _resolve_by_language(extraction, module_set, symbol_owner, namespace_owner, symbols,
                                         paths, cfg_calls, role_of)
+    add_wildcard_signals(extraction, symbols, paths)
     used_by = _transpose(uses)
     routes, route_gaps = _resolve_routes(extraction, constants)
     coupling = _coupling(graph)
