@@ -4,7 +4,7 @@ Everything CDP writes goes through `write_json` so that two runs over the same
 commit produce byte-identical files. That is the reproducibility gate the plan
 asks for at every phase, and it only holds if nothing bypasses this module.
 
-Stdlib only, Python 3.9+. CDP is meant to be copied into a target repository
+Stdlib only, Python 3.10+. CDP is meant to be copied into a target repository
 with no install step, so a third-party dependency here would defeat the point.
 """
 

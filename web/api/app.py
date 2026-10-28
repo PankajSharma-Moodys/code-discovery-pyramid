@@ -415,11 +415,7 @@ def get_source(
     ctx = max(0, min(ctx, _SOURCE_CTX_MAX))
     repo_root = Path(repo).expanduser().resolve()
     candidate = (repo_root / file).resolve()
-    try:
-        is_contained = candidate.is_relative_to(repo_root)
-    except AttributeError:  # pragma: no cover -- py<3.9 fallback (requires-python >=3.9)
-        import os
-        is_contained = os.path.commonpath([str(candidate), str(repo_root)]) == str(repo_root)
+    is_contained = candidate.is_relative_to(repo_root)
     if not is_contained:
         raise HTTPException(status_code=400, detail="`file` escapes `repo`")
 

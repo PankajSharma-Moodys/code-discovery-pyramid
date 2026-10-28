@@ -7,7 +7,7 @@ name = "cdp"
 version = "0.1.0"
 description = "Code Discovery Pyramid — reconstruct and cite undocumented architecture"
 readme = "SKILL.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 # Deliberately empty, and load-bearing.
 #

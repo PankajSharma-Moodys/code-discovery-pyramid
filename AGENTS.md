@@ -1,7 +1,7 @@
 # CDP — instructions for coding assistants without hooks or subagents
 
 This repository (or one it was installed into) carries `.claude/skills/cdp/`:
-a dependency-free, stdlib-only Python 3.9+ tool that builds a citable
+a dependency-free, stdlib-only Python 3.10+ tool that builds a citable
 architecture index (`scan`) and answers questions against it (`query`) — no
 plugin, no MCP server, no network call. Any assistant that can run a shell
 command can use it directly.
@@ -74,5 +74,5 @@ Answers are sized by the question; work like grep, with small calls, and pull mo
 
 Multi-agent dispatch (`cdp run`, per-scope leaf agents) needs subagent
 spawning this tier does not have. `scan`/`query`/`docs` need nothing beyond a
-shell and Python 3.9 — that is the whole reason this file exists rather than
+shell and Python 3.10 — that is the whole reason this file exists rather than
 requiring the full pyramid to get any value at all.

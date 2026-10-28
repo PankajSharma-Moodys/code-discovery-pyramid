@@ -4,7 +4,7 @@ Reconstructs architecture from a codebase by giving each agent one tightly
 bounded scope, forcing every claim to carry a `file:line` anchor, and
 stitching breadth back together deterministically in Python.
 
-Bundled and dependency-free (stdlib Python 3.9+). See `SKILL.md` for the
+Bundled and dependency-free (stdlib Python 3.10+). See `SKILL.md` for the
 narrative walkthrough of the core `scan` → `query` → `run` flow. This file is
 the full command reference: every `cdp` subcommand, what it does, what to run
 next, and the flags worth knowing.
