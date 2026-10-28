@@ -106,7 +106,22 @@ def _empty(kind: str, term: Optional[str], result: Dict) -> bool:
 def annotate(store: Store, kind: str, term: Optional[str], result: Dict) -> Dict:
     if _empty(kind, term, result):
         result["not_found"] = {"term": term, "did_you_mean": did_you_mean(store, kind, term or "")}
+        if kind == "symbol":
+            note = wildcard_note(store)
+            if note:
+                result["not_found"]["note"] = note
     return result
+
+
+def wildcard_note(store: Store, limit: int = 3) -> Optional[str]:
+    """A name may be missing because a wildcard import supplies it: say so, naming the files whose
+    `wildcard:` signal marks an unsettled name (computed from the file signals, nothing stored)."""
+    files = sorted(rel for rel, info in (store.extraction.get("files") or {}).items()
+                   if any(str(s).startswith("wildcard:") for s in info.get("signals") or ()))
+    if not files:
+        return None
+    more = " (+%d more)" % (len(files) - limit) if len(files) > limit else ""
+    return "not found; may come from a wildcard import in: %s%s" % (", ".join(files[:limit]), more)
 
 
 def describe(result: Dict) -> Optional[str]:
@@ -114,5 +129,6 @@ def describe(result: Dict) -> Optional[str]:
     if not nf:
         return None
     near = nf["did_you_mean"]
-    return "not found: %r%s" % (nf["term"], "; did you mean: " + ", ".join(near) if near
-                                else "; no close names (try `query search`, and check `query coverage`)")
+    line = "not found: %r%s" % (nf["term"], "; did you mean: " + ", ".join(near) if near
+                                 else "; no close names (try `query search`, and check `query coverage`)")
+    return line + ("\nnote: " + nf["note"] if nf.get("note") else "")
