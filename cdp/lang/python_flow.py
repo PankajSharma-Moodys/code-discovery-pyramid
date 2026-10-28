@@ -110,6 +110,43 @@ class Scope:
         self.returns: List[Optional[Ex]] = []
         self.has_yield = False
         self.first: Optional[str] = None
+        self.comp = False           # comprehension scope: a walrus inside binds in the enclosing scope
+
+
+def pattern_names(pat) -> List[str]:
+    """Names a `match` pattern captures (MatchAs / MatchStar / MatchMapping rest)."""
+    out: List[str] = []
+    for n in ast.walk(pat):
+        nm = getattr(n, "name", None) if type(n).__name__ in ("MatchAs", "MatchStar") else \
+            getattr(n, "rest", None) if type(n).__name__ == "MatchMapping" else None
+        if nm:
+            out.append(nm)
+    return out
+
+
+def hidden_binds(tree) -> List[str]:
+    """Module-bound names that `module_scan`'s statement walk misses: `with ... as x`, `except ... as e`,
+    walrus targets, `match` captures (outside defs/classes/lambdas), and `global x` declared in any function."""
+    out: List[str] = []
+
+    def walk(n, top: bool) -> None:
+        for c in ast.iter_child_nodes(n):
+            if isinstance(c, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                for g in ast.walk(c):
+                    if isinstance(g, ast.Global):
+                        out.extend(g.names)
+                continue
+            if isinstance(c, ast.withitem) and c.optional_vars is not None:
+                out.extend(target_names(c.optional_vars))
+            elif isinstance(c, ast.ExceptHandler) and c.name:
+                out.append(c.name)
+            elif isinstance(c, ast.NamedExpr) and isinstance(c.target, ast.Name):
+                out.append(c.target.id)
+            elif type(c).__name__ == "match_case":
+                out.extend(pattern_names(c.pattern))
+            walk(c, False)
+    walk(tree, True)
+    return out
 
 
 class Flow:
@@ -329,6 +366,8 @@ class Flow:
                     self.bind_module(name, ex)
                 if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
                     self.star_import(node)
+        for n in hidden_binds(self.tree):
+            self.bind_module(n, None)
         self.dunder_all()
 
     def star_import(self, node: ast.ImportFrom) -> None:
@@ -472,6 +511,14 @@ class Flow:
             self.body(node.finalbody)
         elif isinstance(node, ast.Global) or isinstance(node, ast.Nonlocal):
             pass
+        elif type(node).__name__ == "Match":
+            self.expr(node.subject)
+            for case in node.cases:
+                for n in pattern_names(case.pattern):
+                    self.scope().vars[n] = None
+                if case.guard is not None:
+                    self.expr(case.guard)
+                self.body(case.body)
         elif isinstance(node, ast.If):
             self.expr(node.test)
             sc = self.scope()
@@ -828,6 +875,7 @@ class Flow:
         elif isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
             self.expr(node.generators[0].iter)
             sc = Scope("func", self.scope().owner, cls=self.scope().cls)
+            sc.comp = True
             self.stack.append(sc)
             for i, g in enumerate(node.generators):
                 if i:
@@ -844,7 +892,8 @@ class Flow:
             self.expr(node.value)
             ex = self.ex_of(node.value)
             if isinstance(node.target, ast.Name):
-                self.scope().vars[node.target.id] = ex
+                tsc = next((x for x in reversed(self.stack) if not x.comp), self.scope())
+                tsc.vars[node.target.id] = ex
         elif isinstance(node, (ast.Yield, ast.YieldFrom)):
             self.scope().has_yield = True
             self.expr(getattr(node, "value", None))
