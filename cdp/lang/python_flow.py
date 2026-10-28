@@ -514,6 +514,15 @@ class Flow:
         elif type(node).__name__ == "Match":
             self.expr(node.subject)
             for case in node.cases:
+                for pn in ast.walk(case.pattern):       # `case Color.RED`, `case Point()`, `case {K: v}` read names
+                    kind = type(pn).__name__
+                    if kind == "MatchValue":
+                        self.expr(pn.value)
+                    elif kind == "MatchClass":
+                        self.expr(pn.cls)
+                    elif kind == "MatchMapping":
+                        for k in pn.keys:
+                            self.expr(k)
                 for n in pattern_names(case.pattern):
                     self.scope().vars[n] = None
                 if case.guard is not None:

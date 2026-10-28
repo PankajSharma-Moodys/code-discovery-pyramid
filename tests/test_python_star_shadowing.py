@@ -28,6 +28,8 @@ FILES = {
     "pkg/f_as.py": S + "def go(v):\n    match v:\n        case int() as helper:\n            helper()\n",
     "pkg/f_star.py": S + "def go(v):\n    match v:\n        case [1, *helper]:\n            helper()\n",
     "pkg/f_map.py": S + "def go(v):\n    match v:\n        case {'a': 1, **helper}:\n            helper()\n",
+    # a value / class pattern READS the name (it is not a capture)
+    "pkg/f_val.py": S + "def go(v):\n    match v:\n        case Plugin.x:\n            pass\n        case helper():\n            pass\n",
     # (d) global declared in a function
     "pkg/glob.py": S + "def setup():\n    global helper\n    helper = 1\n\ndef go():\n    helper()\n",
     # comprehension / genexp / lambda variables shadow only inside the expression
@@ -70,6 +72,11 @@ class StarShadowingTest(unittest.TestCase):
     def test_match_captures_in_functions(self):
         for n in ("f_as", "f_star", "f_map"):
             self.shadowed(n)
+
+    def test_match_value_and_class_patterns_still_resolve(self):
+        rows = [r for r in self.rows if r["from_file"] == "pkg/f_val.py"]
+        self.assertTrue(any(r["fqn"].endswith("pkg.base.Plugin") for r in rows), rows)
+        self.assertTrue(any(r["fqn"].endswith("pkg.base#helper") for r in rows), rows)
 
     def test_global_declared_in_function(self):
         self.shadowed("glob")
