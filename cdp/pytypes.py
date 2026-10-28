@@ -42,9 +42,18 @@ class PyIndex(TypeIndex):
         self.alias = _import_aliases(self.modules, extraction["files"], paths)
         self.exports: Dict[Tuple[str, str], Optional[str]] = {}
         bases: List[Dict] = []
+        self.stars: Dict[str, List[str]] = {}       # module -> the modules it `import *`s
+        self.dunder_all: Dict[str, Optional[Set[str]]] = {}     # module -> __all__ (None: not literal)
+        self._starring: Set[Tuple[str, str]] = set()
         for row in extraction["uses"]:
             kind = row.get("kind")
-            if kind == "pybind":
+            if kind == "pystar":
+                out = self.stars.setdefault(row["scope_package"], [])
+                if row["py"][2:] not in out:
+                    out.append(row["py"][2:])
+            elif kind == "pyall":
+                self.dunder_all[row["scope_package"]] = None if row["all"] is None else set(row["all"])
+            elif kind == "pybind":
                 key = (row["scope_package"], row["name"])
                 if key not in self.exports:
                     self.exports[key] = row["py"]
@@ -138,6 +147,8 @@ class PyIndex(TypeIndex):
         if tag == "M":
             m = self.mod_canon(ref)
             v = ("mod", m) if m else None
+        elif tag == "S":
+            v = ("star", ref)
         elif tag == "D":
             v = self.value_of(ref)
         elif tag == "P":
@@ -183,6 +194,8 @@ class PyIndex(TypeIndex):
             return self.pstep(inner, st) if inner else None
         if kind == "mod":
             return self.in_module(ref, name)
+        if kind == "star":
+            return self.star_member(ref, name)
         if kind in ("cls", "inst"):
             return self.member(ref, name)
         if kind == "super":
@@ -201,7 +214,38 @@ class PyIndex(TypeIndex):
         if bound is not None:
             return bound            # `from .render import render` shadows the submodule of that name
         sub = self.mod_canon(dotted)
-        return ("mod", sub) if sub else None
+        if sub:
+            return ("mod", sub)
+        return self.star_member(mod, name)
+
+    def star_member(self, mod: str, name: str) -> Optional[Val]:
+        """What `name` is in `mod` through its `from X import *` lines. Settled only when every
+        star source is a module of this repository, a source's `__all__` (else its public,
+        non-underscore names) admits the name, and exactly one source supplies it."""
+        sources = self.stars.get(mod)
+        if not sources or (mod, name) in self._starring:
+            return None
+        found: List[Val] = []
+        self._starring.add((mod, name))
+        try:
+            for src in sources:
+                real = self.mod_canon(src)
+                if real is None:
+                    return None                     # an outside module may define it, and the later import wins
+                if real in self.dunder_all:
+                    names = self.dunder_all[real]
+                    if names is None:
+                        return None
+                    if name not in names:
+                        continue
+                elif name.startswith("_"):
+                    continue
+                v = self.in_module(real, name)
+                if v is not None and v not in found:
+                    found.append(v)
+        finally:
+            self._starring.discard((mod, name))
+        return found[0] if len(found) == 1 else None
 
     def member(self, cls: str, name: str, skip_self: bool = False) -> Optional[Val]:
         for t in self.hierarchy(cls)[1 if skip_self else 0:]:
@@ -247,7 +291,7 @@ class PyIndex(TypeIndex):
         for row in rows:
             if "py" not in row:
                 yield row
-            elif row["kind"] != "pybind":
+            elif row["kind"] not in ("pybind", "pystar", "pyall"):
                 for fqn, kind in self.targets(row):
                     r = dict(row)
                     r["fqn"], r["kind"], r["pyres"] = fqn, kind, True

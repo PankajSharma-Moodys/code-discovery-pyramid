@@ -116,6 +116,7 @@ class Flow:
     def __init__(self, ctx: ExtractContext, facts: FileFacts, tree: ast.Module, mod: str, pkg: str) -> None:
         self.ctx, self.facts, self.tree, self.mod, self.pkg = ctx, facts, tree, mod, pkg
         self.mod_names: Dict[str, Optional[Ex]] = {}
+        self.stars: List[str] = []              # modules this one `import *`s (names it cannot see)
         self.mod_alts: Dict[str, List[Ex]] = {}     # a name bound two ways (`def f` / `from .x import f`)
         self.stack: List[Scope] = []
         self._anchors: Dict[int, Optional[Dict]] = {}
@@ -191,6 +192,8 @@ class Flow:
                 return sc.vars[name], False
         if name in self.mod_names:
             return self.mod_names[name], True
+        if self.stars:                          # not bound here: perhaps a `from X import *` name
+            return ("S:" + self.mod, ("." + name,)), True
         return None, False
 
     def cls_scope(self) -> Optional[Scope]:
@@ -324,6 +327,57 @@ class Flow:
             elif isinstance(node, (ast.Import, ast.ImportFrom)):
                 for name, ex in self.import_bindings(node):
                     self.bind_module(name, ex)
+                if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+                    self.star_import(node)
+        self.dunder_all()
+
+    def star_import(self, node: ast.ImportFrom) -> None:
+        """`from X import *`: X is recorded (a `pystar` row) so a name this module does not bind
+        can be looked up in X; an X outside the repository is recorded too, as a reason to settle nothing."""
+        base = abs_module(node.level, node.module or "", self.pkg)
+        if base is None:
+            base = "." * node.level + (node.module or "")
+        if base in self.stars:
+            return
+        self.stars.append(base)
+        a = self.anchor(node.lineno)
+        if a is not None:
+            row = mk_use("%s.*" % self.mod, a, False, "external")
+            row.update({"kind": "pystar", "py": "M:" + base, "from_symbol": self.mod})
+            self.facts.uses.append(row)
+
+    def dunder_all(self) -> None:
+        """A module-level `__all__` made only of string literals is the module's star-export list
+        (a `pyall` row); any other way of building it is recorded as unknown (`all` null)."""
+        names: Set[str] = set()
+        line, dynamic = 0, False
+
+        def literal(v) -> Optional[List[str]]:
+            if isinstance(v, (ast.List, ast.Tuple)) and all(
+                    isinstance(e, ast.Constant) and isinstance(e.value, str) for e in v.elts):
+                return [e.value for e in v.elts]
+            return None
+        for node in stmts(self.tree.body):
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                tg = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if not any(isinstance(t, ast.Name) and t.id == "__all__" for t in tg):
+                    continue
+                got = literal(node.value) if node.value is not None else None
+                line = line or node.lineno
+                if got is None:
+                    dynamic = True
+                else:
+                    names.update(got)
+            elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) \
+                    and isinstance(node.value.func, ast.Attribute) \
+                    and isinstance(node.value.func.value, ast.Name) and node.value.func.value.id == "__all__":
+                line, dynamic = line or node.lineno, True
+        a = self.anchor(line) if line else None
+        if a is not None:
+            row = mk_use("%s.__all__" % self.mod, a, False, "external")
+            row.update({"kind": "pyall", "py": "M:" + self.mod, "from_symbol": self.mod,
+                        "all": None if dynamic else sorted(names)})
+            self.facts.uses.append(row)
 
     def import_bindings(self, node) -> List[Tuple[str, Optional[Ex]]]:
         out: List[Tuple[str, Optional[Ex]]] = []
