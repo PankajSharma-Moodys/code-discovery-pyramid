@@ -254,6 +254,7 @@
       "modules": [
         "core"
       ],
+      "ret": "boolean",
       "sites": [
         {
           "anchor": {
@@ -289,6 +290,7 @@
       "modules": [
         "core"
       ],
+      "ret": "String",
       "sites": [
         {
           "anchor": {
@@ -328,6 +330,7 @@
     },
     "com.example.mini.core.Widget.id": {
       "fqn": "com.example.mini.core.Widget.id",
+      "ftype": "String",
       "kind": "field",
       "modules": [
         "core"
@@ -391,6 +394,7 @@
       "modules": [
         "core"
       ],
+      "ret": "Long",
       "sites": [
         {
           "anchor": {
@@ -408,6 +412,7 @@
     },
     "com.example.mini.core.WidgetEntity.displayName": {
       "fqn": "com.example.mini.core.WidgetEntity.displayName",
+      "ftype": "String",
       "kind": "field",
       "modules": [
         "core"
@@ -440,6 +445,7 @@
     },
     "com.example.mini.core.WidgetEntity.id": {
       "fqn": "com.example.mini.core.WidgetEntity.id",
+      "ftype": "Long",
       "kind": "field",
       "modules": [
         "core"
@@ -521,6 +527,7 @@
     },
     "com.example.mini.web.ApiPaths.HEALTH": {
       "fqn": "com.example.mini.web.ApiPaths.HEALTH",
+      "ftype": "String",
       "kind": "constant",
       "modules": [
         "web"
@@ -542,6 +549,7 @@
     },
     "com.example.mini.web.ApiPaths.WIDGETS": {
       "fqn": "com.example.mini.web.ApiPaths.WIDGETS",
+      "ftype": "String",
       "kind": "constant",
       "modules": [
         "web"
@@ -587,6 +595,7 @@
       "modules": [
         "web"
       ],
+      "ret": "<none>",
       "sites": [
         {
           "anchor": {

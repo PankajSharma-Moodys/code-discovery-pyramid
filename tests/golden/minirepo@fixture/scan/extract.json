@@ -86,6 +86,7 @@
           "type": "Object"
         }
       ],
+      "ret": "boolean",
       "visibility": "public"
     },
     {
@@ -99,6 +100,7 @@
       "fqn": "com.example.mini.core.Widget#getId",
       "kind": "method",
       "module": "core",
+      "ret": "String",
       "visibility": "public"
     },
     {
@@ -123,6 +125,7 @@
       },
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget.id",
+      "ftype": "String",
       "kind": "field",
       "module": "core",
       "visibility": "private"
@@ -169,6 +172,7 @@
       "fqn": "com.example.mini.core.WidgetEntity#getId",
       "kind": "method",
       "module": "core",
+      "ret": "Long",
       "visibility": "public"
     },
     {
@@ -191,6 +195,7 @@
       ],
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity.displayName",
+      "ftype": "String",
       "kind": "field",
       "module": "core",
       "visibility": "private"
@@ -212,6 +217,7 @@
       ],
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity.id",
+      "ftype": "Long",
       "kind": "field",
       "module": "core",
       "visibility": "private"
@@ -260,6 +266,7 @@
       },
       "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
       "fqn": "com.example.mini.web.ApiPaths.HEALTH",
+      "ftype": "String",
       "kind": "constant",
       "module": "web",
       "value": "/health",
@@ -273,6 +280,7 @@
       },
       "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
       "fqn": "com.example.mini.web.ApiPaths.WIDGETS",
+      "ftype": "String",
       "kind": "constant",
       "module": "web",
       "value": "/v1/widgets",
@@ -307,6 +315,7 @@
           "type": "String[]"
         }
       ],
+      "ret": "<none>",
       "visibility": "public"
     },
     {
