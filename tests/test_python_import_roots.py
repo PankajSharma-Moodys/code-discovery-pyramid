@@ -104,6 +104,12 @@ class AliasTest(unittest.TestCase):
         a = self.aliases("a/util/__init__.py", "b/util/__init__.py", "a/util/f.py")
         self.assertNotIn("util.f", a)
 
+    def test_stdlib_guard_uses_the_given_list(self):
+        paths = ["src/zlibx/__init__.py", "src/zlibx/x.py"]
+        mods = {"src.zlibx", "src.zlibx.x"}
+        self.assertIn("zlibx.x", _import_aliases(mods, {}, paths, frozenset()))
+        self.assertNotIn("zlibx.x", _import_aliases(mods, {}, paths, frozenset({"zlibx"})))
+
     def test_stdlib_top_level_never_aliased(self):
         a = self.aliases("src/json/__init__.py", "src/json/x.py")
         self.assertNotIn("json.x", a)

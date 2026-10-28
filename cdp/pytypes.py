@@ -20,10 +20,10 @@ at `src/pkg/mod.py`) are matched to the repository's real module path.
 from __future__ import annotations
 
 import os
-import sys
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 from .jtypes import TypeIndex
+from .lang.python_flow import STDLIB
 
 Val = Tuple[str, str]   # (mod|cls|inst|sym|var|super, fqn)
 PY_SUFFIXES = (".py", ".pyi")
@@ -259,10 +259,8 @@ def _module_of(path: str) -> str:
     return (stem[: -len("/__init__")] if stem.endswith("/__init__") else stem).replace("/", ".")
 
 
-_STDLIB = frozenset(getattr(sys, "stdlib_module_names", ()))
-
-
-def _import_aliases(modules: Set[str], files: Dict[str, Dict], paths: Iterable[str]) -> Dict[str, str]:
+def _import_aliases(modules: Set[str], files: Dict[str, Dict], paths: Iterable[str],
+                    stdlib: frozenset = STDLIB) -> Dict[str, str]:
     """Import-root module names -> real (path-based) module names, where they differ.
 
     A module is imported by its path below a `sys.path` entry (an import root), not below the
@@ -305,7 +303,7 @@ def _import_aliases(modules: Set[str], files: Dict[str, Dict], paths: Iterable[s
             alias = _module_of("/".join(parts[k:]))
             top = alias.split(".")[0]
             holders = regular.get(top, set())
-            if alias == real or top in _STDLIB or len(holders) > 1 or (holders and root not in holders):
+            if alias == real or top in stdlib or len(holders) > 1 or (holders and root not in holders):
                 continue
             claims.setdefault(alias, set()).add(real)
     return {a: next(iter(r)) for a, r in claims.items() if len(r) == 1 and a not in modules}
