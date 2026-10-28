@@ -75,11 +75,11 @@ class StarShadowingTest(unittest.TestCase):
         self.shadowed("glob")
 
     def test_comprehension_genexp_lambda_do_not_leak(self):
-        # inside: shadowed; the trailing `helper()` (line 5 / 4 / 4) is outside and still the star name
-        self.assertTrue(self.hits("comp", 4))
-        self.assertFalse(self.hits("comp", 3))
-        self.assertTrue(self.hits("gen", 4))
-        self.assertFalse(self.hits("gen", 3))
+        # inside: shadowed; the trailing `helper()` (line 5) is outside and still the star name
+        self.assertTrue(self.hits("comp", 5))
+        self.assertFalse(self.hits("comp", 4))
+        self.assertTrue(self.hits("gen", 5))
+        self.assertFalse(self.hits("gen", 4))
         self.assertTrue(self.hits("lam", 5))
         self.assertFalse(self.hits("lam", 4))
 
