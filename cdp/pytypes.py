@@ -23,6 +23,7 @@ import os
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
 from .jtypes import TypeIndex
+from .lang.python_flow import STDLIB
 
 Val = Tuple[str, str]   # (mod|cls|inst|sym|var|super, fqn)
 PY_SUFFIXES = (".py", ".pyi")
@@ -72,6 +73,22 @@ class PyIndex(TypeIndex):
         if name in self.modules:
             return name
         return self.alias.get(name)
+
+    def canon_dotted(self, name: str) -> Optional[str]:
+        """A dotted module-level import name written against an import root, as the repo's own
+        module name (`pkg.models.x` -> `src.pkg.models.x`); None when it needs no
+        aliasing or names no aliased module. Single names are never aliased."""
+        parts = name.split(".")
+        if len(parts) < 2:
+            return None
+        for i in range(len(parts), 0, -1):
+            head = ".".join(parts[:i])
+            if head in self.modules:
+                return None
+            real = self.alias.get(head)
+            if real:
+                return ".".join([real] + parts[i:])
+        return None
 
     def is_py(self, owner: str) -> bool:
         if owner not in self._py:
@@ -242,25 +259,51 @@ def _module_of(path: str) -> str:
     return (stem[: -len("/__init__")] if stem.endswith("/__init__") else stem).replace("/", ".")
 
 
-def _import_aliases(modules: Set[str], files: Dict[str, Dict], paths: Iterable[str]) -> Dict[str, str]:
-    """`import root` module names -> real (path-based) module names, where they differ:
-    `src/pkg/mod.py` is imported as `pkg.mod`; `tests/helpers.py` (not in a package) as
-    `helpers`. An alias two modules claim is dropped."""
+def _import_aliases(modules: Set[str], files: Dict[str, Dict], paths: Iterable[str],
+                    stdlib: frozenset = STDLIB) -> Dict[str, str]:
+    """Import-root module names -> real (path-based) module names, where they differ.
+
+    A module is imported by its path below a `sys.path` entry (an import root), not below the
+    repo root: `src/pkg/mod.py` is `pkg.mod`, `tests/helpers.py` is `helpers`. Roots are inferred
+    from the inventory: every directory that is not inside a regular package (no `__init__.py`
+    on it or above it). Below a root, a directory without `__init__.py` is a PEP 420 namespace
+    portion and still part of the dotted name (also inside a regular package). Per top-level
+    name, a regular package or module wins over namespace portions (importlib's finder order,
+    PEP 420); two regular claims in different roots are ambiguous and settle nothing. An alias
+    two modules claim, or one naming a standard-library top-level module, is dropped."""
     py = [p for p in paths if p.endswith(".py")]
-    inits = {os.path.dirname(p) for p in py if os.path.basename(p) == "__init__.py"}
+    pkgdirs = {os.path.dirname(p) for p in py if os.path.basename(p) == "__init__.py"}
+    inside: Dict[str, bool] = {"": False}
+
+    def in_pkg(d: str) -> bool:
+        if d not in inside:
+            inside[d] = d in pkgdirs or in_pkg(os.path.dirname(d))
+        return inside[d]
+
+    regular: Dict[str, Set[str]] = {}       # top-level name -> roots holding it as package/module
+    for p in py:
+        parts = p.split("/")
+        for k in range(len(parts)):
+            if in_pkg("/".join(parts[:k])):
+                break
+            if k == len(parts) - 1:
+                regular.setdefault(parts[k][:-3], set()).add("/".join(parts[:k]))
+            elif "/".join(parts[:k + 1]) in pkgdirs:
+                regular.setdefault(parts[k], set()).add("/".join(parts[:k]))
     claims: Dict[str, Set[str]] = {}
     for p in py:
         real = _module_of(p)
-        d = os.path.dirname(p)
-        top = None
-        while d and d in inits:
-            top = d
-            d = os.path.dirname(d)
-        base = os.path.basename(p)[:-3]
-        if top is None:
-            alias = base
-        else:
-            alias = _module_of(p[len(os.path.dirname(top)) + 1:] if os.path.dirname(top) else p)
-        if alias != real and real in modules:
+        if real not in modules:
+            continue
+        parts = p.split("/")
+        for k in range(1, len(parts)):
+            root = "/".join(parts[:k])
+            if in_pkg(root):
+                break
+            alias = _module_of("/".join(parts[k:]))
+            top = alias.split(".")[0]
+            holders = regular.get(top, set())
+            if alias == real or top in stdlib or len(holders) > 1 or (holders and root not in holders):
+                continue
             claims.setdefault(alias, set()).add(real)
     return {a: next(iter(r)) for a, r in claims.items() if len(r) == 1 and a not in modules}
