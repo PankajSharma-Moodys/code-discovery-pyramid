@@ -144,9 +144,26 @@ for _n, _src, _want in [
 ]:
     CASES.append((_n, "g1", _src, _want))
 
+def jmembers(src):
+    scan = sc.Scan("java", ".java", src.strip("\n").split("\n"))
+    return [(m["name"], m["ret"], m["ctor"]) for m in scan.members if m["cat"] == "method"]
+
+
+for _n, _src, _want in [
+    ("g2 java public constructor is a ctor, not return type public",
+     "public class A {\n  public A(int x) { }\n  private A() { }\n  public void run() { }\n}",
+     [("A", None, True), ("A", None, True), ("run", "void", False)]),
+    ("g2 java modified method keeps its return type",
+     "class A {\n  public static final int f(int x) { return x; }\n}", [("f", "int", False)]),
+]:
+    CASES.append((_n, "g2", _src, _want))
+
 fails = 0
 for case in CASES:
-    if case[1] == "g1":
+    if case[1] == "g2":
+        name, _, src, want = case
+        got = jmembers(src)
+    elif case[1] == "g1":
         name, _, src, want = case
         got = g1(src)
     elif case[1] == "d5":

@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .lang.java_types import JAVA_LANG, is_jdk, jdk_step, split_type
+from .lang.java_types import JAVA_LANG, NO_RETURN, PRIMS, is_jdk, jdk_step, split_type
 
 GUESS_PREFIX = "guess:"   # file signal set by lang/java.py: a name qualified by guess
 LANG_PREFIX = "java.lang."
@@ -77,8 +77,13 @@ class TypeIndex:
 
     def canon(self, type_str: str, file: str) -> str:
         """Replace each name in a type string by the repository class it denotes."""
+        if type_str == NO_RETURN:
+            return type_str
+
         def fix(m: "re.Match[str]") -> str:
             name = m.group(0)
+            if name in PRIMS:
+                return name         # a primitive or `void` names no class
             return self.class_for(name, (), file) or name
         return NAME_RE.sub(fix, type_str)
 
@@ -146,8 +151,8 @@ class TypeIndex:
 
     def step(self, type_str: str, step: str) -> Optional[str]:
         base, args, _ = split_type(type_str)
-        if not base or base.startswith("~"):
-            return None
+        if not base or base.startswith("~") or base == NO_RETURN or base in PRIMS:
+            return None     # terminal: nothing to chain on
         cls = base if self.is_class(base) else None
         if cls is None:
             return jdk_step(type_str, step) if is_jdk(base) else None

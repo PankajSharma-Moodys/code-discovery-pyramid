@@ -142,6 +142,9 @@ CS_MODS = (r"(?:(?:public|protected|private|internal|static|readonly|const|abstr
            r"extern|new|unsafe|volatile|required|file|ref)\s+)*")
 SC_MODS = r"(?:(?:private|protected|override|final|implicit|lazy|abstract|sealed|inline|transparent|open|opaque|infix)(?:\[[^\]]*\])?\s+)*"
 TS_MODS = r"(?:(?:public|private|protected|static|async|abstract|override|readonly|declare|get|set|accessor)\s+)*"
+# `public Foo(` backtracks J_MODS to match modifier `public` as the return type; a modifier is no type (JLS 8.4.3, 8.8.3)
+JAVA_MODIFIERS = {"public", "protected", "private", "static", "final", "abstract", "synchronized", "native", "default",
+                  "strictfp", "transient", "volatile", "sealed", "non-sealed"}
 KEYWORD_TYPES = {"return", "new", "throw", "else", "case", "assert", "yield", "goto", "import", "package", "break",
                  "continue", "do", "throws", "extends", "implements", "await", "using", "var", "if", "for", "while", "switch", "try", "catch", "lock", "typeof"}
 
@@ -482,7 +485,7 @@ class Scan:
 
     def _java_member(self, i, rest):
         m = JAVA_METHOD.match(rest)
-        if m and m.group("type") not in KEYWORD_TYPES:
+        if m and m.group("type") not in KEYWORD_TYPES and m.group("type") not in JAVA_MODIFIERS:
             n, params, after = self._params_after(i, rest, m)
             return {"cat": "method", "name": m.group("name"), "np": n, "params": params, "ret": m.group("type"), "ctor": False}
         m = re.match(r"^" + J_MODS + r"(?P<name>" + ID + r")\s*\(", rest)

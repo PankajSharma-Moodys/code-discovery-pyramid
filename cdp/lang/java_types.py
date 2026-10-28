@@ -171,6 +171,8 @@ def norm_type(text: str, resolve, tvars=frozenset()) -> str:
     return parse()
 
 
+NO_RETURN = "<none>"   # `ret` of a `void` method: not an identifier, so it names no class
+
 PRIMS = frozenset(["int", "long", "double", "float", "boolean", "byte", "short", "char", "void"])
 
 

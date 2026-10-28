@@ -28,7 +28,7 @@ from .. import sigs
 from .java_decl import DeclParser, JMember, JType, join_tokens, skip_annotation
 from .java_flow import emit_flow, use_row
 from .java_tokens import Tokens
-from .java_types import norm_type, resolve_name
+from .java_types import NO_RETURN, norm_type, resolve_name
 from .base import (
     ExtractContext,
     Extractor,
@@ -235,10 +235,13 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
     consts: Dict[str, Dict[str, Optional[str]]] = {}
 
     def typed(row: Dict, text: str, tvars) -> Dict:
+        key = "ret" if row["kind"] == "method" else "ftype"
+        if key == "ret" and text.strip() == "void":
+            row[key] = NO_RETURN          # JLS 8.4.5: `void` is no type; a sentinel, never a name
+            return row
         norm = norm_type(text, lambda n: resolve_name(resolver, n), tvars)
-        if norm and norm not in JAVA_BUILTINS and norm not in ("void", "int", "long", "double", "float",
-                                                                 "boolean", "byte", "short", "char"):
-            row["ret" if row["kind"] == "method" else "ftype"] = norm
+        if norm:
+            row[key] = norm
         return row
 
     for jt in types:
