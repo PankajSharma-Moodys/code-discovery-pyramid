@@ -205,9 +205,10 @@ class Flow:
         self.facts.defines.append(row)
         return row
 
-    def note_ftype(self, fqn: str, ex: Optional[Ex], value=None) -> None:
-        """The type of a field or constant: every assignment must agree, or it is unknown."""
-        if value is not None and _is_none(value):
+    def note_ftype(self, fqn: str, ex: Optional[Ex], value=None, annotated: bool = False) -> None:
+        """The type of a field or constant: every assignment must agree, or it is unknown.
+        A bare `= None` says nothing about the type; `x: T = None` still declares T."""
+        if not annotated and value is not None and _is_none(value):
             return
         s = ex_str(ex) if ex else None
         if fqn not in self.ftypes:
@@ -627,7 +628,7 @@ class Flow:
             fqn = self.mod + "." + name
             self.define(fqn, "constant", visibility(name), node,
                         value=literal(value) if value is not None else None)
-            self.note_ftype(fqn, ex, value)
+            self.note_ftype(fqn, ex, value, annotated)
         anchor = self.anchor(node.lineno)
         if ex is not None and anchor is not None:
             row = mk_use("%s.%s" % (self.mod, name), anchor, False, "external")
@@ -639,7 +640,7 @@ class Flow:
         fqn = owner + "." + name
         self.define(fqn, "constant" if name.isupper() else "field", visibility(name), node,
                     value=literal(value) if value is not None and name.isupper() else None)
-        self.note_ftype(fqn, ex, value)
+        self.note_ftype(fqn, ex, value, annotated)
 
     def self_binding(self, name: str) -> Optional[str]:
         """The class fqn when `name` is the first parameter of an enclosing method."""
@@ -660,7 +661,7 @@ class Flow:
             return
         fqn = cls + "." + target.attr
         self.define(fqn, "field", visibility(target.attr), node, line=target.lineno)
-        self.note_ftype(fqn, ex, getattr(node, "value", None))
+        self.note_ftype(fqn, ex, getattr(node, "value", None), annotated)
 
     # ----------------------------------------------------------- imports
     def imp(self, node) -> None:

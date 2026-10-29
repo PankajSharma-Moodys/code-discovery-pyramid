@@ -158,9 +158,21 @@ for _n, _src, _want in [
 ]:
     CASES.append((_n, "g2", _src, _want))
 
+# python: text inside prefixed (f/r/b/fr/rb) triple-quoted strings is not a member
+for _n, _src, _want in [
+    ("py f-triple-quoted string is blanked", 'X = f"""a\n  image: python:3\n"""\nclass C:\n    y: int = 1\n', ["y"]),
+    ("py fr-triple-quoted string is blanked", "X = fr\'\'\'a\n  image: python:3\n\'\'\'\nclass C:\n    y: int = 1\n", ["y"]),
+    ("py plain prefixed single-line string", 'X = f"a: b"\nclass C:\n    y: int = 1\n', ["y"]),
+]:
+    CASES.append((_n, "pyf", _src, _want))
+
 fails = 0
 for case in CASES:
-    if case[1] == "g2":
+    if case[1] == "pyf":
+        name, _, src, want = case
+        sn = sc.Scan("python", ".py", src.split("\n"))
+        got = [m["name"] for m in sn.members if m["cat"] == "field" and m.get("ftype")]
+    elif case[1] == "g2":
         name, _, src, want = case
         got = jmembers(src)
     elif case[1] == "g1":

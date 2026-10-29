@@ -103,7 +103,13 @@ def blank(text: str, lang: str) -> str:
         elif cs and c == "$" and text[i + 1:i + 2] == '"':
             i += 1
             c = '"'
-        elif (scala or py) and c in "sfrbuSFRBU" and text[i + 1:i + 2] in ('"', "'") and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")):
+        elif py and c in "frbuFRBU" and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")) \
+                and re.match(r"[frbuFRBU]{1,2}[\"']", text[i:i + 3]):
+            i += 2 if text[i + 1] in "frbuFRBU" else 1      # PEP 3101/498 prefixes: f, r, b, u, fr, rb ...
+            if text[i:i + 3] in ('"""', "'''"):               # prefixed triple-quoted string
+                continue
+            c = text[i]
+        elif scala and c in "sfrbuSFRBU" and text[i + 1:i + 2] in ('"', "'") and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")):
             i += 1
             c = text[i]
         if c == '"' or (c == "'" and (py or js)) or (c == "`" and js):
