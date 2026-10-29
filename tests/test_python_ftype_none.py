@@ -54,6 +54,14 @@ class FtypeNone(unittest.TestCase):
         f = ft("class C:\n    a: int = None\n")     # X11d2: tag-less name, never `NoneType`
         self.assertEqual(f["C.a"], "int")
 
+    def test_annotation_wins_over_unannotated_rebinds(self):
+        f = ft("class C:\n    a: str = f(1)\n    if a:\n        a = str(2)\n        a = [x for x in y]\n"
+               "    b: str = 'x'\n    b: int = 1\n    c = 1\n    c: str = 'x'\n    d = 1\n    d = 'x'\n")
+        self.assertEqual(f["C.a"], "str")
+        self.assertIsNone(f.get("C.b"))
+        self.assertEqual(f["C.c"], "str")
+        self.assertIsNone(f.get("C.d"))
+
 
 if __name__ == "__main__":
     unittest.main()

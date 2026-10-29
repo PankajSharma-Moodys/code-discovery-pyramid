@@ -164,6 +164,7 @@ class Flow:
         self.defined: Dict[str, Dict] = {}          # fqn -> define row (deduplicated)
         self.ftypes: Dict[str, Optional[str]] = {}
         self.bare_ann: Optional[str] = None
+        self.pinned: set = set()  # fqns whose type a PEP 526 annotation declared
         self.lines = ctx.lines
 
     # ------------------------------------------------------------ plumbing
@@ -215,6 +216,12 @@ class Flow:
         if not annotated and value is not None and _is_none(value):
             return
         s = self.bare_ann if annotated and self.bare_ann else (ex_str(ex) if ex else None)
+        if fqn in self.pinned and not annotated:
+            return  # the declared type wins over later unannotated rebinds
+        if annotated and fqn not in self.pinned:
+            self.pinned.add(fqn)
+            self.ftypes[fqn] = s  # first annotation overrides earlier unannotated guesses
+            return
         if fqn not in self.ftypes:
             self.ftypes[fqn] = s
         elif self.ftypes[fqn] != s:
