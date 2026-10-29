@@ -21,6 +21,23 @@ def present(src):
     return out
 
 
+def pyprops(src):
+    """{name: 'prop' | 'ret=<r>' | 'noret'} for Python class-level defs."""
+    scan = sc.Scan("python", ".py", src.strip("\n").split("\n"))
+    return {m["name"]: ("prop" if m.get("prop") else ("ret=" + m["ret"] if m["ret"] else "noret"))
+            for m in scan.members if m["cat"] == "method"}
+
+
+PYP = [
+    ("py @property", "class C:\n    @property\n    def x(self) -> str:\n        return ''", {"x": "prop"}),
+    ("py setter/getter/deleter", "class C:\n    @x.setter\n    def x(self, v) -> None:\n        pass\n    @x.getter\n    def y(self) -> int:\n        pass\n    @x.deleter\n    def z(self) -> int:\n        pass", {"x": "prop", "y": "prop", "z": "prop"}),
+    ("py cached_property forms", "class C:\n    @functools.cached_property\n    def a(self) -> int:\n        pass\n    @cached_property\n    def b(self) -> int:\n        pass", {"a": "prop", "b": "prop"}),
+    ("py stacked + comment + blank between", "class C:\n    @property\n    # note\n\n    @other(1)\n    def x(self) -> str:\n        pass", {"x": "prop"}),
+    ("py property without annotation", "class C:\n    @property\n    def x(self):\n        pass", {"x": "prop"}),
+    ("py plain method scored", "class C:\n    def m(self) -> str:\n        pass", {"m": "ret=str"}),
+    ("py classmethod/staticmethod scored", "class C:\n    @classmethod\n    def a(cls) -> int:\n        pass\n    @staticmethod\n    def b() -> int:\n        pass", {"a": "ret=int", "b": "ret=int"}),
+    ("py property flag does not leak", "class C:\n    @property\n    def x(self) -> str:\n        pass\n    def m(self) -> str:\n        pass", {"x": "prop", "m": "ret=str"}),
+]
 CASES = [
     ("same-line property attributes",
      "class C {\n  [A] [B(1)] public int P { get; set; }\n  public override string ToString() { return \"\"; }\n}",
@@ -195,6 +212,7 @@ for _n, _src, _want in [
     CASES.append((_n, "g2cs", _src, _want))
 
 fails = 0
+CASES += [(n, "pyp", s, w) for n, s, w in PYP]
 for case in CASES:
     if case[1] == "pyf":
         name, _, src, want = case
@@ -206,6 +224,9 @@ for case in CASES:
     elif case[1] == "g2cs":
         name, _, src, want = case
         got = csmembers(src)
+    elif case[1] == "pyp":
+        name, _, src, want = case
+        got = pyprops(src)
     elif case[1] == "g2":
         name, _, src, want = case
         got = jmembers(src)

@@ -82,6 +82,7 @@ Budget: ≤ 200 lines. Audience: agents doing the scoring. Read all of it before
 **G2 Return type.**
 - Present: the method declares a return type. Python counts only with `->`; TS only with `): Type`; JS is N/A.
 - Emitted: the define has `ret` (string). A `void` return is the sentinel `<none>` (owner decision 2026-10-28); primitives and builtins such as `String` are emitted as written. Constructors have no return type and are not counted. C#: `string`, `int`, `bool` and other predefined types are emitted as written; nullable `T?` is emitted as `T`; destructors and operators are not counted.
+- Not scored: C# properties (never members) and Python properties (`@property`, `@x.setter/.getter/.deleter`, `@[functools.]cached_property`); the extractor emits `ftype` for them, so they are excluded from G2 and G3 and only counted in `csharp_properties_present_not_scored` / `python_properties_present_not_scored`.
 - Applies to: Java, C#, Scala, Python, TS.
 
 **G3 Field type.**

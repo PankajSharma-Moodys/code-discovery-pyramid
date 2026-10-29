@@ -178,6 +178,8 @@ TS_FIELD = re.compile(r"^" + TS_MODS + r"(?P<name>[#\w$]+)[?!]?\s*(?P<t>:\s*[^=;
 TS_FUNC = re.compile(r"^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*(?P<name>[\w$]+)\s*(?:<[^>()]*>)?\(")
 TS_CONST = re.compile(r"^(?:export\s+)?(?:default\s+)?(?:const|let|var)\s+(?P<name>[\w$]+)\s*(?P<t>:[^=]+)?=\s*(?P<rhs>.*)")
 TS_ARROW = re.compile(r"^(?:async\s+)?(?:\([^)]*\)|[\w$]+)\s*(?::[^=]*)?=>|^(?:async\s+)?function\b")
+# property forms (Python data model / functools docs): @property, @x.setter/.getter/.deleter, [functools.]cached_property
+PY_PROP_DEC = re.compile(r"^@\s*(?:property|(?:functools\s*\.\s*)?cached_property|\w+\s*\.\s*(?:setter|getter|deleter))\s*(?:#.*)?$")
 PY_DEF = re.compile(r"^(?:async\s+)?def\s+(?P<name>\w+)\s*\(")
 PY_ASSIGN = re.compile(r"^(?P<name>[A-Za-z_]\w*)\s*(?P<t>:\s*[^=]+?)?\s*(?:=(?!=)|$)")
 CS_USING = re.compile(r"^\s*(?:global\s+)?using\s+(?:static\s+)?(?!var\b)(?:\w+\s*=\s*)?[\w.<>,\s?\[\]]+;")
@@ -636,6 +638,7 @@ class Scan:
         stack = []  # (indent, kind)
         pdepth = 0
         pend_ann = None
+        pend_prop = False
         for i, code in enumerate(self.code):
             p0 = pdepth
             for ch in code:
@@ -653,6 +656,7 @@ class Scan:
             if re.match(r"(?:import\s+\w|from\s+[\w.]+\s+import\s)", s):
                 self.imports.append(i + 1)
             if s.startswith("@"):
+                pend_prop = pend_prop or bool(PY_PROP_DEC.match(s))
                 pend_ann = (pend_ann[0] + 1 if pend_ann else 1, pend_ann[1] if pend_ann else i)
                 continue
             item = None
@@ -670,6 +674,10 @@ class Scan:
                         item = {"cat": "method", "name": m.group("name"), "np": n, "params": params,
                                 "ret": rm.group("r").strip() if rm else None, "ctor": False, "line": i + 1,
                                 "func": inner is None, "ann": 0}
+                        if pend_prop and inner == "class":
+                            # property: extractor emits ftype, not ret; excluded from G2/G3, counted as a diagnostic
+                            item["prop"] = True
+                            item["ret"] = None
                         self.members.append(item)
                     stack.append((indent, "def"))
                 elif inner in (None, "class"):
@@ -686,6 +694,7 @@ class Scan:
                 item["ann_line"] = pend_ann[1] + 1
             if item is not None or (not s.startswith("@")):
                 pend_ann = None
+                pend_prop = False
         self._regions()
 
     def _regions(self):
@@ -901,6 +910,8 @@ def score_code_facts(ctx, sc: Score):
         if lang == "csharp":
             sc.cell("S2", lang).extra["csharp_properties_present_not_scored"] += len(scan.props)
             sc.cell("S2", lang).extra["csharp_properties_with_define_at_line"] += sum(1 for pr in scan.props if at(pr["line"], lambda d: d["kind"] in ("field", "constant", "method")))
+        if lang == "python":
+            sc.cell("S2", lang).extra["python_properties_present_not_scored"] += sum(1 for m in scan.members if m.get("prop"))
         # G1 / G2 / G3
         for m in scan.members:
             w = loc_of(rel, m["line"], ctx)
@@ -1807,7 +1818,7 @@ READING = """
 ## Reading decisions where the spec was silent
 
 - G2 counts `void` as a declared return type (counts split in scorecard.json: `void_present`, `void_emitted`).
-- C# properties are not counted as fields in S2/G3 (spec lists method, function, field, constant); their counts are in scorecard.json (`csharp_properties_present_not_scored`, `csharp_properties_with_define_at_line`). Enum constants and Scala constructor parameters are likewise not counted.
+- C# properties are not counted as fields in S2/G3 (spec lists method, function, field, constant); their counts are in scorecard.json (`csharp_properties_present_not_scored`, `csharp_properties_with_define_at_line`). Python properties (`@property`, `@x.setter/getter/deleter`, `[functools.]cached_property`) stay S2/G1/M1 members but are excluded from G2 (extractor emits `ftype`, not `ret`); count in `python_properties_present_not_scored`. Enum constants and Scala constructor parameters are likewise not counted.
 - S3/S4/G4 take "every define" literally: all define kinds in production files, including C# `table` defines.
 - F rows: each cell is that language's share of the framework; the per-framework table gives the framework totals. JVM-library markers (Spring, JPA, Quartz, Dropwizard Jobs, Typesafe, Swagger) are applied to Java and Scala alike. A class-level `@RequestMapping` is not counted (it is a prefix, not a route). C# `.GetAsync`-style calls count only in files that mention `HttpClient`; JAX-RS `.target(` only in files mentioning `WebTarget`/`ws.rs.client`; C# `GetSection/GetValue/[]` only in files mentioning `IConfiguration`.
 - H1 is attributed to files by re-running `extract_file` on production files because the scan keeps notes per module only; H2 is one pooled number per repo (time is not split by language), repeated in each column.
