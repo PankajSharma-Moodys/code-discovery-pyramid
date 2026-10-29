@@ -65,12 +65,116 @@ def visibility_of(mods: Set[str], qual: Optional[str]) -> str:
     return "public"
 
 
+_OPEN, _CLOSE = "([{", ")]}"
+
+
+def _top_split(t: str, sep: str) -> List[str]:
+    """Split `t` on `sep` characters that sit outside every bracket pair."""
+    out, depth, last = [], 0, 0
+    for i, c in enumerate(t):
+        if c in _OPEN:
+            depth += 1
+        elif c in _CLOSE:
+            depth -= 1
+        elif c == sep and depth == 0:
+            out.append(t[last:i])
+            last = i + 1
+    out.append(t[last:])
+    return out
+
+
+def _top_arrow(t: str) -> Tuple[int, bool]:
+    """Index of the first `=>` / `?=>` outside brackets (not `=>>`, the type-lambda arrow), and
+    whether it is the context-function form; -1 when there is none."""
+    depth = 0
+    for i, c in enumerate(t):
+        if c in _OPEN:
+            depth += 1
+        elif c in _CLOSE:
+            depth -= 1
+        elif depth == 0 and c == "=" and t[i + 1:i + 2] == ">":
+            if t[i + 2:i + 3] == ">":
+                return -1, False
+            if i and t[i - 1] == "?":
+                return i - 1, True
+            return i, False
+    return -1, False
+
+
+def _fn_types(t: str) -> str:
+    """Rewrite function types to the classes they denote (SLS 3.2.10, Scala 3 reference "Context
+    Functions" / "Dependent Function Types" / "Polymorphic Function Types"), in Scala bracket syntax:
+    `A => B` -> `Function1[A,B]`, `(A, B) => C` -> `Function2[A,B,C]`, `() => A` -> `Function0[A]`,
+    `A => B => C` -> `Function1[A,Function1[B,C]]` (right-associative), `(x: A) => B` -> `Function1[A,B]`,
+    `A ?=> B` -> `ContextFunction1[A,B]`, `[T] => T => T` -> `PolyFunction`, by-name `=> A` -> `A`.
+    Function types nested in type arguments and parentheses are rewritten too."""
+    t = t.strip()
+    k, ctx = _top_arrow(t)
+    if k >= 0:
+        lhs, rhs = t[:k].strip(), t[k + (3 if ctx else 2):].strip()
+        if not lhs:
+            return _fn_types(rhs)                       # by-name `=> T`
+        if lhs.startswith("[") and _closes_at_end(lhs):
+            return "PolyFunction"
+        if lhs.startswith("(") and lhs.endswith(")") and _closes_at_end(lhs):
+            inner = lhs[1:-1]
+            params = [p for p in _top_split(inner, ",") if p.strip()]
+        else:
+            params = [lhs]
+        args = [_fn_types(_param_type(p)) for p in params] + [_fn_types(rhs)]
+        return ("ContextFunction" if ctx else "Function") + str(len(params)) + "[" + ",".join(args) + "]"
+    out, i = [], 0
+    while i < len(t):
+        c = t[i]
+        if c in "([":
+            j = _match(t, i)
+            inner = t[i + 1:j]
+            parts = [_fn_types(p) for p in _top_split(inner, ",")]
+            if c == "(" and len(parts) == 1 and inner.strip():
+                out.append(parts[0])                    # `(T)` is just T
+            else:
+                out.append(c + ",".join(parts) + t[j])
+            i = j + 1
+        elif c == "{":
+            j = _match(t, i)
+            out.append(t[i:j + 1])                      # structural refinement: left as written
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def _match(t: str, i: int) -> int:
+    depth = 0
+    for j in range(i, len(t)):
+        if t[j] in _OPEN:
+            depth += 1
+        elif t[j] in _CLOSE:
+            depth -= 1
+            if depth == 0:
+                return j
+    return len(t) - 1
+
+
+def _closes_at_end(t: str) -> bool:
+    return _match(t, 0) == len(t) - 1
+
+
+def _param_type(p: str) -> str:
+    """`x: A` (dependent function parameter) -> `A`; `=> A` (by-name) -> `A`."""
+    p = p.strip()
+    parts = _top_split(p, ":")
+    if len(parts) > 1 and parts[0].strip().replace("_", "a").replace("$", "a").isalnum():
+        p = ":".join(parts[1:]).strip()
+    return p
+
+
 def scala_type_text(text: str) -> str:
     """Scala type text -> the Java-shaped text `java_types.norm_type` reads:
-    `Map[String, Foo]` -> `Map<String,Foo>`, `Array[Foo]` -> `Foo[]`, `=> T` -> `T`, `T*` -> `T[]`."""
-    t = text.strip()
-    if t.startswith("=>"):
-        t = t[2:].strip()
+    `Map[String, Foo]` -> `Map<String,Foo>`, `Array[Foo]` -> `Foo[]`, `=> T` -> `T`, `T*` -> `T[]`,
+    function types -> `FunctionN<..>` (see `_fn_types`)."""
+    t = _fn_types(text.strip())
     star = t.endswith("*")
     if star:
         t = t[:-1]

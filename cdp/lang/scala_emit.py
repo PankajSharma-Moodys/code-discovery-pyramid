@@ -34,6 +34,8 @@ SCALA_BUILTINS = frozenset([
     "Failure", "Future", "Tuple2", "Tuple3", "BigDecimal", "BigInt", "Throwable", "Exception",
     "Class", "Product", "Serializable", "Nil", "Predef", "StringBuilder", "Option",
 ])
+SCALA_BUILTINS = SCALA_BUILTINS | frozenset(
+    ["Function%d" % n for n in range(23)] + ["ContextFunction%d" % n for n in range(23)] + ["PolyFunction"])
 DI_ANNOTATIONS = frozenset(["Component", "Service", "Repository", "Configuration", "Bean", "Autowired",
                             "Inject", "Named", "Singleton", "Controller", "RestController"])
 JOB_SUPERS = frozenset(["Job", "InterruptableJob", "AbstractJob"])
