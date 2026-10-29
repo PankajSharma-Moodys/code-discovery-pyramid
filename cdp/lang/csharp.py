@@ -37,6 +37,7 @@ from .csharp_http import emit_http_clients
 from .csharp_decl import CMember, CType, DeclParser, parse_type
 from .csharp_tokens import CsTokens, string_value
 from .csharp_types import Resolver, norm_type
+from .java_types import NO_RETURN
 
 ROUTE_VERBS = {
     "HttpGet": "GET", "HttpPost": "POST", "HttpPut": "PUT", "HttpDelete": "DELETE",
@@ -44,8 +45,6 @@ ROUTE_VERBS = {
 }
 GUESS_PREFIX = "guess:"   # file signal: a base-type name the extractor qualified by guess
 TYPE_KIND = {"struct": "class", "delegate": "class"}
-BUILTIN_TYPES = frozenset(["string", "int", "long", "bool", "void", "object", "double", "float", "decimal", "byte",
-                           "short", "char", "var", "dynamic", "uint", "ulong", "ushort", "sbyte"])
 
 
 class CSharpExtractor(Extractor):
@@ -140,9 +139,13 @@ def _declarations(ctx, facts, tk, types: List[CType], resolver: Resolver) -> Non
     consts: Dict[str, Dict[str, Optional[str]]] = {}
 
     def typed(row: Dict, text: str, tvars) -> Dict:
+        key = "ret" if row["kind"] == "method" else "ftype"
+        if key == "ret" and text.strip() == "void":
+            row[key] = NO_RETURN          # C# spec 15.6.1: `void` is no type; a sentinel, never a name
+            return row
         norm = norm_type(text, lambda n: _resolve(resolver, n), tvars)
-        if norm and norm not in BUILTIN_TYPES and norm != "void":
-            row["ret" if row["kind"] == "method" else "ftype"] = norm
+        if norm:
+            row[key] = norm               # predefined types are emitted as written (terminal for the resolver)
         return row
 
     for jt in sorted(types, key=lambda t: (t.line, t.fqn)):

@@ -14,8 +14,8 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from .jtypes import TypeIndex
-from .lang.csharp_types import ENUMERABLE, MAPS, bcl_step, is_bcl
-from .lang.java_types import split_type
+from .lang.csharp_types import ENUMERABLE, MAPS, PRIMS, bcl_step, is_bcl
+from .lang.java_types import NO_RETURN, split_type
 
 OBJECT_METHODS = frozenset(["ToString", "Equals", "GetHashCode", "GetType", "MemberwiseClone", "Finalize"])
 SEQUENCES = ENUMERABLE | MAPS
@@ -72,10 +72,18 @@ class CsTypeIndex(TypeIndex):
                 return t + "." + name
         return None
 
+    def canon(self, type_str: str, file: str) -> str:
+        """As the base, but a predefined type (`int`, `string`, `void`...) and `<none>` name no class."""
+        if type_str == NO_RETURN:
+            return type_str
+        return re.sub(r"[A-Za-z_][\w.]*",
+                      lambda m: m.group(0) if m.group(0) in PRIMS else (self.class_for(m.group(0), (), file) or m.group(0)),
+                      type_str)
+
     def step(self, type_str: str, step: str) -> Optional[str]:
         base, args, arrays = split_type(type_str)
-        if not base or base.startswith("~"):
-            return None
+        if not base or base.startswith("~") or type_str == NO_RETURN or (base in PRIMS and not arrays):
+            return None     # terminal: a predefined type or a no-value return has nothing to chain on
         if not self.is_class(base):
             return bcl_step(type_str, step) if (arrays or is_bcl(base)) else None
         if step.startswith("f:"):

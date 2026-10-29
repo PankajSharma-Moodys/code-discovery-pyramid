@@ -166,12 +166,46 @@ for _n, _src, _want in [
 ]:
     CASES.append((_n, "pyf", _src, _want))
 
+def csfields(src):
+    scan = sc.Scan("csharp", ".cs", src.strip("\n").split("\n"))
+    return [(m["name"], m["ftype"]) for m in scan.members if m["cat"] == "field"]
+
+
+for _n, _src, _want in [
+    ("g3 csharp operator declaration is not a field",
+     "class A {\n  public static bool operator ==(A a, A b) => true;\n  int n;\n}", [("n", "int")]),
+    ("g3 csharp collection-spread element is not a field",
+     "class A {\n  static readonly string[] Xs = [\n    .. Ys,\n    \"a\"];\n}", [("Xs", "string[]")]),
+]:
+    CASES.append((_n, "g3cs", _src, _want))
+
+
+def csmembers(src):
+    scan = sc.Scan("csharp", ".cs", src.strip("\n").split("\n"))
+    return [(m["name"], m["ret"], m["ctor"]) for m in scan.members if m["cat"] == "method"]
+
+
+for _n, _src, _want in [
+    ("g2 csharp public constructor is a ctor, not return type public",
+     "public class A {\n  public A(int x) { }\n  private A() { }\n  public void Run() { }\n}",
+     [("A", None, True), ("A", None, True), ("Run", "void", False)]),
+    ("g2 csharp modified method keeps its return type",
+     "class A {\n  public static async Task<int> F(int x) { return x; }\n}", [("F", "Task<int>", False)]),
+]:
+    CASES.append((_n, "g2cs", _src, _want))
+
 fails = 0
 for case in CASES:
     if case[1] == "pyf":
         name, _, src, want = case
         sn = sc.Scan("python", ".py", src.split("\n"))
         got = [m["name"] for m in sn.members if m["cat"] == "field" and m.get("ftype")]
+    elif case[1] == "g3cs":
+        name, _, src, want = case
+        got = csfields(src)
+    elif case[1] == "g2cs":
+        name, _, src, want = case
+        got = csmembers(src)
     elif case[1] == "g2":
         name, _, src, want = case
         got = jmembers(src)

@@ -81,12 +81,13 @@ Budget: ≤ 200 lines. Audience: agents doing the scoring. Read all of it before
 
 **G2 Return type.**
 - Present: the method declares a return type. Python counts only with `->`; TS only with `): Type`; JS is N/A.
-- Emitted: the define has `ret` (string). A `void` return is the sentinel `<none>` (owner decision 2026-10-28); primitives and builtins such as `String` are emitted as written. Constructors have no return type and are not counted.
+- Emitted: the define has `ret` (string). A `void` return is the sentinel `<none>` (owner decision 2026-10-28); primitives and builtins such as `String` are emitted as written. Constructors have no return type and are not counted. C#: `string`, `int`, `bool` and other predefined types are emitted as written; nullable `T?` is emitted as `T`; destructors and operators are not counted.
 - Applies to: Java, C#, Scala, Python, TS.
 
 **G3 Field type.**
 - Present: the field declares a type.
 - Emitted: the define has `ftype` (string).
+- C# fields, constants and record parameters carry `ftype`; predefined types (`string`, `int`) are emitted as written.
 - Applies to: Java, C#, Scala, Python (annotated only), TS.
 
 **G4 Visibility.**

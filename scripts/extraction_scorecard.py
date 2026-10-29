@@ -530,6 +530,10 @@ class Scan:
         # `private static (A a, B b) M(...)`: the modifier `static` is not a method name (tuple return type / field)
         if m and m.group("name") in CS_MOD_WORDS:
             m = None
+        # `public Foo(` backtracks CS_MODS so modifier `public` is read as the return type; a modifier is no type
+        # (C# spec 15.6.1 method, 15.11 constructor)
+        if m and m.group("type") in CS_MOD_WORDS:
+            m = None
         if m and m.group("type") not in KEYWORD_TYPES and m.group("type") not in ("operator",):
             n, params, after = self._params_after(i, rest, m)
             return {"cat": "method", "name": m.group("name"), "np": n, "params": params, "ret": m.group("type"), "ctor": False}
@@ -538,6 +542,9 @@ class Scan:
             n, params, after = self._params_after(i, rest, m)
             return {"cat": "method", "name": m.group("name"), "np": n, "params": params, "ret": None, "ctor": True}
         m = CS_FIELD.match(rest)
+        # `operator ==(` is an operator declaration, `.. xs,` a spread element: neither is a typed field
+        if m and (m.group("name") == "operator" or not re.match(r"[A-Za-z_@(]", m.group("type"))):
+            m = None
         if m and m.group("type") not in KEYWORD_TYPES:
             return {"cat": "field", "name": m.group("name"), "ftype": m.group("type")}
         m = CS_PROP.match(rest)
