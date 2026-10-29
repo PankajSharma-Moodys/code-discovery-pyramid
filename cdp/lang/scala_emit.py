@@ -22,7 +22,7 @@ from .base import (
 from .. import sigs
 from .java import _Resolver
 from .java_decl import join_tokens
-from .java_types import norm_type, resolve_name
+from .java_types import NO_RETURN, norm_type, resolve_name
 from .scala_annotations import STRIP_SUFFIXES, strip_margin
 from .scala_decl import ScMember, ScType, ScalaDeclParser, scala_type_text
 from .scala_tokens import ScTokens, string_value
@@ -34,8 +34,6 @@ SCALA_BUILTINS = frozenset([
     "Failure", "Future", "Tuple2", "Tuple3", "BigDecimal", "BigInt", "Throwable", "Exception",
     "Class", "Product", "Serializable", "Nil", "Predef", "StringBuilder", "Option",
 ])
-BARE_DROP = frozenset(["Unit", "Int", "Long", "Double", "Float", "Boolean", "Byte", "Short", "Char", "String",
-                       "Any", "AnyRef", "AnyVal", "Nothing", "Null", "Object"])
 DI_ANNOTATIONS = frozenset(["Component", "Service", "Repository", "Configuration", "Bean", "Autowired",
                             "Inject", "Named", "Singleton", "Controller", "RestController"])
 JOB_SUPERS = frozenset(["Job", "InterruptableJob", "AbstractJob"])
@@ -246,9 +244,13 @@ def declarations(ctx: ExtractContext, facts: FileFacts, tk: ScTokens, types: Lis
     def typed(row: Dict, text: str, tvars) -> None:
         if not text:
             return
-        norm = norm_type(text, lambda n: resolve_name(resolver, n), tvars)
-        if norm and norm not in BARE_DROP:
-            row["ret" if row["kind"] == "method" else "ftype"] = norm
+        key = "ret" if row["kind"] == "method" else "ftype"
+        norm = norm_type(text.strip().rstrip(";"), lambda n: resolve_name(resolver, n), tvars)
+        if key == "ret" and norm in ("Unit", "scala.Unit"):
+            row[key] = NO_RETURN          # SLS 12.2: `Unit` is the no-value result; a sentinel, never a name
+            return                        # (a repo class named Unit resolves to its fqn and is kept)
+        if norm:
+            row[key] = norm               # Int, String, Any... are emitted as written (terminal for the resolver)
 
     for jt in types:
         _resolve_annotations(jt, resolver)
