@@ -48,6 +48,9 @@ LIST_NAMES = DICT_NAMES | frozenset(["List", "list", "Sequence", "MutableSequenc
                                      "FrozenSet", "frozenset", "Deque", "deque", "Collection", "AbstractSet"])
 
 
+NO_TYPE = "<none>"   # `-> None`: no type, so no class; never an identifier
+
+
 def ex_str(ex: Ex) -> str:
     return "|".join((ex[0],) + ex[1])
 
@@ -160,6 +163,7 @@ class Flow:
         self._seen: Set[Tuple] = set()
         self.defined: Dict[str, Dict] = {}          # fqn -> define row (deduplicated)
         self.ftypes: Dict[str, Optional[str]] = {}
+        self.bare_ann: Optional[str] = None
         self.lines = ctx.lines
 
     # ------------------------------------------------------------ plumbing
@@ -210,7 +214,7 @@ class Flow:
         A bare `= None` says nothing about the type; `x: T = None` still declares T."""
         if not annotated and value is not None and _is_none(value):
             return
-        s = ex_str(ex) if ex else None
+        s = self.bare_ann if annotated and self.bare_ann else (ex_str(ex) if ex else None)
         if fqn not in self.ftypes:
             self.ftypes[fqn] = s
         elif self.ftypes[fqn] != s:
@@ -327,6 +331,44 @@ class Flow:
             if name in TYPE_NAMES and elts:
                 inner = self.ann_ex(elts[0])
                 return (inner[0], inner[1][:-1]) if inner and inner[1] and inner[1][-1] == "()" else None
+        return None
+
+    def ann_bare(self, node) -> Optional[str]:
+        """A declared type with no project anchor, as a bare tag-less name (`int`, `datetime.date`);
+        `None` is the sentinel NO_TYPE. Used for `ret`/`ftype` only; the resolver treats it as terminal."""
+        if node is None:
+            return None
+        if isinstance(node, ast.Constant):
+            if node.value is None:
+                return NO_TYPE
+            if isinstance(node.value, str):
+                try:
+                    return self.ann_bare(ast.parse(node.value.strip(), mode="eval").body)
+                except SyntaxError:
+                    return None
+            return None
+        if isinstance(node, (ast.Name, ast.Attribute)):
+            if self.ex_of(node) is not None:
+                return None
+            parts, cur = [], node
+            while isinstance(cur, ast.Attribute):
+                parts.append(cur.attr)
+                cur = cur.value
+            if not isinstance(cur, ast.Name):
+                return None
+            parts.append(cur.id)
+            return ".".join(reversed(parts))
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            side = [n for n in (node.left, node.right) if not _is_none(n)]
+            return self.ann_bare(side[0]) if len(side) == 1 else (NO_TYPE if not side else None)
+        if isinstance(node, ast.Subscript):
+            head = node.value
+            name = head.id if isinstance(head, ast.Name) else head.attr if isinstance(head, ast.Attribute) else ""
+            if name in UNION_NAMES:
+                elts = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
+                cand = [e for e in (elts[:1] if name == "Annotated" else elts) if not _is_none(e)]
+                return self.ann_bare(cand[0]) if len(cand) == 1 else None
+            return self.ann_bare(head)
         return None
 
     # --------------------------------------------------------- module scan
@@ -474,7 +516,9 @@ class Flow:
             if node.value is not None:
                 self.expr(node.value)
             ex = self.ann_ex(node.annotation) or (self.ex_of(node.value) if node.value is not None else None)
+            self.bare_ann = None if self.ann_ex(node.annotation) else self.ann_bare(node.annotation)
             self.assign(node.target, ex, node, node.value, annotated=True)
+            self.bare_ann = None
         elif isinstance(node, ast.AugAssign):
             self.expr(node.target)
             self.expr(node.value)
@@ -733,8 +777,9 @@ class Flow:
         self.stack.pop()
         if row is not None:
             ret = (self.ann_ex(node.returns) if node.returns is not None else None) or self.inferred_return(sc)
-            if ret is not None:
-                row["ftype" if is_prop else "ret"] = ex_str(ret)
+            out = ex_str(ret) if ret is not None else self.ann_bare(node.returns)
+            if out is not None:
+                row["ftype" if is_prop else "ret"] = out
 
     def inferred_return(self, sc: Scope) -> Optional[Ex]:
         if sc.has_yield:

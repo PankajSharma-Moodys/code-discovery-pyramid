@@ -50,9 +50,9 @@ class FtypeNone(unittest.TestCase):
         f = ft("class B: pass\nclass E: pass\nclass C:\n    a: B = None\n    def __init__(self):\n        self.a: E = None\n")
         self.assertIsNone(f["C.a"])
 
-    def test_annotated_none_with_unresolvable_type_is_not_none_type(self):
-        f = ft("class C:\n    a: int = None\n")
-        self.assertIsNone(f["C.a"])
+    def test_annotated_none_with_bare_type_keeps_it(self):
+        f = ft("class C:\n    a: int = None\n")     # X11d2: tag-less name, never `NoneType`
+        self.assertEqual(f["C.a"], "int")
 
 
 if __name__ == "__main__":
