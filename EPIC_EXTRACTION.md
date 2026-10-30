@@ -33,22 +33,25 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 | X1 | C# annotations M1 0/2519 on fixed scorer (name, text, line, end_line) | done, verified (59ca47f on epic/x1-csharp-annotations; 100% (2519/2519) with X0b scorer; 68 old misses were all scorer errors, TRIAGE_X1_M1.md); unmerged | cdp/lang/csharp*.py | X0 |
 | X2 | C# annotation args + fqn (M2, M3) | done, verified (905323c, merged): M2 0/2475 -> 100%, M3 0/2969 -> 20 (no pass mark; most names come via namespace `using`, unresolvable without a symbol table) | csharp*.py | X1 |
 | X3 | C# supertypes R1 0/833 -> 833/833 | done, verified (5f1225b, merged; full suite 1622 pass + known artefact). X3b (ce785f2, merged) settles guessed C# base names in the resolve phase: phantoms 46.2% -> 0 of 1,170 on unified-store; Java/Scala unchanged. Open: Java `java.lang` phantoms 36/488 (7.4%) unfixed; rules.py still reads raw guesses | csharp*.py | X0 |
-| X4 | C# structured params G1 0/5473 | queued | csharp*.py | X3 |
+| X4 | C# structured params G1 0/5473 | done (a0c84a3, merged); G1 C# 100% (5486/5486) on 2026-10-30 | csharp*.py | X3 |
 | X5 | Python decorators -> annotations M1 (provisional) | done (5c507ac on epic/x5-py-annotations; 0/11 -> 11/11 before the owner deleted the Python files from the corpus; now 0 present, fixture tests only); unmerged | python*.py | X0 |
 | X6 | Python bases -> supertypes R1 0/7 (provisional) | queued | python*.py | X27 |
 | X7 | Python structured params G1 0/52 (provisional) | queued | python*.py | X6, X27 |
 | X8 | JS structured params G1 0/216 (provisional) | queued | javascript*.py | X0 |
 | X9 | (retired as a standalone task; owner 2026-10-26) triage happens inside each task, see rule 0. Done before retirement: a Scala, see TRIAGE_X9A.md; C# M1, see TRIAGE_X1_M1.md | retired | - | - |
 | X10 | Span S3: a Java 85% b C# 74% c Scala 79% | queued | per-language file | - |
-| X11 | (after X25) Types on defines, G2 + G3: a Java (29%/37%) b C# (73%/65%) c Scala (62%/44%) d Python (30%/11%). Void counts as return type (X0 reading; owner to confirm) | queued | per-language file | - |
+| X11 | (after X25) Types on defines, G2 + G3: a Java (29%/37%) b C# (73%/65%) c Scala (62%/44%) d Python (30%/11%). Void counts as return type: sentinel `<none>` (owner 2026-10-28) | done, merged: a Java cc24027, b C# 5fab225, c Scala 395182e, d Python e67c1f4 + 24172e2 (X11d1/X11d2). 2026-10-30: G2/G3 Java 100%, C# 100%, Scala 100%, Python 99% | per-language file | - |
+| X47 | Scala function types (`A => B`, `() => A`, `?=>`, curried, nested) in ret/ftype/params: G2 Scala 99% -> 100% | done (25aaa21, merged); U2 Scala -5 calls were wrong `apply` edges, U3 Scala sample re-drawn (32 unjudged) | scala_decl.py, scala_emit.py | X11c |
+| X48 | Python annotation pins field/constant ftype against later unannotated rebinds: G3 Python 1544 -> 1547 | done (028bb49, merged) | python_flow.py | X11d2 |
+| X49 | Scorer: Python properties excluded from G2 (C# precedent); diagnostic count | done (5da0fe6, merged); G2 Python 897/900 | scripts/extraction_scorecard.py | X11d2 |
 | X12 | HTTP-out F2: a Java/JAX-RS 0/33 b C# HttpClient 0/4 c Scala 0/9 d JS axios/fetch 1/5 | queued | rules + per-language file (report first) | - |
 | X13 | C# F4 schedule 0/22 (BackgroundService, Hangfire) | queued | rules + csharp*.py (report first) | X3 |
 | X14 | C# F5 DI 0/376 (MS DI AddScoped etc.) | queued | rules + csharp*.py (report first) | X3 |
 | X15 | F3 persist: a Java 70% b Scala 70% | queued | rules + java/scala (report first) | - |
 | X16 | F7 Swagger annotations Java 88% | queued | java*.py | - |
 | X23 | Scala companion `object X {` gets its own type define: S1 Scala 88% (146 misses) (owner: fix) | queued | scala*.py | X0 |
-| X24 | Annotation with empty parens emits `args: {}`: M2 Scala 77% (120), Java (2) (owner decision) | queued | scala*.py, java*.py | X0 |
-| X25 | Void return representation: investigate impact first (how consumers read `ret`; owner leans None/NULL or a fixed value like NO_RETURN, not "void"), then G2 work in X11 | queued | investigation, then per-language | X0 |
+| X24 | Annotation with empty parens emits `args: {}`: M2 Scala 77% (120), Java (2) (owner decision) | merged (d2a5906); M2 cells not re-checked 2026-10-30 | scala*.py, java*.py | X0 |
+| X25 | Void return representation: investigated (TRIAGE_X25.md, epic/x25); decision: sentinel, not "void"; implementation in X11 | done (investigation) | investigation, then per-language | X0 |
 | X26 | Inventory labels .ts/.tsx `typescript` (H4 0/72 -> 72/72) | done, verified (991d99e, merged); TS cells now real: S4 60%, G1 0/54, G2 0/58, G3 0/13 | cdp/inventory.py, cdp/lang/__init__.py | X0 |
 | X27 | Python corpus: dispatch (FastAPI, dd2837e82a0b) + CTFd (Flask, 66d49ae1c433) added to ~/git and the scorer corpus (5 repos) | done, verified (4259b34, merged); Python cells now real: G1 0/2560, R1 0/1115, M2 0/950, F3 0/2012 | scripts/extraction_scorecard.py | X0 |
 | X28 | F1 covers Flask (spec row + scorer rule, 14 fixtures); Python U3 (49 y, 1 x) / U4 (3 n) samples judged | done, verified (d94c0ab, 7cb4c88, merged); F1 Flask 59/144 40%: misses look like flask_restx `ns.route` on Resource classes, not triaged | EXTRACTION_METRICS.md, scripts/ | X27 |
@@ -72,7 +75,7 @@ A letter suffix is its own agent and its own task; letters of one ID are indepen
 9. Nothing under `cdp/` changed; existing test suite passes.
 
 ## Owner decisions 2026-10-26
-- Companion objects count (X23). Empty-paren annotations emit `args: {}` (X24). Void return: investigate first, owner leans a null/enum value (X25).
+- Companion objects count (X23). Empty-paren annotations emit `args: {}` (X24). Void return: sentinel `<none>` (owner 2026-10-28; TRIAGE_X25.md), guards in jtypes/cstypes/pytypes; X11 implements and also emits primitives/String in `ret` (G2).
 - No holdout repos. Triage inside each task (rule 0). Scorer stays in `scripts/`. Full suite runs during tasks. R2 (extends vs implements) dropped: `uses` rows already carry the kinds.
 - Corpus changes by owner: deleted Python files and one Java file; added dispatch and CTFd. Baseline retaken on 7cb4c88. 2026-10-27: C# annotation fqn (M3) accepted as is, 3 swagger files stay scored, branches kept.
 
