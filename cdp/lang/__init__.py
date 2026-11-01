@@ -80,6 +80,18 @@ _ASSET_PATTERN = re.compile(r"\.(png|jpe?g|gif|svg|ico|woff2?|ttf|eot|otf|pdf|ja
 _CI_PATTERN = re.compile(r"(^|/)(\.github|\.gitlab|\.circleci|\.azure|ci|\.buildkite)(/|$)")
 
 
+def _ts_baseline(name: str) -> Optional[Extractor]:
+    """Day-0 fallback (CDP_TS=all|baseline): tags.scm baseline for an extension with an installed grammar."""
+    import os
+    if os.environ.get("CDP_TS", "off").strip().lower() in ("", "off"):
+        return None
+    from cdp import ts
+    if not ts.baseline_enabled():
+        return None
+    from cdp.ts import baseline
+    return baseline.extractor_for(name)
+
+
 def get_extractor(path: str) -> Extractor:
     name = path.rsplit("/", 1)[-1]
     if _APPSETTINGS.matches(path):
@@ -90,7 +102,7 @@ def get_extractor(path: str) -> Extractor:
         suffix = "." + name.rsplit(".", 1)[-1].lower()
         if suffix in _BY_EXT:
             return _BY_EXT[suffix]
-    return _FALLBACK
+    return _ts_baseline(name) or _FALLBACK
 
 
 _TS_SUFFIXES = frozenset({"ts", "tsx", "mts", "cts"})   # `.d.ts` ends in `ts`

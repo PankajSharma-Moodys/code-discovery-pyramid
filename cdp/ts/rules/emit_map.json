@@ -1,0 +1,51 @@
+{
+  "definitions": {"definition.class": "class", "definition.interface": "interface", "definition.enum": "enum", "definition.type": "class", "definition.function": "function", "definition.method": "method", "definition.field": "field", "definition.var": "var"},
+  "var_kind_by_keyword": {"const": "constant", "let": "field", "var": "field"},
+  "function_value_types": ["arrow_function", "function_expression", "function", "generator_function"],
+  "function_kind_in_class": "method",
+  "name_node_types": ["identifier", "type_identifier", "property_identifier", "private_property_identifier"],
+  "scope_wrappers": ["export_statement", "ambient_declaration", "lexical_declaration", "variable_declaration"],
+  "member_bodies": ["class_body", "interface_body"],
+  "aux_fields": {"ret": "ret", "ftype": "ftype", "vis": "modifier", "decorator": "annotations", "supertype": "supertypes", "const.value": "value"},
+  "param_fields": {"param.name": "name", "param.type": "type"},
+  "visibility": {"exported": "public", "unexported": "internal", "default_member": "public"},
+  "void_text": "void",
+  "void_sentinel": "<none>",
+  "separators": {"method": "#", "field": "."},
+  "lang_overrides": {
+    "javascript": {
+      "rule_file": "javascript"
+    },
+    "typescript": {
+      "rule_file": "typescript"
+    },
+    "tsx": {
+      "rule_file": "typescript"
+    },
+    "java": {
+      "rule_file": "java",
+      "definitions": {"definition.class": "class", "definition.interface": "interface", "definition.enum": "enum", "definition.record": "record", "definition.annotation": "annotation", "definition.method": "method", "definition.ctor": "method", "definition.field": "field", "definition.constant": "constant", "definition.enumconst": "field", "definition.component": "field"},
+      "def_priority": {"definition.constant": 1},
+      "name_by_def": {"definition.ctor": "<init>"},
+      "vis_by_def": {"definition.enumconst": "public", "definition.component": "private"},
+      "ftype_owner_defs": ["definition.enumconst"],
+      "supertype_kinds": ["class", "interface", "enum", "record"],
+      "scope_wrappers": ["field_declaration", "constant_declaration"],
+      "member_bodies": ["class_body", "interface_body", "enum_body", "enum_body_declarations", "annotation_type_body", "formal_parameters"],
+      "transparent_bodies": ["enum_body_declarations"],
+      "owner_types": ["class_declaration", "interface_declaration", "enum_declaration", "record_declaration", "annotation_type_declaration"],
+      "nested": true,
+      "param_type_suffix": {"spread_parameter": "[]"},
+      "visibility": {"exported": "package", "unexported": "package", "default_member": "package"},
+      "default_vis_by_owner": {"interface_declaration": "public", "annotation_type_declaration": "public"},
+      "ctor_names": ["<init>"]
+    }
+  },
+  "root_types": ["program"],
+  "param_list_types": ["formal_parameters"],
+  "decorator_sibling_types": ["decorator"],
+  "private_name_prefix": "#",
+  "ctor_names": ["constructor"],
+  "param_name_strip": "^\\.\\.\\.",
+  "annotation_name_re": "@\\s*([\\w$.]+)"
+}

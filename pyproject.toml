@@ -28,6 +28,11 @@ dependencies = []
 # mcp left empty until that adapter has real code to depend on.
 [project.optional-dependencies]
 postgres = ["psycopg2-binary"]
+# Tool-based extraction layer (cdp/ts, CDP_TS switch). Versions pinned and import-verified (see tests/test_ts_layer.py);
+# tree-sitter 0.26.0 also tested. Grammar wheels are the only pins that matter for rule behaviour.
+ts = ["tree-sitter==0.25.2", "tree-sitter-java==0.23.5", "tree-sitter-c-sharp==0.23.5", "tree-sitter-scala==0.26.3",
+      "tree-sitter-python==0.25.0", "tree-sitter-typescript==0.23.2", "tree-sitter-javascript==0.25.0",
+      "tree-sitter-ruby==0.23.1"]
 mcp = []
 litellm = ["litellm"]
 agent = ["langgraph", "langchain-core", "google-adk"]
@@ -41,7 +46,7 @@ web = ["fastapi", "uvicorn", "starlette", "pydantic", "sse-starlette"]
 cdp = "cdp.cli:main"
 
 [tool.setuptools]
-packages = ["cdp", "cdp.lang", "mcp_server", "litellm_adapter", "agent_adapter", "web", "web.api"]
+packages = ["cdp", "cdp.lang", "cdp.ts", "mcp_server", "litellm_adapter", "agent_adapter", "web", "web.api"]
 
 # Known limitation, stated rather than papered over: `cli.SKILL_ROOT` is
 # `cdp/../`, so `schema/` and `tests/` are resolved as siblings of the package.
@@ -51,3 +56,6 @@ packages = ["cdp", "cdp.lang", "mcp_server", "litellm_adapter", "agent_adapter",
 # the full sense means moving schema/ inside the package as package-data;
 # that is a Phase 2 concern (it changes where state and schema resolve from)
 # and is deliberately not done here, where nothing may change behaviour.
+
+[tool.setuptools.package-data]
+"cdp.ts" = ["rules/*.scm", "rules/*.json", "rules/baseline/*"]

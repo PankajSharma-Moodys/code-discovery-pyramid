@@ -1,0 +1,13 @@
+{
+  "ruby": {
+    "queries": ["ruby_tags.scm", "ruby_extra.scm"],
+    "containers": ["class", "module", "singleton_class"],
+    "static": ["singleton_method"],
+    "name_split": "::",
+    "value_field_types": ["singleton_class"],
+    "const_def_name_field": "left",
+    "call": {"node": "call", "name": "method", "recv": "receiver", "recv_types": ["constant", "scope_resolution"]},
+    "bare_call": {"node": "identifier", "parents": ["body_statement", "program", "then", "do_block", "begin"]},
+    "bare_const": {"node": "constant", "not_parents": ["class", "module", "assignment", "scope_resolution", "singleton_class"]}
+  }
+}
