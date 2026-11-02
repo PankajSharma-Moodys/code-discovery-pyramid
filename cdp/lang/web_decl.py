@@ -95,6 +95,7 @@ def declarations(code: Sequence[str], stacks: Sequence[Tuple[str, ...]]) -> List
 
 
 _ACCESSOR = re.compile(r"^\s*(?:(?:public|private|protected|static|readonly|override|declare)\s+)*accessor\s+(#?[\w$]+)")
+_WRAPPED = re.compile(r"=\s*(?:React\.)?(?:memo|forwardRef|lazy)\s*\(")
 _EXT_LANG = {"ts": "typescript", "mts": "typescript", "cts": "typescript", "tsx": "tsx"}
 
 
@@ -118,7 +119,10 @@ def tool_rows(ctx, language: str, primary: str) -> Optional[List[Dict]]:
             if m:
                 r["fqn"] = r["fqn"][:-len("accessor")] + m.group(1)
         f = r["fqn"]
-        if r["kind"] == "function" and f.startswith(top) and "#" not in f[len(top):] and "." not in f[len(top):]:
+        free = f.startswith(top) and "#" not in f[len(top):] and "." not in f[len(top):]
+        if free and r["kind"] in ("constant", "field") and _WRAPPED.search(ctx.lines[r["anchor"]["line"] - 1]):
+            r["kind"] = "function"                      # `const C = lazy(() => ...)`: a component, like the hand scanner said
+        if free and r["kind"] == "function":
             r["fqn"] = primary + "#" + f[len(top):]
     return rows
 
