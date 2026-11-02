@@ -26,6 +26,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .. import sigs
 from .java_decl import DeclParser, JMember, JType, join_tokens, skip_annotation
+from . import java_ts
 from .java_flow import emit_flow, use_row
 from .java_tokens import Tokens
 from .java_types import NO_RETURN, norm_type, resolve_name
@@ -128,6 +129,9 @@ class JavaExtractor(Extractor):
             resolver.static_members = dict(statics, **{"*": static_wild[0]})
         sigs.assign(types, lambda t, tv: norm_type(t, lambda n: resolve_name(resolver, n), tv) or t)
         decls = _declarations(ctx, facts, tk, types, resolver, imports)
+        ts_rows = java_ts.apply(ctx, types, resolver, pkg, facts.defines)   # None: layer unavailable, hand rows stay
+        if ts_rows is not None:
+            facts.defines = ts_rows
         annotations = _read_annotations(tk, types)
 
         primary = decls[0]["fqn"] if decls else (pkg + "." + _stem(ctx.path) if pkg else _stem(ctx.path))
@@ -215,10 +219,12 @@ def _read_imports(
     return imports, simple_to_fqn, wildcards
 
 
-def _visibility(mods) -> str:
+def _visibility(mods, outer=None) -> str:
     for v in ("public", "protected", "private"):
         if v in mods:
             return v
+    if outer is not None and outer.kind in ("interface", "annotation"):
+        return "public"       # JLS 9.5: a member type of an interface is implicitly public and static
     return "package"
 
 
@@ -250,14 +256,14 @@ def _declarations(ctx: ExtractContext, facts: FileFacts, tk: Tokens, types: List
     for jt in sorted(types, key=lambda t: (t.line, t.fqn)):
         anchor = anchor_at(ctx, jt.line)
         if anchor is not None:
-            row = mk_define(jt.fqn, jt.kind, _visibility(jt.mods), anchor, annotations=jt.anns)
+            row = mk_define(jt.fqn, jt.kind, _visibility(jt.mods, jt.outer), anchor, annotations=jt.anns)
             if jt.tparams:
                 row["tparams"] = jt.tparams
             if jt.supertypes:
                 row["supertypes"] = [norm_type(t, lambda n: resolve_name(resolver, n), jt.all_tparams()) or t
                                      for t in jt.supertypes]
             facts.defines.append(row)
-            decls.append({"fqn": jt.fqn, "kind": jt.kind, "visibility": _visibility(jt.mods),
+            decls.append({"fqn": jt.fqn, "kind": jt.kind, "visibility": _visibility(jt.mods, jt.outer),
                           "anchor": anchor, "index": jt.line, "name": jt.name})
         tv = jt.all_tparams()
         values = consts.setdefault(jt.fqn, {})

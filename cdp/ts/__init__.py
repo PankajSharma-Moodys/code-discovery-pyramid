@@ -13,7 +13,7 @@ _ALIAS = {"csharp": "c_sharp", "c#": "c_sharp", "js": "javascript", "ts": "types
 
 
 def _modes():
-    raw = os.environ.get("CDP_TS", "scala,typescript,javascript").strip().lower()
+    raw = os.environ.get("CDP_TS", "java,scala,typescript,javascript").strip().lower()
     return frozenset(_ALIAS.get(t.strip(), t.strip()) for t in raw.split(",") if t.strip()) or frozenset(("off",))
 
 
@@ -27,7 +27,7 @@ def baseline_enabled():
     return "off" not in m and ("all" in m or "baseline" in m)
 
 
-def extract_ex(lang, path, text, prefix=""):
+def extract_ex(lang, path, text, prefix="", keep_raw=False):
     """-> (rows, meta) or None. meta: skipped (reason), has_error, errors, skipped_lines, retried, lang_used, dropped_no_anchor, crash/error."""
     from . import engine, front
     from cdp.lang.base import Ann, ExtractContext, anchor_at, mk_define
@@ -49,6 +49,8 @@ def extract_ex(lang, path, text, prefix=""):
             continue
         anns = [Ann(n.rsplit(".", 1)[-1], t, s, e) for n, t, s, e in x.get("annotations", [])]
         row = mk_define(sub(x["fqn"]), x["kind"], x["visibility"], a, value=x.get("value"), end_line=x["end_line"], annotations=anns)
+        if keep_raw:                           # untruncated annotation texts, for callers that re-render them
+            row["raw_annotations"] = [n[1] for n in x.get("annotations", [])]
         for f in ("supertypes", "ret", "params"):
             if f in x:
                 row[f] = x[f]
