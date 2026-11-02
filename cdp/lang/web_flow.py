@@ -3,7 +3,7 @@ Pusher subscriptions, cross-module calls. Works on the comment-free text from `w
 
 Everything is syntactic and in-file: a URL expression is evaluated from string literals,
 template literals, `+` and single-assignment locals; anything else becomes `${}` and a URL
-with no literal text at all is dropped rather than guessed.
+with no literal text at all is reported as `{}` (the call exists, the URL is unknown).
 """
 
 from __future__ import annotations
@@ -219,7 +219,7 @@ def http_calls(src: Source, decls: List[Dict], primary: str) -> List[Dict]:
         return best
 
     def fqn(d: Optional[Dict]) -> str:
-        return primary if d is None else primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
+        return primary if d is None else _qual(primary, d)
 
     envs: Dict[int, Dict[str, str]] = {}
 
@@ -283,11 +283,11 @@ def http_calls(src: Source, decls: List[Dict], primary: str) -> List[Dict]:
             expanded.add(name)
     for row in direct:
         d = row["decl"]
-        if d is not None and d["name"] in expanded and d["name"] in wrappers and wrappers[d["name"]]["row"] is row:
-            continue            # the wrapper's own placeholder edge
-        if not has_literal(row["url"]):
-            continue
-        out.append({"line": row["line"], "source": fqn(d), "verb": row["verb"], "url": tidy(row["url"])})
+        if d is not None and d["name"] in expanded and d["name"] in wrappers and wrappers[d["name"]]["row"] is row \
+                and has_literal(row["url"]):
+            continue            # the wrapper's own placeholder edge (a wrapper with no literal at all keeps its `{}` edge)
+        url = tidy(row["url"]) if has_literal(row["url"]) else "{}"      # D5/X43: URL fully dynamic -> `http:<VERB> {}`
+        out.append({"line": row["line"], "source": fqn(d), "verb": row["verb"], "url": url})
     return out
 
 
@@ -381,6 +381,11 @@ def _is_function_bind(text: str, dot: int, first: str) -> bool:
     return bool(_REBIND.search(prefix))
 
 
+def _qual(primary: str, d: Dict) -> str:
+    """Source fqn of a declaration: the define's own fqn when the tool rows supplied it, else the hand convention."""
+    return d.get("fqn") or primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
+
+
 def _enclosing_method(decls: List[Dict], line: int):
     d = None
     for c in decls:
@@ -391,7 +396,7 @@ def _enclosing_method(decls: List[Dict], line: int):
 
 
 def _source(primary: str, d) -> str:
-    return primary if d is None else primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
+    return primary if d is None else _qual(primary, d)
 
 
 def pusher_events(src: Source, decls: List[Dict], primary: str) -> List[Dict]:
@@ -461,7 +466,7 @@ def module_calls(src: Source, decls: List[Dict], primary: str, normalise) -> Lis
             if d["kind"] == "method" and d["line"] <= line <= d["end"] and \
                     (best is None or d["end"] - d["line"] < best["end"] - best["line"]):
                 best = d
-        return primary if best is None else primary + "." + (best["cls"] + "." if best["cls"] else "") + best["name"]
+        return primary if best is None else _qual(primary, best)
 
     def add(offset: int, local: str, name: str) -> None:
         module, exported = bindings[local]

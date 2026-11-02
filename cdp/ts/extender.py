@@ -151,7 +151,9 @@ def _row(m, data, dk, caps, aux, byowner):
     if kind == "constant" and merged.get("value"):
         row["value"] = _txt(data, merged["value"][0])
     if kind in m.get("supertype_kinds", ("class", "interface", "enum")) and merged.get("supertypes"):
-        row["supertypes"] = [_ty(data, n) for n in sorted(merged["supertypes"], key=lambda n: n.start_byte)]
+        tail = m.get("supertype_tail_parents", ())    # `extends Base<T>`: the type arguments are a sibling field
+        row["supertypes"] = [re.sub(r"\s+", " ", data[n.start_byte:n.parent.end_byte if n.parent.type in tail else n.end_byte]
+                                    .decode("utf8", "replace")).strip() for n in sorted(merged["supertypes"], key=lambda n: n.start_byte)]
     if merged.get("annotations"):
         row["annotations"] = []
         for n in sorted(merged["annotations"], key=lambda n: n.start_byte):

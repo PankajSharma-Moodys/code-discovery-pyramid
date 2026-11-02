@@ -5,6 +5,9 @@
 (interface_declaration name: (type_identifier) @name) @definition.interface
 (enum_declaration name: (identifier) @name) @definition.enum
 (type_alias_declaration name: (type_identifier) @name) @definition.type
+(internal_module name: (_) @name) @definition.class
+(enum_body (property_identifier) @name @definition.enumconst)
+(enum_assignment name: (_) @name) @definition.enumconst
 (function_declaration name: (identifier) @name) @definition.function
 (generator_function_declaration name: (identifier) @name) @definition.function
 (function_signature name: (identifier) @name) @definition.function
@@ -19,6 +22,7 @@
 (optional_parameter pattern: (_) @param.name type: (type_annotation (_) @param.type)?) @param
 (_ return_type: (type_annotation (_) @ret)) @decl
 (_ return_type: (type_predicate_annotation (_) @ret)) @decl
+(_ return_type: (asserts_annotation (asserts) @ret)) @decl
 (_ type: (type_annotation (_) @ftype)) @decl
 (_ (accessibility_modifier) @vis) @decl
 (_ decorator: (decorator) @decorator) @decl
