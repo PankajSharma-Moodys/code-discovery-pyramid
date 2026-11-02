@@ -54,6 +54,9 @@ def _scope(m, node):
     """(owner_class_node|None, exported) if node is top-level or a member of a top-level class; else None."""
     outer, exp = _unwrap(m, node)
     p = outer.parent
+    tr = m.get("transparent_stmts", ())          # a block under if/try/with/for/while keeps the enclosing scope
+    while p is not None and p.parent is not None and (p.type in tr or (p.type in m["member_bodies"] and p.parent.type in tr)):
+        outer, p = p, p.parent
     if p is None:
         return None
     if p.type in m["root_types"] or (p.type in m.get("namespace_bodies", ()) and p.parent is not None
@@ -68,9 +71,13 @@ def _scope(m, node):
     return None
 
 
+def _sep(m, owner, child, default):
+    return m.get("member_separators", {}).get(owner.type + "/" + child.type, default)
+
+
 def _qual(m, data, owner):
     sc = _scope(m, owner)
-    return (_qual(m, data, sc[0]) + "." if sc and sc[0] is not None else "") + _txt(data, owner.child_by_field_name("name"))
+    return (_qual(m, data, sc[0]) + _sep(m, sc[0], owner, ".") if sc and sc[0] is not None else "") + _txt(data, owner.child_by_field_name("name"))
 
 
 def _ns(m, data, node):
@@ -136,6 +143,10 @@ def _row(m, data, dk, caps, aux, byowner):
     if sc is None:
         return None
     owner, exported = sc
+    if owner is None and dk in m.get("owner_only_defs", ()):
+        return None
+    if owner is not None and dk not in m.get("restricted_owners", {}).get(owner.type, [dk]):
+        return None                                # e.g. a function body holds nested classes and functions, not its locals
     name = m.get("name_by_def", {}).get(dk, _txt(data, name_n))
     init = caps.get("init", [None])[0]
     kind = m["definitions"][dk]
@@ -145,18 +156,19 @@ def _row(m, data, dk, caps, aux, byowner):
         kind = "function" if is_fn else m["var_kind_by_keyword"].get(kw, "field")
     elif kind == "field" and is_fn:
         kind = "function"
-    if kind == "function" and owner is not None:
+    if kind == "function" and owner is not None and owner.type in m.get("method_owner_types", [owner.type]):
         kind = m["function_kind_in_class"]
     outer, _ = _unwrap(m, node)
     top = owner if owner is not None else node
     while owner is not None and _scope(m, top) and _scope(m, top)[0] is not None:
         top = _scope(m, top)[0]
+    psep = m.get("top_separators", {}).get(top.type, ".")      # between the namespace and the outermost declaration
     ns = _ns(m, data, top) if m.get("namespace_types") else ""
     prim = "{P}" + ("." + ns if ns else "")
     if owner is None:
-        fqn = prim + "." + name
+        fqn = prim + psep + name
     else:
-        fqn = prim + "." + _qual(m, data, owner) + m["separators"]["method" if kind == "method" else "field"] + name
+        fqn = prim + psep + _qual(m, data, owner) + _sep(m, owner, node, m["separators"]["method" if kind == "method" else "field"]) + name
     ids = [node.id] + ([init.id] if init is not None else [])
     ids_wrap = [outer.id] + ([outer.parent.id] if outer.parent is not None and outer.parent.type == "export_statement" else [])
     merged = {}
@@ -173,6 +185,8 @@ def _row(m, data, dk, caps, aux, byowner):
         vis = "private"
     elif mod:
         vis = mod[0]
+    elif any(re.search(rx, name) for rx, _ in m.get("name_visibility", ())):
+        vis = next(v for rx, v in m["name_visibility"] if re.search(rx, name))
     elif dk in m.get("vis_by_def", {}):
         vis = m["vis_by_def"][dk]
     elif owner is None:
@@ -189,9 +203,10 @@ def _row(m, data, dk, caps, aux, byowner):
     if merged.get("annotations"):
         row["annotations"] = []
         for n in sorted(merged["annotations"], key=lambda n: n.start_byte):
-            t = _txt(data, n)
+            last = _last_leaf(m, n)                    # a trailing comment is not part of the annotation
+            t = data[n.start_byte:last.end_byte].decode("utf8", "replace")
             mt = re.match(m["annotation_name_re"], t)
-            row["annotations"].append([mt.group(1) if mt else t, t, n.start_point[0], n.end_point[0]])
+            row["annotations"].append([mt.group(1) if mt else t, t, n.start_point[0], last.end_point[0]])
     if kind in ("method", "function"):
         ps = []
         for p in sorted([p for i in ids for p in byowner.get(i, [])], key=lambda p: p["node"].start_byte):
