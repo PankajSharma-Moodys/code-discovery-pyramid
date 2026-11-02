@@ -56,7 +56,8 @@ def _scope(m, node):
     p = outer.parent
     if p is None:
         return None
-    if p.type in m["root_types"]:
+    if p.type in m["root_types"] or (p.type in m.get("namespace_bodies", ()) and p.parent is not None
+                                     and p.parent.type in m.get("namespace_types", ())):
         return (None, exp)
     if p.type in m.get("transparent_bodies", ()) and p.parent is not None:
         p = p.parent
@@ -70,6 +71,22 @@ def _scope(m, node):
 def _qual(m, data, owner):
     sc = _scope(m, owner)
     return (_qual(m, data, sc[0]) + "." if sc and sc[0] is not None else "") + _txt(data, owner.child_by_field_name("name"))
+
+
+def _ns(m, data, node):
+    """Dotted namespace of a top-level node (block namespaces around it + a preceding file-scoped one); '' if none."""
+    names, n = [], node
+    while n is not None:
+        if n.type in m.get("namespace_types", ()) and n.child_by_field_name("name") is not None and n is not node:
+            names.insert(0, _txt(data, n.child_by_field_name("name")))
+        if n.parent is not None and n.parent.type in m["root_types"]:
+            s = n.prev_sibling
+            while s is not None and s.type not in m.get("file_scoped_types", ()):
+                s = s.prev_sibling
+            if s is not None:
+                names.insert(0, _txt(data, s.child_by_field_name("name")))
+        n = n.parent
+    return ".".join(names)
 
 
 def _collect(m, data, root, q):
@@ -131,7 +148,11 @@ def _row(m, data, dk, caps, aux, byowner):
     if kind == "function" and owner is not None:
         kind = m["function_kind_in_class"]
     outer, _ = _unwrap(m, node)
-    prim = "{P}"
+    top = owner if owner is not None else node
+    while owner is not None and _scope(m, top) and _scope(m, top)[0] is not None:
+        top = _scope(m, top)[0]
+    ns = _ns(m, data, top) if m.get("namespace_types") else ""
+    prim = "{P}" + ("." + ns if ns else "")
     if owner is None:
         fqn = prim + "." + name
     else:
