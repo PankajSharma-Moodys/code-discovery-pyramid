@@ -8,6 +8,7 @@ inside closures or produced by factories are not seen.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from typing import Dict, List, Optional
 
@@ -23,7 +24,8 @@ from .base import (
     mk_use,
 )
 from .web_decl import declarations, flow_decls, tool_rows as _tool_rows
-from .web_flow import Source, http_calls, module_calls, pusher_events, routes
+from .web_flow import Source, http_calls, pusher_events, routes
+from .web_uses import module_uses
 from .web_scan import scan
 
 IMPORT_RE = re.compile(
@@ -45,13 +47,21 @@ def _is_test_path(path: str) -> bool:
 
 class WebExtractor(Extractor):
     language = "javascript"
-    extensions = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
+    extensions = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".vue")
 
     def extract(self, ctx: ExtractContext) -> FileFacts:
+        template = None
+        if ctx.path.endswith(".vue"):                      # the <script> blocks only; line numbers kept
+            script, tmpl, ts = vue_parts(ctx.lines)
+            ctx_full, ctx = ctx, dataclasses.replace(ctx, lines=script)
+            code_t, stacks_t, _ = scan(tmpl)
+            template = Source(code_t, stacks_t)
+        else:
+            ctx_full, ts = ctx, ctx.path.rsplit(".", 1)[-1].startswith(("ts", "mts", "cts"))
         lines = ctx.lines
         code, stacks, _balanced = scan(lines)
-        language = "typescript" if ctx.path.rsplit(".", 1)[-1].startswith(("ts", "mts", "cts")) else "javascript"
-        facts = FileFacts(path=ctx.path, language=language, loc=count_loc(lines))
+        language = "typescript" if ts else "javascript"
+        facts = FileFacts(path=ctx.path, language=language, loc=count_loc(ctx_full.lines))
         facts.package = ctx.path.rsplit(".", 1)[0]
         primary = facts.package
         facts.primary = primary
@@ -115,17 +125,14 @@ class WebExtractor(Extractor):
             if anchor:
                 target = "http:%s%s" % (call["verb"] + " " if call["verb"] else "", call["url"])
                 facts.io_edges.append(mk_edge(call["source"], target, "http_out", anchor))
-        for call in module_calls(src, decls, primary, lambda spec: _normalise_relative(ctx.path, spec)):
-            anchor = anchor_at(ctx, call["line"])
+        for call in module_uses(src, decls, primary, lambda spec: _module_id(ctx.path, spec), template):
+            anchor = anchor_at(ctx_full, call["line"])
             if not anchor:
                 continue
-            if call["name"] is None:                       # named function import: module.fn
-                fqn = "%s#%s" % (call["module"], call["exported"])
-            else:
-                fqn = "%s.%s#%s" % (call["module"], call["cls"], call["name"]) if call["cls"] \
-                    else "%s#%s" % (call["module"], call["name"])
-            row = mk_use(fqn, anchor, via_import=False, resolved="external")
-            row.update({"kind": "call", "from_symbol": call["from"], "speculative": False, "how": "call"})
+            row = mk_use(_use_fqn(call), anchor, via_import=False, resolved="external")
+            row.update({"kind": call["kind"], "from_symbol": call["from"], "speculative": False, "how": call["kind"]})
+            if "webmod" in call:       # bound to a declared symbol by `cdp/webres.py`, which sees the repo's files
+                row.update({k: call[k] for k in ("webmod", "webexp", "webname", "weblocal", "reexport_as") if k in call})
             facts.uses.append(row)
         for rt in ([] if _is_test_path(ctx.path) else routes(src)):   # a test's <Route> is not the app's route
             anchor = anchor_at(ctx, rt["line"])
@@ -140,6 +147,47 @@ class WebExtractor(Extractor):
         facts.signals = sorted(set(facts.signals))
         facts.io_edges = _dedupe_edges(facts.io_edges)
         return facts
+
+
+def _module_id(path: str, spec: str) -> str:
+    """A relative specifier as a repo-relative module id; an alias (`@/x`) as written."""
+    return _normalise_relative(path, spec) if spec.startswith(".") else spec
+
+
+def _use_fqn(call: Dict) -> str:
+    if "fqn" in call:
+        return call["fqn"]
+    mod, exp, name = call["webmod"], call["webexp"], call["webname"]
+    if name is None:
+        return "%s#%s" % (mod, exp if exp not in ("default", "*") else call["weblocal"])
+    if exp in ("default", "*") and not call["weblocal"][:1].isupper() or exp == "*":
+        return "%s#%s" % (mod, name)
+    return "%s.%s#%s" % (mod, exp if exp != "default" else call["weblocal"], name)
+
+
+def vue_parts(lines: List[str]):
+    """(lines with everything outside `<script>` blanked, lines with the script and style blocks
+    blanked, TypeScript?) -- same line count, so a line number means the same line in each."""
+    script, tmpl, ts, mode = [], [], False, None
+    for line in lines:
+        if mode is None:
+            m = re.match(r"\s*<(script|style)\b([^>]*)>(.*)", line)
+            if m:
+                mode = m.group(1)
+                ts = ts or (mode == "script" and bool(re.search(r"lang\s*=\s*[\"']ts", m.group(2))))
+                rest = m.group(3)
+                if "</%s>" % mode in rest:
+                    mode = None
+                script.append(""), tmpl.append("")
+                continue
+            script.append(""), tmpl.append(line)
+        else:
+            if re.match(r"\s*</%s>" % mode, line):
+                script.append(""), tmpl.append("")
+                mode = None
+            else:
+                script.append(line if mode == "script" else ""), tmpl.append("")
+    return script, tmpl, ts
 
 
 def _add_import(

@@ -40,6 +40,7 @@ from .pytypes import PyIndex
 from .wildcards import add_wildcard_signals
 from .lang.base import is_third_party
 from .routes_cs import expand_routes
+from .webres import WebIndex, is_web
 
 SYMBOLIC_RE = re.compile(r"\$\{([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\}")
 
@@ -264,7 +265,7 @@ def _constant_table(extraction: Dict) -> Dict[str, Dict]:
 
 def _lang_of(path: str) -> str:
     ext = path.rsplit(".", 1)[-1].lower() if "." in path.rsplit("/", 1)[-1] else ""
-    return "python" if ext in ("py", "pyi") else ext
+    return "python" if ext in ("py", "pyi") else "web" if is_web(path) else ext
 
 
 def _resolve_by_language(extraction, module_set, symbol_owner, namespace_owner, symbols, paths,
@@ -331,18 +332,28 @@ def _resolve_uses(
     cstypes = CsTypeIndex(extraction, symbols) if any(f.endswith(".cs") for f in extraction["files"]) else None
 
     # Python call/reference rows are expressions; each becomes one row per target.
+    web = WebIndex(paths, symbols, [r for r in extraction["uses"] if r.get("reexport_as")])
     for row in types.expand(extraction["uses"]):
         fqn = row["fqn"]
         module = row["module"]
         entry = symbols.get(fqn)
-        if row.get("pyres"):
+        if row.get("webmod") is not None:
+            # JS/TS/Vue import-bound use: `webres` names the declared symbol (alias, default, re-export)
+            fqn = web.target(row)
+            if fqn is None:
+                continue
+            entry = symbols[fqn]
+        elif row.get("pyres"):
             pass  # `PyIndex.expand` already settled the target
         elif row.get("kind") == "call":
             # Inherited methods resolve to their declaring class; chained
             # receivers are walked through declared return and field types.
-            fqn = (cstypes if cstypes and row["file"].endswith(".cs") else types).call_target(row)
-            if fqn is None:
-                continue
+            if is_web(row["file"]) and fqn in symbols:
+                pass    # a JS/TS `module#fn` / `module.Cls#m` call is already the declared symbol: no class walk
+            else:
+                fqn = (cstypes if cstypes and row["file"].endswith(".cs") else types).call_target(row)
+                if fqn is None:
+                    continue
             entry = symbols.get(fqn) or symbols.get(fqn.split("#", 1)[0])
         elif row.get("kind"):
             # Member-level rows (typed references, calls, bindings) name a type

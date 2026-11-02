@@ -130,8 +130,10 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
         seen_sites: set = set()
         users = [u for u in users if not ((u["file"], u["anchor"]["line"]) in seen_sites
                                           or seen_sites.add((u["file"], u["anchor"]["line"])))]
+        excluded = 0
         if exclude_role:
-            users = [u for u in users if roles.get(u.get("file")) not in exclude_role]
+            kept = [u for u in users if roles.get(u.get("file")) not in exclude_role]
+            excluded, users = len(users) - len(kept), kept
         claims = [c for c in store.state["claims"] if c.get("subject") == key or _matches(c.get("statement", ""), key.rsplit(".", 1)[-1])]
         if not include_library:
             claims = [c for c in claims if "library:" not in c.get("subject", "")]
@@ -193,6 +195,8 @@ def q_symbol(store: Store, name: str, budget: Optional[Budget] = None,
                 # The true total, kept alongside the budgeted list, so the
                 # renderer states "used by 47 site(s)" even when it shows 12.
                 "used_by_count": len(users),
+                # uses the default role filter hid (tests, library): 0 callers is not "no callers" when this is set
+                **({"used_by_excluded_count": excluded} if excluded else {}),
                 # `in`: the method/function whose body holds the use -- the caller node a diagram names.
                 "used_by": [_use_row(store, u) for u in shown_users],
                 "claims": shown_claims,
