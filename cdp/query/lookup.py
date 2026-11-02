@@ -353,13 +353,13 @@ def _define_annotations(rel: str, d: Dict) -> Dict:
 
 def _symbol_body(store: Store, key: str, entry: Dict, sites: List[Dict]) -> Dict:
     """`body`: one row per definition site of a method (overloads differ): calls, throws, literals."""
-    if entry["kind"] != "method":
+    if entry["kind"] not in ("method", "function"):
         return {}
     body = []
     for s in sites:
         rows = _memo(store, "_method_rows:" + s["file"],
                      lambda: {(d["fqn"], d["file"], d["anchor"]["line"]): d
-                              for d in file_rows(store, s["file"], "defines") if d["kind"] == "method"})
+                              for d in file_rows(store, s["file"], "defines") if d["kind"] in ("method", "function")})
         d = rows.get((key, s["file"], s["anchor"]["line"]))
         facts = _body_facts(store, s["file"], key, d) if d else {}
         if facts or s.get("sig"):
@@ -370,7 +370,7 @@ def _symbol_body(store: Store, key: str, entry: Dict, sites: List[Dict]) -> Dict
 def _short_name(fqn: str) -> str:
     """`pkg.Outer.Inner#method` -> `Inner#method`; `pkg.Type` -> `Type`."""
     owner, sep, member = fqn.partition("#")
-    return owner.rsplit(".", 1)[-1] + sep + member
+    return owner.rsplit(".", 1)[-1].rsplit("/", 1)[-1] + sep + member
 
 
 def q_file(store: Store, path: str, budget: Optional[Budget] = None,
