@@ -68,6 +68,8 @@ class IO:
         self.routers: Dict[str, str] = {}        # variable -> url prefix
         self.docstrings: Set[int] = set()
         self.cur_class = ""                      # simple name of the class being walked
+        self.cur_table = ""                      # `__tablename__` of the class being walked
+        self.cols: Set[int] = set()              # Column( calls already emitted by their table call
         self.seen: Set[Tuple] = set()
         self.has_django_urls = False
         self.sqlalchemy = False                  # the file imports an ORM that has `Table(name, metadata, ...)`
@@ -206,14 +208,17 @@ class IO:
         if isinstance(node, ast.ClassDef):
             fqn = owner + ("#" if where == "func" else ".") + node.name
             self.klass(node, fqn)
+            self.decorators(node, fqn)
             for d in node.decorator_list:
                 self.visit(d, owner, where)
             for b in node.bases:
                 self.visit(b, owner, where)
-            outer, self.cur_class = self.cur_class, node.name
+            outer, self.cur_class, outer_table = self.cur_class, node.name, self.cur_table
+            self.cur_table = next((self.fold(t.value, {}) or "" for t in stmts(node.body) if isinstance(t, ast.Assign) and any(
+                isinstance(x, ast.Name) and x.id == "__tablename__" for x in t.targets)), "")
             for s in node.body:
                 self.visit(s, fqn, "class")
-            self.cur_class = outer
+            self.cur_class, self.cur_table = outer, outer_table
         elif isinstance(node, FUNC):
             fqn = owner + ("." if where == "func" else "#") + node.name
             self.decorators(node, fqn)
@@ -288,6 +293,15 @@ class IO:
             name = self.fold(n.args[0], {})
             if name:
                 self.edge(owner, "table:" + name, "persist", n.lineno)
+        if leaf in ("Table", "create_table") and n.args:      # its Column( sites belong to the named table
+            for a in n.args[1:]:
+                if isinstance(a, ast.Call) and _leaf(a.func) == "Column":
+                    self.cols.add(id(a))
+                    self.edge(owner, "table:" + (self.fold(n.args[0], {}) or DYNAMIC), "persist", a.lineno)
+        if leaf == "Column" and id(n) not in self.cols:        # one persist edge per Column( site
+            in_class = bool(self.cur_class) and owner.endswith("." + self.cur_class)
+            self.edge(owner, "table:" + self.cur_table if self.cur_table else "entity:" + owner if in_class else "table:" + DYNAMIC,
+                      "persist", n.lineno)
         if leaf in ("add_url_rule", "add_api_route", "add_route", "add_get", "add_post", "add_put",
                     "add_delete", "add_patch") and n.args:
             self.add_rule(n, leaf, owner)
@@ -358,12 +372,12 @@ class IO:
             target = call.func if call else dec
             leaf = _leaf(target)
             if leaf in ROUTE_METHODS and isinstance(target, ast.Attribute) and call is not None:
-                self.route_decorator(call, target, leaf, fqn, dec)
+                self.route_decorator(call, target, leaf, fqn, dec, node if isinstance(node, ast.ClassDef) else None)
             elif leaf in TASK_DECORATORS:
                 self.facts.signals.append("scheduled")
                 self.edge(fqn, "scheduler", "schedule", getattr(dec, "lineno", node.lineno))
 
-    def route_decorator(self, call: ast.Call, target: ast.Attribute, leaf: str, fqn: str, dec) -> None:
+    def route_decorator(self, call: ast.Call, target: ast.Attribute, leaf: str, fqn: str, dec, cls=None) -> None:
         recv = target.value.id if isinstance(target.value, ast.Name) else _dotted(target.value)
         path_node = call.args[0] if call.args else next((k.value for k in call.keywords if k.arg in ("path", "rule")), None)
         if path_node is None and leaf != "route":
@@ -374,7 +388,7 @@ class IO:
         prefix = self.routers.get(recv, "")
         if prefix and raw != DYNAMIC:
             raw = prefix.rstrip("/") + ("/" + raw.lstrip("/") if raw.strip("/") else "")
-        verbs = self.verbs(call, leaf)
+        verbs = self.verbs(call, leaf, cls)
         self.facts.signals.append("http_resource")
         for v in verbs:
             self.edge(fqn, "route:%s %s" % (v, raw or "/"), "http_in", dec.lineno)
@@ -385,9 +399,11 @@ class IO:
             return "".join(p.value if isinstance(p, ast.Constant) else "{}" for p in node.values)
         return "".join(parts) if parts is not None else None
 
-    def verbs(self, call: ast.Call, leaf: str) -> List[str]:
+    def verbs(self, call: ast.Call, leaf: str, cls: Optional[ast.ClassDef] = None) -> List[str]:
         if leaf in HTTP_VERBS:
             return [leaf.upper()]
+        if cls is not None:       # flask-restx `@ns.route("/x") class X(Resource)`: the verbs are the methods it defines
+            return [n.name.upper() for n in cls.body if isinstance(n, FUNC) and n.name in HTTP_VERBS] or ["GET"]
         if leaf == "websocket":
             return ["WS"]
         for k in call.keywords:

@@ -85,3 +85,46 @@ def test_tool_off_keeps_flow_rows(monkeypatch):
     monkeypatch.setenv("CDP_TS", "off")
     r, _ = rows()
     assert "pkg.m.Model" in r and "supertypes" not in r["pkg.m.Model"] and "params" not in r["pkg.m#get_x"] and not r["pkg.m#get_x"].get("annotations")
+
+
+EDGES = '''from flask_restx import Namespace, Resource
+from flask_sqlalchemy import SQLAlchemy
+import sqlalchemy as sa
+from alembic import op
+
+ns = Namespace("a")
+db = SQLAlchemy()
+
+
+@ns.route("/items")
+class Items(Resource):
+    def get(self): pass
+    def post(self): pass
+
+
+class Tag(db.Model):
+    __tablename__ = "tags"
+    id = db.Column(db.Integer, primary_key=True)
+    label = db.Column(
+        db.String(10))
+
+
+class Loose:
+    n = sa.Column(sa.Integer)
+
+
+def upgrade():
+    op.create_table("things", sa.Column("id", sa.Integer), sa.Column("x", sa.Text))
+    y = sa.Column("y", sa.Text)
+'''
+
+
+def test_class_level_routes_and_column_sites():
+    _, f = rows(EDGES)
+    e = [(x["source"].rsplit(".", 1)[-1], x["target"], x["channel"], x["anchor"]["line"]) for x in f.io_edges
+         if x["channel"] in ("http_in", "persist") and not x["target"].startswith("library:")]
+    assert ("Items", "route:GET /items", "http_in", 10) in e and ("Items", "route:POST /items", "http_in", 10) in e
+    assert ("Tag", "table:tags", "persist", 18) in e and ("Tag", "table:tags", "persist", 19) in e
+    assert ("Loose", "entity:pkg.m.Loose", "persist", 24) in e
+    assert ("m#upgrade", "table:things", "persist", 28) in e and ("m#upgrade", "table:(dynamic)", "persist", 29) in e
+    assert len([x for x in e if x[1] == "table:things"]) == 1          # two Column( on one line are one site
