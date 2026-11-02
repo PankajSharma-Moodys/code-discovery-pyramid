@@ -28,6 +28,7 @@ from .scala_decl import ScalaDeclParser
 from .scala_emit import ScResolver, declarations, di_signals, read_imports
 from .scala_body import scan_file
 from .scala_flow import emit_flow
+from .scala_ts import apply as ts_overlay
 from .scala_tokens import ScTokens, string_value
 
 
@@ -49,6 +50,7 @@ class ScalaExtractor(Extractor):
         resolver.local_types = {t.name: t.fqn for t in types}
         sigs.assign(types, lambda t, tv: norm_type(t, lambda n: resolve_name(resolver, n), tv) or t)
         decls = declarations(ctx, facts, tk, types, resolver)
+        ts_overlay(ctx, facts, types, resolver, pkg)
 
         # Mirror Java: primary is the first top-level type. A companion object has no define row of its
         # own (it merges into the class, same fqn), so its members must not win by line order.

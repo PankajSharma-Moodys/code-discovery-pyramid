@@ -100,6 +100,17 @@ def _collect(m, data, root, q):
     return [v[1] for v in best.values()], aux, byowner
 
 
+def _last_leaf(m, n):
+    """Rightmost leaf that is not trivia: an indented block or a body keeps trailing blank lines/comments inside the node."""
+    skip = m.get("trivia_types", ("comment",))
+    while n.children:
+        k = next((c for c in reversed(n.children) if c.type not in skip and c.end_byte > c.start_byte), None)
+        if k is None:
+            break
+        n = k
+    return n
+
+
 def _row(m, data, dk, caps, aux, byowner):
     node, name_n = caps[dk][0], caps["name"][0]
     if name_n.type not in m["name_node_types"]:
@@ -147,7 +158,7 @@ def _row(m, data, dk, caps, aux, byowner):
         vis = m["visibility"]["exported" if exported else "unexported"]
     else:
         vis = m.get("default_vis_by_owner", {}).get(owner.type, m["visibility"]["default_member"])
-    row = {"fqn": fqn, "kind": kind, "visibility": vis, "line": name_n.start_point[0], "end_line": outer.end_point[0] + 1}
+    row = {"fqn": fqn, "kind": kind, "visibility": vis, "line": name_n.start_point[0], "end_line": _last_leaf(m, outer).end_point[0] + 1}
     if kind == "constant" and merged.get("value"):
         row["value"] = _txt(data, merged["value"][0])
     if kind in m.get("supertype_kinds", ("class", "interface", "enum")) and merged.get("supertypes"):

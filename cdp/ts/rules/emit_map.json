@@ -39,6 +39,27 @@
       "visibility": {"exported": "package", "unexported": "package", "default_member": "package"},
       "default_vis_by_owner": {"interface_declaration": "public", "annotation_type_declaration": "public"},
       "ctor_names": ["<init>"]
+    },
+    "scala": {
+      "rule_file": "scala",
+      "definitions": {"definition.class": "class", "definition.trait": "interface", "definition.object": "class", "definition.enum": "enum", "definition.method": "method", "definition.ctor": "method", "definition.field": "field", "definition.constant": "constant", "definition.cparam": "field", "definition.cparamval": "field"},
+      "def_priority": {"definition.cparamval": 1},
+      "name_by_def": {"definition.ctor": "<init>"},
+      "vis_by_def": {"definition.cparam": "private", "definition.cparamval": "public"},
+      "supertype_kinds": ["class", "interface", "enum"],
+      "scope_wrappers": [],
+      "member_bodies": ["template_body", "class_parameters", "enum_body"],
+      "owner_types": ["class_definition", "trait_definition", "object_definition", "enum_definition"],
+      "root_types": ["compilation_unit"],
+      "param_list_types": ["parameters", "class_parameters"],
+      "nested": true,
+      "decorator_sibling_types": [],
+      "trivia_types": ["comment", "block_comment"],
+      "visibility": {"exported": "public", "unexported": "public", "default_member": "public"},
+      "void_text": "Unit",
+      "private_name_prefix": "",
+      "ctor_names": ["<init>"],
+      "param_name_strip": "^$"
     }
   },
   "root_types": ["program"],
