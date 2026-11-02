@@ -59,7 +59,7 @@
       "visibility": {"exported": "internal", "unexported": "internal", "default_member": "private"},
       "default_vis_by_owner": {"interface_declaration": "public"},
       "ctor_names": ["<init>"],
-      "annotation_name_re": "^\\s*([\\w.]+)",
+      "annotation_name_re": "^\\s*(?:global::)?([\\w.]+)",
       "name_node_types": ["identifier"]
     },
     "java": {
