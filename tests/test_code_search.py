@@ -106,6 +106,16 @@ class CodeSearchTest(_OwnHome, unittest.TestCase):
         (const,) = self.code_hits('TABLE = "orders"')
         self.assertEqual(const["owner"], "a.svc.OrderService.TABLE")
 
+    def test_owner_of_exact_line_define_beats_enclosing_extent(self):
+        rows = [(2, 40, "a.Outer", "class"), (3, 0, "a.Outer.LOG", "field"),
+                (5, 20, "a.Outer#run", "method"), (8, 12, "a.Outer.Inner", "class"),
+                (9, 11, "a.Outer.Inner#go", "method"), (25, 30, "a.Outer#other", "method")]
+        self.assertEqual(owner_of(rows, 3), "a.Outer.LOG")        # field inside the class extent
+        self.assertEqual(owner_of(rows, 9), "a.Outer.Inner#go")   # nested: exact line
+        self.assertEqual(owner_of(rows, 10), "a.Outer.Inner#go")  # multi-line body, innermost
+        self.assertEqual(owner_of(rows, 13), "a.Outer#run")       # after Inner, still in run
+        self.assertEqual(owner_of(rows, 22), "a.Outer")           # between members: the type
+
     def test_text_output_and_not_searched_wording(self):
         code, out = run("query", "search", "purge", "--repo", str(self.repo), "--view", "detail")
         self.assertIn("a.svc.OrderService#drop", out)

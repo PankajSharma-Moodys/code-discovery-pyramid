@@ -56,6 +56,9 @@ def owner_of(rows: List[Tuple[int, int, str, str]], line: int) -> Optional[str]:
     """The member whose declared extent holds `line` (innermost = latest start); else a define
     on that very line; else the nearest preceding define that has no extent and is not a field
     or constant (a type, or a member of a language whose rows carry no end line); else None."""
+    on_line = [fqn for start, _e, fqn, _k in rows if start == line]
+    if on_line:
+        return on_line[-1]
     best = None
     for start, end, fqn, _kind in rows:
         if start > line:
@@ -64,9 +67,6 @@ def owner_of(rows: List[Tuple[int, int, str, str]], line: int) -> Optional[str]:
             best = fqn
     if best:
         return best
-    for start, _end, fqn, _kind in rows:
-        if start == line:
-            return fqn
     for start, end, fqn, kind in reversed(rows):
         if start < line and not end and kind not in _TYPE_KINDS:
             return fqn
