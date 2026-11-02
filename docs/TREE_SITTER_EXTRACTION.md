@@ -5,6 +5,9 @@ Budget: 60 lines. Figures are from scorecard runs at `79a8154` (5-repo corpus, o
 ## What it is
 A shared layer in `cdp/ts/` parses source with tree-sitter and emits declaration rows (`cdp/ts/rules/<lang>.scm`, mapped by `emit_map.json`) in the same schema as the hand extractors. It covers declarations: names, kinds, visibility, params, return and field types, supertypes, annotations.
 
+## Install
+Needs the `ts` extra: `pip install -e '.[ts]'` (pins in `pyproject.toml`; the core stays dependency-free). See README "Install".
+
 ## Switch
 `CDP_TS=<lang,lang | all | off>`. Default: `java,scala,typescript,javascript,csharp,python`. `CDP_TS=off` runs the hand extractors only. `all` or `baseline` also turns on the day-0 baseline fallback for languages with no extractor.
 

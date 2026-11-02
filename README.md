@@ -4,10 +4,28 @@ Reconstructs architecture from a codebase by giving each agent one tightly
 bounded scope, forcing every claim to carry a `file:line` anchor, and
 stitching breadth back together deterministically in Python.
 
-Bundled and dependency-free (stdlib Python 3.10+). See `SKILL.md` for the
+Bundled; the core is stdlib-only Python 3.10+. The tree-sitter extraction layer
+needs the optional `ts` extra (see "Install" below). See `SKILL.md` for the
 narrative walkthrough of the core `scan` → `query` → `run` flow. This file is
 the full command reference: every `cdp` subcommand, what it does, what to run
 next, and the flags worth knowing.
+
+## Install
+
+`pyproject.toml` keeps `dependencies = []` on purpose: the core runs from a copied directory with no installs. Extras are optional:
+
+| Extra | Install | Adds |
+|---|---|---|
+| `ts` | `pip install -e '.[ts]'` | tree-sitter and the grammar wheels (java, c-sharp, scala, python, typescript, javascript, ruby) for the `CDP_TS` extraction layer. Pinned: `tree-sitter==0.25.2` (0.26.0 also tested). |
+| `postgres` | `pip install -e '.[postgres]'` | `psycopg2-binary` for the Postgres store |
+| `web` | `pip install -e '.[web]'` | fastapi, uvicorn and friends for `web/` |
+| `litellm`, `agent` | `pip install -e '.[litellm]'` | the model and agent adapters |
+
+Use a virtualenv (`python3 -m venv .venv && . .venv/bin/activate`), then install the extras you need, for example `pip install -e '.[ts,postgres]'`.
+
+Without the `ts` extra the scan still runs: the tool layer logs `cdp.ts extract/<lang> failed` or `unsupported` and the hand extractors are used. Declarations then lack the gains in `docs/TREE_SITTER_EXTRACTION.md`. (Verified: the extract call returns an empty result instead of raising. Not verified: that the output is identical to `CDP_TS=off`.) Set `CDP_TS=off` to skip the layer on purpose.
+
+Check the setup with `python3 -m cdp.cli selftest`. `tests/test_ts_layer.py` has no skip guard, so expect it to fail without the `ts` extra (not run that way); `test_csharp_ts_rules.py` and `test_cs_ts_overlay.py` have skip guards.
 
 ```bash
 python3 -m cdp.cli --help          # or: python3 .claude/skills/cdp/run.py --help
