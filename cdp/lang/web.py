@@ -22,7 +22,7 @@ from .base import (
     mk_edge,
     mk_use,
 )
-from .web_decl import declarations
+from .web_decl import declarations, flow_decls, tool_rows as _tool_rows
 from .web_flow import Source, http_calls, module_calls, pusher_events, routes
 from .web_scan import scan
 
@@ -56,12 +56,18 @@ class WebExtractor(Extractor):
         primary = facts.package
         facts.primary = primary
 
-        for d in declarations(code, stacks):
-            anchor = anchor_at(ctx, d["line"])
-            if anchor:
-                fqn = primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
-                facts.defines.append(mk_define(fqn, d["kind"], d["vis"], anchor, value=d["value"],
-                                               end_line=d["end"] + 1))
+        tool = _tool_rows(ctx, language, primary)
+        if tool is not None:
+            facts.defines.extend(tool)
+            decls = flow_decls(tool, primary)
+        else:                                              # tree-sitter unavailable or whole-file parse failure
+            decls = declarations(code, stacks)
+            for d in decls:
+                anchor = anchor_at(ctx, d["line"])
+                if anchor:
+                    fqn = primary + "." + (d["cls"] + "." if d["cls"] else "") + d["name"]
+                    facts.defines.append(mk_define(fqn, d["kind"], d["vis"], anchor, value=d["value"],
+                                                   end_line=d["end"] + 1))
 
         seen_channels = set()
         controller_base = ""
@@ -104,7 +110,6 @@ class WebExtractor(Extractor):
                     facts.io_edges.append(mk_edge(primary, "config:" + key, "config_read", anchor))
 
         src = Source(code, stacks)
-        decls = declarations(code, stacks)
         for call in http_calls(src, decls, primary):
             anchor = anchor_at(ctx, call["line"])
             if anchor:
@@ -115,10 +120,10 @@ class WebExtractor(Extractor):
             if not anchor:
                 continue
             if call["name"] is None:                       # named function import: module.fn
-                fqn = "%s.%s" % (call["module"], call["exported"])
+                fqn = "%s#%s" % (call["module"], call["exported"])
             else:
                 fqn = "%s.%s#%s" % (call["module"], call["cls"], call["name"]) if call["cls"] \
-                    else "%s.%s" % (call["module"], call["name"])
+                    else "%s#%s" % (call["module"], call["name"])
             row = mk_use(fqn, anchor, via_import=False, resolved="external")
             row.update({"kind": "call", "from_symbol": call["from"], "speculative": False, "how": "call"})
             facts.uses.append(row)

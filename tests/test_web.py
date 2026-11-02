@@ -123,6 +123,7 @@ class DeclTest(unittest.TestCase):
     def test_members_and_locals(self):
         f = facts_of("src/svc.js", SERVICE)
         by = {d["fqn"].split(".", 1)[1]: d for d in f.defines}
+        by = {k.replace("#", "."): v for k, v in by.items()}      # D1: members are `Cls#m`
         self.assertEqual(by["Svc"]["kind"], "class")
         self.assertEqual(by["Svc.getThing"]["kind"], "method")
         self.assertEqual(by["Svc.constructor"]["kind"], "method")
@@ -135,13 +136,13 @@ class DeclTest(unittest.TestCase):
         f = facts_of("a.js", "export const URL = '/v1/x'\nconst go = async (a) => {\n  const inner = 1\n}\n")
         kinds = {d["fqn"]: (d["kind"], d.get("value")) for d in f.defines}
         self.assertEqual(kinds["a.URL"], ("constant", "/v1/x"))
-        self.assertEqual(kinds["a.go"][0], "method")
+        self.assertEqual(kinds["a#go"][0], "function")
         self.assertNotIn("a.inner", kinds)
 
     def test_ts_visibility(self):
         f = facts_of("a.ts", "class A {\n  private x = 1\n  #y = 2\n  protected m(): void {}\n  n() {}\n}\n")
         vis = {d["fqn"]: d["visibility"] for d in f.defines}
-        self.assertEqual((vis["a.A.x"], vis["a.A.#y"], vis["a.A.m"], vis["a.A.n"]),
+        self.assertEqual((vis["a.A.x"], vis["a.A.#y"], vis["a.A#m"], vis["a.A#n"]),
                          ("private", "private", "protected", "public"))
 
 
@@ -168,7 +169,7 @@ class HttpTest(unittest.TestCase):
         self.assertIn("http:GET ${smlUrl}/quota/${id}", self.out)
 
     def test_source_is_the_calling_member(self):
-        self.assertEqual(self.out["http:GET ${this.baseUrl}/v3/things/${id}"]["source"], "s.Svc.getThing")
+        self.assertEqual(self.out["http:GET ${this.baseUrl}/v3/things/${id}"]["source"], "s.Svc#getThing")
 
     def test_wrapper_without_call_sites_keeps_its_edge(self):
         f = facts_of("w.js", "const get = (p) => axios.get(`${base}/api/${p}`)\n")
@@ -180,9 +181,9 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(sorted(e["target"] for e in edges(f, "http_out")),
                          ["http:GET https://h/x", "http:POST /y"])
 
-    def test_unknown_url_not_emitted(self):
+    def test_unknown_url_is_a_dynamic_edge(self):         # D5/X43: the call exists, the URL is unknown
         f = facts_of("u.js", "function f(u) {\n  fetch(u)\n  axios.get(`${u}`)\n}\n")
-        self.assertEqual(edges(f, "http_out"), [])
+        self.assertEqual({e["target"] for e in edges(f, "http_out")}, {"http:GET {}"})
 
 
 class RouteTest(unittest.TestCase):
@@ -204,8 +205,8 @@ class PusherTest(unittest.TestCase):
     def test_bind_is_a_subscription(self):
         f = facts_of("p.js", PUSHER)
         got = sorted((e["source"], e["target"]) for e in edges(f, "event_subscribe"))
-        self.assertEqual(got, [("p.P.literal", "event:Status"), ("p.P.literal", "event:ch"),
-                               ("p.P.register", "event:${topic}")])
+        self.assertEqual(got, [("p.P#literal", "event:Status"), ("p.P#literal", "event:ch"),
+                               ("p.P#register", "event:${topic}")])
 
     def test_no_pusher_no_edge(self):
         self.assertEqual(edges(facts_of("q.js", "x.bind(this)\n"), "event_subscribe"), [])
@@ -215,9 +216,9 @@ class ModuleCallTest(unittest.TestCase):
     def test_calls_across_modules(self):
         f = facts_of("src/pages/Page.js", PAGE)
         calls = {(u["fqn"], u["from_symbol"]) for u in f.uses if u.get("kind") == "call"}
-        self.assertIn(("src/service/Svc.Svc#getThing", "src/pages/Page.Page.load"), calls)
-        self.assertIn(("src/service/Svc.Svc#list", "src/pages/Page.Page.load"), calls)
-        self.assertIn(("src/pages/util.helper", "src/pages/Page.Page.load"), calls)
+        self.assertIn(("src/service/Svc.Svc#getThing", "src/pages/Page.Page#load"), calls)
+        self.assertIn(("src/service/Svc.Svc#list", "src/pages/Page.Page#load"), calls)
+        self.assertIn(("src/pages/util#helper", "src/pages/Page.Page#load"), calls)
 
 
 if __name__ == "__main__":

@@ -92,6 +92,7 @@ def test_vendor_and_generated_filter():
 
 def test_crash_isolated_and_logged(monkeypatch, caplog):
     monkeypatch.delenv("CDP_TS_INPROC")
+    front._stop()                                   # a worker started by an earlier test would not crash
     monkeypatch.setattr(front, "_BOOT", "import os; os._exit(139)")
     rows, meta = ts.extract_ex("java", "A.java", JAVA, "a")
     assert rows == [] and meta["crash"] and meta["has_error"]

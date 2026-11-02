@@ -92,3 +92,46 @@ def declarations(code: Sequence[str], stacks: Sequence[Tuple[str, ...]]) -> List
             out.append({"name": name, "kind": kind, "vis": vis, "line": i, "end": end,
                         "value": None, "cls": cls_name, "export": False})
     return out
+
+
+_ACCESSOR = re.compile(r"^\s*(?:(?:public|private|protected|static|readonly|override|declare)\s+)*accessor\s+(#?[\w$]+)")
+_EXT_LANG = {"ts": "typescript", "mts": "typescript", "cts": "typescript", "tsx": "tsx"}
+
+
+def tool_rows(ctx, language: str, primary: str) -> Optional[List[Dict]]:
+    """Define rows from the tree-sitter rules (cdp.ts), or None to use the hand scanner (switch off, grammar missing,
+    or a file that failed to parse at all). Free functions are `<module>#<name>` (D1)."""
+    from cdp import ts
+    if not ts.enabled(language):
+        return None
+    lang = _EXT_LANG.get(ctx.path.rsplit(".", 1)[-1].lower(), language)
+    res = ts.extract_ex(lang, ctx.path, "\n".join(ctx.lines), primary)
+    if res is None:
+        return None
+    rows, meta = res
+    if (meta.get("has_error") and not rows) or "crash" in meta or "error" in meta:
+        return None
+    top = primary + "."
+    for r in rows:
+        if r["fqn"].endswith(".accessor"):             # grammar 0.23.2 reads `static accessor x` as a field named accessor
+            m = _ACCESSOR.match(ctx.lines[r["anchor"]["line"] - 1])
+            if m:
+                r["fqn"] = r["fqn"][:-len("accessor")] + m.group(1)
+        f = r["fqn"]
+        if r["kind"] == "function" and f.startswith(top) and "#" not in f[len(top):] and "." not in f[len(top):]:
+            r["fqn"] = primary + "#" + f[len(top):]
+    return rows
+
+
+def flow_decls(rows: List[Dict], primary: str) -> List[Dict]:
+    """Rows -> the declaration dicts the flow code reads (name, cls, kind method|..., line, end, value, fqn)."""
+    out = []
+    for r in rows:
+        f = r["fqn"]
+        rest = f[len(primary) + 1:] if f.startswith(primary) else f
+        head, sep, name = rest.replace("#", "\0").rpartition("\0") if "#" in rest else rest.rpartition(".")
+        cls = head.replace("\0", "#") or None
+        out.append({"name": name or rest, "kind": "method" if r["kind"] in ("function", "method") else r["kind"],
+                    "line": r["anchor"]["line"] - 1, "end": r["end_line"] - 1, "value": r.get("value"), "cls": cls,
+                    "export": r["visibility"] == "public", "fqn": f})
+    return out

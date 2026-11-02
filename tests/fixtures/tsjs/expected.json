@@ -1,0 +1,691 @@
+{
+ "overloads.ts": {
+  "defines": [
+   {
+    "fqn": "fx/overloads#parse",
+    "kind": "function",
+    "vis": "public",
+    "line": 1,
+    "ret": "string",
+    "params": [
+     [
+      "x",
+      "string"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/overloads#parse",
+    "kind": "function",
+    "vis": "public",
+    "line": 2,
+    "ret": "number",
+    "params": [
+     [
+      "x",
+      "number"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/overloads#parse",
+    "kind": "function",
+    "vis": "public",
+    "line": 3,
+    "ret": "any",
+    "params": [
+     [
+      "x",
+      "any"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/overloads.C",
+    "kind": "class",
+    "vis": "public",
+    "line": 4
+   },
+   {
+    "fqn": "fx/overloads.C#m",
+    "kind": "method",
+    "vis": "public",
+    "line": 5,
+    "ret": "<none>",
+    "params": [
+     [
+      "a",
+      "string"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/overloads.C#m",
+    "kind": "method",
+    "vis": "public",
+    "line": 6,
+    "ret": "<none>",
+    "params": [
+     [
+      "a",
+      "number"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/overloads.C#m",
+    "kind": "method",
+    "vis": "public",
+    "line": 7,
+    "ret": "<none>",
+    "params": [
+     [
+      "a",
+      "any"
+     ]
+    ]
+   }
+  ]
+ },
+ "decorators.ts": {
+  "defines": [
+   {
+    "fqn": "fx/decorators.Svc",
+    "kind": "class",
+    "vis": "public",
+    "line": 2,
+    "annotations": [
+     "Injectable"
+    ]
+   },
+   {
+    "fqn": "fx/decorators.Svc.name",
+    "kind": "field",
+    "vis": "public",
+    "line": 3,
+    "ftype": "string",
+    "annotations": [
+     "Input"
+    ]
+   },
+   {
+    "fqn": "fx/decorators.Svc#find",
+    "kind": "method",
+    "vis": "public",
+    "line": 5,
+    "ret": "string",
+    "params": [
+     [
+      "id",
+      "string"
+     ]
+    ],
+    "annotations": [
+     "Get"
+    ]
+   }
+  ]
+ },
+ "generic_arrow.tsx": {
+  "defines": [
+   {
+    "fqn": "fx/generic_arrow#id",
+    "kind": "function",
+    "vis": "public",
+    "line": 1,
+    "ret": "T",
+    "params": [
+     [
+      "x",
+      "T"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/generic_arrow#Comp",
+    "kind": "function",
+    "vis": "public",
+    "line": 2,
+    "params": [
+     [
+      "p",
+      "{ a: string }"
+     ]
+    ]
+   }
+  ]
+ },
+ "generic_arrow2.ts": {
+  "defines": [
+   {
+    "fqn": "fx/generic_arrow2#wrap",
+    "kind": "function",
+    "vis": "public",
+    "line": 1,
+    "ret": "T[]",
+    "params": [
+     [
+      "x",
+      "T"
+     ]
+    ]
+   }
+  ]
+ },
+ "declare_members.ts": {
+  "defines": [
+   {
+    "fqn": "fx/declare_members#df",
+    "kind": "function",
+    "vis": "internal",
+    "line": 1,
+    "ret": "string",
+    "params": [
+     [
+      "n",
+      "number"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/declare_members.DC",
+    "kind": "constant",
+    "vis": "internal",
+    "line": 2,
+    "ftype": "string"
+   },
+   {
+    "fqn": "fx/declare_members.DK",
+    "kind": "class",
+    "vis": "internal",
+    "line": 3
+   },
+   {
+    "fqn": "fx/declare_members.DK#m",
+    "kind": "method",
+    "line": 3,
+    "ret": "<none>"
+   },
+   {
+    "fqn": "fx/declare_members.DK.p",
+    "kind": "field",
+    "line": 3,
+    "ftype": "number"
+   },
+   {
+    "fqn": "fx/declare_members.NS",
+    "kind": "class",
+    "vis": "public",
+    "line": 4
+   },
+   {
+    "fqn": "fx/declare_members.NS#nf",
+    "kind": "method",
+    "line": 4,
+    "ret": "number",
+    "params": [
+     [
+      "a",
+      "number"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/declare_members.NS.k",
+    "kind": "constant",
+    "line": 4,
+    "ftype": "string"
+   }
+  ]
+ },
+ "const_enum.ts": {
+  "defines": [
+   {
+    "fqn": "fx/const_enum.Dir",
+    "kind": "enum",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/const_enum.E2",
+    "kind": "enum",
+    "vis": "internal",
+    "line": 2
+   },
+   {
+    "fqn": "fx/const_enum.Dir.Up",
+    "kind": "field",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/const_enum.Dir.Down",
+    "kind": "field",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/const_enum.E2.A",
+    "kind": "field",
+    "vis": "public",
+    "line": 2
+   }
+  ]
+ },
+ "accessor_fields.ts": {
+  "defines": [
+   {
+    "fqn": "fx/accessor_fields.A",
+    "kind": "class",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/accessor_fields.A.count",
+    "kind": "field",
+    "vis": "public",
+    "line": 2,
+    "ftype": "number"
+   },
+   {
+    "fqn": "fx/accessor_fields.A.tag",
+    "kind": "field",
+    "vis": "public",
+    "line": 3
+   }
+  ]
+ },
+ "bare_arrow.js": {
+  "defines": [
+   {
+    "fqn": "fx/bare_arrow#inc",
+    "kind": "function",
+    "vis": "public",
+    "line": 1,
+    "params": [
+     [
+      "x",
+      null
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/bare_arrow#add",
+    "kind": "function",
+    "vis": "public",
+    "line": 2,
+    "params": [
+     [
+      "a",
+      null
+     ],
+     [
+      "b",
+      null
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/bare_arrow.K",
+    "kind": "class",
+    "vis": "public",
+    "line": 4
+   },
+   {
+    "fqn": "fx/bare_arrow.K#h",
+    "kind": "method",
+    "vis": "public",
+    "line": 4,
+    "params": [
+     [
+      "z",
+      null
+     ]
+    ]
+   }
+  ],
+  "absent": [
+   "fx/bare_arrow.obj.f",
+   "fx/bare_arrow#f",
+   "fx/bare_arrow.f"
+  ]
+ },
+ "asserts_ret.ts": {
+  "defines": [
+   {
+    "fqn": "fx/asserts_ret#assertIsString",
+    "kind": "function",
+    "vis": "public",
+    "line": 1,
+    "ret": "asserts v is string",
+    "params": [
+     [
+      "v",
+      "unknown"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/asserts_ret#isStr",
+    "kind": "function",
+    "vis": "public",
+    "line": 2,
+    "ret": "v is string"
+   },
+   {
+    "fqn": "fx/asserts_ret#must",
+    "kind": "function",
+    "vis": "public",
+    "line": 3,
+    "ret": "asserts v"
+   }
+  ]
+ },
+ "extends_generic.ts": {
+  "defines": [
+   {
+    "fqn": "fx/extends_generic.Repo",
+    "kind": "class",
+    "vis": "public",
+    "line": 1,
+    "supertypes": [
+     "Base<T>",
+     "Store<T>",
+     "Closable"
+    ]
+   },
+   {
+    "fqn": "fx/extends_generic.Sub",
+    "kind": "interface",
+    "vis": "public",
+    "line": 2,
+    "supertypes": [
+     "Parent<T>",
+     "Other"
+    ]
+   },
+   {
+    "fqn": "fx/extends_generic.Plain",
+    "kind": "class",
+    "vis": "public",
+    "line": 3,
+    "supertypes": [
+     "ns.Base"
+    ]
+   }
+  ]
+ },
+ "members_misc.ts": {
+  "defines": [
+   {
+    "fqn": "fx/members_misc.Shape",
+    "kind": "class",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/members_misc.Shape.#secret",
+    "kind": "field",
+    "vis": "private",
+    "line": 2
+   },
+   {
+    "fqn": "fx/members_misc.Shape#area",
+    "kind": "method",
+    "vis": "protected",
+    "line": 3,
+    "ret": "number"
+   },
+   {
+    "fqn": "fx/members_misc.Shape.ORIGIN",
+    "kind": "field",
+    "vis": "public",
+    "line": 4,
+    "ftype": "string"
+   },
+   {
+    "fqn": "fx/members_misc.Shape#size",
+    "kind": "method",
+    "vis": "public",
+    "line": 5,
+    "ret": "number"
+   },
+   {
+    "fqn": "fx/members_misc.Shape#size",
+    "kind": "method",
+    "vis": "public",
+    "line": 6,
+    "params": [
+     [
+      "v",
+      "number"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/members_misc.Shape.opt",
+    "kind": "field",
+    "vis": "private",
+    "line": 7,
+    "ftype": "string"
+   }
+  ]
+ },
+ "type_alias_iface.ts": {
+  "defines": [
+   {
+    "fqn": "fx/type_alias_iface.ID",
+    "kind": "class",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/type_alias_iface.Opt",
+    "kind": "interface",
+    "vis": "public",
+    "line": 2
+   },
+   {
+    "fqn": "fx/type_alias_iface.Opt.a",
+    "kind": "field",
+    "vis": "public",
+    "line": 2,
+    "ftype": "string"
+   },
+   {
+    "fqn": "fx/type_alias_iface.Opt#m",
+    "kind": "method",
+    "vis": "public",
+    "line": 2,
+    "ret": "<none>",
+    "params": [
+     [
+      "x",
+      "number"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/type_alias_iface.Fn",
+    "kind": "class",
+    "vis": "public",
+    "line": 3
+   }
+  ]
+ },
+ "js_class.js": {
+  "defines": [
+   {
+    "fqn": "fx/js_class.Widget",
+    "kind": "class",
+    "vis": "public",
+    "line": 1,
+    "supertypes": [
+     "Base"
+    ]
+   },
+   {
+    "fqn": "fx/js_class.Widget.count",
+    "kind": "field",
+    "vis": "public",
+    "line": 2
+   },
+   {
+    "fqn": "fx/js_class.Widget.#priv",
+    "kind": "field",
+    "vis": "private",
+    "line": 3
+   },
+   {
+    "fqn": "fx/js_class.Widget#render",
+    "kind": "method",
+    "vis": "public",
+    "line": 4,
+    "params": [
+     [
+      "props",
+      null
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/js_class.Widget#handle",
+    "kind": "method",
+    "vis": "public",
+    "line": 5,
+    "params": [
+     [
+      "e",
+      null
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/js_class#util",
+    "kind": "function",
+    "vis": "public",
+    "line": 7,
+    "params": [
+     [
+      "a",
+      null
+     ],
+     [
+      "b",
+      null
+     ],
+     [
+      "rest",
+      null
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/js_class.C",
+    "kind": "constant",
+    "vis": "internal",
+    "line": 9
+   },
+   {
+    "fqn": "fx/js_class.LABEL",
+    "kind": "constant",
+    "vis": "public",
+    "line": 10,
+    "value": "x"
+   }
+  ]
+ },
+ "jsx_in_js.js": {
+  "defines": [
+   {
+    "fqn": "fx/jsx_in_js#App",
+    "kind": "function",
+    "vis": "public",
+    "line": 1
+   },
+   {
+    "fqn": "fx/jsx_in_js.Page",
+    "kind": "class",
+    "vis": "public",
+    "line": 2,
+    "supertypes": [
+     "React.Component"
+    ]
+   },
+   {
+    "fqn": "fx/jsx_in_js.Page#render",
+    "kind": "method",
+    "vis": "public",
+    "line": 2
+   }
+  ]
+ },
+ "error_partial.ts": {
+  "defines": [
+   {
+    "fqn": "fx/error_partial#ok",
+    "kind": "function",
+    "vis": "public",
+    "line": 1,
+    "ret": "number",
+    "params": [
+     [
+      "a",
+      "number"
+     ]
+    ]
+   }
+  ]
+ },
+ "routes.jsx": {
+  "edges": [
+   [
+    "fx/routes",
+    "ui_route:/users/:id",
+    "ui_route"
+   ]
+  ],
+  "defines": [
+   {
+    "fqn": "fx/routes#R",
+    "kind": "function",
+    "vis": "public",
+    "line": 2
+   }
+  ]
+ },
+ "http_calls.ts": {
+  "defines": [
+   {
+    "fqn": "fx/http_calls.Api#get",
+    "kind": "method",
+    "vis": "public",
+    "line": 2,
+    "params": [
+     [
+      "id",
+      "string"
+     ]
+    ]
+   },
+   {
+    "fqn": "fx/http_calls#post",
+    "kind": "function",
+    "vis": "public",
+    "line": 3
+   }
+  ],
+  "edges": [
+   [
+    "fx/http_calls.Api#get",
+    "http:GET /items/${id}",
+    "http_out"
+   ],
+   [
+    "fx/http_calls#post",
+    "http:POST /x",
+    "http_out"
+   ]
+  ]
+ }
+}

@@ -17,10 +17,24 @@
       "rule_file": "javascript"
     },
     "typescript": {
-      "rule_file": "typescript"
+      "rule_file": "typescript",
+      "definitions": {"definition.class": "class", "definition.interface": "interface", "definition.enum": "enum", "definition.type": "class", "definition.function": "function", "definition.method": "method", "definition.field": "field", "definition.var": "var", "definition.enumconst": "field"},
+      "vis_by_def": {"definition.enumconst": "public"},
+      "ftype_owner_defs": ["definition.enumconst"],
+      "scope_wrappers": ["export_statement", "ambient_declaration", "lexical_declaration", "variable_declaration", "expression_statement"],
+      "member_bodies": ["class_body", "interface_body", "enum_body", "statement_block"],
+      "owner_types": ["class_declaration", "abstract_class_declaration", "interface_declaration", "enum_declaration", "internal_module"],
+      "supertype_tail_parents": ["extends_clause"]
     },
     "tsx": {
-      "rule_file": "typescript"
+      "rule_file": "typescript",
+      "definitions": {"definition.class": "class", "definition.interface": "interface", "definition.enum": "enum", "definition.type": "class", "definition.function": "function", "definition.method": "method", "definition.field": "field", "definition.var": "var", "definition.enumconst": "field"},
+      "vis_by_def": {"definition.enumconst": "public"},
+      "ftype_owner_defs": ["definition.enumconst"],
+      "scope_wrappers": ["export_statement", "ambient_declaration", "lexical_declaration", "variable_declaration", "expression_statement"],
+      "member_bodies": ["class_body", "interface_body", "enum_body", "statement_block"],
+      "owner_types": ["class_declaration", "abstract_class_declaration", "interface_declaration", "enum_declaration", "internal_module"],
+      "supertype_tail_parents": ["extends_clause"]
     },
     "java": {
       "rule_file": "java",
