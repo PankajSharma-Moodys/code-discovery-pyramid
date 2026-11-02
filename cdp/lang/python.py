@@ -28,7 +28,7 @@ from .base import (
     mk_edge,
     mk_use,
 )
-from . import python_flow, python_io
+from . import python_flow, python_io, python_ts
 from .pyhttp import emit_http_clients
 from .python_flow import abs_module
 
@@ -54,10 +54,12 @@ class PythonExtractor(Extractor):
                 tree = ast.parse("\n".join(ctx.lines))
         except SyntaxError as exc:
             facts.notes.append("parse_error:line=%s" % getattr(exc, "lineno", "?"))
+            facts.defines = python_ts.apply(ctx, primary, None, []) or []      # the tool still reads a file `ast` cannot
             return facts
 
         _imports(ctx, facts, tree, primary, pkg)
-        python_flow.analyse(ctx, facts, tree, primary, pkg)
+        flow = python_flow.analyse(ctx, facts, tree, primary, pkg)
+        facts.defines = python_ts.apply(ctx, primary, flow, facts.defines) or facts.defines
         python_io.analyse(ctx, facts, tree, primary, pkg)
         emit_http_clients(ctx, facts, tree, primary)
         _entrypoint(ctx, facts, primary)

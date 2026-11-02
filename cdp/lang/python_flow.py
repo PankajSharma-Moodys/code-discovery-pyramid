@@ -27,10 +27,9 @@ from __future__ import annotations
 import ast
 import builtins
 import sys
-import warnings
 from typing import Dict, List, Optional, Set, Tuple
 
-from .base import Ann, ExtractContext, FileFacts, anchor_at, mk_define, mk_use
+from .base import ExtractContext, FileFacts, anchor_at, mk_define, mk_use
 
 Ex = Tuple[str, Tuple[str, ...]]
 
@@ -164,6 +163,9 @@ class Flow:
         self.defined: Dict[str, Dict] = {}          # fqn -> define row (deduplicated)
         self.ftypes: Dict[str, Optional[str]] = {}
         self.bare_ann: Optional[str] = None
+        self.decs: Dict[str, Tuple] = {}            # fqn -> (def node, [(decorator, expression, target)]) for the tool overlay
+        self.bases: Dict[str, Dict[str, Optional[Ex]]] = {}    # class fqn -> {base source text: expression}
+        self.mod_types: Dict[str, Optional[Ex]] = {}            # module-level name -> the type of its value
         self.pinned: set = set()  # fqns whose type a PEP 526 annotation declared
         self.lines = ctx.lines
 
@@ -193,7 +195,7 @@ class Flow:
         self.facts.uses.append(row)
 
     def define(self, fqn: str, kind: str, vis: str, node, value: Optional[str] = None,
-               ret: Optional[Ex] = None, line: Optional[int] = None, annotations=()):
+               ret: Optional[Ex] = None, line: Optional[int] = None):
         """One define per fqn per file (a property's setter, a conditional redefinition
         are the same symbol). Returns the row, or None when the line is not citable."""
         prior = self.defined.get(fqn)
@@ -203,7 +205,7 @@ class Flow:
         if anchor is None:
             return None
         end = getattr(node, "end_lineno", None) or node.lineno
-        row = mk_define(fqn, kind, vis, anchor, value=value, end_line=end, annotations=annotations)
+        row = mk_define(fqn, kind, vis, anchor, value=value, end_line=end)
         if ret is not None:
             row["ret"] = ex_str(ret)
         self.defined[fqn] = row
@@ -675,12 +677,13 @@ class Flow:
 
     def module_assign(self, name: str, ex: Optional[Ex], node, value, annotated: bool) -> None:
         final = annotated and "Final" in ast.unparse(node.annotation)
-        if name.isupper() or final:
+        if name.isupper() or final or annotated:
             fqn = self.mod + "." + name
-            self.define(fqn, "constant", visibility(name), node,
+            self.define(fqn, "constant" if name.isupper() or final else "field", visibility(name), node,
                         value=literal(value) if value is not None else None)
             self.note_ftype(fqn, ex, value, annotated)
         anchor = self.anchor(node.lineno)
+        self.mod_types[name] = ex
         if ex is not None and anchor is not None:
             row = mk_use("%s.%s" % (self.mod, name), anchor, False, "external")
             row.update({"kind": "pybind", "py": ex_str(ex), "name": name, "from_symbol": self.mod})
@@ -736,8 +739,6 @@ class Flow:
     # --------------------------------------------------------- functions
     def function(self, node) -> None:
         parent = self.scope()
-        for d in node.decorator_list:
-            self.decorator(d, node)
         if parent.kind == "class":
             fqn, kind = parent.owner + "#" + node.name, "method"
         elif parent.kind == "module":
@@ -745,6 +746,8 @@ class Flow:
         else:
             fqn, kind = parent.owner + "." + node.name, "function"
         decs = {_leaf(d) for d in node.decorator_list}
+        for d in node.decorator_list:
+            self.decorator(d, node, None if "overload" in decs else fqn)
         is_prop = bool(decs & PROPERTY_DECORATORS)
         is_static = "staticmethod" in decs
         is_classm = "classmethod" in decs
@@ -778,8 +781,7 @@ class Flow:
         sc.has_yield = _has_yield(node)
         # `@overload` stubs describe the signature; the implementation is the symbol
         fresh = fqn not in self.defined and "overload" not in decs
-        row = self.define(fqn, kind, visibility(node.name), node,
-                          annotations=self.decorator_anns(node)) if fresh else None
+        row = self.define(fqn, kind, visibility(node.name), node) if fresh else None
         self.body(node.body)
         self.stack.pop()
         if row is not None:
@@ -806,55 +808,11 @@ class Flow:
         parts[0] = parts[0][node.col_offset:]
         return b"\n".join(parts).decode("utf-8", "replace")
 
-    def _wrapped(self, d) -> bool:
-        pre = self.lines[d.lineno - 1].encode("utf-8")[:d.col_offset].decode("utf-8", "replace")
-        return pre.rstrip().endswith("(") or not pre.strip()
-
-    def _wide(self, d, start: int, end: int, text: str):
-        """A decorator whose expression sits inside parentheses (`@(lambda f: f)`, or the
-        parens spread over lines): widen to the `@` line and the balancing `)`."""
-        while start > 0 and not self.lines[start].lstrip().startswith("@"):
-            start -= 1
-        for e in range(end, min(end + 50, len(self.lines))):
-            chunk = "\n".join(x[:] for x in self.lines[start:e + 1]).lstrip()
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    ast.parse(chunk + "\ndef _(): pass")
-            except SyntaxError:
-                continue
-            return chunk.rstrip(), start, e
-        return text, d.lineno - 1, end
-
-    def decorator_anns(self, node) -> List[Ann]:
-        """One annotation per decorator (PEP 318; any expression since 3.9, PEP 614). `name` is
-        the dotted chain of `@a.b.c` / `@a.b.c(...)`, else the expression's source text."""
-        out = []
-        for d in node.decorator_list:
-            body = self.src(d)
-            if not body:
-                continue
-            t = d.func if isinstance(d, ast.Call) else d
-            parts = []
-            while isinstance(t, ast.Attribute):
-                parts.append(t.attr)
-                t = t.value
-            if isinstance(t, ast.Name):
-                name = ".".join([t.id] + parts[::-1])
-            else:
-                name = " ".join(body.split())
-            text, start, end = "@" + body, d.lineno - 1, d.end_lineno - 1
-            first = self.lines[start]
-            if not first.lstrip().startswith("@") or self._wrapped(d):
-                text, start, end = self._wide(d, start, end, text)
-            ann = Ann(name, text, start, end)
-            ann.parses_args = False   # decorator arguments are not parsed: no `args` key, empty or not
-            out.append(ann)
-        return out
-
-    def decorator(self, d, owner_node) -> None:
+    def decorator(self, d, owner_node, fqn: Optional[str] = None) -> None:
         target = d.func if isinstance(d, ast.Call) else d
         ex = self.ex_of(target)
+        if fqn is not None and (fqn not in self.decs or self.decs[fqn][0] is owner_node):
+            self.decs.setdefault(fqn, (owner_node, []))[1].append((d, ex, target))
         if ex is not None:
             self.row("call", ex, target.end_lineno or target.lineno)
         if isinstance(target, ast.Attribute):
@@ -869,13 +827,15 @@ class Flow:
         parent = self.scope()
         fqn = parent.owner + ("#" if parent.kind == "func" else ".") + node.name
         for d in node.decorator_list:
-            self.decorator(d, node)
-        self.define(fqn, "class", visibility(node.name), node, annotations=self.decorator_anns(node))
+            self.decorator(d, node, fqn)
+        self.define(fqn, "class", visibility(node.name), node)
         for b in node.bases:
             self.expr(b)
+            full = b
             while isinstance(b, ast.Subscript):          # `Base[T]`, `Generic[T]`: the class itself
                 b = b.value
             ex = self.ex_of(b)
+            self.bases.setdefault(fqn, {}).setdefault(" ".join(self.src(full).split()), ex)
             if ex is not None:
                 a = self.anchor(b.lineno)
                 if a is not None:
@@ -1024,5 +984,7 @@ def _has_yield(fn) -> bool:
     return False
 
 
-def analyse(ctx: ExtractContext, facts: FileFacts, tree: ast.Module, mod: str, pkg: str) -> None:
-    Flow(ctx, facts, tree, mod, pkg).run()
+def analyse(ctx: ExtractContext, facts: FileFacts, tree: ast.Module, mod: str, pkg: str) -> "Flow":
+    flow = Flow(ctx, facts, tree, mod, pkg)
+    flow.run()
+    return flow
