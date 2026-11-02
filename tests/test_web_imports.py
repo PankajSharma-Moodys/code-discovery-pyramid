@@ -33,8 +33,10 @@ FILES = {
     "src/tests/jp.spec.ts": "import { nameA } from \"@/util/jp\"\ndescribe(\"a\", () => { it(\"b\", () => { nameA(\"1\") }) })\n",
     "src/comp/C.vue":
         "<template><div @click=\"viaTpl(1)\">{{ viaMap(2) }}</div></template>\n<script setup lang=\"ts\">\n"
-        "import { nameA, viaTpl, viaMap } from \"@/util/jp\"\nconst v = nameA(\"v\")\n</script>\n",
+        "import { nameA, viaTpl, viaMap } from \"@/util/jp\"\nconst v = nameA(\"v\")\n</script>\n<p hint=\"viaTpl is plain text\"/>\n",
     "src/f_dyn.ts": "export async function lazy() { const m = await import(\"./util/jp\"); return m.typed(1) }\n",
+    "src/h_text.ts":
+        "import { nameA } from './util/jp'\nexport const t = /nameA/.test('nameA') && 'nameA(1)'\n",
     "src/g_ref.ts": "import { arrow } from './util/jp'\nexport const xs = [1].map(arrow)\n",
 }
 
@@ -91,6 +93,9 @@ class WebImportUsesTest(unittest.TestCase):
 
     def test_unused_symbol_stays_unused(self):
         self.assertEqual([], self.files("src/util/jp#neverUsed"))
+
+    def test_name_in_string_or_regex_is_not_a_use(self):
+        self.assertNotIn("src/h_text.ts", {f for f, _ in self.files("src/util/jp#nameA")})
 
     def test_import_line_itself_is_not_a_use(self):
         self.assertNotIn(("src/a_named.ts", 1), self.files("src/util/jp#nameA"))

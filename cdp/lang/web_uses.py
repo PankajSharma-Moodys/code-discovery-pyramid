@@ -70,9 +70,17 @@ def bindings(text: str, mod_of) -> Tuple[Dict[str, Tuple[str, str]], List[Tuple[
     return bound, reexports
 
 
+_REGEX = re.compile(r"""(^|[(,=:\[!&|?{};]\s*)(/(?![/*])(?:[^/\n\\\[]|\\.|\[(?:[^\]\n\\]|\\.)*\])+/[gimsuy]*)""", re.M)
+
+
+def _blank(m: "re.Match") -> str:
+    return m.group(0)[0] + " " * (len(m.group(0)) - 2) + m.group(0)[-1] if len(m.group(0)) > 1 else m.group(0)
+
+
 def _masked(text: str) -> str:
-    """`text` with string contents blanked (same length) -- not an import specifier, not a use."""
-    return _STR.sub(lambda m: m.group(0)[0] + " " * (len(m.group(0)) - 2) + m.group(0)[-1] if len(m.group(0)) > 1 else m.group(0), text)
+    """`text` with string and regex-literal contents blanked (same length): neither is a use."""
+    text = _STR.sub(_blank, text)
+    return _REGEX.sub(lambda m: m.group(1) + " " * len(m.group(2)), text)
 
 
 def _spans(text: str, pattern: "re.Pattern") -> List[Tuple[int, int]]:
@@ -134,7 +142,8 @@ def module_uses(src: Source, decls: List[Dict], primary: str, mod_of, template: 
     if bound:
         scan(src, text, False)
         if template is not None:
-            attr = re.compile(r"""=\s*"([^"]*)"|=\s*'([^']*)'|\{\{(.*?)\}\}""", re.S)
+            # an expression: `:prop="e"`, `@ev="e"`, `v-dir="e"`, `{{ e }}`; a plain `hint="text"` is text
+            attr = re.compile(r"""(?<![\w$-])(?:[:@#]|v-)[\w.:@#\[\]-]*\s*=\s*"([^"]*)"|(?<![\w$-])(?:[:@#]|v-)[\w.:@#\[\]-]*\s*=\s*'([^']*)'|\{\{(.*?)\}\}""", re.S)
             for m in attr.finditer(template.text):
                 seg = m.group(m.lastindex or 0) if m.lastindex else ""
                 base = m.start(m.lastindex) if m.lastindex else m.start()
