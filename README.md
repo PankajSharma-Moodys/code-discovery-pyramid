@@ -91,6 +91,10 @@ table below is that same guidance, gathered in one place.
 
 <!-- END COMMANDS -->
 
+## Extraction layers
+
+Declarations come from a tree-sitter layer (`CDP_TS`, on by default) overlaid on the hand extractors; see `docs/TREE_SITTER_EXTRACTION.md` for the switch, measured effect and known limits.
+
 ## What CDP will not tell you
 
 See `SKILL.md`'s "What CDP will not tell you" section — the runtime DI graph,
