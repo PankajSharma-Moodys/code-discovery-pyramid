@@ -3,7 +3,9 @@ from cdp.query import lookup
 
 
 def test_short_name_splits_slash_owner():
-    assert lookup._short_name("fx/sub/overloads#parse") == "overloads#parse"
+    assert lookup._short_name("fx/sub/overloads#parse") == "parse"
+    assert lookup._short_name("src/jpath#findPath") == "findPath"
+    assert lookup._short_name("src/a/Svc.Cls#run") == "Cls#run"   # a method keeps its owner
     assert lookup._short_name("pkg.Outer.Inner#m") == "Inner#m"
     assert lookup._short_name("pkg.Type") == "Type"
 

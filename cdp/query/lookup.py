@@ -368,8 +368,11 @@ def _symbol_body(store: Store, key: str, entry: Dict, sites: List[Dict]) -> Dict
 
 
 def _short_name(fqn: str) -> str:
-    """`pkg.Outer.Inner#method` -> `Inner#method`; `pkg.Type` -> `Type`."""
+    """`pkg.Outer.Inner#method` -> `Inner#method`; `pkg.Type` -> `Type`; a file-path owner
+    (`src/jpath#findPath`, a top-level TS/JS function) -> the bare member `findPath`."""
     owner, sep, member = fqn.partition("#")
+    if sep and "/" in owner and "." not in owner.rsplit("/", 1)[-1]:
+        return member   # the owner is only a module path, so this is a top-level function
     return owner.rsplit(".", 1)[-1].rsplit("/", 1)[-1] + sep + member
 
 
