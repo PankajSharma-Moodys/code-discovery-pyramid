@@ -98,6 +98,7 @@ def apply(ctx, primary: str, flow, old: List[Dict]) -> Optional[List[Dict]]:
         anns = []
         for i, (a, raw) in enumerate(zip(x.get("annotations", []), raws)):
             ann = Ann(_ann_name(raw), raw, a["line"] - 1, a["end_line"] - 1)
+            ann.parses_args = False   # Python keeps `@A()` without args (pinned by test_empty_paren_annotations)
             if dec:
                 ann.fqn = ex_fqn(dec[i][1], dec[i][2], flow)
                 ann.arg_map = decorator_args(flow, dec[i][0])
