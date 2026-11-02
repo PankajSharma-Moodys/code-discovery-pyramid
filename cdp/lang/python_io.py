@@ -29,7 +29,7 @@ from .python_flow import FUNC, abs_module, literal, stmts, target_names
 HTTP_VERBS = ("get", "post", "put", "delete", "patch", "head", "options", "trace")
 ROUTE_METHODS = frozenset(HTTP_VERBS) | {"route", "api_route", "websocket"}
 ROUTER_FACTORIES = {"Flask": "prefix", "Quart": "prefix", "FastAPI": "prefix", "APIRouter": "prefix",
-                    "Blueprint": "url_prefix", "Sanic": "", "Bottle": ""}
+                    "Blueprint": "url_prefix", "Sanic": "", "Bottle": "", "Namespace": "path"}
 TASK_DECORATORS = frozenset(["task", "shared_task", "periodic_task", "scheduled_job"])
 ENV_DEFAULT_CALLS = frozenset(["get", "setdefault", "pop"])
 DYNAMIC = "(dynamic)"
@@ -137,7 +137,8 @@ class IO:
                 for k in value.keywords:
                     if k.arg == kw and kw:
                         prefix = self.fold(k.value, {}) or ""
-                self.routers[var] = prefix
+                name = self.fold(value.args[0], {}) if leaf == "Namespace" and not prefix and value.args else None
+                self.routers[var] = "/" + name.strip("/") if name else prefix       # flask-restx: `path or "/" + name`
 
     def fold(self, node, _seen) -> Optional[str]:
         """A string constant, `"a" + "b"`, or one made of this file's constants."""
