@@ -28,7 +28,7 @@ def by(rows):
 
 def test_switch(monkeypatch):
     monkeypatch.delenv("CDP_TS", raising=False)
-    assert ts.enabled("java") and ts.enabled("scala") and ts.enabled("typescript") and not ts.enabled("python") and not ts.enabled("c_sharp") and not ts.baseline_enabled()
+    assert ts.enabled("java") and ts.enabled("scala") and ts.enabled("typescript") and ts.enabled("c_sharp") and not ts.enabled("python") and not ts.baseline_enabled()
     monkeypatch.setenv("CDP_TS", "java,csharp")
     assert ts.enabled("java") and ts.enabled("c_sharp") and not ts.enabled("python") and not ts.baseline_enabled()
     monkeypatch.setenv("CDP_TS", "all")

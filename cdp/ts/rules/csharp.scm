@@ -19,5 +19,6 @@
 (field_declaration (variable_declaration type: (_) @ftype)) @decl
 (_ (modifier ["public" "protected" "private" "internal"] @vis)) @decl
 (_ (attribute_list (attribute) @decorator)) @decl
-(_ (base_list (_) @supertype)) @decl
+(_ (base_list [(identifier) (generic_name) (qualified_name) (alias_qualified_name)] @supertype)) @decl
+(_ (base_list (primary_constructor_base_type type: (_) @supertype))) @decl
 (variable_declarator "=" . (_) @const.value) @decl

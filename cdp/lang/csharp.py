@@ -37,6 +37,7 @@ from .csharp_http import emit_http_clients
 from .csharp_decl import CMember, CType, DeclParser, parse_type
 from .csharp_tokens import CsTokens, string_value
 from .csharp_types import Resolver, norm_type
+from . import cs_ts
 from .java_types import NO_RETURN
 
 ROUTE_VERBS = {
@@ -70,6 +71,9 @@ class CSharpExtractor(Extractor):
         sigs.assign(types, lambda t, tv: norm_type(t, lambda n: _resolve(resolver, n), tv) or t)
         _resolve_attributes(types, resolver)
         _declarations(ctx, facts, tk, types, resolver)
+        ts_rows = cs_ts.apply(ctx, types, resolver, ns, facts.defines, norm_type, _resolve)   # None: layer unavailable, hand rows stay
+        if ts_rows is not None:
+            facts.defines = ts_rows
         _empty_args(facts)
         _emit_import_edges(facts)
         _emit_routes(ctx, facts, types, tk)
