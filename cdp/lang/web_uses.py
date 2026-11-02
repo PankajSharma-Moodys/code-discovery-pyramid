@@ -19,7 +19,7 @@ _IMPORT = re.compile(r"""\bimport\s+(?:type\s+)?([^'";]*?)\s*\bfrom\s+['"]([^'"]
 _DYN = re.compile(r"""(?:const|let|var)\s+(?:(\w+)|\{([^}]*)\})\s*=\s*(?:await\s+)?(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)""")
 _REEXPORT = re.compile(r"""\bexport\s+(?:type\s+)?(?:\{([^}]*)\}|\*(?:\s+as\s+(\w+))?)\s*from\s*['"]([^'"]+)['"]""")
 _STR = re.compile(r"""'[^'\n]*'|"[^"\n]*\"""")
-_NOT_REF_BEFORE = frozenset(("function", "class", "new", "interface", "type", "enum", "const", "let", "var", "import", "export"))
+_NOT_REF_BEFORE = frozenset(("function", "class", "interface", "type", "enum", "const", "let", "var", "import", "export"))
 
 
 def _parts(body: str) -> List[Tuple[str, str]]:
@@ -127,6 +127,8 @@ def module_uses(src: Source, decls: List[Dict], primary: str, mod_of, template: 
                     continue
                 emit(source, m.start(), local, m.group(1), "call")
                 taken.add(m.start())
+            for m in re.finditer(r"new\s+%s\s*\([^()]*\)\s*\.\s*([A-Za-z_$][\w$]*)\s*\(" % esc, body):
+                emit(source, m.start(), local, m.group(1), "call")
             if exported == "*":
                 continue                                    # a namespace is only used through its members
             for m in re.finditer(r"(?<![\w$.])%s(?![\w$])" % esc, body):
@@ -141,6 +143,10 @@ def module_uses(src: Source, decls: List[Dict], primary: str, mod_of, template: 
 
     if bound:
         scan(src, text, False)
+        for m in re.finditer(r"(?:(?:const|let|var)\s+|this\s*\.\s*)([A-Za-z_$][\w$]*)\s*=\s*new\s+([A-Za-z_$][\w$]*)\s*\(", text):
+            if m.group(2) in bound:                         # `v = new X(..)` then `v.f(`
+                for c in re.finditer(r"(?<![\w$])(?:this\s*\.\s*)?%s\s*\.\s*([A-Za-z_$][\w$]*)\s*\(" % re.escape(m.group(1)), text):
+                    emit(src, c.start(), m.group(2), c.group(1), "call")
         if template is not None:
             # an expression: `:prop="e"`, `@ev="e"`, `v-dir="e"`, `{{ e }}`; a plain `hint="text"` is text
             attr = re.compile(r"""(?<![\w$-])(?:[:@#]|v-)[\w.:@#\[\]-]*\s*=\s*"([^"]*)"|(?<![\w$-])(?:[:@#]|v-)[\w.:@#\[\]-]*\s*=\s*'([^']*)'|\{\{(.*?)\}\}""", re.S)
