@@ -76,7 +76,7 @@ class DeclarationsTest(unittest.TestCase):
 
 
 def defs(facts):
-    return {d["fqn"]: d for d in facts.defines}
+    return {d["fqn"]: d for d in facts.defines if not (d.get("object") and d.get("companion"))}   # X23 object rows aside
 
 
 RESOURCE = (
