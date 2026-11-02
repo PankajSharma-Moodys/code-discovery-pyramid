@@ -123,7 +123,7 @@ def test_class_level_routes_and_column_sites():
     _, f = rows(EDGES)
     e = [(x["source"].rsplit(".", 1)[-1], x["target"], x["channel"], x["anchor"]["line"]) for x in f.io_edges
          if x["channel"] in ("http_in", "persist") and not x["target"].startswith("library:")]
-    assert ("Items", "route:GET /items", "http_in", 10) in e and ("Items", "route:POST /items", "http_in", 10) in e
+    assert ("Items", "route:GET /a/items", "http_in", 10) in e and ("Items", "route:POST /a/items", "http_in", 10) in e
     assert ("Tag", "table:tags", "persist", 18) in e and ("Tag", "table:tags", "persist", 19) in e
     assert ("Loose", "entity:pkg.m.Loose", "persist", 24) in e
     assert ("m#upgrade", "table:things", "persist", 28) in e and ("m#upgrade", "table:(dynamic)", "persist", 29) in e
