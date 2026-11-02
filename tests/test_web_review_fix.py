@@ -16,15 +16,15 @@ def _names(facts):
 class RegexAfterKeywordTest(unittest.TestCase):
     def test_regex_after_return_keeps_later_members(self):
         src = "class Foo {\n  m() { return /[{]/.test('x') }\n  n() { return 1 }\n  o() { return 2 }\n}\n"
-        self.assertEqual(_names(facts_of("c.js", src)), ["c.Foo", "c.Foo.m", "c.Foo.n", "c.Foo.o"])
+        self.assertEqual(_names(facts_of("c.js", src)), ["c.Foo", "c.Foo#m", "c.Foo#n", "c.Foo#o"])
 
     def test_regex_after_typeof_and_case(self):
         src = "class Foo {\n  m(x) { switch (x) { case /[{]/.test(x): return 1 } }\n  n() { return 1 }\n}\n"
-        self.assertEqual(_names(facts_of("c.js", src)), ["c.Foo", "c.Foo.m", "c.Foo.n"])
+        self.assertEqual(_names(facts_of("c.js", src)), ["c.Foo", "c.Foo#m", "c.Foo#n"])
 
     def test_division_is_still_division(self):
         src = "class Foo {\n  m(a, b) { return a / b / 2 }\n  n(a) { const half = a / 2; return half }\n  o() { return 1 }\n}\n"
-        self.assertEqual(_names(facts_of("c.js", src)), ["c.Foo", "c.Foo.m", "c.Foo.n", "c.Foo.o"])
+        self.assertEqual(_names(facts_of("c.js", src)), ["c.Foo", "c.Foo#m", "c.Foo#n", "c.Foo#o"])
 
 
 class TestFileRoutesTest(unittest.TestCase):

@@ -24,6 +24,7 @@
         "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
         "line": 6
       },
+      "end_line": 22,
       "file": "core/src/main/java/COM/Example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget",
       "kind": "class",
@@ -36,6 +37,7 @@
         "file": "core/src/test/java/com/example/mini/core/Widget.java",
         "line": 4
       },
+      "end_line": 9,
       "file": "core/src/test/java/com/example/mini/core/Widget.java",
       "fqn": "com.example.mini.core.Widget",
       "kind": "class",
@@ -70,6 +72,7 @@
       "annotations": [
         {
           "end_line": 18,
+          "fqn": "java.lang.Override",
           "line": 18,
           "name": "Override",
           "text": "@Override"
@@ -155,6 +158,7 @@
           "text": "@Table(name=\"widget\")"
         }
       ],
+      "end_line": 20,
       "file": "core/src/main/java/COM/Example/mini/core/WidgetEntity.java",
       "fqn": "com.example.mini.core.WidgetEntity",
       "kind": "class",
@@ -237,6 +241,7 @@
           "text": "@Repository"
         }
       ],
+      "end_line": 7,
       "file": "core/src/main/java/COM/Example/mini/core/WidgetRepository.java",
       "fqn": "com.example.mini.core.WidgetRepository",
       "kind": "interface",
@@ -252,6 +257,7 @@
         "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
         "line": 3
       },
+      "end_line": 8,
       "file": "web/src/main/java/com/example/mini/web/ApiPaths.java",
       "fqn": "com.example.mini.web.ApiPaths",
       "kind": "class",
@@ -292,6 +298,7 @@
         "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
         "line": 3
       },
+      "end_line": 8,
       "file": "web/src/main/java/com/example/mini/web/WebApplication.java",
       "fqn": "com.example.mini.web.WebApplication",
       "kind": "class",
@@ -338,6 +345,7 @@
           "text": "@Path(ApiPaths.WIDGETS)"
         }
       ],
+      "end_line": 29,
       "file": "web/src/main/java/com/example/mini/web/WidgetResource.java",
       "fqn": "com.example.mini.web.WidgetResource",
       "kind": "class",
