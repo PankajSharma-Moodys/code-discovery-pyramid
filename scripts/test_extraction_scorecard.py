@@ -143,9 +143,9 @@ for _n, _src, _want in [
 ]:
     CASES.append((_n, "d5", _src, _want))
 
-def g1(src):
-    """[(name, np)] of C# methods/ctors the scorer counts as G1-present."""
-    scan = sc.Scan("csharp", ".cs", src.strip("\n").split("\n"))
+def g1(src, lang="csharp", ext=".cs"):
+    """[(name, np)] of methods/ctors the scorer counts as G1-present."""
+    scan = sc.Scan(lang, ext, src.strip("\n").split("\n"))
     return [(m["name"], m["np"]) for m in scan.members if m["cat"] == "method"]
 
 
@@ -160,6 +160,9 @@ for _n, _src, _want in [
      "class C {\n  public C(" + ",\n".join("int p%d" % k for k in range(15)) + ")\n  { }\n}", [("C", 15)]),
 ]:
     CASES.append((_n, "g1", _src, _want))
+
+CASES.append(("g1 ts arrow-typed param does not unbalance split_top (useHotkey.ts)", "g1ts",
+              "export function useHotKey(\n  keys: Key[],\n  callback: (event: KeyboardEvent) => void,\n  opts: Opts = {}\n): void {\n}", [("useHotKey", 3)]))
 
 def jmembers(src):
     scan = sc.Scan("java", ".java", src.strip("\n").split("\n"))
@@ -233,6 +236,9 @@ for case in CASES:
     elif case[1] == "g1":
         name, _, src, want = case
         got = g1(src)
+    elif case[1] == "g1ts":
+        name, _, src, want = case
+        got = g1(src, "typescript", ".ts")
     elif case[1] == "d5":
         name, _, src, want = case
         got = f2_js(src)

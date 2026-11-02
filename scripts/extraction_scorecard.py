@@ -203,9 +203,11 @@ def balanced(text: str, start: int, open_c="(", close_c=")"):
 
 def split_top(s: str, sep=","):
     parts, depth, cur = [], 0, []
-    for ch in s:
+    for i, ch in enumerate(s):
         if ch in "<([{":
             depth += 1
+        elif ch == ">" and i and s[i - 1] == "=":   # `=>` arrow is not a closing bracket
+            pass
         elif ch in ">)]}":
             depth -= 1
         if ch == sep and depth == 0:
