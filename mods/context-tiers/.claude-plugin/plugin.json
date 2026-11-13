@@ -1,0 +1,6 @@
+{
+  "name": "context-tiers",
+  "version": "0.3.0",
+  "description": "Scores conversation exchanges (recency, refs, model-rated value/urgency/staleness) and re-tiers the transcript into HOT/WARM/COLD once context reaches 200K",
+  "types": "./types/index.d.ts"
+}
